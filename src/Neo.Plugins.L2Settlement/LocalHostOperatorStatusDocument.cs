@@ -50,6 +50,15 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Transaction count in the open batch.</summary>
     public required int InProgressTxCount { get; init; }
 
+    /// <summary>First L2 block in the open batch, if any.</summary>
+    public required ulong? OpenBatchFirstBlock { get; init; }
+
+    /// <summary>Last L2 block in the open batch, if any.</summary>
+    public required ulong? OpenBatchLastBlock { get; init; }
+
+    /// <summary>Block count in the open batch.</summary>
+    public required int OpenBatchBlockCount { get; init; }
+
     /// <summary>Operator readiness flag.</summary>
     public required bool IsOperatorReady { get; init; }
 
@@ -115,6 +124,9 @@ public sealed record LocalHostOperatorStatusDocument
             HasPendingSealedBatch = status.HasPendingSealedBatch,
             HasOpenBatch = status.HasOpenBatch,
             InProgressTxCount = status.InProgressTxCount,
+            OpenBatchFirstBlock = status.OpenBatchFirstBlock,
+            OpenBatchLastBlock = status.OpenBatchLastBlock,
+            OpenBatchBlockCount = status.OpenBatchBlockCount,
             IsOperatorReady = status.IsOperatorReady,
             HasDepositSource = status.HasDepositSource,
             HasMessageRouter = status.HasMessageRouter,

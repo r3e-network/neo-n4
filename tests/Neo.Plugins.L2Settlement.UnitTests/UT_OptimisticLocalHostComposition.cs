@@ -81,7 +81,9 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(1UL, host.NextExpectedBlock);
             Assert.IsFalse(host.HasPendingSealedBatch);
             Assert.IsFalse(host.HasOpenBatch);
+            Assert.AreEqual(0, host.OpenBatchBlockCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
+            Assert.IsTrue(host.RegisterInboundMessageNonce(3));
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
             Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());

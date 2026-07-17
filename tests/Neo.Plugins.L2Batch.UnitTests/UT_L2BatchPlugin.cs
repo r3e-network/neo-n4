@@ -246,6 +246,22 @@ public class UT_L2BatchPlugin
     }
 
     [TestMethod]
+    public void ProcessCommittedBlock_TwoBlockSettings_ReportsOpenBatchRange()
+    {
+        using var plugin = new L2BatchPlugin(TwoBlockSettings());
+        plugin.WithSealedBatchSink(new DurableSink(), 1001);
+
+        Assert.IsFalse(plugin.HasOpenBatch);
+        Assert.AreEqual(0, plugin.OpenBatchBlockCount);
+        plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
+        Assert.IsTrue(plugin.HasOpenBatch);
+        Assert.AreEqual(1UL, plugin.OpenBatchFirstBlock);
+        Assert.AreEqual(1UL, plugin.OpenBatchLastBlock);
+        Assert.AreEqual(1, plugin.OpenBatchBlockCount);
+        Assert.IsFalse(plugin.HasPendingSealedBatch);
+    }
+
+    [TestMethod]
     public void ProcessCommittedBlock_RetryOfTriggerBlockPersistsPendingWithoutDuplicateBatch()
     {
         using var plugin = new L2BatchPlugin(OneBlockSettings());

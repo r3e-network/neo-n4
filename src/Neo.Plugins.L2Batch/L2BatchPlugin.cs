@@ -202,6 +202,24 @@ public sealed class L2BatchPlugin : Plugin
     public int InProgressTxCount => _sealer?.InProgressTxCount ?? 0;
 
     /// <summary>
+    /// First L2 block in the open batch, or null when none is open
+    /// (<see cref="BatchSealer.OpenBatchFirstBlock"/>).
+    /// </summary>
+    public ulong? OpenBatchFirstBlock => _sealer?.OpenBatchFirstBlock;
+
+    /// <summary>
+    /// Last L2 block in the open batch, or null when none is open
+    /// (<see cref="BatchSealer.OpenBatchLastBlock"/>).
+    /// </summary>
+    public ulong? OpenBatchLastBlock => _sealer?.OpenBatchLastBlock;
+
+    /// <summary>
+    /// Block count in the open batch
+    /// (<see cref="BatchSealer.OpenBatchBlockCount"/>).
+    /// </summary>
+    public int OpenBatchBlockCount => _sealer?.OpenBatchBlockCount ?? 0;
+
+    /// <summary>
     /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the
     /// reservation source of truth; this method never calls
     /// <see cref="IForcedInclusionSource.ConfirmConsumedAsync"/>.

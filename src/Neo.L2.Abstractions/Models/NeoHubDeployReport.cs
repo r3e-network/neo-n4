@@ -349,7 +349,8 @@ public sealed record NeoHubDeployReport(
                     ["batchPluginFactory"] =
                         "L2BatchPlugin.CreateFromChainDirectory / NextExpectedBlock / "
                         + "HasPendingSealedBatch / PendingSealedBatch / HasOpenBatch / "
-                        + "InProgressTxCount / ProcessCommittedBlock / TryRetryPendingSealedBatch",
+                        + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / "
+                        + "OpenBatchBlockCount / ProcessCommittedBlock / TryRetryPendingSealedBatch",
                     ["settlementPluginFactory"] = "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["bridgePluginFactory"] = "L2BridgePlugin.CreateFromChainDirectory(chainDirectory)",
                     ["proverPluginFactory"] = "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
@@ -428,8 +429,8 @@ public sealed record NeoHubDeployReport(
                         + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                     ["localHostBatcherHelpers"] =
                         "LocalHost.NextExpectedBlock / HasPendingSealedBatch / PendingSealedBatch / "
-                        + "HasOpenBatch / InProgressTxCount / ProcessCommittedBlock / "
-                        + "TryRetryPendingSealedBatch (L2BatchPlugin public hand-off without Neo.CLI)",
+                        + "HasOpenBatch / InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / "
+                        + "OpenBatchBlockCount / ProcessCommittedBlock / TryRetryPendingSealedBatch",
                     ["localHostRpcStoreHelpers"] =
                         "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
                         + "FinalizeRpcBatch / RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / "
@@ -438,7 +439,8 @@ public sealed record NeoHubDeployReport(
                         + "GetRpcWithdrawalProof / GetRpcMessageProof",
                     ["localHostMessageRouterHelpers"] =
                         "LocalHost.MessageOutbox / EnqueueOutboundMessagesAsync / "
-                        + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync",
+                        + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync / "
+                        + "RegisterInboundMessageNonce / InvalidateInboundMessageCache",
                     ["localHostForcedInclusionHelpers"] =
                         "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",
                     ["localHostDaHelpers"] =

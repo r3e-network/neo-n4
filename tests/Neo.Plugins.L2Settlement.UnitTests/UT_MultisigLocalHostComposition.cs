@@ -85,7 +85,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(host.Batch.HasPendingSealedBatch);
             Assert.IsFalse(host.HasOpenBatch);
             Assert.AreEqual(0, host.InProgressTxCount);
+            Assert.IsNull(host.OpenBatchFirstBlock);
+            Assert.IsNull(host.OpenBatchLastBlock);
+            Assert.AreEqual(0, host.OpenBatchBlockCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
+            Assert.IsTrue(host.RegisterInboundMessageNonce(7));
+            host.InvalidateInboundMessageCache();
             // ProcessCommittedBlock is public on L2BatchPlugin/LocalHost; first-block drain hits
             // L1 FI/deposit scanners (funded). Full hand-off covered by L2BatchPlugin unit tests.
             Assert.IsTrue(host.Settlement.IsProductionWired);
@@ -107,6 +112,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(status.HasPendingSealedBatch);
             Assert.IsFalse(status.HasOpenBatch);
             Assert.AreEqual(0, status.InProgressTxCount);
+            Assert.IsNull(status.OpenBatchFirstBlock);
+            Assert.AreEqual(0, status.OpenBatchBlockCount);
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
             Assert.IsFalse(status.IsMetricsHttpListening);
@@ -300,6 +307,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"hasPendingSealedBatch\": false");
             StringAssert.Contains(statusJson, "\"hasOpenBatch\": false");
             StringAssert.Contains(statusJson, "\"inProgressTxCount\": 0");
+            StringAssert.Contains(statusJson, "\"openBatchBlockCount\": 0");
             StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
             StringAssert.Contains(statusJson, "\"stagedWithdrawalCount\": 0");
             var promPath = Path.Combine(chainDir, "metrics.prom");

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Open-batch block range + MessageRouter inbound helpers — 2026-07-17
+
+- `BatchSealer` / `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose
+  `OpenBatchFirstBlock` / `OpenBatchLastBlock` / `OpenBatchBlockCount` for offline batcher
+  progress without Neo.CLI.
+- LocalHost `RegisterInboundMessageNonce` / `InvalidateInboundMessageCache` mirror FI
+  recovery helpers for MessageRouter inbound seeding.
+- Operator status JSON includes open-batch block range; wireproduction + init-l2 tips.
+- No wire/ABI change. Live L1 message fanout remains a funded RPC gate.
+
 ### Added — LocalHost open-batch progress + TryRetryPendingSealedBatch — 2026-07-17
 
 - `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose `HasOpenBatch`,

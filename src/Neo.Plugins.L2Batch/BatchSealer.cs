@@ -97,6 +97,18 @@ public sealed class BatchSealer
     /// <summary>Whether a batch is currently being accumulated.</summary>
     public bool HasOpenBatch => _builder is not null && _pendingBatch is null;
 
+    /// <summary>First L2 block in the open batch, or null when none is open.</summary>
+    public ulong? OpenBatchFirstBlock => HasOpenBatch ? _builder!.Batch.FirstBlock : null;
+
+    /// <summary>Last L2 block in the open batch, or null when none is open.</summary>
+    public ulong? OpenBatchLastBlock => HasOpenBatch ? _builder!.Batch.LastBlock : null;
+
+    /// <summary>Block count in the open batch (0 when none is open).</summary>
+    public int OpenBatchBlockCount =>
+        HasOpenBatch
+            ? checked((int)(_builder!.Batch.LastBlock - _builder.Batch.FirstBlock + 1))
+            : 0;
+
     /// <summary>Immutable sealed batch awaiting durable persistence and acknowledgement.</summary>
     public SealedBatch? PendingBatch => _pendingBatch;
 

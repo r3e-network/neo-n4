@@ -198,8 +198,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
                 "LocalHost.NextExpectedBlock / HasPendingSealedBatch / PendingSealedBatch / "
-                + "HasOpenBatch / InProgressTxCount / ProcessCommittedBlock / "
-                + "TryRetryPendingSealedBatch (L2BatchPlugin public hand-off without Neo.CLI)",
+                + "HasOpenBatch / InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / "
+                + "OpenBatchBlockCount / ProcessCommittedBlock / TryRetryPendingSealedBatch",
                 stores.GetProperty("localHostBatcherHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
@@ -210,7 +210,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostRpcStoreHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.MessageOutbox / EnqueueOutboundMessagesAsync / "
-                + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync",
+                + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync / "
+                + "RegisterInboundMessageNonce / InvalidateInboundMessageCache",
                 stores.GetProperty("localHostMessageRouterHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",
@@ -284,7 +285,8 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory / NextExpectedBlock / "
                 + "HasPendingSealedBatch / PendingSealedBatch / HasOpenBatch / "
-                + "InProgressTxCount / ProcessCommittedBlock / TryRetryPendingSealedBatch",
+                + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / "
+                + "OpenBatchBlockCount / ProcessCommittedBlock / TryRetryPendingSealedBatch",
                 stores.GetProperty("batchPluginFactory").GetString());
             Assert.AreEqual(
                 "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",

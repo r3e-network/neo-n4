@@ -218,6 +218,24 @@ public sealed class MultisigLocalHostComposition : IDisposable
     public int InProgressTxCount => Batch.InProgressTxCount;
 
     /// <summary>
+    /// First L2 block in the open batch, or null
+    /// (<see cref="L2BatchPlugin.OpenBatchFirstBlock"/>).
+    /// </summary>
+    public ulong? OpenBatchFirstBlock => Batch.OpenBatchFirstBlock;
+
+    /// <summary>
+    /// Last L2 block in the open batch, or null
+    /// (<see cref="L2BatchPlugin.OpenBatchLastBlock"/>).
+    /// </summary>
+    public ulong? OpenBatchLastBlock => Batch.OpenBatchLastBlock;
+
+    /// <summary>
+    /// Block count in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchBlockCount"/>).
+    /// </summary>
+    public int OpenBatchBlockCount => Batch.OpenBatchBlockCount;
+
+    /// <summary>
     /// Feed one committed L2 block into the durable batcher hand-off without Neo.CLI
     /// (<see cref="L2BatchPlugin.ProcessCommittedBlock"/>).
     /// </summary>
@@ -313,6 +331,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
             HasPendingSealedBatch = HasPendingSealedBatch,
             HasOpenBatch = HasOpenBatch,
             InProgressTxCount = InProgressTxCount,
+            OpenBatchFirstBlock = OpenBatchFirstBlock,
+            OpenBatchLastBlock = OpenBatchLastBlock,
+            OpenBatchBlockCount = OpenBatchBlockCount,
             IsOperatorReady = IsOperatorReady,
             HasDepositSource = DepositSource is not null,
             HasMessageRouter = MessageRouter is not null,
@@ -470,6 +491,25 @@ public sealed class MultisigLocalHostComposition : IDisposable
         if (MessageRouter is null)
             return ValueTask.FromResult<ReadOnlyMemory<byte>?>(null);
         return MessageRouter.GetMessageProofAsync(messageHash, cancellationToken);
+    }
+
+    /// <summary>
+    /// Seed an L1→L2 inbound message nonce without scanning L1
+    /// (<see cref="RpcMessageRouter.RegisterInboundNonce"/>). Returns false when unwired.
+    /// </summary>
+    public bool RegisterInboundMessageNonce(ulong nonce)
+    {
+        if (MessageRouter is null) return false;
+        return MessageRouter.RegisterInboundNonce(nonce);
+    }
+
+    /// <summary>
+    /// Invalidate the MessageRouter inbound cache so the next dequeue re-fans out from L1
+    /// (<see cref="RpcMessageRouter.InvalidateInboundCache"/>). No-op when unwired.
+    /// </summary>
+    public void InvalidateInboundMessageCache()
+    {
+        MessageRouter?.InvalidateInboundCache();
     }
 
     /// <summary>

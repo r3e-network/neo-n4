@@ -53,6 +53,15 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Transaction count in the open batch (0 when none is open).</summary>
     public required int InProgressTxCount { get; init; }
 
+    /// <summary>First L2 block in the open batch, or null when none is open.</summary>
+    public required ulong? OpenBatchFirstBlock { get; init; }
+
+    /// <summary>Last L2 block in the open batch, or null when none is open.</summary>
+    public required ulong? OpenBatchLastBlock { get; init; }
+
+    /// <summary>Block count in the open batch (0 when none is open).</summary>
+    public required int OpenBatchBlockCount { get; init; }
+
     /// <summary>
     /// <see cref="IsProductionWired"/> and <see cref="HasSealedBatchSink"/> — matches default
     /// LocalHost <c>/readyz</c>.

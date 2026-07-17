@@ -1,3 +1,4 @@
+using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
 using Neo.Plugins.L2Gateway;
 
@@ -80,6 +81,55 @@ public sealed class GatewayHostComposition : IDisposable
         return Open(
             chainDirectory,
             L2GatewayPlugin.CreateMerkleDurableFromChainDirectory(chainDirectory),
+            proofProver,
+            ownsProofProver: false,
+            signer,
+            replayDomain,
+            verificationKeyId,
+            options);
+    }
+
+    /// <summary>
+    /// Open Multisig-round Gateway composition: durable Multisig aggregator/outbox +
+    /// publisher + publication profile. Terminal <paramref name="proofProver"/> must
+    /// match Multisig backend 0xC0.
+    /// </summary>
+    /// <param name="chainDirectory">Chain root after init-l2 / deploy-report materialization.</param>
+    /// <param name="signers">Committee <see cref="ISignerSet"/> for round attestations.</param>
+    /// <param name="threshold">Minimum signatures per aggregation round.</param>
+    /// <param name="proofProver">Terminal proving circuit matching Multisig backend 0xC0.</param>
+    /// <param name="signer">L1 transaction signer for publishGatewayGlobalRoot.</param>
+    /// <param name="replayDomain">Non-zero application/network replay domain.</param>
+    /// <param name="verificationKeyId">Non-zero verification key id bound on L1.</param>
+    /// <param name="options">Optional RPC sender options.</param>
+    public static GatewayHostComposition OpenMultisig(
+        string chainDirectory,
+        ISignerSet signers,
+        int threshold,
+        IGatewayProofProver proofProver,
+        INeoTransactionSigner signer,
+        UInt256 replayDomain,
+        UInt256 verificationKeyId,
+        RpcTransactionSenderOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
+        ArgumentNullException.ThrowIfNull(signers);
+        ArgumentNullException.ThrowIfNull(proofProver);
+        ArgumentNullException.ThrowIfNull(signer);
+        ArgumentNullException.ThrowIfNull(replayDomain);
+        ArgumentNullException.ThrowIfNull(verificationKeyId);
+        if (proofProver.AggregationBackendId != MultisigRoundProver.ConstBackendId)
+        {
+            throw new ArgumentException(
+                $"OpenMultisig requires MultisigRoundProver backend "
+                + $"{MultisigRoundProver.ConstBackendId}, got {proofProver.AggregationBackendId}",
+                nameof(proofProver));
+        }
+
+        return Open(
+            chainDirectory,
+            L2GatewayPlugin.CreateMultisigDurableFromChainDirectory(
+                chainDirectory, signers, threshold),
             proofProver,
             ownsProofProver: false,
             signer,

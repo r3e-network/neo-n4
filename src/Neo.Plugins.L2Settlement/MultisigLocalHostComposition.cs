@@ -1,15 +1,17 @@
 using Neo.L2;
+using Neo.L2.Bridge;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
+using Neo.L2.Telemetry;
 
 namespace Neo.Plugins.L2;
 
 /// <summary>
 /// Multisig/local-DA host composition root: chain-directory plugins + durable layout +
-/// <see cref="L2SettlementPlugin.WireProductionFromLayout"/>.
+/// <see cref="L2SettlementPlugin.WireProductionFromLayout"/> + bridge deposit source + metrics.
 /// </summary>
 /// <remarks>
 /// See doc.md §7.5 / §14.2. Opens Multisig settlement for TrainingWheels-style operators
@@ -29,7 +31,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
         L2SettlementStoreLayout layout,
         L2ProverPlugin prover,
         PersistentDAWriter daWriter,
-        RpcForcedInclusionSource forcedInclusion)
+        RpcForcedInclusionSource forcedInclusion,
+        L2BridgePlugin bridge,
+        L2MetricsPlugin metrics)
     {
         ChainDirectory = chainDirectory;
         Batch = batch;
@@ -38,6 +42,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
         Prover = prover;
         DaWriter = daWriter;
         ForcedInclusion = forcedInclusion;
+        Bridge = bridge;
+        Metrics = metrics;
     }
 
     /// <summary>Absolute chain working directory.</summary>
@@ -60,6 +66,15 @@ public sealed class MultisigLocalHostComposition : IDisposable
 
     /// <summary>Forced-inclusion source installed on the batch plugin.</summary>
     public RpcForcedInclusionSource ForcedInclusion { get; }
+
+    /// <summary>
+    /// Bridge plugin with the same SharedBridge deposit source as the batcher L1 inbox
+    /// when production deposit wiring is active.
+    /// </summary>
+    public L2BridgePlugin Bridge { get; }
+
+    /// <summary>Shared metrics sink host (wired onto batch + settlement).</summary>
+    public L2MetricsPlugin Metrics { get; }
 
     /// <summary>
     /// Open Multisig host composition from a chain directory after
@@ -100,6 +115,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
         L2SettlementStoreLayout? layout = null;
         L2ProverPlugin? prover = null;
         PersistentDAWriter? daWriter = null;
+        L2BridgePlugin? bridge = null;
+        L2MetricsPlugin? metrics = null;
         try
         {
             batch = L2BatchPlugin.CreateFromChainDirectory(root);
@@ -107,6 +124,10 @@ public sealed class MultisigLocalHostComposition : IDisposable
             layout = L2SettlementStoreLayout.Open(root);
             daWriter = PersistentDAWriter.OpenLocalFromChainDirectory(root);
             prover = L2ProverPlugin.CreateMultisigWiredFromChainDirectory(root, signers);
+            metrics = L2MetricsPlugin.CreateFromChainDirectory(root);
+            batch.WithMetrics(metrics.Metrics);
+            settlement.WithMetrics(metrics.Metrics);
+
             var forced = settlement.WireProductionFromLayout(
                 root,
                 layout,
@@ -118,6 +139,12 @@ public sealed class MultisigLocalHostComposition : IDisposable
                 signer,
                 rpcHttpClient: rpcHttpClient);
 
+            bridge = L2BridgePlugin.CreateFromChainDirectory(root);
+            bridge.WithMetrics(metrics.Metrics);
+            var deposits = settlement.ProductionComposition?.OwnedDepositSource;
+            if (deposits is not null)
+                bridge.WithDepositSource(deposits);
+
             return new MultisigLocalHostComposition(
                 root,
                 batch,
@@ -125,11 +152,15 @@ public sealed class MultisigLocalHostComposition : IDisposable
                 layout,
                 prover,
                 daWriter,
-                forced);
+                forced,
+                bridge,
+                metrics);
         }
         catch
         {
             settlement?.Dispose();
+            bridge?.Dispose();
+            metrics?.Dispose();
             prover?.Dispose();
             batch?.Dispose();
             layout?.Dispose();
@@ -145,6 +176,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
         _disposed = true;
         // Settlement owns production RPC scanners/clients that hold layout store refs.
         Settlement.Dispose();
+        Bridge.Dispose();
+        Metrics.Dispose();
         Prover.Dispose();
         Batch.Dispose();
         Layout.Dispose();

@@ -1,5 +1,7 @@
+using Neo.Cryptography.ECC;
 using Neo.L2;
 using Neo.L2.Gateway.Rpc;
+using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
 using Neo.Network.P2P.Payloads;
 using Neo.Plugins.L2Gateway;
@@ -106,6 +108,67 @@ public sealed class UT_GatewayHostComposition
                     new StubSigner(),
                     UInt256.Parse("0x" + new string('1', 64)),
                     UInt256.Parse("0x" + new string('2', 64))));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void OpenMultisig_ConfiguresPublicationWithMultisigBackend()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-host-msig-" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        Directory.CreateDirectory(configDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(configDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            File.WriteAllText(Path.Combine(dir, "l1.deployed.json"), $$"""
+                {
+                  "rpc": "https://l1.example/",
+                  "network": 894710606,
+                  "settlementManager": "{{SettlementManager}}",
+                  "messageRouter": "{{MessageRouter}}"
+                }
+                """);
+
+            var keys = Enumerable.Range(1, 2).Select(i =>
+            {
+                var priv = new byte[32];
+                for (var j = 0; j < 32; j++) priv[j] = (byte)(i + j);
+                return (ECCurve.Secp256r1.G * priv, priv);
+            }).ToList();
+            var signers = new InMemorySignerSet(keys);
+            var prover = new DelegatingGatewayProofProver(
+                proofSystem: 1,
+                aggregationBackendId: MultisigRoundProver.ConstBackendId,
+                proofFactory: static (_, _, _) => ValueTask.FromResult<ReadOnlyMemory<byte>>(
+                    new byte[] { 0x02 }));
+
+            using var host = GatewayHostComposition.OpenMultisig(
+                dir,
+                signers,
+                threshold: 2,
+                prover,
+                new StubSigner(),
+                UInt256.Parse("0x" + new string('d', 64)),
+                UInt256.Parse("0x" + new string('e', 64)));
+
+            Assert.IsFalse(host.OwnsProofProver);
+            Assert.AreEqual(
+                MultisigRoundProver.ConstBackendId,
+                ((BinaryTreeAggregator)host.Gateway.Aggregator).RoundProver.BackendId);
+            Assert.AreEqual(2, ((MultisigRoundProver)((BinaryTreeAggregator)host.Gateway.Aggregator).RoundProver).Threshold);
+            Assert.IsFalse(host.Gateway.HasPendingPublication);
         }
         finally
         {

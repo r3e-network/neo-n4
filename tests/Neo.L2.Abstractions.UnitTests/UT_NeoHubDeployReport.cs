@@ -165,6 +165,9 @@ public class UT_NeoHubDeployReport
                 "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",
                 stores.GetProperty("gatewayHostCompositionMerkle").GetString());
             Assert.AreEqual(
+                "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk)",
+                stores.GetProperty("gatewayHostCompositionMultisig").GetString());
+            Assert.AreEqual(
                 "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk)",
                 stores.GetProperty("gatewayHostCompositionSp1").GetString());
             Assert.AreEqual(

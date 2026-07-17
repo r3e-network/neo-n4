@@ -52,6 +52,11 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsNotNull(host.Settlement.ProductionComposition);
             Assert.IsNotNull(host.Settlement.ProductionComposition!.OwnedDepositSource);
             Assert.IsNotNull(host.Settlement.ProductionComposition.OwnedMessageRouter);
+            Assert.AreEqual(20260716u, host.Bridge.ChainId);
+            Assert.AreSame(
+                host.Settlement.ProductionComposition.OwnedDepositSource,
+                host.Bridge.DepositSource);
+            Assert.IsNotNull(host.Metrics.Metrics);
         }
         finally
         {

@@ -401,6 +401,8 @@ public sealed record NeoHubDeployReport(
                         "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer)",
                     ["gatewayHostCompositionMerkle"] =
                         "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",
+                    ["gatewayHostCompositionMultisig"] =
+                        "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk)",
                     ["gatewayHostCompositionSp1"] =
                         "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk)",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",

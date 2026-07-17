@@ -1,16 +1,18 @@
 using Neo.L2;
+using Neo.L2.Bridge;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Optimistic;
 using Neo.L2.Settlement.Rpc;
+using Neo.L2.Telemetry;
 using Neo.Wallets;
 
 namespace Neo.Plugins.L2;
 
 /// <summary>
 /// Optimistic/local-DA host composition root: chain-directory plugins + durable layout +
-/// <see cref="L2SettlementPlugin.WireProductionFromLayout"/>.
+/// <see cref="L2SettlementPlugin.WireProductionFromLayout"/> + bridge deposit source + metrics.
 /// </summary>
 /// <remarks>
 /// See doc.md §7.5 / §14.2. Opens Optimistic settlement without Neo.CLI. Sequencer key and
@@ -29,7 +31,9 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         L2SettlementStoreLayout layout,
         L2ProverPlugin prover,
         PersistentDAWriter daWriter,
-        RpcForcedInclusionSource forcedInclusion)
+        RpcForcedInclusionSource forcedInclusion,
+        L2BridgePlugin bridge,
+        L2MetricsPlugin metrics)
     {
         ChainDirectory = chainDirectory;
         Batch = batch;
@@ -38,6 +42,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         Prover = prover;
         DaWriter = daWriter;
         ForcedInclusion = forcedInclusion;
+        Bridge = bridge;
+        Metrics = metrics;
     }
 
     /// <summary>Absolute chain working directory.</summary>
@@ -62,17 +68,18 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     public RpcForcedInclusionSource ForcedInclusion { get; }
 
     /// <summary>
+    /// Bridge plugin with the same SharedBridge deposit source as the batcher L1 inbox
+    /// when production deposit wiring is active.
+    /// </summary>
+    public L2BridgePlugin Bridge { get; }
+
+    /// <summary>Shared metrics sink host (wired onto batch + settlement + bridge).</summary>
+    public L2MetricsPlugin Metrics { get; }
+
+    /// <summary>
     /// Open Optimistic host composition from a chain directory after
     /// <c>init-l2 --from-deploy-report</c> (and Optimistic ProofType in settlement/prover config).
     /// </summary>
-    /// <param name="chainDirectory">Chain root with plugin configs + durable store dirs.</param>
-    /// <param name="executor">Batch executor (sample / custom).</param>
-    /// <param name="sequencerKey">Sequencer secp256r1 key for optimistic claims.</param>
-    /// <param name="bondContract">Non-zero L1 bond contract hash.</param>
-    /// <param name="bondTxHash">Non-zero L1 bond transaction hash.</param>
-    /// <param name="signer">L1 settlement transaction signer.</param>
-    /// <param name="rpcHttpClient">Optional HTTP client for L1 JSON-RPC (tests inject mocks).</param>
-    /// <param name="submittedAtUnixMs">Optional wall-clock for challenge windows.</param>
     public static OptimisticLocalHostComposition Open(
         string chainDirectory,
         IProofWitnessBatchExecutor executor,
@@ -108,6 +115,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         L2SettlementStoreLayout? layout = null;
         L2ProverPlugin? prover = null;
         PersistentDAWriter? daWriter = null;
+        L2BridgePlugin? bridge = null;
+        L2MetricsPlugin? metrics = null;
         try
         {
             batch = L2BatchPlugin.CreateFromChainDirectory(root);
@@ -120,6 +129,10 @@ public sealed class OptimisticLocalHostComposition : IDisposable
                 bondContract,
                 bondTxHash,
                 submittedAtUnixMs);
+            metrics = L2MetricsPlugin.CreateFromChainDirectory(root);
+            batch.WithMetrics(metrics.Metrics);
+            settlement.WithMetrics(metrics.Metrics);
+
             var forced = settlement.WireProductionFromLayout(
                 root,
                 layout,
@@ -131,6 +144,12 @@ public sealed class OptimisticLocalHostComposition : IDisposable
                 signer,
                 rpcHttpClient: rpcHttpClient);
 
+            bridge = L2BridgePlugin.CreateFromChainDirectory(root);
+            bridge.WithMetrics(metrics.Metrics);
+            var deposits = settlement.ProductionComposition?.OwnedDepositSource;
+            if (deposits is not null)
+                bridge.WithDepositSource(deposits);
+
             return new OptimisticLocalHostComposition(
                 root,
                 batch,
@@ -138,11 +157,15 @@ public sealed class OptimisticLocalHostComposition : IDisposable
                 layout,
                 prover,
                 daWriter,
-                forced);
+                forced,
+                bridge,
+                metrics);
         }
         catch
         {
             settlement?.Dispose();
+            bridge?.Dispose();
+            metrics?.Dispose();
             prover?.Dispose();
             batch?.Dispose();
             layout?.Dispose();
@@ -157,6 +180,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         if (_disposed) return;
         _disposed = true;
         Settlement.Dispose();
+        Bridge.Dispose();
+        Metrics.Dispose();
         Prover.Dispose();
         Batch.Dispose();
         Layout.Dispose();

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway OpenMultisig + Multisig/Optimistic host bridge/metrics — 2026-07-17
+
+- `GatewayHostComposition.OpenMultisig` binds Multisig durable aggregator/outbox + publisher +
+  publication profile (terminal prover must use backend 0xC0).
+- `MultisigLocalHostComposition` / `OptimisticLocalHostComposition` also open
+  `L2BridgePlugin` (shared deposit source) and `L2MetricsPlugin` (wired onto batch/settlement/bridge).
+- Wireproduction notes + unit coverage.
+
 ### Added — OptimisticLocalHostComposition + GatewayHostComposition — 2026-07-17
 
 - `OptimisticLocalHostComposition.Open` mirrors Multisig: Optimistic settlement + local DA +

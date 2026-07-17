@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost open-batch progress + TryRetryPendingSealedBatch — 2026-07-17
+
+- `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose `HasOpenBatch`,
+  `InProgressTxCount`, and `TryRetryPendingSealedBatch` (retry durable persist without a
+  new L2 block after a transient sink/executor failure).
+- Operator status JSON includes open-batch progress fields.
+- Wireproduction notes, init-l2 tip, unit/integration coverage; no wire/ABI change.
+- Successful retry still needs a working executor/sink (funded or local stub).
+
 ### Added — LocalHost batcher pending status on operator health — 2026-07-17
 
 - `L2BatchPlugin` exposes `HasPendingSealedBatch` / `PendingSealedBatch`; Multisig/Optimistic/Zk

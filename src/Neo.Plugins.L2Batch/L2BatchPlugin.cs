@@ -190,6 +190,18 @@ public sealed class L2BatchPlugin : Plugin
     public SealedBatch? PendingSealedBatch => _sealer?.PendingBatch;
 
     /// <summary>
+    /// True when a batch is currently being accumulated
+    /// (<see cref="BatchSealer.HasOpenBatch"/>).
+    /// </summary>
+    public bool HasOpenBatch => _sealer?.HasOpenBatch ?? false;
+
+    /// <summary>
+    /// Transaction count in the open batch, or 0 when none is open
+    /// (<see cref="BatchSealer.InProgressTxCount"/>).
+    /// </summary>
+    public int InProgressTxCount => _sealer?.InProgressTxCount ?? 0;
+
+    /// <summary>
     /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the
     /// reservation source of truth; this method never calls
     /// <see cref="IForcedInclusionSource.ConfirmConsumedAsync"/>.
@@ -396,6 +408,27 @@ public sealed class L2BatchPlugin : Plugin
             blockIndex, blockTimestamp, network, rawTransactions);
         if (artifact is not null)
             PersistAndAcknowledge(sealer, sink, artifact);
+    }
+
+    /// <summary>
+    /// Retry durable persistence of a pending sealed batch without feeding a new L2 block
+    /// (operator recovery after a transient sink/executor failure).
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> when a pending batch was present and the persist/ack path ran;
+    /// <c>false</c> when no pending sealed batch exists (or the sealer/sink is unwired).
+    /// </returns>
+    /// <remarks>
+    /// See doc.md §7.2. Propagates sink/executor failures so the operator can retry.
+    /// </remarks>
+    public bool TryRetryPendingSealedBatch()
+    {
+        if (!_settings.Enabled) return false;
+        if (_sealer is null || _sink is null) return false;
+        var pending = _sealer.PendingBatch;
+        if (pending is null) return false;
+        PersistAndAcknowledge(_sealer, _sink, pending);
+        return true;
     }
 
     private void PersistAndAcknowledge(

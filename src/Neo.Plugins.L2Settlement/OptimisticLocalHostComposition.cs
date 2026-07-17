@@ -205,6 +205,18 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     public SealedBatch? PendingSealedBatch => Batch.PendingSealedBatch;
 
     /// <summary>
+    /// True when a batch is currently being accumulated
+    /// (<see cref="L2BatchPlugin.HasOpenBatch"/>).
+    /// </summary>
+    public bool HasOpenBatch => Batch.HasOpenBatch;
+
+    /// <summary>
+    /// Transaction count in the open batch
+    /// (<see cref="L2BatchPlugin.InProgressTxCount"/>).
+    /// </summary>
+    public int InProgressTxCount => Batch.InProgressTxCount;
+
+    /// <summary>
     /// Feed one committed L2 block into the durable batcher hand-off without Neo.CLI
     /// (<see cref="L2BatchPlugin.ProcessCommittedBlock"/>).
     /// </summary>
@@ -214,6 +226,12 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         uint network,
         IEnumerable<byte[]> rawTransactions)
         => Batch.ProcessCommittedBlock(blockIndex, blockTimestamp, network, rawTransactions);
+
+    /// <summary>
+    /// Retry durable persistence of a pending sealed batch without a new L2 block
+    /// (<see cref="L2BatchPlugin.TryRetryPendingSealedBatch"/>).
+    /// </summary>
+    public bool TryRetryPendingSealedBatch() => Batch.TryRetryPendingSealedBatch();
 
     /// <summary>
     /// Operator readiness without Neo.CLI: production WireProduction + sealed-batch sink.
@@ -292,6 +310,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             HasSealedBatchSink = HasSealedBatchSink,
             NextExpectedBlock = NextExpectedBlock,
             HasPendingSealedBatch = HasPendingSealedBatch,
+            HasOpenBatch = HasOpenBatch,
+            InProgressTxCount = InProgressTxCount,
             IsOperatorReady = IsOperatorReady,
             HasDepositSource = DepositSource is not null,
             HasMessageRouter = MessageRouter is not null,

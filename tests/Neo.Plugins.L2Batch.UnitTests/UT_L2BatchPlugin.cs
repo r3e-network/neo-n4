@@ -226,6 +226,26 @@ public class UT_L2BatchPlugin
     }
 
     [TestMethod]
+    public void TryRetryPendingSealedBatch_RetriesWithoutNewBlock()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        var sink = new DurableSink { FailBeforePersistOnce = true };
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        Assert.IsFalse(plugin.TryRetryPendingSealedBatch());
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs()));
+        Assert.IsTrue(plugin.HasPendingSealedBatch);
+        Assert.IsFalse(plugin.HasOpenBatch);
+
+        Assert.IsTrue(plugin.TryRetryPendingSealedBatch());
+        Assert.IsFalse(plugin.HasPendingSealedBatch);
+        Assert.AreEqual(1, sink.PersistedBatches.Count);
+        Assert.AreEqual(1UL, sink.Checkpoint!.BatchNumber);
+        Assert.IsFalse(plugin.TryRetryPendingSealedBatch());
+    }
+
+    [TestMethod]
     public void ProcessCommittedBlock_RetryOfTriggerBlockPersistsPendingWithoutDuplicateBatch()
     {
         using var plugin = new L2BatchPlugin(OneBlockSettings());

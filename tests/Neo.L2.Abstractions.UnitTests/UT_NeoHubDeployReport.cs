@@ -198,7 +198,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
                 "LocalHost.NextExpectedBlock / HasPendingSealedBatch / PendingSealedBatch / "
-                + "ProcessCommittedBlock (L2BatchPlugin public hand-off without Neo.CLI)",
+                + "HasOpenBatch / InProgressTxCount / ProcessCommittedBlock / "
+                + "TryRetryPendingSealedBatch (L2BatchPlugin public hand-off without Neo.CLI)",
                 stores.GetProperty("localHostBatcherHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
@@ -282,7 +283,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("gatewayHostOpsHelpers").GetString());
             Assert.AreEqual(
                 "L2BatchPlugin.CreateFromChainDirectory / NextExpectedBlock / "
-                + "HasPendingSealedBatch / PendingSealedBatch / ProcessCommittedBlock",
+                + "HasPendingSealedBatch / PendingSealedBatch / HasOpenBatch / "
+                + "InProgressTxCount / ProcessCommittedBlock / TryRetryPendingSealedBatch",
                 stores.GetProperty("batchPluginFactory").GetString());
             Assert.AreEqual(
                 "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",

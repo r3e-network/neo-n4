@@ -231,9 +231,9 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "ZkLocalHostComposition.Open");
         StringAssert.Contains(output, "IsOperatorReady");
         StringAssert.Contains(output, "GetOperatorStatusAsync");
-        StringAssert.Contains(output, "ProcessCommittedBlock");
         StringAssert.Contains(output, "NextExpectedBlock");
-        StringAssert.Contains(output, "HasPendingSealedBatch");
+        StringAssert.Contains(output, "HasOpenBatch");
+        StringAssert.Contains(output, "TryRetryPendingSealedBatch");
         StringAssert.Contains(output, "AddRpcBatch");
         StringAssert.Contains(output, "MessageOutbox");
         StringAssert.Contains(output, "PublishDaAsync");

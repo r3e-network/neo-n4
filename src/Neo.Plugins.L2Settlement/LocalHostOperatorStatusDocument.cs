@@ -44,6 +44,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Sealed batch awaiting durable persistence.</summary>
     public required bool HasPendingSealedBatch { get; init; }
 
+    /// <summary>Open batch currently accumulating.</summary>
+    public required bool HasOpenBatch { get; init; }
+
+    /// <summary>Transaction count in the open batch.</summary>
+    public required int InProgressTxCount { get; init; }
+
     /// <summary>Operator readiness flag.</summary>
     public required bool IsOperatorReady { get; init; }
 
@@ -107,6 +113,8 @@ public sealed record LocalHostOperatorStatusDocument
             HasSealedBatchSink = status.HasSealedBatchSink,
             NextExpectedBlock = status.NextExpectedBlock,
             HasPendingSealedBatch = status.HasPendingSealedBatch,
+            HasOpenBatch = status.HasOpenBatch,
+            InProgressTxCount = status.InProgressTxCount,
             IsOperatorReady = status.IsOperatorReady,
             HasDepositSource = status.HasDepositSource,
             HasMessageRouter = status.HasMessageRouter,

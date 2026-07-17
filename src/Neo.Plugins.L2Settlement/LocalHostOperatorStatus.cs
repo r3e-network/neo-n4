@@ -47,6 +47,12 @@ public sealed record LocalHostOperatorStatus
     /// <summary>True when a sealed batch awaits durable persistence / acknowledgement.</summary>
     public required bool HasPendingSealedBatch { get; init; }
 
+    /// <summary>True when a batch is currently being accumulated by the batcher.</summary>
+    public required bool HasOpenBatch { get; init; }
+
+    /// <summary>Transaction count in the open batch (0 when none is open).</summary>
+    public required int InProgressTxCount { get; init; }
+
     /// <summary>
     /// <see cref="IsProductionWired"/> and <see cref="HasSealedBatchSink"/> — matches default
     /// LocalHost <c>/readyz</c>.

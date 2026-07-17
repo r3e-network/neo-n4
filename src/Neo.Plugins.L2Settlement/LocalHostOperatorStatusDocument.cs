@@ -44,6 +44,15 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Sealed batch awaiting durable persistence.</summary>
     public required bool HasPendingSealedBatch { get; init; }
 
+    /// <summary>Pending sealed batch number, if any.</summary>
+    public required ulong? PendingSealedBatchNumber { get; init; }
+
+    /// <summary>Last L2 block of the pending sealed batch, if any.</summary>
+    public required ulong? PendingSealedBatchLastBlock { get; init; }
+
+    /// <summary>Batcher plugin enabled flag.</summary>
+    public required bool IsBatcherEnabled { get; init; }
+
     /// <summary>Open batch currently accumulating.</summary>
     public required bool HasOpenBatch { get; init; }
 
@@ -113,6 +122,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>L2→L2 outbox depth.</summary>
     public required int MessageOutboxL2ToL2Count { get; init; }
 
+    /// <summary>L2→L1 outbox root as 0x-hex.</summary>
+    public required string MessageOutboxL2ToL1Root { get; init; }
+
+    /// <summary>L2→L2 outbox root as 0x-hex.</summary>
+    public required string MessageOutboxL2ToL2Root { get; init; }
+
     /// <summary>Staged withdrawal count.</summary>
     public required int StagedWithdrawalCount { get; init; }
 
@@ -140,6 +155,9 @@ public sealed record LocalHostOperatorStatusDocument
             HasSealedBatchSink = status.HasSealedBatchSink,
             NextExpectedBlock = status.NextExpectedBlock,
             HasPendingSealedBatch = status.HasPendingSealedBatch,
+            PendingSealedBatchNumber = status.PendingSealedBatchNumber,
+            PendingSealedBatchLastBlock = status.PendingSealedBatchLastBlock,
+            IsBatcherEnabled = status.IsBatcherEnabled,
             HasOpenBatch = status.HasOpenBatch,
             InProgressTxCount = status.InProgressTxCount,
             OpenBatchFirstBlock = status.OpenBatchFirstBlock,
@@ -163,6 +181,8 @@ public sealed record LocalHostOperatorStatusDocument
             MetricsEntryCount = status.MetricsEntryCount,
             MessageOutboxL2ToL1Count = status.MessageOutboxL2ToL1Count,
             MessageOutboxL2ToL2Count = status.MessageOutboxL2ToL2Count,
+            MessageOutboxL2ToL1Root = status.MessageOutboxL2ToL1Root.ToString(),
+            MessageOutboxL2ToL2Root = status.MessageOutboxL2ToL2Root.ToString(),
             StagedWithdrawalCount = status.StagedWithdrawalCount,
             TrackedForcedInclusionNonceCount = status.TrackedForcedInclusionNonceCount,
             Recovery = LocalHostRecoveryDocument.From(status.Recovery),

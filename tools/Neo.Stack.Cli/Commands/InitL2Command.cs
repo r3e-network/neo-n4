@@ -130,9 +130,9 @@ internal static class InitL2Command
         // Operator host composition roots (no Neo.CLI required for local Multisig/Optimistic/Zk).
         Console.WriteLine("  host open  = MultisigLocalHostComposition.Open / OptimisticLocalHostComposition.Open / ZkLocalHostComposition.Open");
         Console.WriteLine("  host ready = LocalHost.IsOperatorReady / GetOperatorStatusAsync (see wireproduction notes)");
-        Console.WriteLine("  host batch = LocalHost.NextExpectedBlock / NextBatchNumber / LastAcknowledgedBatchNumber / OnBatchSealed");
+        Console.WriteLine("  host batch = LocalHost.NextExpectedBlock / NextBatchNumber / PendingSealedBatchNumber / IsBatcherEnabled");
         Console.WriteLine("  host rpc   = LocalHost.AddRpcBatch / RecordRpcDeposit / RegisterRpcAsset / MessageOutbox");
-        Console.WriteLine("  host msg   = LocalHost.RegisterInboundMessageNonce / InvalidateInboundMessageCache");
+        Console.WriteLine("  host msg   = LocalHost.MessageOutboxL2ToL1Root / RegisterInboundMessageNonce / InvalidateInboundMessageCache");
         Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / RegisterForcedInclusionNonce (local DA offline)");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / RegisterBridgeAsset / StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");

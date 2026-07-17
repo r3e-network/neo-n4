@@ -190,6 +190,21 @@ public sealed class L2BatchPlugin : Plugin
     public SealedBatch? PendingSealedBatch => _sealer?.PendingBatch;
 
     /// <summary>
+    /// Pending sealed batch number, or null when none is pending.
+    /// </summary>
+    public ulong? PendingSealedBatchNumber => PendingSealedBatch?.BatchNumber;
+
+    /// <summary>
+    /// Last L2 block of the pending sealed batch, or null when none is pending.
+    /// </summary>
+    public ulong? PendingSealedBatchLastBlock => PendingSealedBatch?.LastBlock;
+
+    /// <summary>
+    /// Whether the batch plugin is enabled in settings (disabled plugins no-op block hand-off).
+    /// </summary>
+    public bool IsEnabled => _settings.Enabled;
+
+    /// <summary>
     /// True when a batch is currently being accumulated
     /// (<see cref="BatchSealer.HasOpenBatch"/>).
     /// </summary>

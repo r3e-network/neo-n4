@@ -238,10 +238,14 @@ public class UT_L2BatchPlugin
         Assert.ThrowsExactly<InvalidOperationException>(
             () => plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs()));
         Assert.IsTrue(plugin.HasPendingSealedBatch);
+        Assert.AreEqual(1UL, plugin.PendingSealedBatchNumber);
+        Assert.AreEqual(1UL, plugin.PendingSealedBatchLastBlock);
+        Assert.IsTrue(plugin.IsEnabled);
         Assert.IsFalse(plugin.HasOpenBatch);
 
         Assert.IsTrue(plugin.TryRetryPendingSealedBatch());
         Assert.IsFalse(plugin.HasPendingSealedBatch);
+        Assert.IsNull(plugin.PendingSealedBatchNumber);
         Assert.AreEqual(1, sink.PersistedBatches.Count);
         Assert.AreEqual(1UL, sink.Checkpoint!.BatchNumber);
         Assert.AreEqual(1UL, plugin.LastAcknowledgedBatchNumber);

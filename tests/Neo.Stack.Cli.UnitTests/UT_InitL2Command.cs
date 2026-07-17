@@ -233,9 +233,9 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "GetOperatorStatusAsync");
         StringAssert.Contains(output, "NextExpectedBlock");
         StringAssert.Contains(output, "NextBatchNumber");
-        StringAssert.Contains(output, "LastAcknowledgedBatchNumber");
-        StringAssert.Contains(output, "OnBatchSealed");
-        StringAssert.Contains(output, "RegisterInboundMessageNonce");
+        StringAssert.Contains(output, "PendingSealedBatchNumber");
+        StringAssert.Contains(output, "IsBatcherEnabled");
+        StringAssert.Contains(output, "MessageOutboxL2ToL1Root");
         StringAssert.Contains(output, "StopMetricsHttp");
         StringAssert.Contains(output, "ConsumedDepositCount");
         StringAssert.Contains(output, "PullAggregate");

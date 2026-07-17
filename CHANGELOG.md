@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Pending sealed summary, outbox roots, IsBatcherEnabled — 2026-07-18
+
+- `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose `PendingSealedBatchNumber`,
+  `PendingSealedBatchLastBlock`, and `IsBatcherEnabled` for offline batcher health.
+- LocalHost surfaces `MessageOutboxL2ToL1Root` / `MessageOutboxL2ToL2Root`; operator status
+  JSON includes pending sealed summary, batcher enabled flag, and outbox roots.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- Live L1 message publication / settlement remains a funded RPC gate.
+
 ### Tested — Neo N3 testnet session6 reverify + SharedBridge deposit n7 — 2026-07-18
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

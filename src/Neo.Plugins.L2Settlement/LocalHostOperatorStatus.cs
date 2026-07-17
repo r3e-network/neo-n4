@@ -47,6 +47,15 @@ public sealed record LocalHostOperatorStatus
     /// <summary>True when a sealed batch awaits durable persistence / acknowledgement.</summary>
     public required bool HasPendingSealedBatch { get; init; }
 
+    /// <summary>Pending sealed batch number, or null when none is pending.</summary>
+    public required ulong? PendingSealedBatchNumber { get; init; }
+
+    /// <summary>Last L2 block of the pending sealed batch, or null when none is pending.</summary>
+    public required ulong? PendingSealedBatchLastBlock { get; init; }
+
+    /// <summary>Whether the batcher plugin is enabled in settings.</summary>
+    public required bool IsBatcherEnabled { get; init; }
+
     /// <summary>True when a batch is currently being accumulated by the batcher.</summary>
     public required bool HasOpenBatch { get; init; }
 
@@ -123,6 +132,12 @@ public sealed record LocalHostOperatorStatus
 
     /// <summary>L2→L2 messages staged in the MessageRouter outbox (0 when unwired).</summary>
     public required int MessageOutboxL2ToL2Count { get; init; }
+
+    /// <summary>Current L2→L1 outbox root (zero when unwired/empty).</summary>
+    public required UInt256 MessageOutboxL2ToL1Root { get; init; }
+
+    /// <summary>Current L2→L2 outbox root (zero when unwired/empty).</summary>
+    public required UInt256 MessageOutboxL2ToL2Root { get; init; }
 
     /// <summary>Withdrawals staged in the bridge withdrawal tree for the open batch.</summary>
     public required int StagedWithdrawalCount { get; init; }

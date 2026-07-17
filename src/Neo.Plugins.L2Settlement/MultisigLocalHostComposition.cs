@@ -206,6 +206,24 @@ public sealed class MultisigLocalHostComposition : IDisposable
     public SealedBatch? PendingSealedBatch => Batch.PendingSealedBatch;
 
     /// <summary>
+    /// Pending sealed batch number, or null
+    /// (<see cref="L2BatchPlugin.PendingSealedBatchNumber"/>).
+    /// </summary>
+    public ulong? PendingSealedBatchNumber => Batch.PendingSealedBatchNumber;
+
+    /// <summary>
+    /// Last L2 block of the pending sealed batch, or null
+    /// (<see cref="L2BatchPlugin.PendingSealedBatchLastBlock"/>).
+    /// </summary>
+    public ulong? PendingSealedBatchLastBlock => Batch.PendingSealedBatchLastBlock;
+
+    /// <summary>
+    /// Whether the batcher is enabled in plugin settings
+    /// (<see cref="L2BatchPlugin.IsEnabled"/>).
+    /// </summary>
+    public bool IsBatcherEnabled => Batch.IsEnabled;
+
+    /// <summary>
     /// True when a batch is currently being accumulated
     /// (<see cref="L2BatchPlugin.HasOpenBatch"/>).
     /// </summary>
@@ -369,6 +387,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
             HasSealedBatchSink = HasSealedBatchSink,
             NextExpectedBlock = NextExpectedBlock,
             HasPendingSealedBatch = HasPendingSealedBatch,
+            PendingSealedBatchNumber = PendingSealedBatchNumber,
+            PendingSealedBatchLastBlock = PendingSealedBatchLastBlock,
+            IsBatcherEnabled = IsBatcherEnabled,
             HasOpenBatch = HasOpenBatch,
             InProgressTxCount = InProgressTxCount,
             OpenBatchFirstBlock = OpenBatchFirstBlock,
@@ -392,6 +413,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
             MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,
             MessageOutboxL2ToL1Count = MessageOutbox?.L2ToL1Count ?? 0,
             MessageOutboxL2ToL2Count = MessageOutbox?.L2ToL2Count ?? 0,
+            MessageOutboxL2ToL1Root = MessageOutboxL2ToL1Root,
+            MessageOutboxL2ToL2Root = MessageOutboxL2ToL2Root,
             StagedWithdrawalCount = Bridge.WithdrawalProcessor.StagedCount,
             Recovery = recovery,
             TrackedForcedInclusionNonceCount = tracked.Count,
@@ -501,6 +524,16 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// (<see cref="RpcMessageRouter.Outbox"/>).
     /// </summary>
     public L2Outbox? MessageOutbox => MessageRouter?.Outbox;
+
+    /// <summary>
+    /// Current L2→L1 message-tree root from the local outbox, or zero when unwired/empty.
+    /// </summary>
+    public UInt256 MessageOutboxL2ToL1Root => MessageOutbox?.L2ToL1Root ?? UInt256.Zero;
+
+    /// <summary>
+    /// Current L2→L2 message-tree root from the local outbox, or zero when unwired/empty.
+    /// </summary>
+    public UInt256 MessageOutboxL2ToL2Root => MessageOutbox?.L2ToL2Root ?? UInt256.Zero;
 
     /// <summary>
     /// Enqueue outbound cross-chain messages into the wired MessageRouter outbox

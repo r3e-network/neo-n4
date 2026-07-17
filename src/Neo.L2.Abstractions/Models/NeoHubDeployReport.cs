@@ -429,7 +429,8 @@ public sealed record NeoHubDeployReport(
                         + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                     ["localHostBatcherHelpers"] =
                         "LocalHost.NextExpectedBlock / LastAcknowledgedBatchNumber / LastAcknowledgedBlock / "
-                        + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatch / HasOpenBatch / "
+                        + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatchNumber / "
+                        + "PendingSealedBatchLastBlock / IsBatcherEnabled / PendingSealedBatch / HasOpenBatch / "
                         + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
                         + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
                         + "TryRetryPendingSealedBatch / OnBatchSealed",
@@ -440,9 +441,10 @@ public sealed record NeoHubDeployReport(
                         + "GetRpcBridgedAsset / RecordRpcWithdrawalProof / RecordRpcMessageProof / "
                         + "GetRpcWithdrawalProof / GetRpcMessageProof",
                     ["localHostMessageRouterHelpers"] =
-                        "LocalHost.MessageOutbox / EnqueueOutboundMessagesAsync / "
-                        + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync / "
-                        + "RegisterInboundMessageNonce / InvalidateInboundMessageCache",
+                        "LocalHost.MessageOutbox / MessageOutboxL2ToL1Root / MessageOutboxL2ToL2Root / "
+                        + "EnqueueOutboundMessagesAsync / RecordMessageRouterFinalizedProof / "
+                        + "GetMessageRouterProofAsync / RegisterInboundMessageNonce / "
+                        + "InvalidateInboundMessageCache",
                     ["localHostForcedInclusionHelpers"] =
                         "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",
                     ["localHostDaHelpers"] =

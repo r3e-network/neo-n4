@@ -198,7 +198,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
                 "LocalHost.NextExpectedBlock / LastAcknowledgedBatchNumber / LastAcknowledgedBlock / "
-                + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatch / HasOpenBatch / "
+                + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatchNumber / "
+                + "PendingSealedBatchLastBlock / IsBatcherEnabled / PendingSealedBatch / HasOpenBatch / "
                 + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
                 + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
                 + "TryRetryPendingSealedBatch / OnBatchSealed",
@@ -211,9 +212,10 @@ public class UT_NeoHubDeployReport
                 + "GetRpcWithdrawalProof / GetRpcMessageProof",
                 stores.GetProperty("localHostRpcStoreHelpers").GetString());
             Assert.AreEqual(
-                "LocalHost.MessageOutbox / EnqueueOutboundMessagesAsync / "
-                + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync / "
-                + "RegisterInboundMessageNonce / InvalidateInboundMessageCache",
+                "LocalHost.MessageOutbox / MessageOutboxL2ToL1Root / MessageOutboxL2ToL2Root / "
+                + "EnqueueOutboundMessagesAsync / RecordMessageRouterFinalizedProof / "
+                + "GetMessageRouterProofAsync / RegisterInboundMessageNonce / "
+                + "InvalidateInboundMessageCache",
                 stores.GetProperty("localHostMessageRouterHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",

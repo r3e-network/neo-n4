@@ -9,6 +9,7 @@ using Neo.L2.Executor.ProofWitness;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
+using Neo.L2.State;
 using Neo.Network.P2P.Payloads;
 using Neo.Plugins.L2Rpc;
 using Neo.Wallets;
@@ -85,6 +86,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(1UL, host.NextBatchNumber);
             Assert.IsFalse(host.HasPendingSealedBatch);
             Assert.IsNull(host.PendingSealedBatch);
+            Assert.IsNull(host.PendingSealedBatchNumber);
+            Assert.IsTrue(host.IsBatcherEnabled);
             Assert.IsFalse(host.Batch.HasPendingSealedBatch);
             Assert.IsFalse(host.HasOpenBatch);
             Assert.AreEqual(0, host.InProgressTxCount);
@@ -289,21 +292,23 @@ public sealed class UT_MultisigLocalHostComposition
             var sealedWd = host.SealWithdrawalBatch();
             Assert.AreNotEqual(UInt256.Zero, sealedWd.Root);
             Assert.AreEqual(0, host.StagedWithdrawalCount);
-            await host.EnqueueOutboundMessagesAsync(
-            [
-                new CrossChainMessage
-                {
-                    SourceChainId = 20260716u,
-                    TargetChainId = 0,
-                    Nonce = 9,
-                    Sender = sender,
-                    Receiver = sender,
-                    MessageType = MessageType.Event,
-                    Payload = new byte[] { 0x01 },
-                    MessageHash = UInt256.Zero,
-                },
-            ]);
+            var outboundDraft = new CrossChainMessage
+            {
+                SourceChainId = 20260716u,
+                TargetChainId = 0,
+                Nonce = 9,
+                Sender = sender,
+                Receiver = sender,
+                MessageType = MessageType.Event,
+                Payload = new byte[] { 0x01 },
+                MessageHash = UInt256.Zero,
+            };
+            var outbound = outboundDraft with { MessageHash = MessageHasher.HashMessage(outboundDraft) };
+            await host.EnqueueOutboundMessagesAsync([outbound]);
             Assert.AreEqual(1, host.MessageOutbox!.L2ToL1Count);
+            Assert.AreNotEqual(UInt256.Zero, outbound.MessageHash);
+            Assert.AreNotEqual(UInt256.Zero, host.MessageOutboxL2ToL1Root);
+            Assert.AreEqual(host.MessageOutbox.L2ToL1Root, host.MessageOutboxL2ToL1Root);
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             await host.WriteOperatorStatusAsync(statusPath);
             Assert.IsTrue(File.Exists(statusPath));
@@ -312,6 +317,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"isOperatorReady\": true");
             StringAssert.Contains(statusJson, "\"nextExpectedBlock\": 1");
             StringAssert.Contains(statusJson, "\"hasPendingSealedBatch\": false");
+            StringAssert.Contains(statusJson, "\"isBatcherEnabled\": true");
             StringAssert.Contains(statusJson, "\"hasOpenBatch\": false");
             StringAssert.Contains(statusJson, "\"inProgressTxCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchBlockCount\": 0");
@@ -320,6 +326,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"lastAcknowledgedBatchNumber\": 0");
             StringAssert.Contains(statusJson, "\"nextBatchNumber\": 1");
             StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
+            StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Root\":");
             StringAssert.Contains(statusJson, "\"stagedWithdrawalCount\": 0");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             await host.WritePrometheusMetricsAsync(promPath);

@@ -211,7 +211,7 @@ public class UT_NeoHubDeployReport
                 + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatchNumber / "
                 + "PendingSealedBatchLastBlock / IsBatcherEnabled / MaxBlocksPerBatch / MaxTransactionsPerBatch / MaxBatchAgeMillis / "
                 + "MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / HasBatchDepositSource / "
-                + "HasBatchMessageRouter / HasBatchForcedInclusionSource / PendingSealedBatch / HasOpenBatch / "
+                + "HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver / PendingSealedBatch / HasOpenBatch / "
                 + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
                 + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
                 + "TryRetryPendingSealedBatch / OnBatchSealed",
@@ -278,7 +278,9 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.GetRecoveryStatusAsync / RecoverPoisonedBatchAsync / "
                 + "GetTrackedForcedInclusionNoncesAsync / GetLatestCheckpointAsync / "
-                + "GetInitialStateRootAsync",
+                + "GetLatestDurableCheckpointAsync / GetInitialStateRootAsync / "
+                + "LatestCheckpointBatchNumber / LatestCheckpointLastBlock / "
+                + "LatestCheckpointPostStateRoot / InitialStateRoot",
                 stores.GetProperty("localHostRecoveryHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.StartMetricsHttp(portOverride?, readiness?) / StopMetricsHttp / "

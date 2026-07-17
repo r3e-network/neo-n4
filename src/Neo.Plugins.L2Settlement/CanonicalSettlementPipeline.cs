@@ -666,7 +666,8 @@ public sealed class CanonicalSettlementPipeline : IDisposable
     }
 
     /// <summary>
-    /// Recover the latest continuously committed batch checkpoint from canonical artifacts.
+    /// Recover the latest continuously committed batch checkpoint from canonical artifacts,
+    /// after refreshing L1 settlement lifecycle (funded RPC).
     /// </summary>
     public async ValueTask<SealedBatchCheckpoint?> GetLatestCheckpointAsync(
         CancellationToken cancellationToken = default)
@@ -678,6 +679,26 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             await EnsurePendingRollbackCompletedAsync(cancellationToken).ConfigureAwait(false);
             await RefreshSettlementLifecycleForCheckpointAsync(cancellationToken)
                 .ConfigureAwait(false);
+            return await GetLatestCheckpointUnderGateAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            ReleaseReconcileGate();
+        }
+    }
+
+    /// <summary>
+    /// Read the latest contiguous durable checkpoint from local proof artifacts only.
+    /// Does not refresh L1 settlement lifecycle — safe for offline operator status.
+    /// </summary>
+    public async ValueTask<SealedBatchCheckpoint?> GetLatestDurableCheckpointAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        await _reconcileGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
             return await GetLatestCheckpointUnderGateAsync(cancellationToken)
                 .ConfigureAwait(false);
         }

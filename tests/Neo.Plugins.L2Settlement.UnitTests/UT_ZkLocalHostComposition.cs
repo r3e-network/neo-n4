@@ -132,6 +132,13 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(host.MessageRouterDeploymentHeight, status.MessageRouterDeploymentHeight);
             Assert.IsTrue(status.IsSettlementEnabled);
             Assert.IsTrue(status.L1FinalityDepth >= 1);
+            Assert.IsTrue(status.HasBatchProver);
+            Assert.IsTrue(host.HasBatchProver);
+            Assert.IsNull(status.LatestCheckpointBatchNumber);
+            Assert.AreEqual(UInt256.Zero, status.LatestCheckpointPostStateRoot);
+            Assert.AreEqual(
+                host.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult(),
+                status.InitialStateRoot);
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
             Assert.IsTrue(status.HasForcedInclusionFinalizer);
@@ -156,10 +163,14 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsFalse(string.IsNullOrWhiteSpace(host.ExportPrometheusMetrics()));
             Assert.AreEqual(0, host.StagedWithdrawalCount);
             Assert.IsNotNull(host.BatchProver);
+            Assert.IsTrue(host.HasBatchProver);
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(statusPath));
-            StringAssert.Contains(File.ReadAllText(statusPath), "\"proofType\": \"Zk\"");
+            var statusJson = File.ReadAllText(statusPath);
+            StringAssert.Contains(statusJson, "\"proofType\": \"Zk\"");
+            StringAssert.Contains(statusJson, "\"hasBatchProver\": true");
+            StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             host.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(promPath));

@@ -132,7 +132,7 @@ internal static class InitL2Command
         Console.WriteLine("  host ready = LocalHost.IsOperatorReady / GetOperatorStatusAsync (see wireproduction notes)");
         Console.WriteLine("  host batch = LocalHost.NextExpectedBlock / NextBatchNumber / PendingSealedBatchNumber / MaxBlocksPerBatch");
         Console.WriteLine("               MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch");
-        Console.WriteLine("               HasBatchDepositSource / HasBatchMessageRouter / HasBatchForcedInclusionSource");
+        Console.WriteLine("               HasBatchDepositSource / HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver");
         Console.WriteLine("  host rpc   = LocalHost.AddRpcBatch / RecordRpcDeposit / RegisterRpcAsset / MessageOutbox");
         Console.WriteLine("  host msg   = LocalHost.MessageOutboxL2ToL1Root / KnownInboundNonceCount / RegisterInboundMessageNonce");
         Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / RegisterForcedInclusionNonce / KnownForcedInclusionNonceCount");
@@ -144,6 +144,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / ForcedInclusionDeploymentHeight / SharedBridgeDeploymentHeight");
         Console.WriteLine("               StageWithdrawal / ProveAsync / HasOverdueForcedInclusionAsync / L1InboxPendingCount");
         Console.WriteLine("               HasForcedInclusionFinalizer / HasSettlementClient / HasTransactionSender");
+        Console.WriteLine("  host settle= LocalHost.GetLatestDurableCheckpointAsync / GetInitialStateRootAsync / LatestCheckpointBatchNumber / InitialStateRoot");
         Console.WriteLine("  host status= LocalHost.WriteOperatorStatusAsync(path) (JSON health dump)");
         Console.WriteLine("  host prom  = LocalHost/GatewayHost WritePrometheusMetricsAsync; GatewayHost.IsPublicationConfigured");
         Console.WriteLine("               (see l1.wireproduction-notes.json when --from-deploy-report was used)");

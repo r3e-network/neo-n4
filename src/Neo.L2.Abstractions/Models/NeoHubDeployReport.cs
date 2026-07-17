@@ -443,7 +443,7 @@ public sealed record NeoHubDeployReport(
                         + "PendingSealedBatchLastBlock / IsBatcherEnabled / MaxBlocksPerBatch / "
                         + "MaxTransactionsPerBatch / MaxBatchAgeMillis / MaxForcedTransactionsPerBatch / "
                         + "MaxL1MessagesPerBatch / HasBatchDepositSource / HasBatchMessageRouter / "
-                        + "HasBatchForcedInclusionSource / PendingSealedBatch / HasOpenBatch / "
+                        + "HasBatchForcedInclusionSource / HasBatchProver / PendingSealedBatch / HasOpenBatch / "
                         + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
                         + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
                         + "TryRetryPendingSealedBatch / OnBatchSealed",
@@ -495,7 +495,9 @@ public sealed record NeoHubDeployReport(
                     ["localHostRecoveryHelpers"] =
                         "LocalHost.GetRecoveryStatusAsync / RecoverPoisonedBatchAsync / "
                         + "GetTrackedForcedInclusionNoncesAsync / GetLatestCheckpointAsync / "
-                        + "GetInitialStateRootAsync",
+                        + "GetLatestDurableCheckpointAsync / GetInitialStateRootAsync / "
+                        + "LatestCheckpointBatchNumber / LatestCheckpointLastBlock / "
+                        + "LatestCheckpointPostStateRoot / InitialStateRoot",
                     ["localHostStartMetricsHttp"] =
                         "LocalHost.StartMetricsHttp(portOverride?, readiness?) / StopMetricsHttp / "
                         + "Open startMetricsHttp",

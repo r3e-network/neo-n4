@@ -215,6 +215,21 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>MessageRouter scanner deployment height.</summary>
     public required uint MessageRouterDeploymentHeight { get; init; }
 
+    /// <summary>Batch prover installed on the host.</summary>
+    public required bool HasBatchProver { get; init; }
+
+    /// <summary>Durable checkpoint batch number, if any.</summary>
+    public required ulong? LatestCheckpointBatchNumber { get; init; }
+
+    /// <summary>Durable checkpoint last L2 block, if any.</summary>
+    public required ulong? LatestCheckpointLastBlock { get; init; }
+
+    /// <summary>Durable checkpoint post-state root as 0x-hex.</summary>
+    public required string LatestCheckpointPostStateRoot { get; init; }
+
+    /// <summary>Settlement initial/genesis state root as 0x-hex.</summary>
+    public required string InitialStateRoot { get; init; }
+
     /// <summary>Recovery summary.</summary>
     public required LocalHostRecoveryDocument Recovery { get; init; }
 
@@ -293,6 +308,11 @@ public sealed record LocalHostOperatorStatusDocument
             ForcedInclusionDeploymentHeight = status.ForcedInclusionDeploymentHeight,
             SharedBridgeDeploymentHeight = status.SharedBridgeDeploymentHeight,
             MessageRouterDeploymentHeight = status.MessageRouterDeploymentHeight,
+            HasBatchProver = status.HasBatchProver,
+            LatestCheckpointBatchNumber = status.LatestCheckpointBatchNumber,
+            LatestCheckpointLastBlock = status.LatestCheckpointLastBlock,
+            LatestCheckpointPostStateRoot = status.LatestCheckpointPostStateRoot.ToString(),
+            InitialStateRoot = status.InitialStateRoot.ToString(),
             Recovery = LocalHostRecoveryDocument.From(status.Recovery),
         };
     }
@@ -322,6 +342,12 @@ public sealed record LocalHostRecoveryDocument
     /// <summary>Last error text, if any.</summary>
     public string? LastError { get; init; }
 
+    /// <summary>UTC Unix milliseconds of the first consecutive failure, if any.</summary>
+    public long? FirstFailureAtUnixMilliseconds { get; init; }
+
+    /// <summary>UTC Unix milliseconds of the most recent failure, if any.</summary>
+    public long? LastFailureAtUnixMilliseconds { get; init; }
+
     /// <summary>Map a recovery snapshot into a JSON document.</summary>
     public static LocalHostRecoveryDocument From(SettlementRecoveryStatus recovery)
     {
@@ -335,6 +361,8 @@ public sealed record LocalHostRecoveryDocument
             ArtifactContentHash = recovery.ArtifactContentHash?.ToString(),
             RetryCount = recovery.RetryCount,
             LastError = recovery.LastError,
+            FirstFailureAtUnixMilliseconds = recovery.FirstFailureAtUnixMilliseconds,
+            LastFailureAtUnixMilliseconds = recovery.LastFailureAtUnixMilliseconds,
         };
     }
 }

@@ -118,6 +118,13 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(host.MessageRouterDeploymentHeight, status.MessageRouterDeploymentHeight);
             Assert.IsTrue(status.IsSettlementEnabled);
             Assert.IsTrue(status.L1FinalityDepth >= 1);
+            Assert.IsTrue(status.HasBatchProver);
+            Assert.IsTrue(host.HasBatchProver);
+            Assert.IsNull(status.LatestCheckpointBatchNumber);
+            Assert.AreEqual(UInt256.Zero, status.LatestCheckpointPostStateRoot);
+            Assert.AreEqual(
+                host.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult(),
+                status.InitialStateRoot);
             Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
             Assert.AreEqual(BatchStatus.Unknown, host.GetRpcBatchStatus(1));
             Assert.AreEqual(host.RpcStore.GatewayEnabled, status.GatewayEnabled);

@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Durable checkpoint, initial root, and batch prover on LocalHost ops — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost expose `HasBatchProver` and
+  `GetLatestDurableCheckpointAsync` (local artifacts only; no L1 refresh).
+- Operator status (+ JSON) adds `HasBatchProver`, `LatestCheckpointBatchNumber` /
+  `LatestCheckpointLastBlock` / `LatestCheckpointPostStateRoot`, and `InitialStateRoot`.
+- `LocalHostRecoveryDocument` includes `FirstFailureAtUnixMilliseconds` /
+  `LastFailureAtUnixMilliseconds` from `SettlementRecoveryStatus`.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- `GetLatestCheckpointAsync` (L1-refresh) and Zk prove-batch remain funded gates.
+
 ### Tested — Neo N3 testnet session8 reverify + SharedBridge deposit n9 — 2026-07-18
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

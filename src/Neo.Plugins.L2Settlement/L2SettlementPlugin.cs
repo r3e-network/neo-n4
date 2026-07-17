@@ -662,6 +662,17 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         return pipeline.GetLatestCheckpointAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Latest contiguous durable checkpoint from local artifacts only (no L1 refresh).
+    /// </summary>
+    public ValueTask<SealedBatchCheckpoint?> GetLatestDurableCheckpointAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var pipeline = _pipeline
+            ?? throw new InvalidOperationException("settlement pipeline is not wired");
+        return pipeline.GetLatestDurableCheckpointAsync(cancellationToken);
+    }
+
     /// <inheritdoc />
     public ValueTask<UInt256> GetInitialStateRootAsync(
         CancellationToken cancellationToken = default)

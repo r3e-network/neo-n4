@@ -153,6 +153,16 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.L1FinalityDepth >= 1);
             Assert.AreEqual(0, status.TrackedForcedInclusionNonceCount);
             Assert.AreEqual(0, status.Recovery.PendingCount);
+            Assert.IsNull(status.Recovery.FirstFailureAtUnixMilliseconds);
+            Assert.IsNull(status.Recovery.LastFailureAtUnixMilliseconds);
+            Assert.IsTrue(status.HasBatchProver);
+            Assert.IsTrue(host.HasBatchProver);
+            Assert.IsNull(status.LatestCheckpointBatchNumber);
+            Assert.IsNull(status.LatestCheckpointLastBlock);
+            Assert.AreEqual(UInt256.Zero, status.LatestCheckpointPostStateRoot);
+            Assert.AreEqual(
+                host.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult(),
+                status.InitialStateRoot);
             Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
             // Host RPC store helpers (no Neo.CLI).
             var root = new UInt256(Enumerable.Repeat((byte)0xAB, 32).ToArray());
@@ -313,6 +323,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(ProofType.Multisig, proof.Kind);
             Assert.IsFalse(proof.Proof.IsEmpty);
             Assert.IsNotNull(host.BatchProver);
+            Assert.IsTrue(host.HasBatchProver);
             // Withdrawal staging + outbound message outbox + status JSON dump.
             var sender = Account(0x77);
             var wdLeaf = host.StageWithdrawal(new WithdrawalRequest
@@ -369,6 +380,11 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
             StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Root\":");
             StringAssert.Contains(statusJson, "\"stagedWithdrawalCount\": 0");
+            StringAssert.Contains(statusJson, "\"hasBatchProver\": true");
+            StringAssert.Contains(statusJson, "\"latestCheckpointBatchNumber\": null");
+            StringAssert.Contains(statusJson, "\"initialStateRoot\":");
+            StringAssert.Contains(statusJson, "\"firstFailureAtUnixMilliseconds\": null");
+            StringAssert.Contains(statusJson, "\"lastFailureAtUnixMilliseconds\": null");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             await host.WritePrometheusMetricsAsync(promPath);
             Assert.IsTrue(File.Exists(promPath));

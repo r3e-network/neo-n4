@@ -266,4 +266,31 @@ public sealed record LocalHostOperatorStatus
 
     /// <summary>MessageRouter scanner deployment height (0 when unset).</summary>
     public required uint MessageRouterDeploymentHeight { get; init; }
+
+    /// <summary>
+    /// True when the batch prover plugin has installed an <see cref="IL2Prover"/>.
+    /// Multisig prove is offline; Zk may still need a funded executor/daemon.
+    /// </summary>
+    public required bool HasBatchProver { get; init; }
+
+    /// <summary>
+    /// Durable sealed-batch checkpoint batch number from local artifacts only
+    /// (no L1 refresh), or null when none is stored.
+    /// </summary>
+    public required ulong? LatestCheckpointBatchNumber { get; init; }
+
+    /// <summary>
+    /// Last L2 block of the durable sealed-batch checkpoint, or null when none is stored.
+    /// </summary>
+    public required ulong? LatestCheckpointLastBlock { get; init; }
+
+    /// <summary>
+    /// Post-state root of the durable sealed-batch checkpoint (zero when none is stored).
+    /// </summary>
+    public required UInt256 LatestCheckpointPostStateRoot { get; init; }
+
+    /// <summary>
+    /// Authenticated genesis / initial state root from the settlement sink (zero for legacy).
+    /// </summary>
+    public required UInt256 InitialStateRoot { get; init; }
 }

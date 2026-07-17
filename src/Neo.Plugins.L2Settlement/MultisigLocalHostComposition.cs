@@ -138,6 +138,14 @@ public sealed class MultisigLocalHostComposition : IDisposable
         => Settlement.GetLatestCheckpointAsync(cancellationToken);
 
     /// <summary>
+    /// Durable local checkpoint only (no L1 refresh)
+    /// (<see cref="L2SettlementPlugin.GetLatestDurableCheckpointAsync"/>).
+    /// </summary>
+    public ValueTask<SealedBatchCheckpoint?> GetLatestDurableCheckpointAsync(
+        CancellationToken cancellationToken = default)
+        => Settlement.GetLatestDurableCheckpointAsync(cancellationToken);
+
+    /// <summary>
     /// Pipeline initial state root (genesis / last finalized)
     /// (<see cref="L2SettlementPlugin.GetInitialStateRootAsync"/>).
     /// </summary>
@@ -391,6 +399,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
         var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
         var tracked = await GetTrackedForcedInclusionNoncesAsync(ChainId, cancellationToken)
             .ConfigureAwait(false);
+        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var initialStateRoot = await GetInitialStateRootAsync(cancellationToken).ConfigureAwait(false);
         var readyDeposits = PeekSharedBridgeDeposits(depositPeekLimit);
         return new LocalHostOperatorStatus
         {
@@ -463,6 +474,11 @@ public sealed class MultisigLocalHostComposition : IDisposable
             ForcedInclusionDeploymentHeight = ForcedInclusionDeploymentHeight,
             SharedBridgeDeploymentHeight = SharedBridgeDeploymentHeight,
             MessageRouterDeploymentHeight = MessageRouterDeploymentHeight,
+            HasBatchProver = HasBatchProver,
+            LatestCheckpointBatchNumber = checkpoint?.BatchNumber,
+            LatestCheckpointLastBlock = checkpoint?.LastBlock,
+            LatestCheckpointPostStateRoot = checkpoint?.PostStateRoot ?? UInt256.Zero,
+            InitialStateRoot = initialStateRoot,
         };
     }
 
@@ -983,6 +999,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// Wired batch prover instance, or null when the prover plugin has not installed one.
     /// </summary>
     public IL2Prover? BatchProver => Prover.Prover;
+
+    /// <summary>True when <see cref="BatchProver"/> is installed.</summary>
+    public bool HasBatchProver => BatchProver is not null;
 
     /// <summary>
     /// Generate a proof via the wired host prover

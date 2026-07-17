@@ -238,6 +238,10 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "MetricsMaxConcurrentConnections");
         StringAssert.Contains(output, "HasBatchMessageRouter");
         StringAssert.Contains(output, "HasBatchDepositSource");
+        StringAssert.Contains(output, "HasBatchProver");
+        StringAssert.Contains(output, "GetLatestDurableCheckpointAsync");
+        StringAssert.Contains(output, "LatestCheckpointBatchNumber");
+        StringAssert.Contains(output, "InitialStateRoot");
         StringAssert.Contains(output, "MaxForcedTransactionsPerBatch");
         StringAssert.Contains(output, "MessageOutboxL2ToL1Root");
         StringAssert.Contains(output, "KnownInboundNonceCount");

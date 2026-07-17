@@ -451,6 +451,13 @@ public sealed class MultisigLocalHostComposition : IDisposable
             L1FinalityDepth = L1FinalityDepth,
             DepositSourceReadyCount = DepositSourceReadyCount,
             DepositSourceReservedCount = DepositSourceReservedCount,
+            DepositSourceSoftConsumedCount = DepositSourceSoftConsumedCount,
+            IsMetricsEnabled = IsMetricsEnabled,
+            MetricsConfiguredPort = MetricsConfiguredPort,
+            MetricsBindAddress = MetricsBindAddress,
+            ForcedInclusionDeploymentHeight = ForcedInclusionDeploymentHeight,
+            SharedBridgeDeploymentHeight = SharedBridgeDeploymentHeight,
+            MessageRouterDeploymentHeight = MessageRouterDeploymentHeight,
         };
     }
 
@@ -748,6 +755,48 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// (<see cref="RpcSharedBridgeDepositSource.ReservedCount"/>).
     /// </summary>
     public int DepositSourceReservedCount => DepositSource?.ReservedCount ?? 0;
+
+    /// <summary>
+    /// Soft consumed-nonce cache size on the production deposit source (0 when unwired).
+    /// (<see cref="RpcSharedBridgeDepositSource.SoftConsumedCount"/>).
+    /// </summary>
+    public int DepositSourceSoftConsumedCount => DepositSource?.SoftConsumedCount ?? 0;
+
+    /// <summary>
+    /// Whether metrics HTTP is enabled in settings
+    /// (<see cref="L2MetricsPlugin.IsEnabled"/>).
+    /// </summary>
+    public bool IsMetricsEnabled => Metrics.IsEnabled;
+
+    /// <summary>
+    /// Configured metrics HTTP port from settings
+    /// (<see cref="L2MetricsPlugin.ConfiguredPort"/>).
+    /// </summary>
+    public int MetricsConfiguredPort => Metrics.ConfiguredPort;
+
+    /// <summary>
+    /// Configured metrics bind address from settings
+    /// (<see cref="L2MetricsPlugin.BindAddress"/>).
+    /// </summary>
+    public string MetricsBindAddress => Metrics.BindAddress;
+
+    /// <summary>
+    /// ForcedInclusion scanner deployment height
+    /// (<see cref="L2SettlementPlugin.ForcedInclusionDeploymentHeight"/>).
+    /// </summary>
+    public uint ForcedInclusionDeploymentHeight => Settlement.ForcedInclusionDeploymentHeight;
+
+    /// <summary>
+    /// SharedBridge scanner deployment height
+    /// (<see cref="L2SettlementPlugin.SharedBridgeDeploymentHeight"/>).
+    /// </summary>
+    public uint SharedBridgeDeploymentHeight => Settlement.SharedBridgeDeploymentHeight;
+
+    /// <summary>
+    /// MessageRouter scanner deployment height
+    /// (<see cref="L2SettlementPlugin.MessageRouterDeploymentHeight"/>).
+    /// </summary>
+    public uint MessageRouterDeploymentHeight => Settlement.MessageRouterDeploymentHeight;
 
     /// <summary>
     /// Bound metrics HTTP port after <see cref="StartMetricsHttp"/> (0 when not listening).

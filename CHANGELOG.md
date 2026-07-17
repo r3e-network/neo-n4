@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Metrics settings + deposit soft-consumed + scanner deploy heights on LocalHost — 2026-07-18
+
+- `L2MetricsPlugin` exposes `IsEnabled` / `ConfiguredPort` / `BindAddress` for offline
+  metrics wiring checks (distinct from live `BoundPort`).
+- Multisig/Optimistic/Zk LocalHost + operator status add `DepositSourceSoftConsumedCount`,
+  `IsMetricsEnabled` / `MetricsConfiguredPort` / `MetricsBindAddress`, and settlement
+  scanner deploy heights (`ForcedInclusion` / `SharedBridge` / `MessageRouter`).
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- Live L1 scan/settle and metrics scrape remain operator-owned.
+
 ### Added — Settlement enable/finality + deposit source queue depths on LocalHost — 2026-07-18
 
 - `L2SettlementPlugin` exposes `IsEnabled`, `L1FinalityDepth`, and deploy heights;

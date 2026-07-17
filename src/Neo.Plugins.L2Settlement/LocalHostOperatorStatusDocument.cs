@@ -179,6 +179,27 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Deposit source soft reserved-queue depth.</summary>
     public required int DepositSourceReservedCount { get; init; }
 
+    /// <summary>Deposit source soft consumed-nonce cache size.</summary>
+    public required int DepositSourceSoftConsumedCount { get; init; }
+
+    /// <summary>Metrics HTTP enabled in settings.</summary>
+    public required bool IsMetricsEnabled { get; init; }
+
+    /// <summary>Configured metrics HTTP port from settings.</summary>
+    public required int MetricsConfiguredPort { get; init; }
+
+    /// <summary>Configured metrics bind address from settings.</summary>
+    public required string MetricsBindAddress { get; init; }
+
+    /// <summary>ForcedInclusion scanner deployment height.</summary>
+    public required uint ForcedInclusionDeploymentHeight { get; init; }
+
+    /// <summary>SharedBridge scanner deployment height.</summary>
+    public required uint SharedBridgeDeploymentHeight { get; init; }
+
+    /// <summary>MessageRouter scanner deployment height.</summary>
+    public required uint MessageRouterDeploymentHeight { get; init; }
+
     /// <summary>Recovery summary.</summary>
     public required LocalHostRecoveryDocument Recovery { get; init; }
 
@@ -245,6 +266,13 @@ public sealed record LocalHostOperatorStatusDocument
             L1FinalityDepth = status.L1FinalityDepth,
             DepositSourceReadyCount = status.DepositSourceReadyCount,
             DepositSourceReservedCount = status.DepositSourceReservedCount,
+            DepositSourceSoftConsumedCount = status.DepositSourceSoftConsumedCount,
+            IsMetricsEnabled = status.IsMetricsEnabled,
+            MetricsConfiguredPort = status.MetricsConfiguredPort,
+            MetricsBindAddress = status.MetricsBindAddress,
+            ForcedInclusionDeploymentHeight = status.ForcedInclusionDeploymentHeight,
+            SharedBridgeDeploymentHeight = status.SharedBridgeDeploymentHeight,
+            MessageRouterDeploymentHeight = status.MessageRouterDeploymentHeight,
             Recovery = LocalHostRecoveryDocument.From(status.Recovery),
         };
     }

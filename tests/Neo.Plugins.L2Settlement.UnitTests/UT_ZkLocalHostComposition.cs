@@ -123,6 +123,13 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(0, status.ReadyDepositCount);
             Assert.AreEqual(0, status.DepositSourceReadyCount);
             Assert.AreEqual(0, status.DepositSourceReservedCount);
+            Assert.AreEqual(0, status.DepositSourceSoftConsumedCount);
+            Assert.IsTrue(status.IsMetricsEnabled);
+            Assert.IsTrue(status.MetricsConfiguredPort > 0);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(status.MetricsBindAddress));
+            Assert.AreEqual(host.ForcedInclusionDeploymentHeight, status.ForcedInclusionDeploymentHeight);
+            Assert.AreEqual(host.SharedBridgeDeploymentHeight, status.SharedBridgeDeploymentHeight);
+            Assert.AreEqual(host.MessageRouterDeploymentHeight, status.MessageRouterDeploymentHeight);
             Assert.IsTrue(status.IsSettlementEnabled);
             Assert.IsTrue(status.L1FinalityDepth >= 1);
             Assert.IsTrue(status.HasDepositSource);

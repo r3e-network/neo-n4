@@ -241,6 +241,10 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "L1FinalityDepth");
         StringAssert.Contains(output, "IsSettlementEnabled");
         StringAssert.Contains(output, "DepositSourceReadyCount");
+        StringAssert.Contains(output, "IsMetricsEnabled");
+        StringAssert.Contains(output, "MetricsConfiguredPort");
+        StringAssert.Contains(output, "DepositSourceSoftConsumedCount");
+        StringAssert.Contains(output, "ForcedInclusionDeploymentHeight");
         StringAssert.Contains(output, "GatewayHost.IsEnabled");
         StringAssert.Contains(output, "MaxAutomaticRetries");
         StringAssert.Contains(output, "StopMetricsHttp");

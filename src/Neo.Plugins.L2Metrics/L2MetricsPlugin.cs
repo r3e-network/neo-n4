@@ -53,6 +53,21 @@ public sealed class L2MetricsPlugin : Plugin
     /// <summary>Loaded metrics settings (host composition / tests).</summary>
     internal L2MetricsSettings Settings => _settings;
 
+    /// <summary>
+    /// Whether the metrics HTTP server is enabled in settings. When false,
+    /// <see cref="Start"/> is a no-op.
+    /// </summary>
+    public bool IsEnabled => _settings.Enabled;
+
+    /// <summary>
+    /// Configured metrics HTTP port from settings (distinct from <see cref="BoundPort"/>,
+    /// which is 0 until <see cref="Start"/> binds).
+    /// </summary>
+    public int ConfiguredPort => _settings.Port;
+
+    /// <summary>Configured metrics bind address from settings.</summary>
+    public string BindAddress => _settings.BindAddress;
+
     /// <summary>The configured port the HTTP server is bound to (after <see cref="Start"/>). 0 before Start.</summary>
     public int BoundPort => _server?.Endpoint.Port ?? 0;
 

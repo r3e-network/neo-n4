@@ -415,7 +415,9 @@ public sealed record NeoHubDeployReport(
                     ["batchInboxVisibility"] =
                         "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
                     ["settlementProductionWired"] =
-                        "L2SettlementPlugin.IsProductionWired / IsEnabled / L1FinalityDepth after WireProduction",
+                        "L2SettlementPlugin.IsProductionWired / IsEnabled / L1FinalityDepth / "
+                        + "ForcedInclusionDeploymentHeight / SharedBridgeDeploymentHeight / "
+                        + "MessageRouterDeploymentHeight after WireProduction",
                     ["settlementProductionTransactionSender"] =
                         "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
                     ["settlementProductionForcedInclusionFinalizer"] =
@@ -425,6 +427,9 @@ public sealed record NeoHubDeployReport(
                         + "SettlementClient / TransactionSender / HasForcedInclusionFinalizer / "
                         + "HasSettlementClient / HasTransactionSender / IsSettlementEnabled / "
                         + "L1FinalityDepth / DepositSourceReadyCount / DepositSourceReservedCount / "
+                        + "DepositSourceSoftConsumedCount / IsMetricsEnabled / MetricsConfiguredPort / "
+                        + "MetricsBindAddress / ForcedInclusionDeploymentHeight / "
+                        + "SharedBridgeDeploymentHeight / MessageRouterDeploymentHeight / "
                         + "L1InboxPendingCount / L1InboxConsumedCount / KnownInboundNonceCount / "
                         + "MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostReadiness"] =
@@ -458,6 +463,9 @@ public sealed record NeoHubDeployReport(
                         + "CreateLocalDaReader (Multisig/Optimistic local DA)",
                     ["localHostMetricsExport"] =
                         "LocalHost.CaptureMetricsSnapshot / ExportPrometheusMetrics",
+                    ["localHostMetricsSettings"] =
+                        "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
+                        + "MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostBridgeRegistry"] =
                         "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
                         + "SnapshotBridgeAssets / BridgeAssetCount",
@@ -465,6 +473,7 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanSharedBridgeDepositsAsync / "
                         + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / ConsumedDepositCount / "
                         + "DepositSourceReadyCount / DepositSourceReservedCount / "
+                        + "DepositSourceSoftConsumedCount / "
                         + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                     ["localHostForcedInclusionOverdue"] =
                         "LocalHost.HasOverdueForcedInclusionAsync(nowUnixSeconds)",

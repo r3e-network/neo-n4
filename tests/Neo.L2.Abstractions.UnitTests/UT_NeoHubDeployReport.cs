@@ -179,7 +179,9 @@ public class UT_NeoHubDeployReport
                 "L2BatchPlugin.HasSealedBatchSink / ForcedInclusionSource / DepositSource / MessageRouter",
                 stores.GetProperty("batchInboxVisibility").GetString());
             Assert.AreEqual(
-                "L2SettlementPlugin.IsProductionWired / IsEnabled / L1FinalityDepth after WireProduction",
+                "L2SettlementPlugin.IsProductionWired / IsEnabled / L1FinalityDepth / "
+                + "ForcedInclusionDeploymentHeight / SharedBridgeDeploymentHeight / "
+                + "MessageRouterDeploymentHeight after WireProduction",
                 stores.GetProperty("settlementProductionWired").GetString());
             Assert.AreEqual(
                 "L2SettlementPlugin.ProductionTransactionSender after WireProduction",
@@ -192,6 +194,9 @@ public class UT_NeoHubDeployReport
                 + "SettlementClient / TransactionSender / HasForcedInclusionFinalizer / "
                 + "HasSettlementClient / HasTransactionSender / IsSettlementEnabled / "
                 + "L1FinalityDepth / DepositSourceReadyCount / DepositSourceReservedCount / "
+                + "DepositSourceSoftConsumedCount / IsMetricsEnabled / MetricsConfiguredPort / "
+                + "MetricsBindAddress / ForcedInclusionDeploymentHeight / "
+                + "SharedBridgeDeploymentHeight / MessageRouterDeploymentHeight / "
                 + "L1InboxPendingCount / L1InboxConsumedCount / KnownInboundNonceCount / "
                 + "MetricsBoundPort / IsMetricsHttpListening",
                 stores.GetProperty("localHostProductionSurfaces").GetString());
@@ -233,6 +238,10 @@ public class UT_NeoHubDeployReport
                 "LocalHost.CaptureMetricsSnapshot / ExportPrometheusMetrics",
                 stores.GetProperty("localHostMetricsExport").GetString());
             Assert.AreEqual(
+                "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
+                + "MetricsBoundPort / IsMetricsHttpListening",
+                stores.GetProperty("localHostMetricsSettings").GetString());
+            Assert.AreEqual(
                 "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
                 + "SnapshotBridgeAssets / BridgeAssetCount",
                 stores.GetProperty("localHostBridgeRegistry").GetString());
@@ -240,6 +249,7 @@ public class UT_NeoHubDeployReport
                 "LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanSharedBridgeDepositsAsync / "
                 + "ScanAndProcessReadyDepositsAsync / HasConsumedDeposit / ConsumedDepositCount / "
                 + "DepositSourceReadyCount / DepositSourceReservedCount / "
+                + "DepositSourceSoftConsumedCount / "
                 + "StageWithdrawal / StagedWithdrawalCount / SealWithdrawalBatch / ProveAsync",
                 stores.GetProperty("localHostBridgeProcessors").GetString());
             Assert.AreEqual(

@@ -212,4 +212,28 @@ public sealed record LocalHostOperatorStatus
     /// Soft reserved depth on the production deposit source (0 when unwired).
     /// </summary>
     public required int DepositSourceReservedCount { get; init; }
+
+    /// <summary>
+    /// Soft consumed-nonce cache size on the production deposit source (0 when unwired).
+    /// Distinct from bridge <see cref="ConsumedDepositCount"/>.
+    /// </summary>
+    public required int DepositSourceSoftConsumedCount { get; init; }
+
+    /// <summary>Whether metrics HTTP is enabled in settings.</summary>
+    public required bool IsMetricsEnabled { get; init; }
+
+    /// <summary>Configured metrics HTTP port from settings (0-bound until listening).</summary>
+    public required int MetricsConfiguredPort { get; init; }
+
+    /// <summary>Configured metrics bind address from settings.</summary>
+    public required string MetricsBindAddress { get; init; }
+
+    /// <summary>ForcedInclusion scanner deployment height (0 when unset).</summary>
+    public required uint ForcedInclusionDeploymentHeight { get; init; }
+
+    /// <summary>SharedBridge scanner deployment height (0 when unset).</summary>
+    public required uint SharedBridgeDeploymentHeight { get; init; }
+
+    /// <summary>MessageRouter scanner deployment height (0 when unset).</summary>
+    public required uint MessageRouterDeploymentHeight { get; init; }
 }

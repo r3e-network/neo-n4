@@ -131,6 +131,7 @@ internal static class InitL2Command
         Console.WriteLine("  host open  = MultisigLocalHostComposition.Open / OptimisticLocalHostComposition.Open / ZkLocalHostComposition.Open");
         Console.WriteLine("  host ready = LocalHost.IsOperatorReady / GetOperatorStatusAsync (see wireproduction notes)");
         Console.WriteLine("  host rpc   = LocalHost.AddRpcBatch / RecordRpcDeposit / RegisterRpcAsset / MessageOutbox");
+        Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / RegisterForcedInclusionNonce (local DA offline)");
         Console.WriteLine("               (see l1.wireproduction-notes.json when --from-deploy-report was used)");
         return 0;
     }

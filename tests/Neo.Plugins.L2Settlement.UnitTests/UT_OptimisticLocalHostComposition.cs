@@ -102,6 +102,15 @@ public sealed class UT_OptimisticLocalHostComposition
             host.RegisterRpcAsset(l1, l2);
             Assert.AreEqual(l2, host.GetRpcBridgedAsset(l1));
             Assert.IsNotNull(host.MessageOutbox);
+            Assert.IsTrue(host.RegisterForcedInclusionNonce(7));
+            var daReceipt = host.PublishDaAsync(new DAPublishRequest
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                Payload = new byte[] { 0xAA },
+            }).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(host.IsDaAvailableAsync(daReceipt).AsTask().GetAwaiter().GetResult());
+            Assert.IsNotNull(host.CreateLocalDaReader());
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

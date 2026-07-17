@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost FI + DA publish helpers — 2026-07-17
+
+- Multisig/Optimistic/Zk LocalHost expose forced-inclusion recovery helpers:
+  `RegisterForcedInclusionNonce`, `InvalidateForcedInclusionCache`.
+- All LocalHosts expose `PublishDaAsync` / `IsDaAvailableAsync`; Multisig/Optimistic
+  also expose `CreateLocalDaReader` for local persistent DA (public DA credentials remain funded).
+- `init-l2` prints host da/fi tip. Wireproduction notes + unit/integration coverage;
+  no wire/ABI change.
+
 ### Added — LocalHost RPC proofs/assets + MessageRouter helpers — 2026-07-17
 
 - Multisig/Optimistic/Zk LocalHost expose additional host RPC store ops without Neo.CLI:

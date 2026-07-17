@@ -192,6 +192,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(settlementHost.GetLatestRpcStateRoot(), opStatus.LatestRpcStateRoot);
             Assert.IsNotNull(settlementHost.ForcedInclusionFinalizer);
             Assert.IsNotNull(settlementHost.TransactionSender);
+            Assert.IsTrue(settlementHost.RegisterForcedInclusionNonce(11));
+            Assert.IsNotNull(settlementHost.MessageOutbox);
+            var daReceipt = settlementHost.PublishDaAsync(new DAPublishRequest
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                Payload = new byte[] { 0xDE, 0xAD },
+            }).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(settlementHost.IsDaAvailableAsync(daReceipt).AsTask().GetAwaiter().GetResult());
             // Local durable recovery surface (no funded L1 publish).
             var recovery = settlementHost.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);

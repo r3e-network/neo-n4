@@ -389,6 +389,39 @@ public sealed class ZkLocalHostComposition : IDisposable
     }
 
     /// <summary>
+    /// Register a forced-inclusion nonce for recovery without scanning L1
+    /// (<see cref="RpcForcedInclusionSource.RegisterNonce"/>).
+    /// </summary>
+    public bool RegisterForcedInclusionNonce(ulong nonce)
+        => ForcedInclusion.RegisterNonce(nonce);
+
+    /// <summary>
+    /// Drop the in-memory forced-inclusion cache
+    /// (<see cref="RpcForcedInclusionSource.InvalidateCache"/>).
+    /// </summary>
+    public void InvalidateForcedInclusionCache()
+        => ForcedInclusion.InvalidateCache();
+
+    /// <summary>
+    /// Publish batch payload to the host DA writer
+    /// (<see cref="IDAWriter.PublishAsync"/>). Local DA is fully offline; public DA
+    /// backends remain funded credential gates.
+    /// </summary>
+    public ValueTask<DAReceipt> PublishDaAsync(
+        DAPublishRequest request,
+        CancellationToken cancellationToken = default)
+        => DaWriter.PublishAsync(request, cancellationToken);
+
+    /// <summary>
+    /// Confirm a prior DA receipt is still retrievable
+    /// (<see cref="IDAWriter.IsAvailableAsync"/>).
+    /// </summary>
+    public ValueTask<bool> IsDaAvailableAsync(
+        DAReceipt receipt,
+        CancellationToken cancellationToken = default)
+        => DaWriter.IsAvailableAsync(receipt, cancellationToken);
+
+    /// <summary>
     /// Production SharedBridge deposit source after WireProduction (same instance as
     /// <see cref="L2BatchPlugin.DepositSource"/> / <see cref="L2BridgePlugin.DepositSource"/>).
     /// </summary>

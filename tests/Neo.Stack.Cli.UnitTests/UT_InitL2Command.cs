@@ -233,6 +233,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "GetOperatorStatusAsync");
         StringAssert.Contains(output, "AddRpcBatch");
         StringAssert.Contains(output, "MessageOutbox");
+        StringAssert.Contains(output, "PublishDaAsync");
+        StringAssert.Contains(output, "RegisterForcedInclusionNonce");
         StringAssert.Contains(output, "l1.wireproduction-notes.json");
     }
 

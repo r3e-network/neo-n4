@@ -118,6 +118,9 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsNotNull(host.MessageOutbox);
             Assert.IsNull(
                 host.GetMessageRouterProofAsync(new UInt256(new byte[32])).AsTask().GetAwaiter().GetResult());
+            Assert.IsTrue(host.RegisterForcedInclusionNonce(9));
+            host.InvalidateForcedInclusionCache();
+            // Zk production DA publish remains a funded credential path (stub throws by design).
             var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(0, recovery.PendingCount);
             Assert.AreEqual(

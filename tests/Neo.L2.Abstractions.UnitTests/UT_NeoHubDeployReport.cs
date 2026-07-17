@@ -207,6 +207,13 @@ public class UT_NeoHubDeployReport
                 + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync",
                 stores.GetProperty("localHostMessageRouterHelpers").GetString());
             Assert.AreEqual(
+                "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",
+                stores.GetProperty("localHostForcedInclusionHelpers").GetString());
+            Assert.AreEqual(
+                "LocalHost.PublishDaAsync / IsDaAvailableAsync / "
+                + "CreateLocalDaReader (Multisig/Optimistic local DA)",
+                stores.GetProperty("localHostDaHelpers").GetString());
+            Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
                 stores.GetProperty("localHostSettleHelpers").GetString());

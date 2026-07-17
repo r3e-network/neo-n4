@@ -431,6 +431,11 @@ public sealed record NeoHubDeployReport(
                     ["localHostMessageRouterHelpers"] =
                         "LocalHost.MessageOutbox / EnqueueOutboundMessagesAsync / "
                         + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync",
+                    ["localHostForcedInclusionHelpers"] =
+                        "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache",
+                    ["localHostDaHelpers"] =
+                        "LocalHost.PublishDaAsync / IsDaAvailableAsync / "
+                        + "CreateLocalDaReader (Multisig/Optimistic local DA)",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",

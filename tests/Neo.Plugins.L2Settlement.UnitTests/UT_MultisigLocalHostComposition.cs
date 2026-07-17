@@ -145,6 +145,22 @@ public sealed class UT_MultisigLocalHostComposition
             var routerProof = host.GetMessageRouterProofAsync(msgHash).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(routerProof is { Length: 1 });
             Assert.IsTrue(status.GatewayEnabled);
+            Assert.IsTrue(host.RegisterForcedInclusionNonce(42));
+            Assert.IsFalse(host.RegisterForcedInclusionNonce(42)); // already known
+            host.InvalidateForcedInclusionCache();
+            var daReq = new DAPublishRequest
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                Payload = new byte[] { 0x10, 0x20, 0x30 },
+            };
+            var receipt = host.PublishDaAsync(daReq).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(DAMode.Local, receipt.Layer);
+            Assert.IsTrue(host.IsDaAvailableAsync(receipt).AsTask().GetAwaiter().GetResult());
+            var daReader = host.CreateLocalDaReader();
+            Assert.IsNotNull(daReader);
+            var payload = daReader.ReadAsync(receipt).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(payload is { Length: 3 });
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreEqual(0, host.Metrics.BoundPort); // HTTP not started by default
             Assert.AreEqual(20260716u, host.RpcStore.ChainId);

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Host composition E2E: Multisig+Gateway / Optimistic / Zk one-shots — 2026-07-17
+
+- `UT_E2E_HostComposition_FromDeployReport` now opens the public one-shot host roots from the
+  testnet deploy report without funded L1 traffic:
+  `MultisigLocalHostComposition` + `GatewayHostComposition.OpenMerkle` together,
+  `OptimisticLocalHostComposition`, and `ZkLocalHostComposition` (stub production DA + pinned
+  fake executor binary). Factory inventory coverage retained.
+
 ### Added — ZkLocalHostComposition chain-directory root — 2026-07-17
 
 - `ZkLocalHostComposition.Open` binds bootstrap state, `Sp1SettlementExecutionStack`,

@@ -5,21 +5,25 @@ using Neo.L2.Persistence;
 using Neo.L2.Proving.RiscVZk;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.Telemetry;
+using Neo.Plugins.L2Rpc;
 
 namespace Neo.Plugins.L2;
 
 /// <summary>
 /// Zk host composition root: chain-directory plugins + durable L2 state +
 /// <see cref="Sp1SettlementExecutionStack"/> +
-/// <see cref="L2SettlementPlugin.WireProductionFromLayout"/> + bridge deposit source + metrics.
+/// <see cref="L2SettlementPlugin.WireProductionFromLayout"/> + bridge deposit source +
+/// metrics + L2 RPC proof store.
 /// </summary>
 /// <remarks>
-/// See doc.md §7.3 / §7.5 / §8 / §14.2. Opens Zk settlement without Neo.CLI after
+/// See doc.md §7.3 / §7.5 / §8 / §14.1 / §14.2. Opens Zk settlement without Neo.CLI after
 /// <c>init-l2 --from-deploy-report</c> and <c>bootstrap-genesis</c>. Host-supplied:
 /// reviewed <c>neo-zkvm-executor</c> path + SHA-256 pin, governance-registered verification key,
 /// production <see cref="IDAWriter"/> (L1 / NeoFS — funded credentials), and L1 settlement signer.
 /// The out-of-process <c>prove-batch</c> daemon that drains <c>prover/inbox</c> remains a funded
-/// operator process. Dispose the composition (settlement first) before reopening RocksDB paths.
+/// operator process. WireProduction leaves MessageRouter finalized-proof ownership unset so
+/// <see cref="InMemoryL2RpcStore"/> can own <c>data/rpc/proofs</c>. Dispose the composition
+/// (settlement first) before reopening RocksDB paths.
 /// </remarks>
 public sealed class ZkLocalHostComposition : IDisposable
 {
@@ -36,7 +40,8 @@ public sealed class ZkLocalHostComposition : IDisposable
         IProductionDAWriter daWriter,
         RpcForcedInclusionSource forcedInclusion,
         L2BridgePlugin bridge,
-        L2MetricsPlugin metrics)
+        L2MetricsPlugin metrics,
+        InMemoryL2RpcStore rpcStore)
     {
         ChainDirectory = chainDirectory;
         Batch = batch;
@@ -49,6 +54,7 @@ public sealed class ZkLocalHostComposition : IDisposable
         ForcedInclusion = forcedInclusion;
         Bridge = bridge;
         Metrics = metrics;
+        RpcStore = rpcStore;
     }
 
     /// <summary>Absolute chain working directory.</summary>
@@ -89,6 +95,12 @@ public sealed class ZkLocalHostComposition : IDisposable
 
     /// <summary>Shared metrics sink host (wired onto batch + settlement + bridge).</summary>
     public L2MetricsPlugin Metrics { get; }
+
+    /// <summary>
+    /// Durable L2 RPC store under <c>data/rpc/proofs</c> (register with
+    /// <c>NeoSystem.AddService</c> before <c>L2RpcPlugin</c> methods).
+    /// </summary>
+    public InMemoryL2RpcStore RpcStore { get; }
 
     /// <summary>
     /// Open Zk host composition from a chain directory after
@@ -145,12 +157,14 @@ public sealed class ZkLocalHostComposition : IDisposable
         L2ProverPlugin? prover = null;
         L2BridgePlugin? bridge = null;
         L2MetricsPlugin? metrics = null;
+        InMemoryL2RpcStore? rpcStore = null;
         try
         {
             batch = L2BatchPlugin.CreateFromChainDirectory(root);
             settlement = L2SettlementPlugin.CreateFromChainDirectory(root);
             layout = L2SettlementStoreLayout.Open(root);
             state = Sp1SettlementExecutionStack.OpenStateFromChainDirectory(root);
+            rpcStore = InMemoryL2RpcStore.OpenFromChainDirectory(root);
             var stack = Sp1SettlementExecutionStack.CreateFromChainDirectory(
                 root,
                 state,
@@ -204,7 +218,8 @@ public sealed class ZkLocalHostComposition : IDisposable
                 daWriter,
                 forced,
                 bridge,
-                metrics);
+                metrics,
+                rpcStore);
         }
         catch
         {
@@ -215,6 +230,7 @@ public sealed class ZkLocalHostComposition : IDisposable
             batch?.Dispose();
             layout?.Dispose();
             state?.Dispose();
+            rpcStore?.Dispose();
             throw;
         }
     }
@@ -232,6 +248,7 @@ public sealed class ZkLocalHostComposition : IDisposable
         Batch.Dispose();
         Layout.Dispose();
         State.Dispose();
+        RpcStore.Dispose();
         GC.SuppressFinalize(this);
     }
 }

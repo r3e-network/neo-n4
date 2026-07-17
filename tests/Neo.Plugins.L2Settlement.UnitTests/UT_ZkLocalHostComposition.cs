@@ -76,6 +76,8 @@ public sealed class UT_ZkLocalHostComposition
                 host.Bridge.DepositSource);
             Assert.IsNotNull(host.Metrics.Metrics);
             Assert.AreSame(da, host.DaWriter);
+            Assert.AreEqual(20260716u, host.RpcStore.ChainId);
+            Assert.AreEqual(DAMode.L1, host.RpcStore.DAMode);
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 chainDir, Sp1SettlementExecutionStack.RelativeProverQueueDir)));
         }

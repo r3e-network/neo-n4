@@ -396,11 +396,14 @@ public sealed record NeoHubDeployReport(
                     ["wireProductionFromLayout"] =
                         "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                     ["multisigLocalHostComposition"] =
-                        "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)",
+                        "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer) "
+                        + "+ InMemoryL2RpcStore (data/rpc/proofs)",
                     ["optimisticLocalHostComposition"] =
-                        "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer)",
+                        "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer) "
+                        + "+ InMemoryL2RpcStore (data/rpc/proofs)",
                     ["zkLocalHostComposition"] =
-                        "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer)",
+                        "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer) "
+                        + "+ InMemoryL2RpcStore (data/rpc/proofs)",
                     ["gatewayHostCompositionMerkle"] =
                         "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",
                     ["gatewayHostCompositionMultisig"] =

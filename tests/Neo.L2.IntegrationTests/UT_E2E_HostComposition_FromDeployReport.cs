@@ -193,6 +193,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(settlementHost.Bridge.DepositSource);
             Assert.AreEqual(20260716u, settlementHost.Bridge.ChainId);
             Assert.IsNotNull(settlementHost.Metrics.Metrics);
+            Assert.AreEqual(20260716u, settlementHost.RpcStore.ChainId);
+            Assert.AreEqual(DAMode.Local, settlementHost.RpcStore.DAMode);
 
             Assert.AreEqual(Path.GetFullPath(chainDir), gatewayHost.ChainDirectory);
             Assert.IsInstanceOfType(gatewayHost.Gateway.Aggregator, typeof(BinaryTreeAggregator));
@@ -243,6 +245,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(20260716u, host.ForcedInclusion.ChainId);
             Assert.AreEqual(20260716u, host.Bridge.ChainId);
             Assert.IsNotNull(host.Metrics.Metrics);
+            Assert.AreEqual(20260716u, host.RpcStore.ChainId);
         }
         finally
         {
@@ -293,6 +296,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(host.Bridge.DepositSource);
             Assert.AreEqual(20260716u, host.Bridge.ChainId);
             Assert.IsNotNull(host.Metrics.Metrics);
+            Assert.AreEqual(20260716u, host.RpcStore.ChainId);
+            Assert.AreEqual(DAMode.L1, host.RpcStore.DAMode);
         }
         finally
         {

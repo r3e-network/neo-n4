@@ -26,6 +26,7 @@
     <ProjectReference Include="..\Neo.Plugins.L2DA\Neo.Plugins.L2DA.csproj" />
     <ProjectReference Include="..\Neo.Plugins.L2Metrics\Neo.Plugins.L2Metrics.csproj" />
     <ProjectReference Include="..\Neo.Plugins.L2Prover\Neo.Plugins.L2Prover.csproj" />
+    <ProjectReference Include="..\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
   </ItemGroup>
 
   <ItemGroup>

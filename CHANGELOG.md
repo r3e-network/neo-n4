@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost compositions open durable L2 RPC proof store — 2026-07-17
+
+- `MultisigLocalHostComposition` / `OptimisticLocalHostComposition` /
+  `ZkLocalHostComposition` open `InMemoryL2RpcStore.OpenFromChainDirectory`
+  (`data/rpc/proofs`) alongside WireProduction.
+- MessageRouter finalized-proof ownership stays unset so the RPC store is the single
+  owner of that RocksDB path (register with `NeoSystem.AddService` before L2RpcPlugin).
+- Unit + integration host-composition coverage; wireproduction notes updated.
+
 ### Added — Host composition E2E: Multisig+Gateway / Optimistic / Zk one-shots — 2026-07-17
 
 - `UT_E2E_HostComposition_FromDeployReport` now opens the public one-shot host roots from the

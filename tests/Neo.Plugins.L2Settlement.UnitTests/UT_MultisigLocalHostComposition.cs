@@ -57,6 +57,8 @@ public sealed class UT_MultisigLocalHostComposition
                 host.Settlement.ProductionComposition.OwnedDepositSource,
                 host.Bridge.DepositSource);
             Assert.IsNotNull(host.Metrics.Metrics);
+            Assert.AreEqual(20260716u, host.RpcStore.ChainId);
+            Assert.AreEqual(DAMode.Local, host.RpcStore.DAMode);
         }
         finally
         {

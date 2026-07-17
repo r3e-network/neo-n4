@@ -52,6 +52,7 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsNotNull(host.Settlement.ProductionComposition);
             Assert.AreEqual(20260716u, host.Bridge.ChainId);
             Assert.IsNotNull(host.Metrics.Metrics);
+            Assert.AreEqual(20260716u, host.RpcStore.ChainId);
             if (host.Settlement.ProductionComposition!.OwnedDepositSource is not null)
             {
                 Assert.AreSame(

@@ -156,13 +156,16 @@ public class UT_NeoHubDeployReport
                 "L2SettlementPlugin.WireProductionFromLayout(chainDir, layout, batch, executor, da, prover, signer)",
                 stores.GetProperty("wireProductionFromLayout").GetString());
             Assert.AreEqual(
-                "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer)",
+                "MultisigLocalHostComposition.Open(chainDir, executor, signers, signer) "
+                + "+ InMemoryL2RpcStore (data/rpc/proofs)",
                 stores.GetProperty("multisigLocalHostComposition").GetString());
             Assert.AreEqual(
-                "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer)",
+                "OptimisticLocalHostComposition.Open(chainDir, executor, sequencerKey, bondContract, bondTxHash, signer) "
+                + "+ InMemoryL2RpcStore (data/rpc/proofs)",
                 stores.GetProperty("optimisticLocalHostComposition").GetString());
             Assert.AreEqual(
-                "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer)",
+                "ZkLocalHostComposition.Open(chainDir, executorPath, executorSha256, vk, productionDaWriter, signer) "
+                + "+ InMemoryL2RpcStore (data/rpc/proofs)",
                 stores.GetProperty("zkLocalHostComposition").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk)",

@@ -179,6 +179,17 @@ public sealed class L2BatchPlugin : Plugin
     public ulong? NextExpectedBlock => _sealer?.NextExpectedBlock;
 
     /// <summary>
+    /// True when a sealed batch is awaiting durable persistence / acknowledgement
+    /// (<see cref="BatchSealer.PendingBatch"/>).
+    /// </summary>
+    public bool HasPendingSealedBatch => _sealer?.PendingBatch is not null;
+
+    /// <summary>
+    /// Sealed batch awaiting durable persistence, or null when none is pending.
+    /// </summary>
+    public SealedBatch? PendingSealedBatch => _sealer?.PendingBatch;
+
+    /// <summary>
     /// Wire the L1 forced-inclusion read source. The durable settlement sink remains the
     /// reservation source of truth; this method never calls
     /// <see cref="IForcedInclusionSource.ConfirmConsumedAsync"/>.

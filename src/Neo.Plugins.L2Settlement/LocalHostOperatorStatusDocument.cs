@@ -38,6 +38,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Sealed-batch sink installed.</summary>
     public required bool HasSealedBatchSink { get; init; }
 
+    /// <summary>Next expected L2 block index, if sealer is restored.</summary>
+    public required ulong? NextExpectedBlock { get; init; }
+
+    /// <summary>Sealed batch awaiting durable persistence.</summary>
+    public required bool HasPendingSealedBatch { get; init; }
+
     /// <summary>Operator readiness flag.</summary>
     public required bool IsOperatorReady { get; init; }
 
@@ -99,6 +105,8 @@ public sealed record LocalHostOperatorStatusDocument
             Exit = status.Exit.ToString(),
             IsProductionWired = status.IsProductionWired,
             HasSealedBatchSink = status.HasSealedBatchSink,
+            NextExpectedBlock = status.NextExpectedBlock,
+            HasPendingSealedBatch = status.HasPendingSealedBatch,
             IsOperatorReady = status.IsOperatorReady,
             HasDepositSource = status.HasDepositSource,
             HasMessageRouter = status.HasMessageRouter,

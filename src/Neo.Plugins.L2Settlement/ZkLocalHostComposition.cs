@@ -208,6 +208,18 @@ public sealed class ZkLocalHostComposition : IDisposable
     public ulong? NextExpectedBlock => Batch.NextExpectedBlock;
 
     /// <summary>
+    /// True when a sealed batch awaits durable persistence
+    /// (<see cref="L2BatchPlugin.HasPendingSealedBatch"/>).
+    /// </summary>
+    public bool HasPendingSealedBatch => Batch.HasPendingSealedBatch;
+
+    /// <summary>
+    /// Sealed batch awaiting durable persistence, or null
+    /// (<see cref="L2BatchPlugin.PendingSealedBatch"/>).
+    /// </summary>
+    public SealedBatch? PendingSealedBatch => Batch.PendingSealedBatch;
+
+    /// <summary>
     /// Feed one committed L2 block into the durable batcher hand-off without Neo.CLI
     /// (<see cref="L2BatchPlugin.ProcessCommittedBlock"/>).
     /// </summary>
@@ -293,6 +305,8 @@ public sealed class ZkLocalHostComposition : IDisposable
             Exit = RpcStore.Exit,
             IsProductionWired = IsProductionWired,
             HasSealedBatchSink = HasSealedBatchSink,
+            NextExpectedBlock = NextExpectedBlock,
+            HasPendingSealedBatch = HasPendingSealedBatch,
             IsOperatorReady = IsOperatorReady,
             HasDepositSource = DepositSource is not null,
             HasMessageRouter = MessageRouter is not null,

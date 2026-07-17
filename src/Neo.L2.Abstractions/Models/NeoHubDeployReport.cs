@@ -347,7 +347,8 @@ public sealed record NeoHubDeployReport(
                     ["localDaStore"] = RelativeLocalDaStoreDir,
                     ["openHelper"] = "L2SettlementStoreLayout.Open(chainDirectory)",
                     ["batchPluginFactory"] =
-                        "L2BatchPlugin.CreateFromChainDirectory / NextExpectedBlock / ProcessCommittedBlock",
+                        "L2BatchPlugin.CreateFromChainDirectory / NextExpectedBlock / "
+                        + "HasPendingSealedBatch / PendingSealedBatch / ProcessCommittedBlock",
                     ["settlementPluginFactory"] = "L2SettlementPlugin.CreateFromChainDirectory(chainDirectory)",
                     ["bridgePluginFactory"] = "L2BridgePlugin.CreateFromChainDirectory(chainDirectory)",
                     ["proverPluginFactory"] = "L2ProverPlugin.CreateFromChainDirectory(chainDirectory)",
@@ -425,8 +426,8 @@ public sealed record NeoHubDeployReport(
                         + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                         + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                     ["localHostBatcherHelpers"] =
-                        "LocalHost.NextExpectedBlock / ProcessCommittedBlock "
-                        + "(L2BatchPlugin public hand-off without Neo.CLI)",
+                        "LocalHost.NextExpectedBlock / HasPendingSealedBatch / PendingSealedBatch / "
+                        + "ProcessCommittedBlock (L2BatchPlugin public hand-off without Neo.CLI)",
                     ["localHostRpcStoreHelpers"] =
                         "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
                         + "FinalizeRpcBatch / RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / "

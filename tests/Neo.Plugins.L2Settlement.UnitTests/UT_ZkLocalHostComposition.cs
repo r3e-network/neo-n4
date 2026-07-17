@@ -90,6 +90,8 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreSame(host.ForcedInclusion, host.Batch.ForcedInclusionSource);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.HasSealedBatchSink);
+            Assert.AreEqual(1UL, host.NextExpectedBlock);
+            Assert.IsFalse(host.HasPendingSealedBatch);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
             Assert.IsNotNull(host.Metrics.Metrics);

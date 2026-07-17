@@ -233,6 +233,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "GetOperatorStatusAsync");
         StringAssert.Contains(output, "ProcessCommittedBlock");
         StringAssert.Contains(output, "NextExpectedBlock");
+        StringAssert.Contains(output, "HasPendingSealedBatch");
         StringAssert.Contains(output, "AddRpcBatch");
         StringAssert.Contains(output, "MessageOutbox");
         StringAssert.Contains(output, "PublishDaAsync");

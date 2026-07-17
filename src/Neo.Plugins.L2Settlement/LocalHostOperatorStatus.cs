@@ -40,6 +40,14 @@ public sealed record LocalHostOperatorStatus
     public required bool HasSealedBatchSink { get; init; }
 
     /// <summary>
+    /// Next L2 block index the batcher expects, or null when the sealer is not restored.
+    /// </summary>
+    public required ulong? NextExpectedBlock { get; init; }
+
+    /// <summary>True when a sealed batch awaits durable persistence / acknowledgement.</summary>
+    public required bool HasPendingSealedBatch { get; init; }
+
+    /// <summary>
     /// <see cref="IsProductionWired"/> and <see cref="HasSealedBatchSink"/> — matches default
     /// LocalHost <c>/readyz</c>.
     /// </summary>

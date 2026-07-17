@@ -180,6 +180,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.IsOperatorReady);
             Assert.IsTrue(settlementHost.HasSealedBatchSink);
             Assert.AreEqual(1UL, settlementHost.NextExpectedBlock);
+            Assert.IsFalse(settlementHost.HasPendingSealedBatch);
             Assert.AreEqual(20260716u, settlementHost.ChainId);
             Assert.AreEqual(ProofType.Multisig, settlementHost.ProofType);
             Assert.AreEqual(DAMode.Local, settlementHost.DaMode);

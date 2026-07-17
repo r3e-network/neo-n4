@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost batcher pending status on operator health — 2026-07-17
+
+- `L2BatchPlugin` exposes `HasPendingSealedBatch` / `PendingSealedBatch`; Multisig/Optimistic/Zk
+  LocalHost wrap them for offline ops without Neo.CLI.
+- `LocalHostOperatorStatus` (+ JSON document) include `NextExpectedBlock` and
+  `HasPendingSealedBatch` for host health dumps.
+- Wireproduction notes, init-l2 tip, unit/integration coverage; no wire/ABI change.
+
 ### Added — LocalHost offline ProcessCommittedBlock batcher hand-off — 2026-07-17
 
 - `L2BatchPlugin.ProcessCommittedBlock` is public (host/offline composition without Neo.CLI

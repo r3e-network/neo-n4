@@ -182,13 +182,21 @@ public sealed class GatewayHostComposition : IDisposable
     /// <summary>
     /// True when no publication is pending, the durable queue is empty, no last error is stored,
     /// and the outbox is not poisoned. Runtime idle health (distinct from offline config passport).
+    /// Built by <see cref="GatewayHostOperatorStatus.IsOutboxRuntimeIdle"/>.
     /// </summary>
-    public bool IsOutboxIdle =>
-        !HasPendingPublication
-        && AggregatorPendingCount == 0
-        && OutboxStatus.QueueDepth == 0
-        && string.IsNullOrEmpty(OutboxStatus.LastError)
-        && !IsOutboxPoisoned;
+    public bool IsOutboxIdle
+    {
+        get
+        {
+            var outbox = OutboxStatus;
+            return GatewayHostOperatorStatus.IsOutboxRuntimeIdle(
+                HasPendingPublication,
+                AggregatorPendingCount,
+                outbox.QueueDepth,
+                outbox.LastError,
+                IsOutboxPoisoned);
+        }
+    }
 
     /// <summary>
     /// Offline passport complete and outbox idle. Does not claim L1 confirmation of a published

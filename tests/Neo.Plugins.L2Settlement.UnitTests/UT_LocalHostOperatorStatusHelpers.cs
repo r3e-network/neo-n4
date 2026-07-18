@@ -159,6 +159,44 @@ public sealed class UT_LocalHostOperatorStatusHelpers
     }
 
     [TestMethod]
+    public void IsSettlementRuntimeIdle_TrueWhenEmptyAndNoFailure()
+    {
+        var idle = LocalHostOperatorStatus.IsSettlementRuntimeIdle(
+            0,
+            new SettlementRecoveryStatus
+            {
+                PendingCount = 0,
+                ConfirmationLagBatches = 0,
+                State = null,
+                RetryCount = 0,
+                LastError = null,
+            });
+        Assert.IsTrue(idle);
+    }
+
+    [TestMethod]
+    public void IsSettlementRuntimeIdle_FalseWhenPendingPoisonRetryOrError()
+    {
+        var baseRecovery = new SettlementRecoveryStatus
+        {
+            PendingCount = 0,
+            ConfirmationLagBatches = 0,
+            State = null,
+            RetryCount = 0,
+            LastError = null,
+        };
+        Assert.IsFalse(LocalHostOperatorStatus.IsSettlementRuntimeIdle(1, baseRecovery));
+        Assert.IsFalse(LocalHostOperatorStatus.IsSettlementRuntimeIdle(
+            0, baseRecovery with { PendingCount = 2 }));
+        Assert.IsFalse(LocalHostOperatorStatus.IsSettlementRuntimeIdle(
+            0, baseRecovery with { State = SettlementRecoveryState.Poisoned }));
+        Assert.IsFalse(LocalHostOperatorStatus.IsSettlementRuntimeIdle(
+            0, baseRecovery with { State = SettlementRecoveryState.Retrying }));
+        Assert.IsFalse(LocalHostOperatorStatus.IsSettlementRuntimeIdle(
+            0, baseRecovery with { LastError = "fee too low" }));
+    }
+
+    [TestMethod]
     public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealAgeMisalignedOverdueFiPoison()
     {
         var recovery = new SettlementRecoveryStatus

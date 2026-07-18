@@ -253,6 +253,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsPipelineEnabled");
         StringAssert.Contains(output, "IsSettlementIdle");
         StringAssert.Contains(output, "IsPipelineHealthy");
+        StringAssert.Contains(output, "IsSettlementRuntimeIdle");
+        StringAssert.Contains(output, "IsOutboxRuntimeIdle");
         StringAssert.Contains(output, "PipelineHealthFailures");
         StringAssert.Contains(output, "HasOverdueForcedInclusion");
         StringAssert.Contains(output, "IsSettlementRetrying");

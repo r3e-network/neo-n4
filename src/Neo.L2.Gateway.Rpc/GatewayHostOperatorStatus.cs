@@ -148,6 +148,22 @@ public sealed record GatewayHostOperatorStatus
     public required int MetricsEntryCount { get; init; }
 
     /// <summary>
+    /// True when the durable outbox/aggregator is idle: no pending publication, empty queue,
+    /// no last error, and not poisoned. Not an L1 confirmation claim.
+    /// </summary>
+    public static bool IsOutboxRuntimeIdle(
+        bool hasPendingPublication,
+        int aggregatorPendingCount,
+        int outboxQueueDepth,
+        string? outboxLastError,
+        bool isOutboxPoisoned)
+        => !hasPendingPublication
+            && aggregatorPendingCount == 0
+            && outboxQueueDepth == 0
+            && string.IsNullOrEmpty(outboxLastError)
+            && !isOutboxPoisoned;
+
+    /// <summary>
     /// Build offline Gateway passport failure names from publication-profile wiring flags.
     /// Empty list means <see cref="IsOfflinePassportComplete"/>. Not an L1 confirmation claim.
     /// </summary>

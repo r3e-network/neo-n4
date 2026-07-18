@@ -592,6 +592,23 @@ public sealed record LocalHostOperatorStatus
     }
 
     /// <summary>
+    /// True when the local settlement queue is idle: no host/recovery pending, no poison/retry
+    /// state, and no last error. Does not claim L1 settle confirmation (funded gate).
+    /// </summary>
+    public static bool IsSettlementRuntimeIdle(
+        int pendingSettlementCount,
+        SettlementRecoveryStatus recovery)
+    {
+        ArgumentNullException.ThrowIfNull(recovery);
+        if (pendingSettlementCount != 0 || recovery.PendingCount != 0)
+            return false;
+        if (recovery.State is SettlementRecoveryState.Poisoned
+            or SettlementRecoveryState.Retrying)
+            return false;
+        return string.IsNullOrEmpty(recovery.LastError);
+    }
+
+    /// <summary>
     /// Build offline passport failure names from wiring/config readiness flags.
     /// Empty list means <see cref="IsOfflinePassportComplete"/>. Does not claim L1 settle,
     /// prove-batch, or live scan (funded gates).
@@ -691,12 +708,7 @@ public sealed record LocalHostOperatorStatus
             failures.Add(nameof(IsSettlementPoisoned));
         else if (isRetrying)
             failures.Add(nameof(IsSettlementRetrying));
-        var settlementIdle = pendingSettlementCount == 0
-            && recovery.PendingCount == 0
-            && !isPoisoned
-            && !isRetrying
-            && string.IsNullOrEmpty(recovery.LastError);
-        if (!settlementIdle && !isPoisoned && !isRetrying)
+        else if (!IsSettlementRuntimeIdle(pendingSettlementCount, recovery))
             failures.Add(nameof(IsSettlementIdle));
         return failures;
     }

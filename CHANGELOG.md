@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Settlement/outbox runtime idle pure helpers — 2026-07-19
+
+- `LocalHostOperatorStatus.IsSettlementRuntimeIdle` pure helper; Multisig/Optimistic/Zk
+  status + `BuildPipelineHealthFailures` share one idle definition (pending/recovery/error).
+- `GatewayHostOperatorStatus.IsOutboxRuntimeIdle` pure helper;
+  `GatewayHostComposition.IsOutboxIdle` reuses it.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 settle / publication confirmation remain funded gates.
+
 ### Added — Offline passport health builders (LocalHost + Gateway) — 2026-07-18
 
 - `LocalHostOperatorStatus.BuildOfflinePassportFailures` pure helper (24 wiring/config flags);

@@ -148,7 +148,7 @@ internal static class InitL2Command
         Console.WriteLine("               ProofSystem / AggregationBackendId / ExpectedNetwork / HasL1RpcEndpoint");
         Console.WriteLine("               IsPublicationProfileReady / HasExpectedNetwork / IsOfflinePassportComplete");
         Console.WriteLine("               OfflinePassportFailures / BuildOfflinePassportFailures (empty when complete)");
-        Console.WriteLine("               IsOutboxIdle / IsOutboxPoisoned / IsPublicationHealthy");
+        Console.WriteLine("               IsOutboxIdle / IsOutboxRuntimeIdle / IsOutboxPoisoned / IsPublicationHealthy");
         Console.WriteLine("               PublicationHealthFailures / BuildPublicationHealthFailures (empty when publication healthy)");
         Console.WriteLine("               IsGatewayHostHealthy / GatewayHostHealthFailures (alias of publication health)");
         Console.WriteLine("               ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash");
@@ -156,7 +156,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsMetricsWiringComplete / HasMetricsReadinessCheck / StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host pipe  = LocalHost.IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete");
         Console.WriteLine("               IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete");
-        Console.WriteLine("               IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / IsPipelineHealthy");
+        Console.WriteLine("               IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / IsSettlementRuntimeIdle / IsPipelineHealthy");
         Console.WriteLine("               PipelineHealthFailures (empty when healthy; pending seal / overdue FI / retry/poison/idle)");
         Console.WriteLine("               HasOverdueForcedInclusion / HasOverdueForcedInclusionCached (soft; live poll is HasOverdueForcedInclusionAsync)");
         Console.WriteLine("               IsMetricsHttpHealthy / MetricsHttpHealthFailures (N/A empty when metrics disabled)");

@@ -11,6 +11,52 @@ namespace Neo.L2.Gateway.Rpc.UnitTests;
 public sealed class UT_GatewayHostOperatorStatusHelpers
 {
     [TestMethod]
+    public void IsOutboxRuntimeIdle_TrueWhenEmptyAndNotPoisoned()
+    {
+        Assert.IsTrue(GatewayHostOperatorStatus.IsOutboxRuntimeIdle(
+            hasPendingPublication: false,
+            aggregatorPendingCount: 0,
+            outboxQueueDepth: 0,
+            outboxLastError: null,
+            isOutboxPoisoned: false));
+    }
+
+    [TestMethod]
+    public void IsOutboxRuntimeIdle_FalseWhenAnyWorkOrPoison()
+    {
+        Assert.IsFalse(GatewayHostOperatorStatus.IsOutboxRuntimeIdle(
+            hasPendingPublication: true,
+            aggregatorPendingCount: 0,
+            outboxQueueDepth: 0,
+            outboxLastError: null,
+            isOutboxPoisoned: false));
+        Assert.IsFalse(GatewayHostOperatorStatus.IsOutboxRuntimeIdle(
+            hasPendingPublication: false,
+            aggregatorPendingCount: 1,
+            outboxQueueDepth: 0,
+            outboxLastError: null,
+            isOutboxPoisoned: false));
+        Assert.IsFalse(GatewayHostOperatorStatus.IsOutboxRuntimeIdle(
+            hasPendingPublication: false,
+            aggregatorPendingCount: 0,
+            outboxQueueDepth: 2,
+            outboxLastError: null,
+            isOutboxPoisoned: false));
+        Assert.IsFalse(GatewayHostOperatorStatus.IsOutboxRuntimeIdle(
+            hasPendingPublication: false,
+            aggregatorPendingCount: 0,
+            outboxQueueDepth: 0,
+            outboxLastError: "lag",
+            isOutboxPoisoned: false));
+        Assert.IsFalse(GatewayHostOperatorStatus.IsOutboxRuntimeIdle(
+            hasPendingPublication: false,
+            aggregatorPendingCount: 0,
+            outboxQueueDepth: 0,
+            outboxLastError: null,
+            isOutboxPoisoned: true));
+    }
+
+    [TestMethod]
     public void BuildOfflinePassportFailures_EmptyWhenAllReady()
     {
         var failures = GatewayHostOperatorStatus.BuildOfflinePassportFailures(

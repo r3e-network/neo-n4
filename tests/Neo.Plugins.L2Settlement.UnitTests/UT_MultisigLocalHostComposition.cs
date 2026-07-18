@@ -187,12 +187,18 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.IsPipelineHealthy);
             Assert.AreEqual(0, status.PipelineHealthFailures.Count);
             Assert.IsFalse(status.IsMetricsHttpHealthy);
+            Assert.IsFalse(host.IsMetricsHttpHealthy);
             CollectionAssert.Contains(
                 status.MetricsHttpHealthFailures.ToArray(),
                 nameof(LocalHostOperatorStatus.IsMetricsHttpListening));
             CollectionAssert.Contains(
                 status.MetricsHttpHealthFailures.ToArray(),
                 nameof(LocalHostOperatorStatus.HasMetricsReadinessCheck));
+            CollectionAssert.AreEqual(
+                host.MetricsHttpHealthFailures.ToArray(),
+                status.MetricsHttpHealthFailures.ToArray());
+            Assert.IsFalse(status.IsLocalHostHealthy);
+            Assert.IsTrue(status.LocalHostHealthFailures.Count >= 1);
             Assert.IsTrue(status.HasExpectedNetwork);
             Assert.IsTrue(status.HasScannerDeployHeights);
             Assert.IsTrue(status.IsOfflinePassportComplete);
@@ -535,9 +541,13 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.MetricsBoundPort > 0);
             Assert.AreEqual(host.Metrics.BoundPort, host.MetricsBoundPort);
             Assert.IsTrue(host.HasMetricsReadinessCheck);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+            Assert.AreEqual(0, host.MetricsHttpHealthFailures.Count);
             var metricsStatus = await host.GetOperatorStatusAsync();
             Assert.IsTrue(metricsStatus.IsMetricsHttpHealthy);
             Assert.AreEqual(0, metricsStatus.MetricsHttpHealthFailures.Count);
+            Assert.IsTrue(metricsStatus.IsLocalHostHealthy);
+            Assert.AreEqual(0, metricsStatus.LocalHostHealthFailures.Count);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.TransactionSender);

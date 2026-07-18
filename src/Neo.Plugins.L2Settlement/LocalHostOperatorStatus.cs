@@ -365,6 +365,19 @@ public sealed record LocalHostOperatorStatus
     /// </summary>
     public required IReadOnlyList<string> MetricsHttpHealthFailures { get; init; }
 
+    /// <summary>
+    /// Combined local operator health: <see cref="IsPipelineHealthy"/> and
+    /// <see cref="IsMetricsHttpHealthy"/>. True when <see cref="LocalHostHealthFailures"/>
+    /// is empty. Does not claim L1 settle or external scrapers (funded / out-of-band).
+    /// </summary>
+    public required bool IsLocalHostHealthy { get; init; }
+
+    /// <summary>
+    /// Union of <see cref="PipelineHealthFailures"/> and
+    /// <see cref="MetricsHttpHealthFailures"/> (empty when <see cref="IsLocalHostHealthy"/>).
+    /// </summary>
+    public required IReadOnlyList<string> LocalHostHealthFailures { get; init; }
+
     /// <summary>Configured L1 finality depth for production scanners.</summary>
     public required uint L1FinalityDepth { get; init; }
 
@@ -585,6 +598,25 @@ public sealed record LocalHostOperatorStatus
             failures.Add(nameof(IsMetricsHttpListening));
         if (!hasMetricsReadinessCheck)
             failures.Add(nameof(HasMetricsReadinessCheck));
+        return failures;
+    }
+
+    /// <summary>
+    /// Union of pipeline and metrics HTTP health failure names for a single local-host
+    /// rollup. Empty means <see cref="IsLocalHostHealthy"/>.
+    /// </summary>
+    public static IReadOnlyList<string> BuildLocalHostHealthFailures(
+        IReadOnlyList<string> pipelineHealthFailures,
+        IReadOnlyList<string> metricsHttpHealthFailures)
+    {
+        ArgumentNullException.ThrowIfNull(pipelineHealthFailures);
+        ArgumentNullException.ThrowIfNull(metricsHttpHealthFailures);
+        if (pipelineHealthFailures.Count == 0 && metricsHttpHealthFailures.Count == 0)
+            return Array.Empty<string>();
+        var failures = new List<string>(
+            pipelineHealthFailures.Count + metricsHttpHealthFailures.Count);
+        failures.AddRange(pipelineHealthFailures);
+        failures.AddRange(metricsHttpHealthFailures);
         return failures;
     }
 }

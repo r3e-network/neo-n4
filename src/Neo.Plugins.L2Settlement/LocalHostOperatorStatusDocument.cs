@@ -266,6 +266,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Failed metrics HTTP health check names (empty when healthy or metrics disabled).</summary>
     public required IReadOnlyList<string> MetricsHttpHealthFailures { get; init; }
 
+    /// <summary>Combined pipeline + metrics HTTP local host health.</summary>
+    public required bool IsLocalHostHealthy { get; init; }
+
+    /// <summary>Union of pipeline and metrics HTTP health failure names.</summary>
+    public required IReadOnlyList<string> LocalHostHealthFailures { get; init; }
+
     /// <summary>Configured L1 finality depth.</summary>
     public required uint L1FinalityDepth { get; init; }
 
@@ -448,6 +454,8 @@ public sealed record LocalHostOperatorStatusDocument
             PipelineHealthFailures = status.PipelineHealthFailures,
             IsMetricsHttpHealthy = status.IsMetricsHttpHealthy,
             MetricsHttpHealthFailures = status.MetricsHttpHealthFailures,
+            IsLocalHostHealthy = status.IsLocalHostHealthy,
+            LocalHostHealthFailures = status.LocalHostHealthFailures,
             L1FinalityDepth = status.L1FinalityDepth,
             DepositSourceReadyCount = status.DepositSourceReadyCount,
             DepositSourceReservedCount = status.DepositSourceReservedCount,

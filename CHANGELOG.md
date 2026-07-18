@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost combined health rollup + host MetricsHttp surface — 2026-07-18
+
+- LocalHost operator status (+ JSON) exposes `IsLocalHostHealthy` and
+  `LocalHostHealthFailures` (union of pipeline + metrics HTTP failures). Helper
+  `LocalHostOperatorStatus.BuildLocalHostHealthFailures`.
+- Multisig/Optimistic/Zk hosts expose sync `IsMetricsHttpHealthy` /
+  `MetricsHttpHealthFailures` without `GetOperatorStatusAsync`.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 settle remains a funded gate; metrics scrapers remain out-of-band.
+
 ### Added — Pending sealed batch + metrics HTTP health diagnostics — 2026-07-18
 
 - `PipelineHealthFailures` / `IsPipelineHealthy` also name `HasPendingSealedBatch` when the

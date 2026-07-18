@@ -512,8 +512,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
         var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
         var pipelineHealthFailures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
             IsOfflinePassportComplete, IsPipelineEnabled, HasPendingSealedBatch, pending, recovery);
-        var metricsHttpHealthFailures = LocalHostOperatorStatus.BuildMetricsHttpHealthFailures(
-            IsMetricsEnabled, IsMetricsWiringComplete, IsMetricsHttpListening, HasMetricsReadinessCheck);
+        var metricsHttpHealthFailures = MetricsHttpHealthFailures;
+        var localHostHealthFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
+            pipelineHealthFailures, metricsHttpHealthFailures);
         var tracked = await GetTrackedForcedInclusionNoncesAsync(ChainId, cancellationToken)
             .ConfigureAwait(false);
         var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
@@ -611,6 +612,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
             PipelineHealthFailures = pipelineHealthFailures,
             IsMetricsHttpHealthy = metricsHttpHealthFailures.Count == 0,
             MetricsHttpHealthFailures = metricsHttpHealthFailures,
+            IsLocalHostHealthy = localHostHealthFailures.Count == 0,
+            LocalHostHealthFailures = localHostHealthFailures,
             L1FinalityDepth = L1FinalityDepth,
             DepositSourceReadyCount = DepositSourceReadyCount,
             DepositSourceReservedCount = DepositSourceReservedCount,
@@ -1159,6 +1162,23 @@ public sealed class MultisigLocalHostComposition : IDisposable
 
     /// <summary>True when the metrics HTTP server is listening.</summary>
     public bool IsMetricsHttpListening => Metrics.BoundPort > 0;
+
+    /// <summary>
+    /// Metrics HTTP health failures when metrics are enabled (empty when disabled or healthy).
+    /// Sync host surface; also projected on <see cref="GetOperatorStatusAsync"/>.
+    /// </summary>
+    public IReadOnlyList<string> MetricsHttpHealthFailures =>
+        LocalHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            IsMetricsEnabled,
+            IsMetricsWiringComplete,
+            IsMetricsHttpListening,
+            HasMetricsReadinessCheck);
+
+    /// <summary>
+    /// True when <see cref="MetricsHttpHealthFailures"/> is empty
+    /// (metrics disabled, or wiring + listening + readiness all ok).
+    /// </summary>
+    public bool IsMetricsHttpHealthy => MetricsHttpHealthFailures.Count == 0;
 
     /// <summary>
     /// Start (or re-enter) the metrics HTTP server. Idempotent.

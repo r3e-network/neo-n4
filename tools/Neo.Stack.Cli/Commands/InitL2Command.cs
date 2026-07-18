@@ -158,6 +158,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsPipelineEnabled / IsSettlementPoisoned / IsSettlementIdle / IsPipelineHealthy");
         Console.WriteLine("               PipelineHealthFailures (empty when pipeline healthy; includes HasPendingSealedBatch)");
         Console.WriteLine("               IsMetricsHttpHealthy / MetricsHttpHealthFailures (N/A empty when metrics disabled)");
+        Console.WriteLine("               IsLocalHostHealthy / LocalHostHealthFailures (pipeline + metrics HTTP rollup)");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");
         Console.WriteLine("               ConsumedDepositCount / DepositSourceReadyCount / DepositSourceReservedCount / DepositSourceSoftConsumedCount");
         Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork");

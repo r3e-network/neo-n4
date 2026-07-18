@@ -140,4 +140,23 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             hasMetricsReadinessCheck: true);
         Assert.AreEqual(0, ok.Count);
     }
+
+    [TestMethod]
+    public void BuildLocalHostHealthFailures_UnionsPipelineAndMetrics()
+    {
+        var empty = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
+            Array.Empty<string>(), Array.Empty<string>());
+        Assert.AreEqual(0, empty.Count);
+
+        var merged = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
+            new[] { nameof(LocalHostOperatorStatus.IsPipelineEnabled) },
+            new[] { nameof(LocalHostOperatorStatus.IsMetricsHttpListening) });
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                nameof(LocalHostOperatorStatus.IsPipelineEnabled),
+                nameof(LocalHostOperatorStatus.IsMetricsHttpListening),
+            },
+            merged.ToArray());
+    }
 }

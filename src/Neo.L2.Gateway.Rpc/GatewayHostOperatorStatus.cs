@@ -90,6 +90,21 @@ public sealed record GatewayHostOperatorStatus
     /// </summary>
     public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
 
+    /// <summary>True when durable outbox publication state is poisoned.</summary>
+    public required bool IsOutboxPoisoned { get; init; }
+
+    /// <summary>
+    /// True when no pending publication, empty durable queue, no last error, and not poisoned.
+    /// Runtime idle health (not an L1 confirmation claim).
+    /// </summary>
+    public required bool IsOutboxIdle { get; init; }
+
+    /// <summary>
+    /// <see cref="IsOfflinePassportComplete"/> and <see cref="IsOutboxIdle"/>. Offline config +
+    /// local queue health; L1 confirmation remains funded.
+    /// </summary>
+    public required bool IsPublicationHealthy { get; init; }
+
     /// <summary>Publication-profile replay domain bound at open.</summary>
     public required UInt256 ReplayDomain { get; init; }
 

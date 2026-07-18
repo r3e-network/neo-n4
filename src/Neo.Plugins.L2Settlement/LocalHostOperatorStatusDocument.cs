@@ -245,6 +245,9 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Settlement plugin enabled in settings.</summary>
     public required bool IsSettlementEnabled { get; init; }
 
+    /// <summary>Batcher and settlement plugins both enabled.</summary>
+    public required bool IsPipelineEnabled { get; init; }
+
     /// <summary>Configured L1 finality depth.</summary>
     public required uint L1FinalityDepth { get; init; }
 
@@ -420,6 +423,7 @@ public sealed record LocalHostOperatorStatusDocument
             MaxL1MessagesPerBatch = status.MaxL1MessagesPerBatch,
             MetricsMaxConcurrentConnections = status.MetricsMaxConcurrentConnections,
             IsSettlementEnabled = status.IsSettlementEnabled,
+            IsPipelineEnabled = status.IsPipelineEnabled,
             L1FinalityDepth = status.L1FinalityDepth,
             DepositSourceReadyCount = status.DepositSourceReadyCount,
             DepositSourceReservedCount = status.DepositSourceReservedCount,

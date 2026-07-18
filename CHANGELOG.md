@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway outbox health + LocalHost IsPipelineEnabled — 2026-07-18
+
+- `GatewayHostComposition` + operator status (+ JSON) expose `IsOutboxPoisoned`,
+  `IsOutboxIdle`, and `IsPublicationHealthy` (offline passport + idle outbox). Runtime
+  queue health is distinct from config passport; L1 confirmation remains funded.
+- Multisig/Optimistic/Zk LocalHost + status (+ JSON) expose `IsPipelineEnabled`
+  (batcher + settlement settings both enabled).
+- `L2MetricsPlugin.HasReadinessCheck` unit coverage. Wireproduction notes + init-l2 tips.
+  No wire/ABI change.
+
 ### Added — OfflinePassportFailures diagnostic lists on LocalHost and Gateway — 2026-07-18
 
 - Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose

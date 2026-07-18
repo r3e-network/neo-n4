@@ -429,6 +429,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(gatewayHost.HasExpectedNetwork);
             Assert.IsTrue(gatewayHost.IsOfflinePassportComplete);
             Assert.AreEqual(0, gatewayHost.OfflinePassportFailures.Count);
+            Assert.IsTrue(gatewayHost.IsOutboxIdle);
+            Assert.IsFalse(gatewayHost.IsOutboxPoisoned);
+            Assert.IsTrue(gatewayHost.IsPublicationHealthy);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
             Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
             var gwStatus = gatewayHost.GetOperatorStatus();
@@ -594,12 +597,16 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(host.HasExpectedNetwork);
             Assert.IsTrue(host.HasScannerDeployHeights);
             Assert.IsTrue(host.IsOfflinePassportComplete);
+            Assert.AreEqual(0, host.OfflinePassportFailures.Count);
+            Assert.IsTrue(host.IsPipelineEnabled);
             Assert.IsTrue(opStatus.IsChainIdConfigConsistent);
             Assert.IsTrue(opStatus.IsProofTypeConfigConsistent);
             Assert.IsTrue(opStatus.IsDaModeConfigConsistent);
             Assert.IsTrue(opStatus.IsNeoHubHashWiringComplete);
             Assert.IsTrue(opStatus.IsBatcherInboxWiringComplete);
             Assert.IsTrue(opStatus.IsOfflinePassportComplete);
+            Assert.AreEqual(0, opStatus.OfflinePassportFailures.Count);
+            Assert.IsTrue(opStatus.IsPipelineEnabled);
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);

@@ -100,6 +100,12 @@ public sealed class UT_GatewayHostComposition
             Assert.IsTrue(gwStatus.IsOfflinePassportComplete);
             Assert.AreEqual(0, host.OfflinePassportFailures.Count);
             Assert.AreEqual(0, gwStatus.OfflinePassportFailures.Count);
+            Assert.IsFalse(host.IsOutboxPoisoned);
+            Assert.IsTrue(host.IsOutboxIdle);
+            Assert.IsTrue(host.IsPublicationHealthy);
+            Assert.IsFalse(gwStatus.IsOutboxPoisoned);
+            Assert.IsTrue(gwStatus.IsOutboxIdle);
+            Assert.IsTrue(gwStatus.IsPublicationHealthy);
             Assert.AreEqual(894710606u, host.ExpectedNetwork);
             Assert.AreEqual(894710606u, gwStatus.ExpectedNetwork);
             Assert.AreEqual(UInt256.Parse("0x" + new string('d', 64)), host.ReplayDomain);
@@ -126,6 +132,9 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(statusJson, "\"hasExpectedNetwork\": true");
             StringAssert.Contains(statusJson, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(statusJson, "\"offlinePassportFailures\":");
+            StringAssert.Contains(statusJson, "\"isOutboxIdle\": true");
+            StringAssert.Contains(statusJson, "\"isOutboxPoisoned\": false");
+            StringAssert.Contains(statusJson, "\"isPublicationHealthy\": true");
             StringAssert.Contains(statusJson, "\"outboxQueueDepth\": 0");
             StringAssert.Contains(statusJson, "\"hasMetrics\": true");
             StringAssert.Contains(statusJson, "\"hasL1RpcEndpoint\": true");

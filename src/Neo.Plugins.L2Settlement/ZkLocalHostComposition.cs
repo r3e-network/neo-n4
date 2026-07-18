@@ -610,6 +610,7 @@ public sealed class ZkLocalHostComposition : IDisposable
             MaxL1MessagesPerBatch = MaxL1MessagesPerBatch,
             MetricsMaxConcurrentConnections = MetricsMaxConcurrentConnections,
             IsSettlementEnabled = IsSettlementEnabled,
+            IsPipelineEnabled = IsPipelineEnabled,
             L1FinalityDepth = L1FinalityDepth,
             DepositSourceReadyCount = DepositSourceReadyCount,
             DepositSourceReservedCount = DepositSourceReservedCount,
@@ -1063,6 +1064,11 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// (<see cref="L2SettlementPlugin.IsEnabled"/>).
     /// </summary>
     public bool IsSettlementEnabled => Settlement.IsEnabled;
+
+    /// <summary>
+    /// True when both batcher and settlement plugins are enabled in settings.
+    /// </summary>
+    public bool IsPipelineEnabled => IsBatcherEnabled && IsSettlementEnabled;
 
     /// <summary>
     /// Configured L1 finality depth for production scanners

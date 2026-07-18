@@ -178,6 +178,30 @@ public sealed class GatewayHostComposition : IDisposable
     public bool IsOfflinePassportComplete => OfflinePassportFailures.Count == 0;
 
     /// <summary>
+    /// True when the durable outbox publication state is poisoned and needs operator recovery
+    /// (<see cref="RecoverPoisonedPublication"/>). Runtime state, not a config passport check.
+    /// </summary>
+    public bool IsOutboxPoisoned =>
+        OutboxStatus.PublicationState == GatewayOutboxState.Poisoned;
+
+    /// <summary>
+    /// True when no publication is pending, the durable queue is empty, no last error is stored,
+    /// and the outbox is not poisoned. Runtime idle health (distinct from offline config passport).
+    /// </summary>
+    public bool IsOutboxIdle =>
+        !HasPendingPublication
+        && AggregatorPendingCount == 0
+        && OutboxStatus.QueueDepth == 0
+        && string.IsNullOrEmpty(OutboxStatus.LastError)
+        && !IsOutboxPoisoned;
+
+    /// <summary>
+    /// Offline passport complete and outbox idle. Does not claim L1 confirmation of a published
+    /// root (funded gate); only local queue/outbox health plus config wiring.
+    /// </summary>
+    public bool IsPublicationHealthy => IsOfflinePassportComplete && IsOutboxIdle;
+
+    /// <summary>
     /// Terminal proof-system discriminator from <see cref="ProofProver"/>
     /// (<see cref="IGatewayProofProver.ProofSystem"/>).
     /// </summary>
@@ -281,6 +305,9 @@ public sealed class GatewayHostComposition : IDisposable
             HasExpectedNetwork = HasExpectedNetwork,
             IsOfflinePassportComplete = IsOfflinePassportComplete,
             OfflinePassportFailures = OfflinePassportFailures,
+            IsOutboxPoisoned = IsOutboxPoisoned,
+            IsOutboxIdle = IsOutboxIdle,
+            IsPublicationHealthy = IsPublicationHealthy,
             ReplayDomain = ReplayDomain,
             VerificationKeyId = VerificationKeyId,
             SettlementManagerHash = SettlementManagerHash,

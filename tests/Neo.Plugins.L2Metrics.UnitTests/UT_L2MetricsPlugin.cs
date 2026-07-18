@@ -140,6 +140,15 @@ public class UT_L2MetricsPlugin
     }
 
     [TestMethod]
+    public void HasReadinessCheck_FalseUntilInstalled()
+    {
+        using var plugin = new L2MetricsPlugin();
+        Assert.IsFalse(plugin.HasReadinessCheck);
+        plugin.WithReadinessCheck(static () => true);
+        Assert.IsTrue(plugin.HasReadinessCheck);
+    }
+
+    [TestMethod]
     public async Task ReadinessCheck_GatesReadyzResponse()
     {
         using var plugin = new L2MetricsPlugin();

@@ -75,6 +75,15 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>Failed offline Gateway passport check names (empty when complete).</summary>
     public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
 
+    /// <summary>Durable outbox is poisoned.</summary>
+    public required bool IsOutboxPoisoned { get; init; }
+
+    /// <summary>Durable outbox is idle (no pending work / error / poison).</summary>
+    public required bool IsOutboxIdle { get; init; }
+
+    /// <summary>Offline passport complete and outbox idle.</summary>
+    public required bool IsPublicationHealthy { get; init; }
+
     /// <summary>Publication-profile replay domain as 0x-hex.</summary>
     public required string ReplayDomain { get; init; }
 
@@ -123,6 +132,9 @@ public sealed record GatewayHostOperatorStatusDocument
             HasExpectedNetwork = status.HasExpectedNetwork,
             IsOfflinePassportComplete = status.IsOfflinePassportComplete,
             OfflinePassportFailures = status.OfflinePassportFailures,
+            IsOutboxPoisoned = status.IsOutboxPoisoned,
+            IsOutboxIdle = status.IsOutboxIdle,
+            IsPublicationHealthy = status.IsPublicationHealthy,
             ReplayDomain = status.ReplayDomain.ToString(),
             VerificationKeyId = status.VerificationKeyId.ToString(),
             SettlementManagerHash = status.SettlementManagerHash.ToString(),

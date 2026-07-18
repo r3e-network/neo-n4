@@ -318,6 +318,12 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Whether settlement plugin submit/reconcile is enabled in settings.</summary>
     public required bool IsSettlementEnabled { get; init; }
 
+    /// <summary>
+    /// True when both batcher and settlement plugins are enabled in settings
+    /// (<see cref="IsBatcherEnabled"/> and <see cref="IsSettlementEnabled"/>).
+    /// </summary>
+    public required bool IsPipelineEnabled { get; init; }
+
     /// <summary>Configured L1 finality depth for production scanners.</summary>
     public required uint L1FinalityDepth { get; init; }
 

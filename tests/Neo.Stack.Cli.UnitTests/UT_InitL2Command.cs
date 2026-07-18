@@ -262,6 +262,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "LocalHostHealthFailures");
         StringAssert.Contains(output, "IsLocalHostHealthyAsync");
         StringAssert.Contains(output, "IsBatcherCheckpointAligned");
+        StringAssert.Contains(output, "OpenBatchAgeMillis");
+        StringAssert.Contains(output, "IsOpenBatchPastMaxAge");
         StringAssert.Contains(output, "IsOfflinePassportComplete");
         StringAssert.Contains(output, "StartMetricsHttp");
         StringAssert.Contains(output, "IsOutboxIdle");

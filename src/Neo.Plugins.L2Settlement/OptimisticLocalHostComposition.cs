@@ -298,6 +298,18 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     public bool HasOpenBatch => Batch.HasOpenBatch;
 
     /// <summary>
+    /// Wall-clock age of the open batch in milliseconds
+    /// (<see cref="L2BatchPlugin.OpenBatchAgeMillis"/>).
+    /// </summary>
+    public long? OpenBatchAgeMillis => Batch.OpenBatchAgeMillis;
+
+    /// <summary>
+    /// True when the open batch is at or past max age
+    /// (<see cref="L2BatchPlugin.IsOpenBatchPastMaxAge"/>).
+    /// </summary>
+    public bool IsOpenBatchPastMaxAge => Batch.IsOpenBatchPastMaxAge;
+
+    /// <summary>
     /// Transaction count in the open batch
     /// (<see cref="L2BatchPlugin.InProgressTxCount"/>).
     /// </summary>
@@ -538,6 +550,7 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             IsOfflinePassportComplete,
             IsPipelineEnabled,
             HasPendingSealedBatch,
+            IsOpenBatchPastMaxAge,
             isBatcherCheckpointAligned,
             hasOverdueForcedInclusion,
             pending,
@@ -577,6 +590,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             MaxTransactionsPerBatch = MaxTransactionsPerBatch,
             MaxBatchAgeMillis = MaxBatchAgeMillis,
             HasOpenBatch = HasOpenBatch,
+            OpenBatchAgeMillis = OpenBatchAgeMillis,
+            IsOpenBatchPastMaxAge = IsOpenBatchPastMaxAge,
             InProgressTxCount = InProgressTxCount,
             OpenBatchFirstBlock = OpenBatchFirstBlock,
             OpenBatchLastBlock = OpenBatchLastBlock,
@@ -695,6 +710,7 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             IsOfflinePassportComplete,
             IsPipelineEnabled,
             HasPendingSealedBatch,
+            IsOpenBatchPastMaxAge,
             LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(
                 LastAcknowledgedBatchNumber, checkpoint?.BatchNumber),
             HasOverdueForcedInclusionCached(now),

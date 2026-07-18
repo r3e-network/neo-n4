@@ -269,6 +269,9 @@ public class UT_L2BatchPlugin
         Assert.AreEqual(0, plugin.OpenBatchBlockCount);
         plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs());
         Assert.IsTrue(plugin.HasOpenBatch);
+        Assert.IsNotNull(plugin.OpenBatchAgeMillis);
+        Assert.IsTrue(plugin.OpenBatchAgeMillis >= 0);
+        Assert.IsFalse(plugin.IsOpenBatchPastMaxAge);
         Assert.AreEqual(1UL, plugin.OpenBatchFirstBlock);
         Assert.AreEqual(1UL, plugin.OpenBatchLastBlock);
         Assert.AreEqual(1, plugin.OpenBatchBlockCount);

@@ -357,6 +357,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"hasOverdueForcedInclusion\": false");
             StringAssert.Contains(statusJson, "\"isSettlementRetrying\": false");
             StringAssert.Contains(statusJson, "\"isBatcherCheckpointAligned\": true");
+            StringAssert.Contains(statusJson, "\"isOpenBatchPastMaxAge\": false");
             StringAssert.Contains(statusJson, "\"isMetricsHttpHealthy\":");
             StringAssert.Contains(statusJson, "\"metricsHttpHealthFailures\":");
             StringAssert.Contains(statusJson, "\"isLocalHostHealthy\":");

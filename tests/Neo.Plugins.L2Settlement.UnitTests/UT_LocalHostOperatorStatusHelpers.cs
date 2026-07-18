@@ -71,6 +71,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             offlinePassportComplete: true,
             pipelineEnabled: true,
             hasPendingSealedBatch: false,
+            isOpenBatchPastMaxAge: false,
             isBatcherCheckpointAligned: true,
             hasOverdueForcedInclusion: false,
             pendingSettlementCount: 0,
@@ -88,7 +89,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
     }
 
     [TestMethod]
-    public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealMisalignedOverdueFiPoison()
+    public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealAgeMisalignedOverdueFiPoison()
     {
         var recovery = new SettlementRecoveryStatus
         {
@@ -102,6 +103,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             offlinePassportComplete: false,
             pipelineEnabled: false,
             hasPendingSealedBatch: true,
+            isOpenBatchPastMaxAge: true,
             isBatcherCheckpointAligned: false,
             hasOverdueForcedInclusion: true,
             pendingSettlementCount: 1,
@@ -112,6 +114,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
                 nameof(LocalHostOperatorStatus.IsOfflinePassportComplete),
                 nameof(LocalHostOperatorStatus.IsPipelineEnabled),
                 nameof(LocalHostOperatorStatus.HasPendingSealedBatch),
+                nameof(LocalHostOperatorStatus.IsOpenBatchPastMaxAge),
                 nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned),
                 nameof(LocalHostOperatorStatus.HasOverdueForcedInclusion),
                 nameof(LocalHostOperatorStatus.IsSettlementPoisoned),
@@ -134,6 +137,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             offlinePassportComplete: true,
             pipelineEnabled: true,
             hasPendingSealedBatch: false,
+            isOpenBatchPastMaxAge: false,
             isBatcherCheckpointAligned: true,
             hasOverdueForcedInclusion: false,
             pendingSettlementCount: 0,

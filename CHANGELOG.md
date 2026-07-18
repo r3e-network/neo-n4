@@ -5,11 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Open-batch age overdue on LocalHost pipeline health — 2026-07-18
+
+- `BatchSealer` / `L2BatchPlugin` expose `OpenBatchAgeMillis` and `IsOpenBatchPastMaxAge`
+  (seal-by-age clock vs `MaxBatchAgeMillis`).
+- LocalHost status (+ JSON) and Multisig/Optimistic/Zk hosts surface the same fields;
+  `PipelineHealthFailures` names `IsOpenBatchPastMaxAge` when the open batch is overdue.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Added — Batcher checkpoint alignment + LocalHostHealthyAsync — 2026-07-18
 
 - LocalHost operator status (+ JSON) exposes `IsBatcherCheckpointAligned` (batcher
   last-acked vs durable settlement checkpoint). Included in `PipelineHealthFailures`.
-- Helper `LocalHostOperatorStatus.IsBatcherCheckpointAligned`. Multisig/Optimistic/Zk
+- Helper `LocalHostOperatorStatus.AreBatcherAndCheckpointAligned`. Multisig/Optimistic/Zk
   hosts expose `GetLocalHostHealthFailuresAsync` / `IsLocalHostHealthyAsync` for light
   probes without a full status document.
 - Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.

@@ -188,6 +188,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(host.HasOverdueForcedInclusionCached());
             Assert.IsFalse(status.IsSettlementRetrying);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
+            Assert.IsFalse(status.IsOpenBatchPastMaxAge);
+            Assert.IsNull(status.OpenBatchAgeMillis);
             Assert.IsTrue(status.IsPipelineHealthy);
             Assert.AreEqual(0, status.PipelineHealthFailures.Count);
             Assert.IsFalse(await host.IsLocalHostHealthyAsync());

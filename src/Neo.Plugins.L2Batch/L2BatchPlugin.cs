@@ -256,6 +256,18 @@ public sealed class L2BatchPlugin : Plugin
     public bool HasOpenBatch => _sealer?.HasOpenBatch ?? false;
 
     /// <summary>
+    /// Wall-clock age of the open batch in milliseconds, or null when none is open
+    /// (<see cref="BatchSealer.OpenBatchAgeMillis"/>).
+    /// </summary>
+    public long? OpenBatchAgeMillis => _sealer?.OpenBatchAgeMillis;
+
+    /// <summary>
+    /// True when the open batch is at or past <see cref="MaxBatchAgeMillis"/>
+    /// (<see cref="BatchSealer.IsOpenBatchPastMaxAge"/>).
+    /// </summary>
+    public bool IsOpenBatchPastMaxAge => _sealer?.IsOpenBatchPastMaxAge ?? false;
+
+    /// <summary>
     /// Transaction count in the open batch, or 0 when none is open
     /// (<see cref="BatchSealer.InProgressTxCount"/>).
     /// </summary>

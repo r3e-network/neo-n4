@@ -108,6 +108,17 @@ public sealed record LocalHostOperatorStatus
     /// <summary>True when a batch is currently being accumulated by the batcher.</summary>
     public required bool HasOpenBatch { get; init; }
 
+    /// <summary>
+    /// Wall-clock age of the open batch in milliseconds, or null when none is open.
+    /// </summary>
+    public required long? OpenBatchAgeMillis { get; init; }
+
+    /// <summary>
+    /// True when the open batch is at or past <see cref="MaxBatchAgeMillis"/> (seal-by-age overdue).
+    /// Included in <see cref="PipelineHealthFailures"/> when true.
+    /// </summary>
+    public required bool IsOpenBatchPastMaxAge { get; init; }
+
     /// <summary>Transaction count in the open batch (0 when none is open).</summary>
     public required int InProgressTxCount { get; init; }
 
@@ -351,17 +362,17 @@ public sealed record LocalHostOperatorStatus
     public required bool IsSettlementIdle { get; init; }
 
     /// <summary>
-    /// Offline passport complete, pipeline enabled, no pending sealed batch, batcher/checkpoint
-    /// aligned, no overdue forced inclusion, settlement not poisoned/retrying, and settlement
-    /// idle. Distinct from L1 settle confirmation (funded gate). True when
-    /// <see cref="PipelineHealthFailures"/> is empty.
+    /// Offline passport complete, pipeline enabled, no pending sealed batch, no open-batch age
+    /// overdue, batcher/checkpoint aligned, no overdue forced inclusion, settlement not
+    /// poisoned/retrying, and settlement idle. Distinct from L1 settle confirmation (funded gate).
+    /// True when <see cref="PipelineHealthFailures"/> is empty.
     /// </summary>
     public required bool IsPipelineHealthy { get; init; }
 
     /// <summary>
     /// Names of pipeline health checks that failed (empty when <see cref="IsPipelineHealthy"/>).
-    /// Combines offline passport rollup with runtime sealed-batch pending, checkpoint alignment,
-    /// overdue forced inclusion, settlement idle/retry/poison, and enablement. Diagnostic only.
+    /// Combines offline passport rollup with runtime sealed-batch pending, open-batch age overdue,
+    /// checkpoint alignment, overdue forced inclusion, settlement idle/retry/poison, and enablement.
     /// </summary>
     public required IReadOnlyList<string> PipelineHealthFailures { get; init; }
 
@@ -589,6 +600,7 @@ public sealed record LocalHostOperatorStatus
         bool offlinePassportComplete,
         bool pipelineEnabled,
         bool hasPendingSealedBatch,
+        bool isOpenBatchPastMaxAge,
         bool isBatcherCheckpointAligned,
         bool hasOverdueForcedInclusion,
         int pendingSettlementCount,
@@ -602,6 +614,8 @@ public sealed record LocalHostOperatorStatus
             failures.Add(nameof(IsPipelineEnabled));
         if (hasPendingSealedBatch)
             failures.Add(nameof(HasPendingSealedBatch));
+        if (isOpenBatchPastMaxAge)
+            failures.Add(nameof(IsOpenBatchPastMaxAge));
         if (!isBatcherCheckpointAligned)
             failures.Add(nameof(IsBatcherCheckpointAligned));
         if (hasOverdueForcedInclusion)

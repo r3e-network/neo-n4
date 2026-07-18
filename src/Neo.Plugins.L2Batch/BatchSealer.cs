@@ -97,6 +97,27 @@ public sealed class BatchSealer
     /// <summary>Whether a batch is currently being accumulated.</summary>
     public bool HasOpenBatch => _builder is not null && _pendingBatch is null;
 
+    /// <summary>
+    /// Wall-clock age of the open batch in milliseconds, or null when none is open.
+    /// Uses the same clock as seal-by-age (<see cref="L2BatchSettings.MaxBatchAgeMillis"/>).
+    /// </summary>
+    public long? OpenBatchAgeMillis
+    {
+        get
+        {
+            if (!HasOpenBatch) return null;
+            var age = _nowUtcMillis() - _batchStartedAtUtcMillis;
+            return age < 0 ? 0 : age;
+        }
+    }
+
+    /// <summary>
+    /// True when an open batch has reached or exceeded <see cref="L2BatchSettings.MaxBatchAgeMillis"/>
+    /// and should seal on the next block tick (or is overdue if no blocks arrive).
+    /// </summary>
+    public bool IsOpenBatchPastMaxAge =>
+        OpenBatchAgeMillis is long age && age >= _settings.MaxBatchAgeMillis;
+
     /// <summary>First L2 block in the open batch, or null when none is open.</summary>
     public ulong? OpenBatchFirstBlock => HasOpenBatch ? _builder!.Batch.FirstBlock : null;
 

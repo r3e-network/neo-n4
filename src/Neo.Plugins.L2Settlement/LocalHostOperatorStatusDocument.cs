@@ -89,6 +89,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Open batch currently accumulating.</summary>
     public required bool HasOpenBatch { get; init; }
 
+    /// <summary>Open batch wall-clock age in milliseconds, if any.</summary>
+    public required long? OpenBatchAgeMillis { get; init; }
+
+    /// <summary>Open batch is at or past MaxBatchAgeMillis (seal-by-age overdue).</summary>
+    public required bool IsOpenBatchPastMaxAge { get; init; }
+
     /// <summary>Transaction count in the open batch.</summary>
     public required int InProgressTxCount { get; init; }
 
@@ -404,6 +410,8 @@ public sealed record LocalHostOperatorStatusDocument
             MaxTransactionsPerBatch = status.MaxTransactionsPerBatch,
             MaxBatchAgeMillis = status.MaxBatchAgeMillis,
             HasOpenBatch = status.HasOpenBatch,
+            OpenBatchAgeMillis = status.OpenBatchAgeMillis,
+            IsOpenBatchPastMaxAge = status.IsOpenBatchPastMaxAge,
             InProgressTxCount = status.InProgressTxCount,
             OpenBatchFirstBlock = status.OpenBatchFirstBlock,
             OpenBatchLastBlock = status.OpenBatchLastBlock,

@@ -242,6 +242,10 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsDaModeConfigConsistent");
         StringAssert.Contains(output, "IsNeoHubHashWiringComplete");
         StringAssert.Contains(output, "IsBatcherInboxWiringComplete");
+        StringAssert.Contains(output, "IsSecurityLevelProofTypeConsistent");
+        StringAssert.Contains(output, "HasExpectedNetwork");
+        StringAssert.Contains(output, "HasScannerDeployHeights");
+        StringAssert.Contains(output, "IsOfflinePassportComplete");
         StringAssert.Contains(output, "IsPublicationProfileReady");
         StringAssert.Contains(output, "NextBatchNumber");
         StringAssert.Contains(output, "PendingSealedBatchNumber");

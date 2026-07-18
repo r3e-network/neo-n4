@@ -140,6 +140,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.IsDaModeConfigConsistent);
             Assert.IsTrue(host.IsNeoHubHashWiringComplete);
             Assert.IsTrue(host.IsBatcherInboxWiringComplete);
+            Assert.IsTrue(host.IsSecurityLevelProofTypeConsistent);
+            Assert.IsTrue(host.HasExpectedNetwork);
+            Assert.IsTrue(host.HasScannerDeployHeights);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(20260716u, status.ChainId);
@@ -157,6 +161,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.IsDaModeConfigConsistent);
             Assert.IsTrue(status.IsNeoHubHashWiringComplete);
             Assert.IsTrue(status.IsBatcherInboxWiringComplete);
+            Assert.IsTrue(status.IsSecurityLevelProofTypeConsistent);
+            Assert.IsTrue(status.HasExpectedNetwork);
+            Assert.IsTrue(status.HasScannerDeployHeights);
+            Assert.IsTrue(status.IsOfflinePassportComplete);
             Assert.AreEqual(host.RpcStore.SecurityLevel, status.SecurityLevel);
             Assert.IsTrue(status.IsOperatorReady);
             Assert.IsTrue(status.IsProductionWired);

@@ -368,6 +368,28 @@ public sealed record LocalHostOperatorStatus
     public required bool IsBatcherInboxWiringComplete { get; init; }
 
     /// <summary>
+    /// True when RPC-store <see cref="SecurityLevel"/> is a recommended pairing with host
+    /// <see cref="ProofType"/> (offline heuristic matching chain-config validation tips).
+    /// </summary>
+    public required bool IsSecurityLevelProofTypeConsistent { get; init; }
+
+    /// <summary>True when settlement settings include a non-null expected L1 network magic.</summary>
+    public required bool HasExpectedNetwork { get; init; }
+
+    /// <summary>
+    /// True when ForcedInclusion, SharedBridge, and MessageRouter scanner deploy heights are
+    /// all non-zero (presence of start heights; not live L1 scan).
+    /// </summary>
+    public required bool HasScannerDeployHeights { get; init; }
+
+    /// <summary>
+    /// Offline operator passport: ready + config consistency + NeoHub/inbox wiring +
+    /// production plugin enablement + L1 endpoint/network/heights + deposit/message/FI/client
+    /// surfaces. Does not claim L1 settle, prove-batch, or live scan (funded gates).
+    /// </summary>
+    public required bool IsOfflinePassportComplete { get; init; }
+
+    /// <summary>
     /// True when the batch prover plugin has installed an <see cref="IL2Prover"/>.
     /// Multisig prove is offline; Zk may still need a funded executor/daemon.
     /// </summary>
@@ -393,4 +415,19 @@ public sealed record LocalHostOperatorStatus
     /// Authenticated genesis / initial state root from the settlement sink (zero for legacy).
     /// </summary>
     public required UInt256 InitialStateRoot { get; init; }
+
+    /// <summary>
+    /// Offline heuristic: whether <paramref name="securityLevel"/> is a recommended pairing
+    /// with <paramref name="proofType"/> (mirrors chain-config validation tips).
+    /// </summary>
+    public static bool IsSecurityLevelPairedWithProofType(SecurityLevel securityLevel, ProofType proofType)
+        => securityLevel switch
+        {
+            SecurityLevel.Validity or SecurityLevel.Validium => proofType == ProofType.Zk,
+            SecurityLevel.Optimistic =>
+                proofType is ProofType.Optimistic or ProofType.Multisig,
+            SecurityLevel.Sidechain or SecurityLevel.Settled =>
+                proofType is ProofType.None or ProofType.Multisig,
+            _ => false,
+        };
 }

@@ -135,6 +135,8 @@ internal static class InitL2Command
         Console.WriteLine("               RpcChainId / IsChainIdConfigConsistent / IsProofTypeConfigConsistent");
         Console.WriteLine("               RpcDaMode / IsDaModeConfigConsistent");
         Console.WriteLine("               IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete");
+        Console.WriteLine("               IsSecurityLevelProofTypeConsistent / HasExpectedNetwork / HasScannerDeployHeights");
+        Console.WriteLine("               IsOfflinePassportComplete");
         Console.WriteLine("               MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / OpenBatchForcedInclusionCount");
         Console.WriteLine("               OpenBatchL2ToL2MessageCount / OpenBatchWithdrawalCount / HasBatchDepositSource");
         Console.WriteLine("               HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver");

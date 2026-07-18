@@ -129,6 +129,10 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(host.IsDaModeConfigConsistent);
             Assert.IsTrue(host.IsNeoHubHashWiringComplete);
             Assert.IsTrue(host.IsBatcherInboxWiringComplete);
+            Assert.IsTrue(host.IsSecurityLevelProofTypeConsistent);
+            Assert.IsTrue(host.HasExpectedNetwork);
+            Assert.IsTrue(host.HasScannerDeployHeights);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
             Assert.AreEqual(status.ProofType, status.SettlementConfiguredProofType);
             Assert.IsTrue(status.IsChainIdConfigConsistent);
             Assert.IsTrue(status.IsProofTypeConfigConsistent);
@@ -137,6 +141,10 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(status.IsDaModeConfigConsistent);
             Assert.IsTrue(status.IsNeoHubHashWiringComplete);
             Assert.IsTrue(status.IsBatcherInboxWiringComplete);
+            Assert.IsTrue(status.IsSecurityLevelProofTypeConsistent);
+            Assert.IsTrue(status.HasExpectedNetwork);
+            Assert.IsTrue(status.HasScannerDeployHeights);
+            Assert.IsTrue(status.IsOfflinePassportComplete);
             Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, status.OpenBatchWithdrawalCount);
             Assert.IsTrue(status.SupportsLocalDaReader);

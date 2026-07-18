@@ -281,6 +281,18 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Batcher deposit + message-router + forced-inclusion sources present.</summary>
     public required bool IsBatcherInboxWiringComplete { get; init; }
 
+    /// <summary>RPC security level pairs with host proof type (offline heuristic).</summary>
+    public required bool IsSecurityLevelProofTypeConsistent { get; init; }
+
+    /// <summary>Expected L1 network magic is configured.</summary>
+    public required bool HasExpectedNetwork { get; init; }
+
+    /// <summary>All three L1 scanner deploy heights are non-zero.</summary>
+    public required bool HasScannerDeployHeights { get; init; }
+
+    /// <summary>Offline operator passport (no L1 settle/prove claim).</summary>
+    public required bool IsOfflinePassportComplete { get; init; }
+
     /// <summary>Batch prover installed on the host.</summary>
     public required bool HasBatchProver { get; init; }
 
@@ -396,6 +408,10 @@ public sealed record LocalHostOperatorStatusDocument
             MessageRouterDeploymentHeight = status.MessageRouterDeploymentHeight,
             IsNeoHubHashWiringComplete = status.IsNeoHubHashWiringComplete,
             IsBatcherInboxWiringComplete = status.IsBatcherInboxWiringComplete,
+            IsSecurityLevelProofTypeConsistent = status.IsSecurityLevelProofTypeConsistent,
+            HasExpectedNetwork = status.HasExpectedNetwork,
+            HasScannerDeployHeights = status.HasScannerDeployHeights,
+            IsOfflinePassportComplete = status.IsOfflinePassportComplete,
             HasBatchProver = status.HasBatchProver,
             LatestCheckpointBatchNumber = status.LatestCheckpointBatchNumber,
             LatestCheckpointLastBlock = status.LatestCheckpointLastBlock,

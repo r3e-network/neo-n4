@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost offline passport + security/height readiness flags — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose
+  `IsSecurityLevelProofTypeConsistent`, `HasExpectedNetwork`, `HasScannerDeployHeights`,
+  and rollup `IsOfflinePassportComplete` (ready + consistency + NeoHub/inbox + enablement +
+  L1 endpoint/network/heights + production surfaces).
+- Shared helper `LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType` mirrors
+  chain-config validation tips. Offline only; L1 settle / prove-batch remain funded gates.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+
 ### Added — LocalHost RpcChainId + NeoHub/inbox wiring completeness flags — 2026-07-18
 
 - Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose `RpcChainId`;

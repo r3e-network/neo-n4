@@ -441,6 +441,8 @@ public sealed record NeoHubDeployReport(
                         + "RpcChainId / ProofType / SettlementConfiguredProofType / IsChainIdConfigConsistent / "
                         + "IsProofTypeConfigConsistent / DaMode / RpcDaMode / IsDaModeConfigConsistent / "
                         + "IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete / "
+                        + "IsSecurityLevelProofTypeConsistent / HasExpectedNetwork / HasScannerDeployHeights / "
+                        + "IsOfflinePassportComplete / "
                         + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                         + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                     ["localHostBatcherHelpers"] =

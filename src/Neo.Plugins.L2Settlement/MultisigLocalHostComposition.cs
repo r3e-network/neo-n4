@@ -608,6 +608,10 @@ public sealed class MultisigLocalHostComposition : IDisposable
             MessageRouterDeploymentHeight = MessageRouterDeploymentHeight,
             IsNeoHubHashWiringComplete = IsNeoHubHashWiringComplete,
             IsBatcherInboxWiringComplete = IsBatcherInboxWiringComplete,
+            IsSecurityLevelProofTypeConsistent = IsSecurityLevelProofTypeConsistent,
+            HasExpectedNetwork = HasExpectedNetwork,
+            HasScannerDeployHeights = HasScannerDeployHeights,
+            IsOfflinePassportComplete = IsOfflinePassportComplete,
             HasBatchProver = HasBatchProver,
             LatestCheckpointBatchNumber = checkpoint?.BatchNumber,
             LatestCheckpointLastBlock = checkpoint?.LastBlock,
@@ -914,6 +918,51 @@ public sealed class MultisigLocalHostComposition : IDisposable
         && HasForcedInclusionHash
         && HasSharedBridgeHash
         && HasMessageRouterHash;
+
+    /// <summary>
+    /// True when RPC-store security level is a recommended pairing with host
+    /// <see cref="ProofType"/> (offline heuristic).
+    /// </summary>
+    public bool IsSecurityLevelProofTypeConsistent =>
+        LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(RpcStore.SecurityLevel, ProofType);
+
+    /// <summary>True when settlement settings include a non-null expected L1 network magic.</summary>
+    public bool HasExpectedNetwork => ExpectedNetwork is not null;
+
+    /// <summary>
+    /// True when ForcedInclusion, SharedBridge, and MessageRouter scanner deploy heights are
+    /// all non-zero.
+    /// </summary>
+    public bool HasScannerDeployHeights =>
+        ForcedInclusionDeploymentHeight > 0
+        && SharedBridgeDeploymentHeight > 0
+        && MessageRouterDeploymentHeight > 0;
+
+    /// <summary>
+    /// Offline operator passport: ready + config consistency + NeoHub/inbox wiring +
+    /// enablement + L1 endpoint/network/heights + production surfaces. Does not claim L1
+    /// settle, prove-batch, or live scan (funded gates).
+    /// </summary>
+    public bool IsOfflinePassportComplete =>
+        IsOperatorReady
+        && IsChainIdConfigConsistent
+        && IsProofTypeConfigConsistent
+        && IsDaModeConfigConsistent
+        && IsSecurityLevelProofTypeConsistent
+        && IsNeoHubHashWiringComplete
+        && IsBatcherInboxWiringComplete
+        && HasBatchProver
+        && IsSettlementEnabled
+        && IsBatcherEnabled
+        && HasL1RpcEndpoint
+        && HasExpectedNetwork
+        && HasScannerDeployHeights
+        && DepositSource is not null
+        && MessageRouter is not null
+        && ForcedInclusionFinalizer is not null
+        && SettlementClient is not null
+        && TransactionSender is not null
+        && HasMessageOutbox;
 
     /// <summary>
     /// Max forced-inclusion entries per sealed batch

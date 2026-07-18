@@ -389,10 +389,14 @@ public sealed class GatewayHostComposition : IDisposable
     public GatewayHostHealthProbeDocument GetHealthProbe()
     {
         var publicationFailures = PublicationHealthFailures;
+        var outbox = OutboxStatus;
         return new GatewayHostHealthProbeDocument
         {
             IsOfflinePassportComplete = IsOfflinePassportComplete,
             OfflinePassportFailures = OfflinePassportFailures,
+            HasPendingPublication = HasPendingPublication,
+            AggregatorPendingCount = AggregatorPendingCount,
+            OutboxQueueDepth = outbox.QueueDepth,
             IsOutboxPoisoned = IsOutboxPoisoned,
             IsOutboxIdle = IsOutboxIdle,
             IsPublicationHealthy = publicationFailures.Count == 0,

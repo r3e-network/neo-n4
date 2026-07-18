@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Health probe documents include runtime signal flags — 2026-07-19
+
+- `LocalHostHealthProbeDocument` adds `IsPipelineEnabled`, `HasPendingSealedBatch`,
+  `IsOpenBatchPastMaxAge`, `IsMetricsHttpListening`, `MetricsBoundPort`,
+  `PendingSettlementCount` for compact ops scripts.
+- `GatewayHostHealthProbeDocument` adds `HasPendingPublication`,
+  `AggregatorPendingCount`, `OutboxQueueDepth`.
+- Wireproduction notes; unit/integration coverage. No wire/ABI change.
+- L1 settle / publication confirmation remain funded gates.
+
 ### Added — In-memory host health probes + JSON writers — 2026-07-19
 
 - Multisig/Optimistic/Zk `GetHealthProbeAsync` returns `LocalHostHealthProbeDocument`;

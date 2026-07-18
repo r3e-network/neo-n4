@@ -238,13 +238,17 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(File.Exists(statusPath));
             StringAssert.Contains(File.ReadAllText(statusPath), "\"proofType\": \"Optimistic\"");
             var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(probe.IsPipelineEnabled);
+            Assert.IsFalse(probe.HasPendingSealedBatch);
             Assert.IsTrue(probe.IsPipelineHealthy);
             Assert.IsTrue(probe.IsSettlementRuntimeIdle);
             Assert.IsFalse(probe.IsSettlementPoisoned);
+            Assert.AreEqual(0, probe.PendingSettlementCount);
             var probePath = Path.Combine(chainDir, "health-probe.json");
             host.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(probePath));
             StringAssert.Contains(File.ReadAllText(probePath), "\"isSettlementRuntimeIdle\": true");
+            StringAssert.Contains(File.ReadAllText(probePath), "\"isPipelineEnabled\": true");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             host.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(promPath));

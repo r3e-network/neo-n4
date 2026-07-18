@@ -1539,12 +1539,18 @@ public sealed class MultisigLocalHostComposition : IDisposable
         var metricsFailures = MetricsHttpHealthFailures;
         var localHostFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
             pipelineFailures, metricsFailures);
+        var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
         return new LocalHostHealthProbeDocument
         {
             IsOfflinePassportComplete = IsOfflinePassportComplete,
             OfflinePassportFailures = OfflinePassportFailures,
+            IsPipelineEnabled = IsPipelineEnabled,
+            HasPendingSealedBatch = HasPendingSealedBatch,
+            IsOpenBatchPastMaxAge = IsOpenBatchPastMaxAge,
             IsPipelineHealthy = pipelineFailures.Count == 0,
             PipelineHealthFailures = pipelineFailures,
+            IsMetricsHttpListening = IsMetricsHttpListening,
+            MetricsBoundPort = MetricsBoundPort,
             IsMetricsHttpHealthy = metricsFailures.Count == 0,
             MetricsHttpHealthFailures = metricsFailures,
             IsLocalHostHealthy = localHostFailures.Count == 0,
@@ -1555,6 +1561,7 @@ public sealed class MultisigLocalHostComposition : IDisposable
                 .ConfigureAwait(false),
             IsSettlementRetrying = await IsSettlementRetryingAsync(cancellationToken)
                 .ConfigureAwait(false),
+            PendingSettlementCount = pending,
         };
     }
 

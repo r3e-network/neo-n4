@@ -326,14 +326,18 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             var statusJson = File.ReadAllText(statusPath);
             var probe = settlementHost.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.IsTrue(probe.IsPipelineEnabled);
+            Assert.IsFalse(probe.HasPendingSealedBatch);
             Assert.IsTrue(probe.IsPipelineHealthy);
             Assert.IsTrue(probe.IsSettlementRuntimeIdle);
             Assert.IsFalse(probe.IsSettlementPoisoned);
             Assert.IsFalse(probe.IsSettlementRetrying);
+            Assert.AreEqual(0, probe.PendingSettlementCount);
             var probePath = Path.Combine(chainDir, "health-probe.json");
             settlementHost.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(probePath));
             StringAssert.Contains(File.ReadAllText(probePath), "\"isPipelineHealthy\": true");
+            StringAssert.Contains(File.ReadAllText(probePath), "\"pendingSettlementCount\": 0");
             StringAssert.Contains(statusJson, "\"isOperatorReady\": true");
             StringAssert.Contains(statusJson, "\"hasBatchProver\": true");
             StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
@@ -480,6 +484,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(File.ReadAllText(gwStatusPath), "\"hasPendingPublication\": false");
             var gwProbe = gatewayHost.GetHealthProbe();
             Assert.IsTrue(gwProbe.IsOfflinePassportComplete);
+            Assert.IsFalse(gwProbe.HasPendingPublication);
+            Assert.AreEqual(0, gwProbe.AggregatorPendingCount);
+            Assert.AreEqual(0, gwProbe.OutboxQueueDepth);
             Assert.IsTrue(gwProbe.IsPublicationHealthy);
             Assert.IsTrue(gwProbe.IsOutboxIdle);
             Assert.IsFalse(gwProbe.IsOutboxPoisoned);
@@ -487,6 +494,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             gatewayHost.WriteHealthProbeAsync(gwProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(gwProbePath));
             StringAssert.Contains(File.ReadAllText(gwProbePath), "\"isPublicationHealthy\": true");
+            StringAssert.Contains(File.ReadAllText(gwProbePath), "\"outboxQueueDepth\": 0");
             Assert.AreSame(settlementHost.Metrics.Metrics, gatewayHost.Metrics);
             Assert.AreEqual(0, settlementHost.ProcessReadyDeposits().Count);
             Assert.IsNotNull(settlementHost.DepositSource);

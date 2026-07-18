@@ -511,7 +511,7 @@ public sealed record NeoHubDeployReport(
                     ["localHostWriteHealthProbe"] =
                         "LocalHost.GetHealthProbeAsync() / WriteHealthProbeAsync(path) → "
                         + "LocalHostHealthProbeDocument JSON "
-                        + "(passport/pipeline/metrics/settlement light flags)",
+                        + "(passport/pipeline/metrics/settlement + pending-seal/metrics-port flags)",
                     ["localHostWritePrometheusMetrics"] =
                         "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                     ["gatewayHostWriteOperatorStatus"] =
@@ -519,7 +519,7 @@ public sealed record NeoHubDeployReport(
                     ["gatewayHostWriteHealthProbe"] =
                         "GatewayHostComposition.GetHealthProbe() / WriteHealthProbeAsync(path) → "
                         + "GatewayHostHealthProbeDocument JSON "
-                        + "(passport/outbox/publication light flags)",
+                        + "(passport/outbox/publication + pending/queue-depth flags)",
                     ["gatewayHostWritePrometheusMetrics"] =
                         "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "
                         + "(when Metrics is IMetricsSource)",

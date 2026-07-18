@@ -132,6 +132,9 @@ public sealed class UT_GatewayHostComposition
             var statusJson = File.ReadAllText(statusPath);
             var probe = host.GetHealthProbe();
             Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.IsFalse(probe.HasPendingPublication);
+            Assert.AreEqual(0, probe.AggregatorPendingCount);
+            Assert.AreEqual(0, probe.OutboxQueueDepth);
             Assert.IsTrue(probe.IsPublicationHealthy);
             Assert.IsTrue(probe.IsOutboxIdle);
             Assert.IsFalse(probe.IsOutboxPoisoned);
@@ -141,6 +144,9 @@ public sealed class UT_GatewayHostComposition
             Assert.IsTrue(File.Exists(probePath));
             var probeJson = File.ReadAllText(probePath);
             StringAssert.Contains(probeJson, "\"isOfflinePassportComplete\": true");
+            StringAssert.Contains(probeJson, "\"hasPendingPublication\": false");
+            StringAssert.Contains(probeJson, "\"aggregatorPendingCount\": 0");
+            StringAssert.Contains(probeJson, "\"outboxQueueDepth\": 0");
             StringAssert.Contains(probeJson, "\"isPublicationHealthy\": true");
             StringAssert.Contains(probeJson, "\"isOutboxIdle\": true");
             StringAssert.Contains(probeJson, "\"isOutboxPoisoned\": false");

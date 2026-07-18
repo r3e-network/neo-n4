@@ -17,6 +17,15 @@ public sealed record GatewayHostHealthProbeDocument
     /// <summary>Failed offline passport checks (empty when complete).</summary>
     public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
 
+    /// <summary>Unconfirmed publication remains retryable or poisoned.</summary>
+    public required bool HasPendingPublication { get; init; }
+
+    /// <summary>In-process aggregator pending commitment count.</summary>
+    public required int AggregatorPendingCount { get; init; }
+
+    /// <summary>Durable outbox queue depth.</summary>
+    public required int OutboxQueueDepth { get; init; }
+
     /// <summary>Durable outbox is poisoned.</summary>
     public required bool IsOutboxPoisoned { get; init; }
 

@@ -246,6 +246,18 @@ public sealed class UT_ZkLocalHostComposition
             StringAssert.Contains(statusJson, "\"proofType\": \"Zk\"");
             StringAssert.Contains(statusJson, "\"hasBatchProver\": true");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
+            var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(probe.IsPipelineEnabled);
+            Assert.IsFalse(probe.HasPendingSealedBatch);
+            Assert.IsTrue(probe.IsPipelineHealthy);
+            Assert.IsTrue(probe.IsSettlementRuntimeIdle);
+            Assert.IsFalse(probe.IsSettlementPoisoned);
+            Assert.AreEqual(0, probe.PendingSettlementCount);
+            Assert.IsFalse(probe.IsMetricsHttpListening);
+            var probePath = Path.Combine(chainDir, "health-probe.json");
+            host.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(probePath));
+            StringAssert.Contains(File.ReadAllText(probePath), "\"pendingSettlementCount\": 0");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             host.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(promPath));
@@ -260,6 +272,9 @@ public sealed class UT_ZkLocalHostComposition
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);
+            var probeAfterMetrics = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(probeAfterMetrics.IsMetricsHttpListening);
+            Assert.IsTrue(probeAfterMetrics.MetricsBoundPort > 0);
             var rpcPlugin = host.CreateRpcPlugin();
             Assert.IsNotNull(rpcPlugin);
             Assert.IsFalse(rpcPlugin.IsRegistered(894710606));

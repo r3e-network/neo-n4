@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds message/FI/deposit soft queues — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe` JSON) adds `ConsumedDepositCount`, `HasMessageOutbox`,
+  `MessageOutboxL2ToL1Count` / `L2ToL2Count`, `KnownInboundNonceCount`,
+  `KnownForcedInclusionNonceCount` for messaging/FI/deposit pipeline visibility
+  without the full status dump.
+- Soft local caches only; no L1 scan/drain claim. Wireproduction notes; unit/integration
+  coverage. No wire/ABI change. L1 settle remains a funded gate.
+
 ### Changed — Gateway health probe adds publication passport flags — 2026-07-19
 
 - `GatewayHostHealthProbeDocument` (+ `GetHealthProbe` / `FormatHealthProbeJson`) adds

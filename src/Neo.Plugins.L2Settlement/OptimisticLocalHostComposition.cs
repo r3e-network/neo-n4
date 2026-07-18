@@ -1637,8 +1637,14 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             DepositSourceReadyCount = DepositSourceReadyCount,
             DepositSourceReservedCount = DepositSourceReservedCount,
             DepositSourceSoftConsumedCount = DepositSourceSoftConsumedCount,
+            ConsumedDepositCount = ConsumedDepositCount,
             L1InboxPendingCount = L1InboxPendingCount,
             L1InboxConsumedCount = L1InboxConsumedCount,
+            HasMessageOutbox = HasMessageOutbox,
+            MessageOutboxL2ToL1Count = MessageOutbox?.L2ToL1Count ?? 0,
+            MessageOutboxL2ToL2Count = MessageOutbox?.L2ToL2Count ?? 0,
+            KnownInboundNonceCount = KnownInboundNonceCount,
+            KnownForcedInclusionNonceCount = KnownForcedInclusionNonceCount,
             StagedWithdrawalCount = StagedWithdrawalCount,
         };
     }

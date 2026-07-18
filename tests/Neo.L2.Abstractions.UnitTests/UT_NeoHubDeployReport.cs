@@ -295,8 +295,8 @@ public class UT_NeoHubDeployReport
                 + "LocalHostHealthProbeDocument JSON "
                 + "(passport/pipeline/metrics/settlement + pending-seal/open-batch counts + "
                 + "batcher ack/next + durable checkpoint numbers + "
-                + "FI/inbox + deposit ready/reserved/soft-consumed + "
-                + "L1Inbox consumed + staged withdrawals + "
+                + "FI/inbox + deposit ready/reserved/soft-consumed/hard-consumed + "
+                + "message outbox depths + known inbound/FI nonces + staged withdrawals + "
                 + "HasMetricsReadinessCheck/HasMetricsHealthProbe flags)",
                 stores.GetProperty("localHostWriteHealthProbe").GetString());
             Assert.AreEqual(

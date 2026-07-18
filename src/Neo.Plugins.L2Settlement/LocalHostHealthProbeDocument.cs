@@ -164,11 +164,31 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Soft deposit-source consumed-nonce cache size (no L1 claim).</summary>
     public required int DepositSourceSoftConsumedCount { get; init; }
 
+    /// <summary>
+    /// Hard-consumed deposit nonces on the bridge processor (local; distinct from soft source cache).
+    /// </summary>
+    public required int ConsumedDepositCount { get; init; }
+
     /// <summary>Local L1 inbox pending count (soft cache; no L1 scan claim).</summary>
     public required int L1InboxPendingCount { get; init; }
 
     /// <summary>Local L1 inbox soft consumed count (no L1 scan claim).</summary>
     public required int L1InboxConsumedCount { get; init; }
+
+    /// <summary>Message outbox is wired on the host (local composition).</summary>
+    public required bool HasMessageOutbox { get; init; }
+
+    /// <summary>L2→L1 message outbox depth when wired; otherwise 0 (local).</summary>
+    public required int MessageOutboxL2ToL1Count { get; init; }
+
+    /// <summary>L2→L2 message outbox depth when wired; otherwise 0 (local).</summary>
+    public required int MessageOutboxL2ToL2Count { get; init; }
+
+    /// <summary>Soft inbound message nonce cache size (no L1 scan claim).</summary>
+    public required int KnownInboundNonceCount { get; init; }
+
+    /// <summary>Soft forced-inclusion nonce cache size (local; no L1 drain claim).</summary>
+    public required int KnownForcedInclusionNonceCount { get; init; }
 
     /// <summary>Staged L2 withdrawal count on the bridge processor (local; no L1 claim).</summary>
     public required int StagedWithdrawalCount { get; init; }

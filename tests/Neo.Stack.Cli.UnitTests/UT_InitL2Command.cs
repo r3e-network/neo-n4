@@ -268,6 +268,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "MaxAutomaticRetries");
         StringAssert.Contains(output, "ProofSystem");
         StringAssert.Contains(output, "HasL1RpcEndpoint");
+        StringAssert.Contains(output, "ReplayDomain");
+        StringAssert.Contains(output, "VerificationKeyId");
         StringAssert.Contains(output, "StopMetricsHttp");
         StringAssert.Contains(output, "ConsumedDepositCount");
         StringAssert.Contains(output, "L1InboxPendingCount");

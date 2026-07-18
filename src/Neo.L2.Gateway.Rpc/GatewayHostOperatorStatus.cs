@@ -68,6 +68,12 @@ public sealed record GatewayHostOperatorStatus
     /// <summary>L1 RPC endpoint resolved from chain layout (not connectivity-probed).</summary>
     public required bool HasL1RpcEndpoint { get; init; }
 
+    /// <summary>Publication-profile replay domain bound at open.</summary>
+    public required UInt256 ReplayDomain { get; init; }
+
+    /// <summary>Publication-profile verification key id bound at open.</summary>
+    public required UInt256 VerificationKeyId { get; init; }
+
     /// <summary>True when this composition owns proof-prover disposal.</summary>
     public required bool OwnsProofProver { get; init; }
 

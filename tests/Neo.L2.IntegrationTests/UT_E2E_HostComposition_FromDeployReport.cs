@@ -347,6 +347,16 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 MerklePathRoundProver.ConstBackendId,
                 ((BinaryTreeAggregator)gatewayHost.Gateway.Aggregator).RoundProver.BackendId);
             Assert.IsNotNull(gatewayHost.Publisher);
+            Assert.IsTrue(gatewayHost.HasL1RpcEndpoint);
+            Assert.IsNotNull(gatewayHost.ExpectedNetwork);
+            Assert.AreEqual(1, gatewayHost.ProofSystem);
+            Assert.AreEqual(UInt256.Parse("0x" + new string('d', 64)), gatewayHost.ReplayDomain);
+            Assert.AreEqual(UInt256.Parse("0x" + new string('e', 64)), gatewayHost.VerificationKeyId);
+            var gwOpStatus = gatewayHost.GetOperatorStatus();
+            Assert.IsTrue(gwOpStatus.HasL1RpcEndpoint);
+            Assert.AreEqual(gatewayHost.ReplayDomain, gwOpStatus.ReplayDomain);
+            Assert.AreEqual(gatewayHost.VerificationKeyId, gwOpStatus.VerificationKeyId);
+            Assert.AreEqual(gatewayHost.ProofSystem, gwOpStatus.ProofSystem);
             Assert.AreSame(gatewayProof, gatewayHost.ProofProver);
             Assert.IsFalse(gatewayHost.HasPendingPublication);
             Assert.IsNull(gatewayHost.PendingPublicationEpoch);

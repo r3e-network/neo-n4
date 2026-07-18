@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway replay domain and verification key on host ops — 2026-07-18
+
+- `GatewayHostComposition` retains `ReplayDomain` and `VerificationKeyId` from open
+  publication-profile binding for offline health without digging into the plugin.
+- `GatewayHostOperatorStatus` (+ JSON) includes both (hex strings). Wireproduction notes
+  + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 `PublishAggregateAsync` confirmation remains a funded gate.
+
 ### Added — Gateway L1 endpoint readiness and proof-system on host ops — 2026-07-18
 
 - `GatewayHostComposition` exposes `ExpectedNetwork`, `HasL1RpcEndpoint` (from

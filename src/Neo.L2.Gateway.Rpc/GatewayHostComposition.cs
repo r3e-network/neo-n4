@@ -30,7 +30,9 @@ public sealed class GatewayHostComposition : IDisposable
         bool ownsProofProver,
         IL2Metrics? metrics,
         uint? expectedNetwork,
-        bool hasL1RpcEndpoint)
+        bool hasL1RpcEndpoint,
+        UInt256 replayDomain,
+        UInt256 verificationKeyId)
     {
         ChainDirectory = chainDirectory;
         Gateway = gateway;
@@ -40,6 +42,8 @@ public sealed class GatewayHostComposition : IDisposable
         Metrics = metrics;
         ExpectedNetwork = expectedNetwork;
         HasL1RpcEndpoint = hasL1RpcEndpoint;
+        ReplayDomain = replayDomain;
+        VerificationKeyId = verificationKeyId;
     }
 
     /// <summary>Absolute chain working directory.</summary>
@@ -133,6 +137,18 @@ public sealed class GatewayHostComposition : IDisposable
     public byte ProofSystem => ProofProver.ProofSystem;
 
     /// <summary>
+    /// Application/network replay domain bound into the publication profile at open
+    /// (must be non-zero for production). Offline ops surface; L1 still funded.
+    /// </summary>
+    public UInt256 ReplayDomain { get; }
+
+    /// <summary>
+    /// Verification key id bound into the publication profile at open
+    /// (must be non-zero for production).
+    /// </summary>
+    public UInt256 VerificationKeyId { get; }
+
+    /// <summary>
     /// Durable outbox / confirmation-lag status
     /// (<see cref="L2GatewayPlugin.OutboxStatus"/>).
     /// </summary>
@@ -196,6 +212,8 @@ public sealed class GatewayHostComposition : IDisposable
             ProofSystem = ProofSystem,
             ExpectedNetwork = ExpectedNetwork,
             HasL1RpcEndpoint = HasL1RpcEndpoint,
+            ReplayDomain = ReplayDomain,
+            VerificationKeyId = VerificationKeyId,
             OwnsProofProver = OwnsProofProver,
             HasMetrics = Metrics is not null,
             MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,
@@ -445,7 +463,9 @@ public sealed class GatewayHostComposition : IDisposable
                 ownsProofProver,
                 metrics,
                 endpoints.ExpectedNetwork,
-                hasL1RpcEndpoint: true);
+                hasL1RpcEndpoint: true,
+                new UInt256(replayDomain.GetSpan()),
+                new UInt256(verificationKeyId.GetSpan()));
         }
         catch
         {

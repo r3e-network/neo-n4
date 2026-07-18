@@ -92,6 +92,10 @@ public sealed class UT_GatewayHostComposition
             Assert.IsTrue(gwStatus.HasL1RpcEndpoint);
             Assert.AreEqual(894710606u, host.ExpectedNetwork);
             Assert.AreEqual(894710606u, gwStatus.ExpectedNetwork);
+            Assert.AreEqual(UInt256.Parse("0x" + new string('d', 64)), host.ReplayDomain);
+            Assert.AreEqual(UInt256.Parse("0x" + new string('e', 64)), host.VerificationKeyId);
+            Assert.AreEqual(host.ReplayDomain, gwStatus.ReplayDomain);
+            Assert.AreEqual(host.VerificationKeyId, gwStatus.VerificationKeyId);
             Assert.IsFalse(gwStatus.OwnsProofProver);
             Assert.IsTrue(gwStatus.HasMetrics);
             Assert.IsTrue(gwStatus.MetricsEntryCount >= 0);
@@ -108,6 +112,8 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(statusJson, "\"hasL1RpcEndpoint\": true");
             StringAssert.Contains(statusJson, "\"expectedNetwork\": 894710606");
             StringAssert.Contains(statusJson, "\"proofSystem\": 1");
+            StringAssert.Contains(statusJson, "\"replayDomain\":");
+            StringAssert.Contains(statusJson, "\"verificationKeyId\":");
             Assert.IsNotNull(host.Publisher);
             // Durable outbox host compositions fail closed on direct PullAggregate.
             Assert.ThrowsExactly<InvalidOperationException>(() => host.PullAggregate());

@@ -60,6 +60,12 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>L1 RPC endpoint resolved from chain layout.</summary>
     public required bool HasL1RpcEndpoint { get; init; }
 
+    /// <summary>Publication-profile replay domain as 0x-hex.</summary>
+    public required string ReplayDomain { get; init; }
+
+    /// <summary>Publication-profile verification key id as 0x-hex.</summary>
+    public required string VerificationKeyId { get; init; }
+
     /// <summary>True when this composition owns proof-prover disposal.</summary>
     public required bool OwnsProofProver { get; init; }
 
@@ -92,6 +98,8 @@ public sealed record GatewayHostOperatorStatusDocument
             ProofSystem = status.ProofSystem,
             ExpectedNetwork = status.ExpectedNetwork,
             HasL1RpcEndpoint = status.HasL1RpcEndpoint,
+            ReplayDomain = status.ReplayDomain.ToString(),
+            VerificationKeyId = status.VerificationKeyId.ToString(),
             OwnsProofProver = status.OwnsProofProver,
             HasMetrics = status.HasMetrics,
             MetricsEntryCount = status.MetricsEntryCount,

@@ -99,6 +99,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
 - `GetLatestCheckpointAsync` (L1-refresh) and Zk prove-batch remain funded gates.
 
+### Tested — Neo N3 testnet session9 reverify + SharedBridge deposit n10 — 2026-07-18
+
+- Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,
+  **29/29 postdeploy reused**, **42/42 smoke ok** against magic `894710606`.
+- Live SharedBridge Deposit **nonce 10** HALT (`0x1f77f0c3…b1e0`, 0.001 GAS,
+  `WitnessScope.Global`, Transfer + DepositEnqueued); `getDeposit` confirmed.
+- Chain `20260716` still active; TokenRegistry GAS/NEO active; ForcedInclusion production-ready.
+- Evidence: `docs/audit/testnet-deployment-20260718-session9-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-18-session9.json`.
+- WIF only via process env `NEO_N4_TESTNET_WIF` (not committed). Funded gates still open:
+  L1 settle, Zk prove-batch, production DA, 2-of-2 bridge retarget, full Neo.CLI stack.
+
 ### Tested — Neo N3 testnet session8 reverify + SharedBridge deposit n9 — 2026-07-18
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

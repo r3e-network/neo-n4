@@ -190,6 +190,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.HasBatchForcedInclusionSource);
             Assert.IsTrue(settlementHost.HasBatchProver);
             Assert.AreEqual(0, settlementHost.OpenBatchForcedInclusionCount);
+            Assert.AreEqual(0, settlementHost.OpenBatchL2ToL2MessageCount);
+            Assert.IsTrue(settlementHost.SupportsLocalDaReader);
             Assert.IsNull(
                 settlementHost.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult());
             Assert.IsTrue(settlementHost.MaxForcedTransactionsPerBatch > 0);
@@ -215,6 +217,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasBatchProver);
             Assert.AreEqual(0, opStatus.OpenBatchForcedInclusionCount);
+            Assert.AreEqual(0, opStatus.OpenBatchL2ToL2MessageCount);
+            Assert.IsTrue(opStatus.SupportsLocalDaReader);
             Assert.IsNull(opStatus.LatestCheckpointBatchNumber);
             Assert.AreEqual(
                 settlementHost.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult(),
@@ -259,6 +263,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"isOperatorReady\": true");
             StringAssert.Contains(statusJson, "\"hasBatchProver\": true");
             StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
+            StringAssert.Contains(statusJson, "\"openBatchL2ToL2MessageCount\": 0");
+            StringAssert.Contains(statusJson, "\"supportsLocalDaReader\": true");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
@@ -563,6 +569,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.AreEqual(ProofType.Zk, opStatus.ProofType);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
+            Assert.IsTrue(opStatus.HasBatchProver);
+            Assert.IsFalse(opStatus.SupportsLocalDaReader);
+            Assert.IsFalse(host.SupportsLocalDaReader);
+            Assert.AreEqual(0, opStatus.OpenBatchL2ToL2MessageCount);
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);

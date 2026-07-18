@@ -213,8 +213,8 @@ public class UT_NeoHubDeployReport
                 + "MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / HasBatchDepositSource / "
                 + "HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver / PendingSealedBatch / HasOpenBatch / "
                 + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
-                + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / OpenBatchForcedInclusionCount / "
-                + "ProcessCommittedBlock / TryRetryPendingSealedBatch / OnBatchSealed",
+                + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / OpenBatchL2ToL2MessageCount / "
+                + "OpenBatchForcedInclusionCount / ProcessCommittedBlock / TryRetryPendingSealedBatch / OnBatchSealed",
                 stores.GetProperty("localHostBatcherHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
@@ -234,7 +234,7 @@ public class UT_NeoHubDeployReport
                 + "KnownForcedInclusionNonceCount / HasBatchForcedInclusionSource",
                 stores.GetProperty("localHostForcedInclusionHelpers").GetString());
             Assert.AreEqual(
-                "LocalHost.PublishDaAsync / IsDaAvailableAsync / "
+                "LocalHost.PublishDaAsync / IsDaAvailableAsync / SupportsLocalDaReader / "
                 + "CreateLocalDaReader (Multisig/Optimistic local DA)",
                 stores.GetProperty("localHostDaHelpers").GetString());
             Assert.AreEqual(

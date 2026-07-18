@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Open-batch L2→L2 count and local DA reader readiness on LocalHost — 2026-07-18
+
+- `BatchSealer` / `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose
+  `OpenBatchL2ToL2MessageCount` for open-batch sealer health.
+- LocalHost exposes `SupportsLocalDaReader` (true for Multisig/Optimistic local DA,
+  false for Zk production DA). Operator status (+ JSON) includes both fields.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+
 ### Added — Open-batch forced-inclusion count + durable checkpoint offline tests — 2026-07-18
 
 - `BatchBuilder.ForcedInclusionCount` / `BatchSealer` / `L2BatchPlugin` /

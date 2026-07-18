@@ -117,6 +117,10 @@ public sealed class BatchSealer
     public int OpenBatchL2ToL1MessageCount =>
         HasOpenBatch ? _builder!.Batch.L2ToL1Messages.Count : 0;
 
+    /// <summary>L2→L2 messages staged in the open batch (0 when none is open).</summary>
+    public int OpenBatchL2ToL2MessageCount =>
+        HasOpenBatch ? _builder!.Batch.L2ToL2Messages.Count : 0;
+
     /// <summary>Forced-inclusion entries staged in the open batch (0 when none is open).</summary>
     public int OpenBatchForcedInclusionCount =>
         HasOpenBatch ? _builder!.ForcedInclusionCount : 0;

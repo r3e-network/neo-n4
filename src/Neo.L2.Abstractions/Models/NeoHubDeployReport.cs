@@ -445,8 +445,8 @@ public sealed record NeoHubDeployReport(
                         + "MaxL1MessagesPerBatch / HasBatchDepositSource / HasBatchMessageRouter / "
                         + "HasBatchForcedInclusionSource / HasBatchProver / PendingSealedBatch / HasOpenBatch / "
                         + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
-                        + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / OpenBatchForcedInclusionCount / "
-                        + "ProcessCommittedBlock / TryRetryPendingSealedBatch / OnBatchSealed",
+                        + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / OpenBatchL2ToL2MessageCount / "
+                        + "OpenBatchForcedInclusionCount / ProcessCommittedBlock / TryRetryPendingSealedBatch / OnBatchSealed",
                     ["localHostRpcStoreHelpers"] =
                         "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
                         + "FinalizeRpcBatch / RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / "
@@ -462,7 +462,7 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache / "
                         + "KnownForcedInclusionNonceCount / HasBatchForcedInclusionSource",
                     ["localHostDaHelpers"] =
-                        "LocalHost.PublishDaAsync / IsDaAvailableAsync / "
+                        "LocalHost.PublishDaAsync / IsDaAvailableAsync / SupportsLocalDaReader / "
                         + "CreateLocalDaReader (Multisig/Optimistic local DA)",
                     ["localHostMetricsExport"] =
                         "LocalHost.CaptureMetricsSnapshot / ExportPrometheusMetrics",

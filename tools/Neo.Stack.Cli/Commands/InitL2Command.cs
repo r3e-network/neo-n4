@@ -132,10 +132,11 @@ internal static class InitL2Command
         Console.WriteLine("  host ready = LocalHost.IsOperatorReady / GetOperatorStatusAsync (see wireproduction notes)");
         Console.WriteLine("  host batch = LocalHost.NextExpectedBlock / NextBatchNumber / PendingSealedBatchNumber / MaxBlocksPerBatch");
         Console.WriteLine("               MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / OpenBatchForcedInclusionCount");
-        Console.WriteLine("               HasBatchDepositSource / HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver");
+        Console.WriteLine("               OpenBatchL2ToL2MessageCount / HasBatchDepositSource / HasBatchMessageRouter");
+        Console.WriteLine("               HasBatchForcedInclusionSource / HasBatchProver");
         Console.WriteLine("  host rpc   = LocalHost.AddRpcBatch / RecordRpcDeposit / RegisterRpcAsset / MessageOutbox");
         Console.WriteLine("  host msg   = LocalHost.MessageOutboxL2ToL1Root / KnownInboundNonceCount / RegisterInboundMessageNonce");
-        Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / RegisterForcedInclusionNonce / KnownForcedInclusionNonceCount");
+        Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / SupportsLocalDaReader / RegisterForcedInclusionNonce / KnownForcedInclusionNonceCount");
         Console.WriteLine("  host gw    = GatewayHost.IsEnabled / MaxAutomaticRetries / IsPublicationConfigured");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / IsMetricsEnabled / MetricsConfiguredPort / MetricsMaxConcurrentConnections / RegisterBridgeAsset");
         Console.WriteLine("               StartMetricsHttp / StopMetricsHttp");

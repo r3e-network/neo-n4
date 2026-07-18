@@ -134,6 +134,9 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(status.L1FinalityDepth >= 1);
             Assert.IsTrue(status.HasBatchProver);
             Assert.IsTrue(host.HasBatchProver);
+            Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
+            Assert.IsFalse(status.SupportsLocalDaReader);
+            Assert.IsFalse(host.SupportsLocalDaReader);
             Assert.IsNull(status.LatestCheckpointBatchNumber);
             Assert.AreEqual(UInt256.Zero, status.LatestCheckpointPostStateRoot);
             Assert.AreEqual(

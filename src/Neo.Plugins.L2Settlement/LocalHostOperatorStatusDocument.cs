@@ -83,8 +83,14 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>L2→L1 messages in the open batch.</summary>
     public required int OpenBatchL2ToL1MessageCount { get; init; }
 
+    /// <summary>L2→L2 messages in the open batch.</summary>
+    public required int OpenBatchL2ToL2MessageCount { get; init; }
+
     /// <summary>Forced-inclusion entries in the open batch.</summary>
     public required int OpenBatchForcedInclusionCount { get; init; }
+
+    /// <summary>Local DA reader available on this host profile.</summary>
+    public required bool SupportsLocalDaReader { get; init; }
 
     /// <summary>Soft consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }
@@ -267,7 +273,9 @@ public sealed record LocalHostOperatorStatusDocument
             OpenBatchBlockCount = status.OpenBatchBlockCount,
             OpenBatchL1MessageCount = status.OpenBatchL1MessageCount,
             OpenBatchL2ToL1MessageCount = status.OpenBatchL2ToL1MessageCount,
+            OpenBatchL2ToL2MessageCount = status.OpenBatchL2ToL2MessageCount,
             OpenBatchForcedInclusionCount = status.OpenBatchForcedInclusionCount,
+            SupportsLocalDaReader = status.SupportsLocalDaReader,
             ConsumedDepositCount = status.ConsumedDepositCount,
             LastAcknowledgedBatchNumber = status.LastAcknowledgedBatchNumber,
             LastAcknowledgedBlock = status.LastAcknowledgedBlock,

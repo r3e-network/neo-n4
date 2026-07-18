@@ -291,10 +291,21 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     public int OpenBatchL2ToL1MessageCount => Batch.OpenBatchL2ToL1MessageCount;
 
     /// <summary>
+    /// L2→L2 messages staged in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchL2ToL2MessageCount"/>).
+    /// </summary>
+    public int OpenBatchL2ToL2MessageCount => Batch.OpenBatchL2ToL2MessageCount;
+
+    /// <summary>
     /// Forced-inclusion entries staged in the open batch
     /// (<see cref="L2BatchPlugin.OpenBatchForcedInclusionCount"/>).
     /// </summary>
     public int OpenBatchForcedInclusionCount => Batch.OpenBatchForcedInclusionCount;
+
+    /// <summary>
+    /// True when <see cref="CreateLocalDaReader"/> is available (local Optimistic DA).
+    /// </summary>
+    public bool SupportsLocalDaReader => true;
 
     /// <summary>
     /// Last batch number that completed durable persist + acknowledgement
@@ -434,7 +445,9 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             OpenBatchBlockCount = OpenBatchBlockCount,
             OpenBatchL1MessageCount = OpenBatchL1MessageCount,
             OpenBatchL2ToL1MessageCount = OpenBatchL2ToL1MessageCount,
+            OpenBatchL2ToL2MessageCount = OpenBatchL2ToL2MessageCount,
             OpenBatchForcedInclusionCount = OpenBatchForcedInclusionCount,
+            SupportsLocalDaReader = SupportsLocalDaReader,
             ConsumedDepositCount = ConsumedDepositCount,
             LastAcknowledgedBatchNumber = LastAcknowledgedBatchNumber,
             LastAcknowledgedBlock = LastAcknowledgedBlock,

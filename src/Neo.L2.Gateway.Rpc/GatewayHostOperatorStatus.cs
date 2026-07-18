@@ -59,6 +59,15 @@ public sealed record GatewayHostOperatorStatus
     /// <summary>Terminal proof prover aggregation backend id.</summary>
     public required byte AggregationBackendId { get; init; }
 
+    /// <summary>Terminal proof-system discriminator.</summary>
+    public required byte ProofSystem { get; init; }
+
+    /// <summary>Expected L1 network magic from chain layout, if any.</summary>
+    public required uint? ExpectedNetwork { get; init; }
+
+    /// <summary>L1 RPC endpoint resolved from chain layout (not connectivity-probed).</summary>
+    public required bool HasL1RpcEndpoint { get; init; }
+
     /// <summary>True when this composition owns proof-prover disposal.</summary>
     public required bool OwnsProofProver { get; init; }
 

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway L1 endpoint readiness and proof-system on host ops — 2026-07-18
+
+- `GatewayHostComposition` exposes `ExpectedNetwork`, `HasL1RpcEndpoint` (from
+  `L1DeployedEndpoints` / chain layout), and `ProofSystem` (from terminal prover).
+- `GatewayHostOperatorStatus` (+ JSON) includes the three fields for offline Gateway
+  wiring checks. Wireproduction notes + init-l2 tips; unit coverage.
+- No wire/ABI change. L1 `PublishAggregateAsync` confirmation remains a funded gate.
+
 ### Added — MessageOutbox and L2BridgeHash readiness on LocalHost ops — 2026-07-18
 
 - Multisig/Optimistic/Zk LocalHost expose `HasMessageOutbox` (MessageRouter outbox

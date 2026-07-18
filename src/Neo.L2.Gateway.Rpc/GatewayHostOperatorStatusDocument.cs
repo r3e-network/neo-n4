@@ -51,6 +51,15 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>Terminal proof prover aggregation backend id.</summary>
     public required byte AggregationBackendId { get; init; }
 
+    /// <summary>Terminal proof-system discriminator.</summary>
+    public required byte ProofSystem { get; init; }
+
+    /// <summary>Expected L1 network magic, if any.</summary>
+    public required uint? ExpectedNetwork { get; init; }
+
+    /// <summary>L1 RPC endpoint resolved from chain layout.</summary>
+    public required bool HasL1RpcEndpoint { get; init; }
+
     /// <summary>True when this composition owns proof-prover disposal.</summary>
     public required bool OwnsProofProver { get; init; }
 
@@ -80,6 +89,9 @@ public sealed record GatewayHostOperatorStatusDocument
             OutboxLastError = status.OutboxLastError,
             ConfirmationLagMilliseconds = status.ConfirmationLagMilliseconds,
             AggregationBackendId = status.AggregationBackendId,
+            ProofSystem = status.ProofSystem,
+            ExpectedNetwork = status.ExpectedNetwork,
+            HasL1RpcEndpoint = status.HasL1RpcEndpoint,
             OwnsProofProver = status.OwnsProofProver,
             HasMetrics = status.HasMetrics,
             MetricsEntryCount = status.MetricsEntryCount,

@@ -266,6 +266,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "ForcedInclusionDeploymentHeight");
         StringAssert.Contains(output, "GatewayHost.IsEnabled");
         StringAssert.Contains(output, "MaxAutomaticRetries");
+        StringAssert.Contains(output, "ProofSystem");
+        StringAssert.Contains(output, "HasL1RpcEndpoint");
         StringAssert.Contains(output, "StopMetricsHttp");
         StringAssert.Contains(output, "ConsumedDepositCount");
         StringAssert.Contains(output, "L1InboxPendingCount");

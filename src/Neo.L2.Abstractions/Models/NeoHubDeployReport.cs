@@ -519,8 +519,8 @@ public sealed record NeoHubDeployReport(
                     ["gatewayHostOpsHelpers"] =
                         "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                         + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
-                        + "IsEnabled / MaxAutomaticRetries / "
-                        + "OutboxStatus / Aggregator / ReceiveBatch / "
+                        + "IsEnabled / MaxAutomaticRetries / ProofSystem / ExpectedNetwork / "
+                        + "HasL1RpcEndpoint / OutboxStatus / Aggregator / ReceiveBatch / "
                         + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                         + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
                         + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "

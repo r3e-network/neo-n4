@@ -28,7 +28,9 @@ public sealed class GatewayHostComposition : IDisposable
         ProofBoundRpcGlobalRootPublisher publisher,
         IGatewayProofProver proofProver,
         bool ownsProofProver,
-        IL2Metrics? metrics)
+        IL2Metrics? metrics,
+        uint? expectedNetwork,
+        bool hasL1RpcEndpoint)
     {
         ChainDirectory = chainDirectory;
         Gateway = gateway;
@@ -36,6 +38,8 @@ public sealed class GatewayHostComposition : IDisposable
         ProofProver = proofProver;
         OwnsProofProver = ownsProofProver;
         Metrics = metrics;
+        ExpectedNetwork = expectedNetwork;
+        HasL1RpcEndpoint = hasL1RpcEndpoint;
     }
 
     /// <summary>Absolute chain working directory.</summary>
@@ -111,6 +115,24 @@ public sealed class GatewayHostComposition : IDisposable
     public ulong? PendingPublicationEpoch => Gateway.PendingPublicationEpoch;
 
     /// <summary>
+    /// Expected L1 network magic from settlement config / <c>l1.deployed.json</c>
+    /// (null when unset). Connectivity is not probed.
+    /// </summary>
+    public uint? ExpectedNetwork { get; }
+
+    /// <summary>
+    /// True when Open resolved an L1 RPC endpoint from the chain directory layout
+    /// (does not probe connectivity; L1 publish remains a funded gate).
+    /// </summary>
+    public bool HasL1RpcEndpoint { get; }
+
+    /// <summary>
+    /// Terminal proof-system discriminator from <see cref="ProofProver"/>
+    /// (<see cref="IGatewayProofProver.ProofSystem"/>).
+    /// </summary>
+    public byte ProofSystem => ProofProver.ProofSystem;
+
+    /// <summary>
     /// Durable outbox / confirmation-lag status
     /// (<see cref="L2GatewayPlugin.OutboxStatus"/>).
     /// </summary>
@@ -171,6 +193,9 @@ public sealed class GatewayHostComposition : IDisposable
             OutboxLastError = outbox.LastError,
             ConfirmationLagMilliseconds = outbox.ConfirmationLagMilliseconds,
             AggregationBackendId = ProofProver.AggregationBackendId,
+            ProofSystem = ProofSystem,
+            ExpectedNetwork = ExpectedNetwork,
+            HasL1RpcEndpoint = HasL1RpcEndpoint,
             OwnsProofProver = OwnsProofProver,
             HasMetrics = Metrics is not null,
             MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,
@@ -401,6 +426,7 @@ public sealed class GatewayHostComposition : IDisposable
             if (metrics is not null)
                 gateway.WithMetrics(metrics);
 
+            var endpoints = L1DeployedEndpoints.FromChainDirectory(chainDirectory);
             publisher = ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(
                 chainDirectory,
                 signer,
@@ -417,7 +443,9 @@ public sealed class GatewayHostComposition : IDisposable
                 publisher,
                 proofProver,
                 ownsProofProver,
-                metrics);
+                metrics,
+                endpoints.ExpectedNetwork,
+                hasL1RpcEndpoint: true);
         }
         catch
         {

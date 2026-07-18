@@ -138,6 +138,7 @@ internal static class InitL2Command
         Console.WriteLine("  host msg   = LocalHost.MessageOutboxL2ToL1Root / KnownInboundNonceCount / RegisterInboundMessageNonce");
         Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / SupportsLocalDaReader / RegisterForcedInclusionNonce / KnownForcedInclusionNonceCount");
         Console.WriteLine("  host gw    = GatewayHost.IsEnabled / MaxAutomaticRetries / IsPublicationConfigured");
+        Console.WriteLine("               ProofSystem / ExpectedNetwork / HasL1RpcEndpoint");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / IsMetricsEnabled / MetricsConfiguredPort / MetricsMaxConcurrentConnections / RegisterBridgeAsset");
         Console.WriteLine("               StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");

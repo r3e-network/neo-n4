@@ -86,6 +86,12 @@ public sealed class UT_GatewayHostComposition
             Assert.AreEqual(host.MaxAutomaticRetries, gwStatus.MaxAutomaticRetries);
             Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
+            Assert.AreEqual(1, gwStatus.ProofSystem);
+            Assert.AreEqual(1, host.ProofSystem);
+            Assert.IsTrue(host.HasL1RpcEndpoint);
+            Assert.IsTrue(gwStatus.HasL1RpcEndpoint);
+            Assert.AreEqual(894710606u, host.ExpectedNetwork);
+            Assert.AreEqual(894710606u, gwStatus.ExpectedNetwork);
             Assert.IsFalse(gwStatus.OwnsProofProver);
             Assert.IsTrue(gwStatus.HasMetrics);
             Assert.IsTrue(gwStatus.MetricsEntryCount >= 0);
@@ -99,6 +105,9 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(statusJson, "\"isPublicationConfigured\": true");
             StringAssert.Contains(statusJson, "\"outboxQueueDepth\": 0");
             StringAssert.Contains(statusJson, "\"hasMetrics\": true");
+            StringAssert.Contains(statusJson, "\"hasL1RpcEndpoint\": true");
+            StringAssert.Contains(statusJson, "\"expectedNetwork\": 894710606");
+            StringAssert.Contains(statusJson, "\"proofSystem\": 1");
             Assert.IsNotNull(host.Publisher);
             // Durable outbox host compositions fail closed on direct PullAggregate.
             Assert.ThrowsExactly<InvalidOperationException>(() => host.PullAggregate());

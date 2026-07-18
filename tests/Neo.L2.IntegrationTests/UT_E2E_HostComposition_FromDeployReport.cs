@@ -199,6 +199,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.HasForcedInclusionHash);
             Assert.IsTrue(settlementHost.HasSharedBridgeHash);
             Assert.IsTrue(settlementHost.HasMessageRouterHash);
+            Assert.IsFalse(settlementHost.HasL2BridgeHash);
+            Assert.IsTrue(settlementHost.HasMessageOutbox);
             Assert.IsNull(
                 settlementHost.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult());
             Assert.IsTrue(settlementHost.MaxForcedTransactionsPerBatch > 0);
@@ -232,6 +234,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.HasSettlementManagerHash);
             Assert.IsTrue(opStatus.HasSharedBridgeHash);
             Assert.IsTrue(opStatus.HasMessageRouterHash);
+            Assert.IsFalse(opStatus.HasL2BridgeHash);
+            Assert.IsTrue(opStatus.HasMessageOutbox);
             Assert.IsNull(opStatus.LatestCheckpointBatchNumber);
             Assert.AreEqual(
                 settlementHost.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult(),
@@ -282,6 +286,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"hasL1RpcEndpoint\": true");
             StringAssert.Contains(statusJson, "\"hasSettlementManagerHash\": true");
             StringAssert.Contains(statusJson, "\"hasSharedBridgeHash\": true");
+            StringAssert.Contains(statusJson, "\"hasL2BridgeHash\": false");
+            StringAssert.Contains(statusJson, "\"hasMessageOutbox\": true");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();

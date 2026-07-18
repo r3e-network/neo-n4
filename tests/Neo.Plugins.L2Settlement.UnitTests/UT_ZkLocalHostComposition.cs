@@ -143,6 +143,9 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(status.HasSettlementManagerHash);
             Assert.IsTrue(status.HasSharedBridgeHash);
             Assert.IsTrue(host.HasMessageRouterHash);
+            Assert.IsFalse(status.HasL2BridgeHash);
+            Assert.IsTrue(status.HasMessageOutbox);
+            Assert.IsTrue(host.HasMessageOutbox);
             Assert.IsNull(status.LatestCheckpointBatchNumber);
             Assert.AreEqual(UInt256.Zero, status.LatestCheckpointPostStateRoot);
             Assert.AreEqual(

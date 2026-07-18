@@ -113,6 +113,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>MessageRouter hash present in settings.</summary>
     public required bool HasMessageRouterHash { get; init; }
 
+    /// <summary>Explicit L2 bridge hash present in settings.</summary>
+    public required bool HasL2BridgeHash { get; init; }
+
+    /// <summary>MessageRouter L2 outbox is installed.</summary>
+    public required bool HasMessageOutbox { get; init; }
+
     /// <summary>Soft consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }
 
@@ -304,6 +310,8 @@ public sealed record LocalHostOperatorStatusDocument
             HasForcedInclusionHash = status.HasForcedInclusionHash,
             HasSharedBridgeHash = status.HasSharedBridgeHash,
             HasMessageRouterHash = status.HasMessageRouterHash,
+            HasL2BridgeHash = status.HasL2BridgeHash,
+            HasMessageOutbox = status.HasMessageOutbox,
             ConsumedDepositCount = status.ConsumedDepositCount,
             LastAcknowledgedBatchNumber = status.LastAcknowledgedBatchNumber,
             LastAcknowledgedBlock = status.LastAcknowledgedBlock,

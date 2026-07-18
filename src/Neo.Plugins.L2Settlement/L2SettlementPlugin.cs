@@ -567,6 +567,13 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         !string.IsNullOrWhiteSpace(_settings.MessageRouterHash);
 
     /// <summary>
+    /// True when settlement settings include a non-empty L2 bridge hash
+    /// (deposit receiver override; empty means native L2Bridge default).
+    /// </summary>
+    public bool HasL2BridgeHash =>
+        !string.IsNullOrWhiteSpace(_settings.L2BridgeHash);
+
+    /// <summary>
     /// Deposit source owned by the last successful <see cref="WireProduction"/> /
     /// <see cref="WireProductionFromLayout"/> when SharedBridge is configured; null when
     /// the caller supplied a deposit source or SharedBridge is not configured.

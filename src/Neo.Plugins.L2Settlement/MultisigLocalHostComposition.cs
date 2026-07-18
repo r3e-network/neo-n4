@@ -351,6 +351,17 @@ public sealed class MultisigLocalHostComposition : IDisposable
     public bool HasMessageRouterHash => Settlement.HasMessageRouterHash;
 
     /// <summary>
+    /// Settlement settings include an explicit L2 bridge hash
+    /// (<see cref="L2SettlementPlugin.HasL2BridgeHash"/>).
+    /// </summary>
+    public bool HasL2BridgeHash => Settlement.HasL2BridgeHash;
+
+    /// <summary>
+    /// True when <see cref="MessageOutbox"/> is installed after WireProduction.
+    /// </summary>
+    public bool HasMessageOutbox => MessageOutbox is not null;
+
+    /// <summary>
     /// Last batch number that completed durable persist + acknowledgement
     /// (<see cref="L2BatchPlugin.LastAcknowledgedBatchNumber"/>).
     /// </summary>
@@ -498,6 +509,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
             HasForcedInclusionHash = HasForcedInclusionHash,
             HasSharedBridgeHash = HasSharedBridgeHash,
             HasMessageRouterHash = HasMessageRouterHash,
+            HasL2BridgeHash = HasL2BridgeHash,
+            HasMessageOutbox = HasMessageOutbox,
             ConsumedDepositCount = ConsumedDepositCount,
             LastAcknowledgedBatchNumber = LastAcknowledgedBatchNumber,
             LastAcknowledgedBlock = LastAcknowledgedBlock,

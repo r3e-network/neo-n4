@@ -429,8 +429,8 @@ public sealed record NeoHubDeployReport(
                         + "HasSettlementClient / HasTransactionSender / IsSettlementEnabled / "
                         + "L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork / "
                         + "HasSettlementManagerHash / HasForcedInclusionHash / "
-                        + "HasSharedBridgeHash / HasMessageRouterHash / "
-                        + "DepositSourceReadyCount / DepositSourceReservedCount / "
+                        + "HasSharedBridgeHash / HasMessageRouterHash / HasL2BridgeHash / "
+                        + "HasMessageOutbox / DepositSourceReadyCount / DepositSourceReservedCount / "
                         + "DepositSourceSoftConsumedCount / IsMetricsEnabled / MetricsConfiguredPort / "
                         + "MetricsBindAddress / ForcedInclusionDeploymentHeight / "
                         + "SharedBridgeDeploymentHeight / MessageRouterDeploymentHeight / "
@@ -458,10 +458,11 @@ public sealed record NeoHubDeployReport(
                         + "GetRpcBridgedAsset / RecordRpcWithdrawalProof / RecordRpcMessageProof / "
                         + "GetRpcWithdrawalProof / GetRpcMessageProof",
                     ["localHostMessageRouterHelpers"] =
-                        "LocalHost.MessageOutbox / MessageOutboxL2ToL1Root / MessageOutboxL2ToL2Root / "
-                        + "EnqueueOutboundMessagesAsync / RecordMessageRouterFinalizedProof / "
-                        + "GetMessageRouterProofAsync / RegisterInboundMessageNonce / "
-                        + "InvalidateInboundMessageCache / KnownInboundNonceCount",
+                        "LocalHost.MessageOutbox / HasMessageOutbox / MessageOutboxL2ToL1Root / "
+                        + "MessageOutboxL2ToL2Root / EnqueueOutboundMessagesAsync / "
+                        + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync / "
+                        + "RegisterInboundMessageNonce / InvalidateInboundMessageCache / "
+                        + "KnownInboundNonceCount",
                     ["localHostForcedInclusionHelpers"] =
                         "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache / "
                         + "KnownForcedInclusionNonceCount / HasBatchForcedInclusionSource",

@@ -144,6 +144,7 @@ internal static class InitL2Command
         Console.WriteLine("               ConsumedDepositCount / DepositSourceReadyCount / DepositSourceReservedCount / DepositSourceSoftConsumedCount");
         Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork");
         Console.WriteLine("               HasSettlementManagerHash / HasForcedInclusionHash / HasSharedBridgeHash / HasMessageRouterHash");
+        Console.WriteLine("               HasL2BridgeHash / HasMessageOutbox");
         Console.WriteLine("               ForcedInclusionDeploymentHeight / SharedBridgeDeploymentHeight");
         Console.WriteLine("               StageWithdrawal / ProveAsync / HasOverdueForcedInclusionAsync / L1InboxPendingCount");
         Console.WriteLine("               HasForcedInclusionFinalizer / HasSettlementClient / HasTransactionSender");

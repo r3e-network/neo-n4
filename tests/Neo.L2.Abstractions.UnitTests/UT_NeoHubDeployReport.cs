@@ -196,8 +196,8 @@ public class UT_NeoHubDeployReport
                 + "HasSettlementClient / HasTransactionSender / IsSettlementEnabled / "
                 + "L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork / "
                 + "HasSettlementManagerHash / HasForcedInclusionHash / "
-                + "HasSharedBridgeHash / HasMessageRouterHash / "
-                + "DepositSourceReadyCount / DepositSourceReservedCount / "
+                + "HasSharedBridgeHash / HasMessageRouterHash / HasL2BridgeHash / "
+                + "HasMessageOutbox / DepositSourceReadyCount / DepositSourceReservedCount / "
                 + "DepositSourceSoftConsumedCount / IsMetricsEnabled / MetricsConfiguredPort / "
                 + "MetricsBindAddress / ForcedInclusionDeploymentHeight / "
                 + "SharedBridgeDeploymentHeight / MessageRouterDeploymentHeight / "
@@ -228,10 +228,11 @@ public class UT_NeoHubDeployReport
                 + "GetRpcWithdrawalProof / GetRpcMessageProof",
                 stores.GetProperty("localHostRpcStoreHelpers").GetString());
             Assert.AreEqual(
-                "LocalHost.MessageOutbox / MessageOutboxL2ToL1Root / MessageOutboxL2ToL2Root / "
-                + "EnqueueOutboundMessagesAsync / RecordMessageRouterFinalizedProof / "
-                + "GetMessageRouterProofAsync / RegisterInboundMessageNonce / "
-                + "InvalidateInboundMessageCache / KnownInboundNonceCount",
+                "LocalHost.MessageOutbox / HasMessageOutbox / MessageOutboxL2ToL1Root / "
+                + "MessageOutboxL2ToL2Root / EnqueueOutboundMessagesAsync / "
+                + "RecordMessageRouterFinalizedProof / GetMessageRouterProofAsync / "
+                + "RegisterInboundMessageNonce / InvalidateInboundMessageCache / "
+                + "KnownInboundNonceCount",
                 stores.GetProperty("localHostMessageRouterHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.RegisterForcedInclusionNonce / InvalidateForcedInclusionCache / "

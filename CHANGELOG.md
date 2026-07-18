@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — MessageOutbox and L2BridgeHash readiness on LocalHost ops — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost expose `HasMessageOutbox` (MessageRouter outbox
+  installed) and `HasL2BridgeHash` (explicit L2 bridge override in settlement settings;
+  empty means native L2Bridge default).
+- Operator status (+ JSON) includes both flags. Wireproduction notes + init-l2 tips;
+  unit/integration coverage. No wire/ABI change.
+
 ### Added — NeoHub contract hash readiness flags on LocalHost ops — 2026-07-18
 
 - `L2SettlementPlugin` / Multisig/Optimistic/Zk LocalHost expose

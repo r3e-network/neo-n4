@@ -124,6 +124,18 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Settlement settings include a MessageRouter hash.</summary>
     public required bool HasMessageRouterHash { get; init; }
 
+    /// <summary>
+    /// Settlement settings include an explicit L2 bridge hash
+    /// (empty means native L2Bridge default).
+    /// </summary>
+    public required bool HasL2BridgeHash { get; init; }
+
+    /// <summary>
+    /// True when WireProduction installed a MessageRouter that exposes an L2 outbox.
+    /// Distinct from outbox depth/root zeros when unwired.
+    /// </summary>
+    public required bool HasMessageOutbox { get; init; }
+
     /// <summary>Soft in-memory consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }
 

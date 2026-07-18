@@ -109,6 +109,9 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.HasForcedInclusionHash);
             Assert.IsTrue(host.HasSharedBridgeHash);
             Assert.IsTrue(host.HasMessageRouterHash);
+            // Deploy-report templates leave L2BridgeHash empty (native L2Bridge default).
+            Assert.IsFalse(host.HasL2BridgeHash);
+            Assert.IsTrue(host.HasMessageOutbox);
             Assert.AreEqual(0, host.ConsumedDepositCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
             Assert.IsTrue(host.RegisterInboundMessageNonce(7));
@@ -149,6 +152,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.HasForcedInclusionHash);
             Assert.IsTrue(status.HasSharedBridgeHash);
             Assert.IsTrue(status.HasMessageRouterHash);
+            Assert.IsFalse(status.HasL2BridgeHash);
+            Assert.IsTrue(status.HasMessageOutbox);
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
             Assert.IsTrue(status.HasForcedInclusionFinalizer);
@@ -404,6 +409,8 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"hasForcedInclusionHash\": true");
             StringAssert.Contains(statusJson, "\"hasSharedBridgeHash\": true");
             StringAssert.Contains(statusJson, "\"hasMessageRouterHash\": true");
+            StringAssert.Contains(statusJson, "\"hasL2BridgeHash\": false");
+            StringAssert.Contains(statusJson, "\"hasMessageOutbox\": true");
             StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
             StringAssert.Contains(statusJson, "\"lastAcknowledgedBatchNumber\": 0");
             StringAssert.Contains(statusJson, "\"nextBatchNumber\": 1");

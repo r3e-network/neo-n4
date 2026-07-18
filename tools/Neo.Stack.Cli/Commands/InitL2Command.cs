@@ -149,7 +149,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsPublicationProfileReady / HasExpectedNetwork / IsOfflinePassportComplete");
         Console.WriteLine("               OfflinePassportFailures (empty when complete)");
         Console.WriteLine("               IsOutboxIdle / IsOutboxPoisoned / IsPublicationHealthy");
-        Console.WriteLine("               PublicationHealthFailures (empty when publication healthy)");
+        Console.WriteLine("               PublicationHealthFailures / BuildPublicationHealthFailures (empty when publication healthy)");
         Console.WriteLine("               IsGatewayHostHealthy / GatewayHostHealthFailures (alias of publication health)");
         Console.WriteLine("               ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / IsMetricsEnabled / MetricsConfiguredPort / MetricsMaxConcurrentConnections / RegisterBridgeAsset");

@@ -146,4 +146,33 @@ public sealed record GatewayHostOperatorStatus
     /// implements <see cref="Neo.L2.Telemetry.IMetricsSource"/>; otherwise 0.
     /// </summary>
     public required int MetricsEntryCount { get; init; }
+
+    /// <summary>
+    /// Build publication health failure names from offline passport + outbox/queue runtime state.
+    /// Empty list means <see cref="IsPublicationHealthy"/> / <see cref="IsGatewayHostHealthy"/>.
+    /// Not an L1 confirmation claim.
+    /// </summary>
+    public static IReadOnlyList<string> BuildPublicationHealthFailures(
+        bool offlinePassportComplete,
+        bool isOutboxPoisoned,
+        bool hasPendingPublication,
+        int aggregatorPendingCount,
+        int outboxQueueDepth,
+        string? outboxLastError)
+    {
+        var failures = new List<string>();
+        if (!offlinePassportComplete)
+            failures.Add(nameof(IsOfflinePassportComplete));
+        if (isOutboxPoisoned)
+            failures.Add(nameof(IsOutboxPoisoned));
+        if (hasPendingPublication)
+            failures.Add(nameof(HasPendingPublication));
+        if (aggregatorPendingCount != 0)
+            failures.Add(nameof(AggregatorPendingCount));
+        if (outboxQueueDepth != 0)
+            failures.Add(nameof(OutboxQueueDepth));
+        if (!string.IsNullOrEmpty(outboxLastError))
+            failures.Add(nameof(OutboxLastError));
+        return failures;
+    }
 }

@@ -205,25 +205,20 @@ public sealed class GatewayHostComposition : IDisposable
     /// <summary>
     /// Publication health checks that failed (empty when <see cref="IsPublicationHealthy"/>).
     /// Diagnostic only; not an L1 confirmation claim.
+    /// Built by <see cref="GatewayHostOperatorStatus.BuildPublicationHealthFailures"/>.
     /// </summary>
     public IReadOnlyList<string> PublicationHealthFailures
     {
         get
         {
-            var failures = new List<string>();
-            if (!IsOfflinePassportComplete)
-                failures.Add(nameof(IsOfflinePassportComplete));
-            if (IsOutboxPoisoned)
-                failures.Add(nameof(IsOutboxPoisoned));
-            if (HasPendingPublication)
-                failures.Add(nameof(HasPendingPublication));
-            if (AggregatorPendingCount != 0)
-                failures.Add(nameof(AggregatorPendingCount));
-            if (OutboxStatus.QueueDepth != 0)
-                failures.Add(nameof(GatewayHostOperatorStatus.OutboxQueueDepth));
-            if (!string.IsNullOrEmpty(OutboxStatus.LastError))
-                failures.Add(nameof(GatewayHostOperatorStatus.OutboxLastError));
-            return failures;
+            var outbox = OutboxStatus;
+            return GatewayHostOperatorStatus.BuildPublicationHealthFailures(
+                IsOfflinePassportComplete,
+                IsOutboxPoisoned,
+                HasPendingPublication,
+                AggregatorPendingCount,
+                outbox.QueueDepth,
+                outbox.LastError);
         }
     }
 

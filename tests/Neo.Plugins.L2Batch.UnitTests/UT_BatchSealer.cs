@@ -78,6 +78,39 @@ public class UT_BatchSealer
     }
 
     [TestMethod]
+    public void Sealer_OpenBatchAge_ReportsPastMaxAgeWithoutSealingUntilNextBlock()
+    {
+        var settings = new L2BatchSettings
+        {
+            ChainId = 1001,
+            MaxBlocksPerBatch = 1_000,
+            MaxTransactionsPerBatch = 100_000,
+            MaxBatchAgeMillis = 5_000,
+            Enabled = true,
+        };
+        long now = 1_000;
+        var sealer = new BatchSealer(settings, new InMemoryMetrics(), () => now);
+
+        Assert.IsNull(sealer.OpenBatchAgeMillis);
+        Assert.IsFalse(sealer.IsOpenBatchPastMaxAge);
+
+        Assert.IsNull(sealer.OnBlockCommit(1, 1000, 11, NoTxs()));
+        Assert.IsTrue(sealer.HasOpenBatch);
+        Assert.AreEqual(0L, sealer.OpenBatchAgeMillis);
+        Assert.IsFalse(sealer.IsOpenBatchPastMaxAge);
+
+        now = 1_000 + 4_999;
+        Assert.AreEqual(4_999L, sealer.OpenBatchAgeMillis);
+        Assert.IsFalse(sealer.IsOpenBatchPastMaxAge, "strict: age < MaxBatchAgeMillis");
+
+        now = 1_000 + 5_000;
+        Assert.AreEqual(5_000L, sealer.OpenBatchAgeMillis);
+        Assert.IsTrue(sealer.IsOpenBatchPastMaxAge, "age == MaxBatchAgeMillis is overdue");
+        Assert.IsTrue(sealer.HasOpenBatch, "diagnostic only — no seal until next OnBlockCommit");
+        Assert.IsNull(sealer.PendingBatch);
+    }
+
+    [TestMethod]
     public void Sealer_BatchNumberMonotonic_AcrossSeals()
     {
         var settings = new L2BatchSettings

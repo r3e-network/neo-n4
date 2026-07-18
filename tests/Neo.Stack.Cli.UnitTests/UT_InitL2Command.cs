@@ -271,6 +271,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsOutboxIdle");
         StringAssert.Contains(output, "IsPublicationHealthy");
         StringAssert.Contains(output, "PublicationHealthFailures");
+        StringAssert.Contains(output, "BuildPublicationHealthFailures");
         StringAssert.Contains(output, "IsGatewayHostHealthy");
         StringAssert.Contains(output, "GatewayHostHealthFailures");
         StringAssert.Contains(output, "HasExpectedNetwork");

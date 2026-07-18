@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway publication health builder + open-batch age diagnostics — 2026-07-18
+
+- `GatewayHostOperatorStatus.BuildPublicationHealthFailures` pure helper (offline passport +
+  outbox/queue/pending); `GatewayHostComposition.PublicationHealthFailures` uses it.
+- `BatchSealer` unit coverage for `OpenBatchAgeMillis` / `IsOpenBatchPastMaxAge` while the
+  batch stays open (seal still waits for the next block tick).
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 publication confirmation remains a funded gate.
+
 ### Added — LocalHost pipeline-only health probes (no metrics HTTP) — 2026-07-18
 
 - Multisig/Optimistic/Zk hosts expose `GetPipelineHealthFailuresAsync` /

@@ -261,6 +261,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.HasScannerDeployHeights);
             Assert.IsTrue(opStatus.IsOfflinePassportComplete);
             Assert.AreEqual(0, opStatus.OfflinePassportFailures.Count);
+            Assert.IsFalse(opStatus.IsSettlementPoisoned);
+            Assert.IsTrue(opStatus.IsSettlementIdle);
+            Assert.IsTrue(opStatus.IsPipelineHealthy);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasBatchProver);
@@ -346,6 +349,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"hasScannerDeployHeights\": true");
             StringAssert.Contains(statusJson, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(statusJson, "\"offlinePassportFailures\":");
+            StringAssert.Contains(statusJson, "\"isSettlementIdle\": true");
+            StringAssert.Contains(statusJson, "\"isSettlementPoisoned\": false");
+            StringAssert.Contains(statusJson, "\"isPipelineHealthy\": true");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();

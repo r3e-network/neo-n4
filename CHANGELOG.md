@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost settlement/pipeline runtime health flags — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost operator status (+ JSON) expose `IsSettlementPoisoned`,
+  `IsSettlementIdle`, and `IsPipelineHealthy` (offline passport + pipeline enabled +
+  settlement not poisoned + idle pending queue). Runtime health from local durable stores;
+  L1 settle confirmation remains a funded gate.
+- Host public `HasDepositSource` / `HasMessageRouter` / `HasForcedInclusionFinalizer` /
+  `HasSettlementClient` / `HasTransactionSender` for production-surface API parity with status.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+
 ### Added — Gateway outbox health + LocalHost IsPipelineEnabled — 2026-07-18
 
 - `GatewayHostComposition` + operator status (+ JSON) expose `IsOutboxPoisoned`,

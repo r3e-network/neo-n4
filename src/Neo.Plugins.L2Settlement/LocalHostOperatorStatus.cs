@@ -324,6 +324,24 @@ public sealed record LocalHostOperatorStatus
     /// </summary>
     public required bool IsPipelineEnabled { get; init; }
 
+    /// <summary>
+    /// True when durable settlement recovery state is poisoned (operator recovery required).
+    /// Runtime state from local artifacts; not an L1 claim.
+    /// </summary>
+    public required bool IsSettlementPoisoned { get; init; }
+
+    /// <summary>
+    /// True when no pending settlement artifacts and recovery is not retrying/poisoned.
+    /// Runtime idle health from local stores (not L1 confirmation).
+    /// </summary>
+    public required bool IsSettlementIdle { get; init; }
+
+    /// <summary>
+    /// Offline passport complete, pipeline enabled, settlement not poisoned, and settlement idle.
+    /// Distinct from L1 settle confirmation (funded gate).
+    /// </summary>
+    public required bool IsPipelineHealthy { get; init; }
+
     /// <summary>Configured L1 finality depth for production scanners.</summary>
     public required uint L1FinalityDepth { get; init; }
 

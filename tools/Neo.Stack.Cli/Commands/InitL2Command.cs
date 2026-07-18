@@ -154,7 +154,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsMetricsWiringComplete / HasMetricsReadinessCheck / StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host pipe  = LocalHost.IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete");
         Console.WriteLine("               IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete");
-        Console.WriteLine("               IsPipelineEnabled (batcher + settlement settings)");
+        Console.WriteLine("               IsPipelineEnabled / IsSettlementPoisoned / IsSettlementIdle / IsPipelineHealthy");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");
         Console.WriteLine("               ConsumedDepositCount / DepositSourceReadyCount / DepositSourceReservedCount / DepositSourceSoftConsumedCount");
         Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork");

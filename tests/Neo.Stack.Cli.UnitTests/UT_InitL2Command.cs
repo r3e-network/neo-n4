@@ -251,6 +251,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsForcedInclusionPipelineWiringComplete");
         StringAssert.Contains(output, "IsSettlementClientWiringComplete");
         StringAssert.Contains(output, "IsPipelineEnabled");
+        StringAssert.Contains(output, "IsSettlementIdle");
+        StringAssert.Contains(output, "IsPipelineHealthy");
         StringAssert.Contains(output, "IsOutboxIdle");
         StringAssert.Contains(output, "IsPublicationHealthy");
         StringAssert.Contains(output, "HasExpectedNetwork");

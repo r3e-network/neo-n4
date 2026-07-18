@@ -248,6 +248,15 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Batcher and settlement plugins both enabled.</summary>
     public required bool IsPipelineEnabled { get; init; }
 
+    /// <summary>Durable settlement recovery is poisoned.</summary>
+    public required bool IsSettlementPoisoned { get; init; }
+
+    /// <summary>No pending settlement work and recovery is idle.</summary>
+    public required bool IsSettlementIdle { get; init; }
+
+    /// <summary>Offline passport + pipeline enabled + settlement not poisoned + idle.</summary>
+    public required bool IsPipelineHealthy { get; init; }
+
     /// <summary>Configured L1 finality depth.</summary>
     public required uint L1FinalityDepth { get; init; }
 
@@ -424,6 +433,9 @@ public sealed record LocalHostOperatorStatusDocument
             MetricsMaxConcurrentConnections = status.MetricsMaxConcurrentConnections,
             IsSettlementEnabled = status.IsSettlementEnabled,
             IsPipelineEnabled = status.IsPipelineEnabled,
+            IsSettlementPoisoned = status.IsSettlementPoisoned,
+            IsSettlementIdle = status.IsSettlementIdle,
+            IsPipelineHealthy = status.IsPipelineHealthy,
             L1FinalityDepth = status.L1FinalityDepth,
             DepositSourceReadyCount = status.DepositSourceReadyCount,
             DepositSourceReservedCount = status.DepositSourceReservedCount,

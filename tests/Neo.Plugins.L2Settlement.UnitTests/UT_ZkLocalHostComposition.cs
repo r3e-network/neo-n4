@@ -151,6 +151,7 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(host.IsForcedInclusionPipelineWiringComplete);
             Assert.IsTrue(host.IsSettlementClientWiringComplete);
             Assert.IsTrue(host.IsPipelineEnabled);
+            Assert.IsTrue(host.HasDepositSource);
             Assert.IsTrue(host.HasExpectedNetwork);
             Assert.IsTrue(host.HasScannerDeployHeights);
             Assert.IsTrue(host.IsOfflinePassportComplete);
@@ -171,6 +172,9 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(status.IsForcedInclusionPipelineWiringComplete);
             Assert.IsTrue(status.IsSettlementClientWiringComplete);
             Assert.IsTrue(status.IsPipelineEnabled);
+            Assert.IsFalse(status.IsSettlementPoisoned);
+            Assert.IsTrue(status.IsSettlementIdle);
+            Assert.IsTrue(status.IsPipelineHealthy);
             Assert.IsTrue(status.HasExpectedNetwork);
             Assert.IsTrue(status.HasScannerDeployHeights);
             Assert.IsTrue(status.IsOfflinePassportComplete);

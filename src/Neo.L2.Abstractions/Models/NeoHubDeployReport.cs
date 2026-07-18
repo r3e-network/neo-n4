@@ -445,7 +445,7 @@ public sealed record NeoHubDeployReport(
                         + "IsMetricsWiringComplete / HasMetricsReadinessCheck / "
                         + "IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete / "
                         + "IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete / "
-                        + "IsPipelineEnabled / "
+                        + "IsPipelineEnabled / IsSettlementPoisoned / IsSettlementIdle / IsPipelineHealthy / "
                         + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
                         + "OfflinePassportFailures / "
                         + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "

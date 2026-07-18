@@ -580,11 +580,11 @@ public sealed class ZkLocalHostComposition : IDisposable
             LastAcknowledgedBlock = LastAcknowledgedBlock,
             NextBatchNumber = NextBatchNumber,
             IsOperatorReady = IsOperatorReady,
-            HasDepositSource = DepositSource is not null,
-            HasMessageRouter = MessageRouter is not null,
-            HasForcedInclusionFinalizer = ForcedInclusionFinalizer is not null,
-            HasSettlementClient = SettlementClient is not null,
-            HasTransactionSender = TransactionSender is not null,
+            HasDepositSource = HasDepositSource,
+            HasMessageRouter = HasMessageRouter,
+            HasForcedInclusionFinalizer = HasForcedInclusionFinalizer,
+            HasSettlementClient = HasSettlementClient,
+            HasTransactionSender = HasTransactionSender,
             L1InboxPendingCount = L1InboxPendingCount,
             L1InboxConsumedCount = L1InboxConsumedCount,
             KnownInboundNonceCount = KnownInboundNonceCount,
@@ -611,6 +611,18 @@ public sealed class ZkLocalHostComposition : IDisposable
             MetricsMaxConcurrentConnections = MetricsMaxConcurrentConnections,
             IsSettlementEnabled = IsSettlementEnabled,
             IsPipelineEnabled = IsPipelineEnabled,
+            IsSettlementPoisoned = recovery.State == SettlementRecoveryState.Poisoned,
+            IsSettlementIdle = pending == 0
+                && recovery.PendingCount == 0
+                && recovery.State is null
+                && string.IsNullOrEmpty(recovery.LastError),
+            IsPipelineHealthy = IsOfflinePassportComplete
+                && IsPipelineEnabled
+                && recovery.State != SettlementRecoveryState.Poisoned
+                && pending == 0
+                && recovery.PendingCount == 0
+                && recovery.State is null
+                && string.IsNullOrEmpty(recovery.LastError),
             L1FinalityDepth = L1FinalityDepth,
             DepositSourceReadyCount = DepositSourceReadyCount,
             DepositSourceReservedCount = DepositSourceReservedCount,
@@ -852,6 +864,22 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// </summary>
     public RpcSharedBridgeDepositSource? DepositSource => Settlement.ProductionDepositSource;
 
+    /// <summary>True when WireProduction installed a SharedBridge deposit source.</summary>
+    public bool HasDepositSource => DepositSource is not null;
+
+    /// <summary>True when WireProduction installed a MessageRouter.</summary>
+    public bool HasMessageRouter => MessageRouter is not null;
+
+    /// <summary>True when WireProduction installed a forced-inclusion finalizer.</summary>
+    public bool HasForcedInclusionFinalizer => ForcedInclusionFinalizer is not null;
+
+    /// <summary>True when WireProduction installed a settlement client.</summary>
+    public bool HasSettlementClient => SettlementClient is not null;
+
+    /// <summary>True when WireProduction installed a transaction sender.</summary>
+    public bool HasTransactionSender => TransactionSender is not null;
+
+
     /// <summary>
     /// Production MessageRouter after WireProduction (same instance as
     /// <see cref="L2BatchPlugin.MessageRouter"/>).
@@ -978,25 +1006,25 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// True when production deposit source and batcher deposit source are both wired.
     /// </summary>
     public bool IsDepositPipelineWiringComplete =>
-        DepositSource is not null && HasBatchDepositSource;
+        HasDepositSource && HasBatchDepositSource;
 
     /// <summary>
     /// True when production MessageRouter, batcher MessageRouter, and MessageOutbox are wired.
     /// </summary>
     public bool IsMessagePipelineWiringComplete =>
-        MessageRouter is not null && HasBatchMessageRouter && HasMessageOutbox;
+        HasMessageRouter && HasBatchMessageRouter && HasMessageOutbox;
 
     /// <summary>
     /// True when forced-inclusion finalizer and batcher forced-inclusion source are both wired.
     /// </summary>
     public bool IsForcedInclusionPipelineWiringComplete =>
-        ForcedInclusionFinalizer is not null && HasBatchForcedInclusionSource;
+        HasForcedInclusionFinalizer && HasBatchForcedInclusionSource;
 
     /// <summary>
     /// True when settlement client, transaction sender, and settlement enablement are all ready.
     /// </summary>
     public bool IsSettlementClientWiringComplete =>
-        SettlementClient is not null && TransactionSender is not null && IsSettlementEnabled;
+        HasSettlementClient && HasTransactionSender && IsSettlementEnabled;
 
     /// <summary>
     /// Offline passport checks that failed (empty when complete). Diagnostic names only;
@@ -1021,11 +1049,11 @@ public sealed class ZkLocalHostComposition : IDisposable
             if (!HasL1RpcEndpoint) failures.Add(nameof(HasL1RpcEndpoint));
             if (!HasExpectedNetwork) failures.Add(nameof(HasExpectedNetwork));
             if (!HasScannerDeployHeights) failures.Add(nameof(HasScannerDeployHeights));
-            if (DepositSource is null) failures.Add(nameof(DepositSource));
-            if (MessageRouter is null) failures.Add(nameof(MessageRouter));
-            if (ForcedInclusionFinalizer is null) failures.Add(nameof(ForcedInclusionFinalizer));
-            if (SettlementClient is null) failures.Add(nameof(SettlementClient));
-            if (TransactionSender is null) failures.Add(nameof(TransactionSender));
+            if (!HasDepositSource) failures.Add(nameof(HasDepositSource));
+            if (!HasMessageRouter) failures.Add(nameof(HasMessageRouter));
+            if (!HasForcedInclusionFinalizer) failures.Add(nameof(HasForcedInclusionFinalizer));
+            if (!HasSettlementClient) failures.Add(nameof(HasSettlementClient));
+            if (!HasTransactionSender) failures.Add(nameof(HasTransactionSender));
             if (!HasMessageOutbox) failures.Add(nameof(HasMessageOutbox));
             if (!IsDepositPipelineWiringComplete) failures.Add(nameof(IsDepositPipelineWiringComplete));
             if (!IsMessagePipelineWiringComplete) failures.Add(nameof(IsMessagePipelineWiringComplete));

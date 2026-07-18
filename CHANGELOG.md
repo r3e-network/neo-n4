@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Forced-inclusion overdue on LocalHost pipeline health — 2026-07-18
+
+- `RpcForcedInclusionSource.HasOverdueCachedEntry` soft-checks the last drain cache without
+  L1 RPC. LocalHost status (+ JSON) exposes `HasOverdueForcedInclusion` from that soft clock
+  (optional `nowUnixSeconds` on `GetOperatorStatusAsync` for tests).
+- `PipelineHealthFailures` / `IsPipelineHealthy` name cache overdue FI. Live L1 overdue remains
+  `HasOverdueForcedInclusionAsync`. Wireproduction notes + init-l2 tips; unit coverage.
+- No wire/ABI change. L1 ForcedInclusion drain remains a funded gate.
+
 ### Added — LocalHost combined health rollup + host MetricsHttp surface — 2026-07-18
 
 - LocalHost operator status (+ JSON) exposes `IsLocalHostHealthy` and

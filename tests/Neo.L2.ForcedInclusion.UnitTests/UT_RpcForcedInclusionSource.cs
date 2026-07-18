@@ -205,6 +205,17 @@ public class UT_RpcForcedInclusionSource
         // and the on-chain ReportCensorship boundary (now == deadline counts as overdue).
         Assert.IsTrue(await src.HasOverdueEntryAsync(nowUnixSeconds: 100), "deadline at exactly now is overdue");
         Assert.IsTrue(await src.HasOverdueEntryAsync(nowUnixSeconds: 101), "deadline before now is overdue");
+        // Soft cache reuses the drain snapshot without another L1 scan.
+        Assert.IsTrue(src.HasOverdueCachedEntry(nowUnixSeconds: 100));
+        Assert.IsFalse(src.HasOverdueCachedEntry(nowUnixSeconds: 50));
+    }
+
+    [TestMethod]
+    public void HasOverdueCachedEntry_FalseWhenCacheEmpty()
+    {
+        var (src, _, rpc) = Build(genesisNonces: Array.Empty<ulong>());
+        using var _ = rpc;
+        Assert.IsFalse(src.HasOverdueCachedEntry(nowUnixSeconds: 1_000_000));
     }
 
     [TestMethod]

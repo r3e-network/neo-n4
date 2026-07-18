@@ -224,6 +224,9 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>In-process FI source known-nonce count.</summary>
     public required int KnownForcedInclusionNonceCount { get; init; }
 
+    /// <summary>Unconsumed forced-inclusion entry past status clock (local FI source).</summary>
+    public required bool HasOverdueForcedInclusion { get; init; }
+
     /// <summary>Batcher forced-inclusion source wired.</summary>
     public required bool HasBatchForcedInclusionSource { get; init; }
 
@@ -440,6 +443,7 @@ public sealed record LocalHostOperatorStatusDocument
             StagedWithdrawalCount = status.StagedWithdrawalCount,
             TrackedForcedInclusionNonceCount = status.TrackedForcedInclusionNonceCount,
             KnownForcedInclusionNonceCount = status.KnownForcedInclusionNonceCount,
+            HasOverdueForcedInclusion = status.HasOverdueForcedInclusion,
             HasBatchForcedInclusionSource = status.HasBatchForcedInclusionSource,
             HasBatchDepositSource = status.HasBatchDepositSource,
             HasBatchMessageRouter = status.HasBatchMessageRouter,

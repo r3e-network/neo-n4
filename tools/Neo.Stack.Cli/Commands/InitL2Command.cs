@@ -156,7 +156,8 @@ internal static class InitL2Command
         Console.WriteLine("  host pipe  = LocalHost.IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete");
         Console.WriteLine("               IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete");
         Console.WriteLine("               IsPipelineEnabled / IsSettlementPoisoned / IsSettlementIdle / IsPipelineHealthy");
-        Console.WriteLine("               PipelineHealthFailures (empty when pipeline healthy; includes HasPendingSealedBatch)");
+        Console.WriteLine("               PipelineHealthFailures (empty when healthy; HasPendingSealedBatch / HasOverdueForcedInclusion)");
+        Console.WriteLine("               HasOverdueForcedInclusion (soft FI drain cache; live poll is HasOverdueForcedInclusionAsync)");
         Console.WriteLine("               IsMetricsHttpHealthy / MetricsHttpHealthFailures (N/A empty when metrics disabled)");
         Console.WriteLine("               IsLocalHostHealthy / LocalHostHealthFailures (pipeline + metrics HTTP rollup)");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");

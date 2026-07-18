@@ -71,13 +71,14 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             offlinePassportComplete: true,
             pipelineEnabled: true,
             hasPendingSealedBatch: false,
+            hasOverdueForcedInclusion: false,
             pendingSettlementCount: 0,
             recovery);
         Assert.AreEqual(0, failures.Count);
     }
 
     [TestMethod]
-    public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealPoisonAndIdle()
+    public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealOverdueFiPoisonAndIdle()
     {
         var recovery = new SettlementRecoveryStatus
         {
@@ -91,6 +92,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             offlinePassportComplete: false,
             pipelineEnabled: false,
             hasPendingSealedBatch: true,
+            hasOverdueForcedInclusion: true,
             pendingSettlementCount: 1,
             recovery);
         CollectionAssert.AreEqual(
@@ -99,6 +101,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
                 nameof(LocalHostOperatorStatus.IsOfflinePassportComplete),
                 nameof(LocalHostOperatorStatus.IsPipelineEnabled),
                 nameof(LocalHostOperatorStatus.HasPendingSealedBatch),
+                nameof(LocalHostOperatorStatus.HasOverdueForcedInclusion),
                 nameof(LocalHostOperatorStatus.IsSettlementPoisoned),
                 nameof(LocalHostOperatorStatus.IsSettlementIdle),
             },

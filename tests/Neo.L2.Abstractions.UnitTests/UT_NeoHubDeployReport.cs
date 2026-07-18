@@ -214,7 +214,7 @@ public class UT_NeoHubDeployReport
                 + "IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete / "
                 + "IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete / "
                 + "IsPipelineEnabled / IsSettlementPoisoned / IsSettlementIdle / IsPipelineHealthy / "
-                + "PipelineHealthFailures / IsMetricsHttpHealthy / MetricsHttpHealthFailures / "
+                + "PipelineHealthFailures / HasOverdueForcedInclusion / IsMetricsHttpHealthy / MetricsHttpHealthFailures / "
                 + "IsLocalHostHealthy / LocalHostHealthFailures / "
                 + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
                 + "OfflinePassportFailures / "

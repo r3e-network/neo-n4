@@ -281,6 +281,13 @@ public sealed record LocalHostOperatorStatus
     public required int KnownForcedInclusionNonceCount { get; init; }
 
     /// <summary>
+    /// True when the last local FI drain cache has an entry past the status snapshot clock
+    /// (soft, no L1 scan). Live L1 overdue remains <c>HasOverdueForcedInclusionAsync</c>.
+    /// Included in <see cref="PipelineHealthFailures"/>.
+    /// </summary>
+    public required bool HasOverdueForcedInclusion { get; init; }
+
+    /// <summary>
     /// True when the batcher has a forced-inclusion source wired
     /// (<see cref="L2BatchPlugin.HasForcedInclusionSource"/>).
     /// </summary>
@@ -338,16 +345,16 @@ public sealed record LocalHostOperatorStatus
     public required bool IsSettlementIdle { get; init; }
 
     /// <summary>
-    /// Offline passport complete, pipeline enabled, no pending sealed batch, settlement not
-    /// poisoned, and settlement idle. Distinct from L1 settle confirmation (funded gate).
-    /// True when <see cref="PipelineHealthFailures"/> is empty.
+    /// Offline passport complete, pipeline enabled, no pending sealed batch, no overdue
+    /// forced inclusion, settlement not poisoned, and settlement idle. Distinct from L1 settle
+    /// confirmation (funded gate). True when <see cref="PipelineHealthFailures"/> is empty.
     /// </summary>
     public required bool IsPipelineHealthy { get; init; }
 
     /// <summary>
     /// Names of pipeline health checks that failed (empty when <see cref="IsPipelineHealthy"/>).
-    /// Combines offline passport rollup with runtime sealed-batch pending, settlement
-    /// idle/poison, and enablement. Diagnostic only; not an L1 settle claim.
+    /// Combines offline passport rollup with runtime sealed-batch pending, overdue forced
+    /// inclusion, settlement idle/poison, and enablement. Diagnostic only; not an L1 claim.
     /// </summary>
     public required IReadOnlyList<string> PipelineHealthFailures { get; init; }
 
@@ -549,13 +556,14 @@ public sealed record LocalHostOperatorStatus
 
     /// <summary>
     /// Build pipeline health failure names from offline passport + enablement + local batcher
-    /// pending seal + settlement runtime state. Empty list means <see cref="IsPipelineHealthy"/>.
-    /// Not an L1 settle claim.
+    /// pending seal + overdue forced inclusion + settlement runtime state.
+    /// Empty list means <see cref="IsPipelineHealthy"/>. Not an L1 settle claim.
     /// </summary>
     public static IReadOnlyList<string> BuildPipelineHealthFailures(
         bool offlinePassportComplete,
         bool pipelineEnabled,
         bool hasPendingSealedBatch,
+        bool hasOverdueForcedInclusion,
         int pendingSettlementCount,
         SettlementRecoveryStatus recovery)
     {
@@ -567,6 +575,8 @@ public sealed record LocalHostOperatorStatus
             failures.Add(nameof(IsPipelineEnabled));
         if (hasPendingSealedBatch)
             failures.Add(nameof(HasPendingSealedBatch));
+        if (hasOverdueForcedInclusion)
+            failures.Add(nameof(HasOverdueForcedInclusion));
         if (recovery.State == SettlementRecoveryState.Poisoned)
             failures.Add(nameof(IsSettlementPoisoned));
         var settlementIdle = pendingSettlementCount == 0

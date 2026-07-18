@@ -233,6 +233,25 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
         return pending.Any(e => e.DeadlineUnixSeconds <= nowUnixSeconds);
     }
 
+    /// <summary>
+    /// Soft overdue check against the last successful drain cache only — no L1 scan or RPC.
+    /// Returns false when the cache is empty or expired. For offline LocalHost operator status;
+    /// use <see cref="HasOverdueEntryAsync"/> when a live L1 poll is intended.
+    /// </summary>
+    public bool HasOverdueCachedEntry(uint nowUnixSeconds)
+    {
+        lock (_cacheGate)
+        {
+            if (_cachedDrain is null)
+                return false;
+            // Zero TTL means Drain always re-fetches, but keep the last snapshot for soft
+            // status until InvalidateCache. Positive TTL respects the drain cache window.
+            if (_cacheTtl > TimeSpan.Zero && DateTime.UtcNow >= _cacheUntilUtc)
+                return false;
+            return _cachedDrain.Any(e => e.DeadlineUnixSeconds <= nowUnixSeconds);
+        }
+    }
+
     private async Task<List<ForcedInclusionEntry>> FetchPendingAsync(CancellationToken ct)
     {
         var snapshot = _knownNonces.Keys.ToArray();

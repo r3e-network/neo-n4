@@ -503,15 +503,28 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// </summary>
     /// <param name="depositPeekLimit">Max deposits counted via non-mutating peek (default 64).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="nowUnixSeconds">
+    /// Optional clock for forced-inclusion overdue checks; defaults to UTC now when null.
+    /// </param>
     public async ValueTask<LocalHostOperatorStatus> GetOperatorStatusAsync(
         int depositPeekLimit = 64,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(depositPeekLimit);
         var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
         var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        var now = nowUnixSeconds
+            ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        // Soft cache-only overdue (no L1 scan); live poll remains HasOverdueForcedInclusionAsync.
+        var hasOverdueForcedInclusion = ForcedInclusion.HasOverdueCachedEntry(now);
         var pipelineHealthFailures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
-            IsOfflinePassportComplete, IsPipelineEnabled, HasPendingSealedBatch, pending, recovery);
+            IsOfflinePassportComplete,
+            IsPipelineEnabled,
+            HasPendingSealedBatch,
+            hasOverdueForcedInclusion,
+            pending,
+            recovery);
         var metricsHttpHealthFailures = MetricsHttpHealthFailures;
         var localHostHealthFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
             pipelineHealthFailures, metricsHttpHealthFailures);
@@ -595,6 +608,7 @@ public sealed class MultisigLocalHostComposition : IDisposable
             Recovery = recovery,
             TrackedForcedInclusionNonceCount = tracked.Count,
             KnownForcedInclusionNonceCount = KnownForcedInclusionNonceCount,
+            HasOverdueForcedInclusion = hasOverdueForcedInclusion,
             HasBatchForcedInclusionSource = HasBatchForcedInclusionSource,
             HasBatchDepositSource = HasBatchDepositSource,
             HasBatchMessageRouter = HasBatchMessageRouter,

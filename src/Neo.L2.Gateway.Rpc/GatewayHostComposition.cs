@@ -412,6 +412,13 @@ public sealed class GatewayHostComposition : IDisposable
     }
 
     /// <summary>
+    /// Serialize <see cref="GetHealthProbe"/> as indented camelCase JSON for ops scripts
+    /// without writing a file. L1 confirmation remains a funded gate and is not claimed.
+    /// </summary>
+    public string FormatHealthProbeJson()
+        => GatewayHostHealthProbeDocument.FormatJson(GetHealthProbe());
+
+    /// <summary>
     /// Write <see cref="GetHealthProbe"/> as indented camelCase JSON for ops scripts without
     /// the full operator status document. L1 confirmation remains a funded gate and is not claimed.
     /// </summary>
@@ -420,19 +427,11 @@ public sealed class GatewayHostComposition : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var document = GetHealthProbe();
         var fullPath = Path.GetFullPath(path);
         var dir = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
-        var json = System.Text.Json.JsonSerializer.Serialize(
-            document,
-            new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-            });
-        await File.WriteAllTextAsync(fullPath, json + Environment.NewLine, cancellationToken)
+        await File.WriteAllTextAsync(fullPath, FormatHealthProbeJson(), cancellationToken)
             .ConfigureAwait(false);
     }
 

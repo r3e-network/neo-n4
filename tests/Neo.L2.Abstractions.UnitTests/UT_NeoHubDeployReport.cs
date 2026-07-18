@@ -302,7 +302,8 @@ public class UT_NeoHubDeployReport
                 "GatewayHostComposition.WriteOperatorStatusAsync(path) → GatewayHostOperatorStatusDocument JSON",
                 stores.GetProperty("gatewayHostWriteOperatorStatus").GetString());
             Assert.AreEqual(
-                "GatewayHostComposition.GetHealthProbe() / WriteHealthProbeAsync(path) → "
+                "GatewayHostComposition.GetHealthProbe() / FormatHealthProbeJson() / "
+                + "WriteHealthProbeAsync(path) → "
                 + "GatewayHostHealthProbeDocument JSON "
                 + "(passport/outbox/publication + pending/queue/retry/lag flags)",
                 stores.GetProperty("gatewayHostWriteHealthProbe").GetString());
@@ -356,7 +357,7 @@ public class UT_NeoHubDeployReport
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
                 + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                 + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
-                + "GetHealthProbe / WriteHealthProbeAsync / "
+                + "GetHealthProbe / FormatHealthProbeJson / WriteHealthProbeAsync / "
                 + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                 + "WritePrometheusMetricsAsync",
                 stores.GetProperty("gatewayHostOpsHelpers").GetString());

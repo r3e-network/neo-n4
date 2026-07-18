@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway FormatHealthProbeJson (LocalHost parity) — 2026-07-19
+
+- `GatewayHostHealthProbeDocument.FormatJson` + `GatewayHostComposition.FormatHealthProbeJson`
+  for ops scripts without writing a status file; `WriteHealthProbeAsync` reuses the same
+  serializer as LocalHost's compact probe path.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 publication confirmation remains a funded gate.
+
 ### Added — Metrics HTTP health requires `/healthprobe` provider — 2026-07-19
 
 - Multisig/Optimistic/Zk expose `HasMetricsHealthProbe`; operator status (+ JSON) and

@@ -275,6 +275,9 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "FormatHealthProbeJson");
         StringAssert.Contains(output, "/healthprobe");
         StringAssert.Contains(output, "GetHealthProbe");
+        // LocalHost and GatewayHost tips both name FormatHealthProbeJson.
+        Assert.IsTrue(
+            output.Split("FormatHealthProbeJson", StringSplitOptions.None).Length - 1 >= 2);
         StringAssert.Contains(output, "IsBatcherCheckpointAligned");
         StringAssert.Contains(output, "OpenBatchAgeMillis");
         StringAssert.Contains(output, "IsOpenBatchPastMaxAge");

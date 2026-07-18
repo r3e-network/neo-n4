@@ -52,3 +52,4 @@ CODEX_DEEP_AUDIT/
 # Local agent/tool state and generated presentation scratch output.
 .serena/
 outputs/
+tools/_tmp_deposit_smoke/

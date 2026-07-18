@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tested — Neo N3 testnet session11 reverify + SharedBridge deposit n12 — 2026-07-18
+
+- Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,
+  **29/29 postdeploy reused**, **42/42 smoke ok** against magic `894710606`.
+- CLI `--fraud-replay-domain` must be on-chain **raw wire** bytes
+  (`0xf1e2d3c4…1100`); report `ToString` may display the reversed form.
+- Live SharedBridge Deposit **nonce 12** HALT (`0xc2aeb236…819f`, 0.001 GAS,
+  `WitnessScope.Global`, Transfer + DepositEnqueued); `getDeposit` confirmed.
+- Chain `20260716` still active; TokenRegistry GAS/NEO active; ForcedInclusion production-ready.
+- Evidence: `docs/audit/testnet-deployment-20260718-session11-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-18-session11.json`.
+- WIF only via process env `NEO_N4_TESTNET_WIF` (not committed). Funded gates still open:
+  L1 settle, Zk prove-batch, production DA, 2-of-2 bridge retarget, full Neo.CLI stack.
+
 ### Added — Open-batch age overdue on LocalHost pipeline health — 2026-07-18
 
 - `BatchSealer` / `L2BatchPlugin` expose `OpenBatchAgeMillis` and `IsOpenBatchPastMaxAge`

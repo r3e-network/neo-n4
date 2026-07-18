@@ -148,6 +148,36 @@ public sealed record GatewayHostOperatorStatus
     public required int MetricsEntryCount { get; init; }
 
     /// <summary>
+    /// Build offline Gateway passport failure names from publication-profile wiring flags.
+    /// Empty list means <see cref="IsOfflinePassportComplete"/>. Not an L1 confirmation claim.
+    /// </summary>
+    public static IReadOnlyList<string> BuildOfflinePassportFailures(
+        bool isEnabled,
+        bool isPublicationConfigured,
+        bool hasDurableOutbox,
+        bool hasL1RpcEndpoint,
+        bool hasNonZeroReplayDomain,
+        bool hasNonZeroVerificationKeyId,
+        bool hasNonZeroSettlementManagerHash,
+        bool hasNonZeroMessageRouterHash,
+        bool hasExpectedNetwork,
+        bool hasPositiveMaxAutomaticRetries)
+    {
+        var failures = new List<string>();
+        if (!isEnabled) failures.Add(nameof(IsEnabled));
+        if (!isPublicationConfigured) failures.Add(nameof(IsPublicationConfigured));
+        if (!hasDurableOutbox) failures.Add(nameof(HasDurableOutbox));
+        if (!hasL1RpcEndpoint) failures.Add(nameof(HasL1RpcEndpoint));
+        if (!hasNonZeroReplayDomain) failures.Add(nameof(ReplayDomain));
+        if (!hasNonZeroVerificationKeyId) failures.Add(nameof(VerificationKeyId));
+        if (!hasNonZeroSettlementManagerHash) failures.Add(nameof(SettlementManagerHash));
+        if (!hasNonZeroMessageRouterHash) failures.Add(nameof(MessageRouterHash));
+        if (!hasExpectedNetwork) failures.Add(nameof(HasExpectedNetwork));
+        if (!hasPositiveMaxAutomaticRetries) failures.Add(nameof(MaxAutomaticRetries));
+        return failures;
+    }
+
+    /// <summary>
     /// Build publication health failure names from offline passport + outbox/queue runtime state.
     /// Empty list means <see cref="IsPublicationHealthy"/> / <see cref="IsGatewayHostHealthy"/>.
     /// Not an L1 confirmation claim.

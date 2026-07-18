@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Offline passport health builders (LocalHost + Gateway) — 2026-07-18
+
+- `LocalHostOperatorStatus.BuildOfflinePassportFailures` pure helper (24 wiring/config flags);
+  Multisig/Optimistic/Zk `OfflinePassportFailures` reuse it (single source of truth).
+- `GatewayHostOperatorStatus.BuildOfflinePassportFailures` pure helper (publication-profile
+  wiring); `GatewayHostComposition.OfflinePassportFailures` reuses it.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 settle / publication confirmation remain funded gates.
+
 ### Added — Gateway publication health builder + open-batch age diagnostics — 2026-07-18
 
 - `GatewayHostOperatorStatus.BuildPublicationHealthFailures` pure helper (offline passport +

@@ -1140,38 +1140,32 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// Offline passport checks that failed (empty when complete). Diagnostic names only;
     /// does not claim L1 settle, prove-batch, or live scan (funded gates).
     /// </summary>
-    public IReadOnlyList<string> OfflinePassportFailures
-    {
-        get
-        {
-            var failures = new List<string>();
-            if (!IsOperatorReady) failures.Add(nameof(IsOperatorReady));
-            if (!IsChainIdConfigConsistent) failures.Add(nameof(IsChainIdConfigConsistent));
-            if (!IsProofTypeConfigConsistent) failures.Add(nameof(IsProofTypeConfigConsistent));
-            if (!IsDaModeConfigConsistent) failures.Add(nameof(IsDaModeConfigConsistent));
-            if (!IsSecurityLevelProofTypeConsistent) failures.Add(nameof(IsSecurityLevelProofTypeConsistent));
-            if (!IsSecurityLevelDaModeConsistent) failures.Add(nameof(IsSecurityLevelDaModeConsistent));
-            if (!IsNeoHubHashWiringComplete) failures.Add(nameof(IsNeoHubHashWiringComplete));
-            if (!IsBatcherInboxWiringComplete) failures.Add(nameof(IsBatcherInboxWiringComplete));
-            if (!HasBatchProver) failures.Add(nameof(HasBatchProver));
-            if (!IsSettlementEnabled) failures.Add(nameof(IsSettlementEnabled));
-            if (!IsBatcherEnabled) failures.Add(nameof(IsBatcherEnabled));
-            if (!HasL1RpcEndpoint) failures.Add(nameof(HasL1RpcEndpoint));
-            if (!HasExpectedNetwork) failures.Add(nameof(HasExpectedNetwork));
-            if (!HasScannerDeployHeights) failures.Add(nameof(HasScannerDeployHeights));
-            if (!HasDepositSource) failures.Add(nameof(HasDepositSource));
-            if (!HasMessageRouter) failures.Add(nameof(HasMessageRouter));
-            if (!HasForcedInclusionFinalizer) failures.Add(nameof(HasForcedInclusionFinalizer));
-            if (!HasSettlementClient) failures.Add(nameof(HasSettlementClient));
-            if (!HasTransactionSender) failures.Add(nameof(HasTransactionSender));
-            if (!HasMessageOutbox) failures.Add(nameof(HasMessageOutbox));
-            if (!IsDepositPipelineWiringComplete) failures.Add(nameof(IsDepositPipelineWiringComplete));
-            if (!IsMessagePipelineWiringComplete) failures.Add(nameof(IsMessagePipelineWiringComplete));
-            if (!IsForcedInclusionPipelineWiringComplete) failures.Add(nameof(IsForcedInclusionPipelineWiringComplete));
-            if (!IsSettlementClientWiringComplete) failures.Add(nameof(IsSettlementClientWiringComplete));
-            return failures;
-        }
-    }
+    public IReadOnlyList<string> OfflinePassportFailures =>
+        LocalHostOperatorStatus.BuildOfflinePassportFailures(
+            IsOperatorReady,
+            IsChainIdConfigConsistent,
+            IsProofTypeConfigConsistent,
+            IsDaModeConfigConsistent,
+            IsSecurityLevelProofTypeConsistent,
+            IsSecurityLevelDaModeConsistent,
+            IsNeoHubHashWiringComplete,
+            IsBatcherInboxWiringComplete,
+            HasBatchProver,
+            IsSettlementEnabled,
+            IsBatcherEnabled,
+            HasL1RpcEndpoint,
+            HasExpectedNetwork,
+            HasScannerDeployHeights,
+            HasDepositSource,
+            HasMessageRouter,
+            HasForcedInclusionFinalizer,
+            HasSettlementClient,
+            HasTransactionSender,
+            HasMessageOutbox,
+            IsDepositPipelineWiringComplete,
+            IsMessagePipelineWiringComplete,
+            IsForcedInclusionPipelineWiringComplete,
+            IsSettlementClientWiringComplete);
 
     /// <summary>
     /// Offline operator passport: true when <see cref="OfflinePassportFailures"/> is empty.

@@ -221,7 +221,7 @@ public class UT_NeoHubDeployReport
                 + "IsPipelineHealthyAsync / GetPipelineHealthFailuresAsync / "
                 + "StartMetricsHttp(/readyz defaults to IsOfflinePassportComplete) / "
                 + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
-                + "OfflinePassportFailures / "
+                + "OfflinePassportFailures / BuildOfflinePassportFailures / "
                 + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                 + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
@@ -330,6 +330,7 @@ public class UT_NeoHubDeployReport
                 + "IsEnabled / MaxAutomaticRetries / ProofSystem / AggregationBackendId / "
                 + "ExpectedNetwork / HasL1RpcEndpoint / IsPublicationProfileReady / "
                 + "HasExpectedNetwork / IsOfflinePassportComplete / OfflinePassportFailures / "
+                + "BuildOfflinePassportFailures / "
                 + "IsOutboxPoisoned / IsOutboxIdle / IsPublicationHealthy / "
                 + "PublicationHealthFailures / BuildPublicationHealthFailures / "
                 + "IsGatewayHostHealthy / GatewayHostHealthFailures / "

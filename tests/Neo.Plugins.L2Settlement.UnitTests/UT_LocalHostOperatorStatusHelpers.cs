@@ -9,6 +9,76 @@ namespace Neo.Plugins.L2Settlement.UnitTests;
 public sealed class UT_LocalHostOperatorStatusHelpers
 {
     [TestMethod]
+    public void BuildOfflinePassportFailures_EmptyWhenAllReady()
+    {
+        var failures = LocalHostOperatorStatus.BuildOfflinePassportFailures(
+            isOperatorReady: true,
+            isChainIdConfigConsistent: true,
+            isProofTypeConfigConsistent: true,
+            isDaModeConfigConsistent: true,
+            isSecurityLevelProofTypeConsistent: true,
+            isSecurityLevelDaModeConsistent: true,
+            isNeoHubHashWiringComplete: true,
+            isBatcherInboxWiringComplete: true,
+            hasBatchProver: true,
+            isSettlementEnabled: true,
+            isBatcherEnabled: true,
+            hasL1RpcEndpoint: true,
+            hasExpectedNetwork: true,
+            hasScannerDeployHeights: true,
+            hasDepositSource: true,
+            hasMessageRouter: true,
+            hasForcedInclusionFinalizer: true,
+            hasSettlementClient: true,
+            hasTransactionSender: true,
+            hasMessageOutbox: true,
+            isDepositPipelineWiringComplete: true,
+            isMessagePipelineWiringComplete: true,
+            isForcedInclusionPipelineWiringComplete: true,
+            isSettlementClientWiringComplete: true);
+
+        Assert.AreEqual(0, failures.Count);
+    }
+
+    [TestMethod]
+    public void BuildOfflinePassportFailures_NamesOperatorReadyAndDepositSource()
+    {
+        var failures = LocalHostOperatorStatus.BuildOfflinePassportFailures(
+            isOperatorReady: false,
+            isChainIdConfigConsistent: true,
+            isProofTypeConfigConsistent: true,
+            isDaModeConfigConsistent: true,
+            isSecurityLevelProofTypeConsistent: true,
+            isSecurityLevelDaModeConsistent: true,
+            isNeoHubHashWiringComplete: true,
+            isBatcherInboxWiringComplete: true,
+            hasBatchProver: true,
+            isSettlementEnabled: true,
+            isBatcherEnabled: true,
+            hasL1RpcEndpoint: true,
+            hasExpectedNetwork: true,
+            hasScannerDeployHeights: true,
+            hasDepositSource: false,
+            hasMessageRouter: true,
+            hasForcedInclusionFinalizer: true,
+            hasSettlementClient: true,
+            hasTransactionSender: true,
+            hasMessageOutbox: true,
+            isDepositPipelineWiringComplete: true,
+            isMessagePipelineWiringComplete: true,
+            isForcedInclusionPipelineWiringComplete: true,
+            isSettlementClientWiringComplete: true);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                nameof(LocalHostOperatorStatus.IsOperatorReady),
+                nameof(LocalHostOperatorStatus.HasDepositSource),
+            },
+            failures.ToArray());
+    }
+
+    [TestMethod]
     public void IsSecurityLevelPairedWithProofType_RecommendedPairings()
     {
         Assert.IsTrue(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(

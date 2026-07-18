@@ -592,6 +592,70 @@ public sealed record LocalHostOperatorStatus
     }
 
     /// <summary>
+    /// Build offline passport failure names from wiring/config readiness flags.
+    /// Empty list means <see cref="IsOfflinePassportComplete"/>. Does not claim L1 settle,
+    /// prove-batch, or live scan (funded gates).
+    /// </summary>
+    public static IReadOnlyList<string> BuildOfflinePassportFailures(
+        bool isOperatorReady,
+        bool isChainIdConfigConsistent,
+        bool isProofTypeConfigConsistent,
+        bool isDaModeConfigConsistent,
+        bool isSecurityLevelProofTypeConsistent,
+        bool isSecurityLevelDaModeConsistent,
+        bool isNeoHubHashWiringComplete,
+        bool isBatcherInboxWiringComplete,
+        bool hasBatchProver,
+        bool isSettlementEnabled,
+        bool isBatcherEnabled,
+        bool hasL1RpcEndpoint,
+        bool hasExpectedNetwork,
+        bool hasScannerDeployHeights,
+        bool hasDepositSource,
+        bool hasMessageRouter,
+        bool hasForcedInclusionFinalizer,
+        bool hasSettlementClient,
+        bool hasTransactionSender,
+        bool hasMessageOutbox,
+        bool isDepositPipelineWiringComplete,
+        bool isMessagePipelineWiringComplete,
+        bool isForcedInclusionPipelineWiringComplete,
+        bool isSettlementClientWiringComplete)
+    {
+        var failures = new List<string>();
+        if (!isOperatorReady) failures.Add(nameof(IsOperatorReady));
+        if (!isChainIdConfigConsistent) failures.Add(nameof(IsChainIdConfigConsistent));
+        if (!isProofTypeConfigConsistent) failures.Add(nameof(IsProofTypeConfigConsistent));
+        if (!isDaModeConfigConsistent) failures.Add(nameof(IsDaModeConfigConsistent));
+        if (!isSecurityLevelProofTypeConsistent)
+            failures.Add(nameof(IsSecurityLevelProofTypeConsistent));
+        if (!isSecurityLevelDaModeConsistent) failures.Add(nameof(IsSecurityLevelDaModeConsistent));
+        if (!isNeoHubHashWiringComplete) failures.Add(nameof(IsNeoHubHashWiringComplete));
+        if (!isBatcherInboxWiringComplete) failures.Add(nameof(IsBatcherInboxWiringComplete));
+        if (!hasBatchProver) failures.Add(nameof(HasBatchProver));
+        if (!isSettlementEnabled) failures.Add(nameof(IsSettlementEnabled));
+        if (!isBatcherEnabled) failures.Add(nameof(IsBatcherEnabled));
+        if (!hasL1RpcEndpoint) failures.Add(nameof(HasL1RpcEndpoint));
+        if (!hasExpectedNetwork) failures.Add(nameof(HasExpectedNetwork));
+        if (!hasScannerDeployHeights) failures.Add(nameof(HasScannerDeployHeights));
+        if (!hasDepositSource) failures.Add(nameof(HasDepositSource));
+        if (!hasMessageRouter) failures.Add(nameof(HasMessageRouter));
+        if (!hasForcedInclusionFinalizer) failures.Add(nameof(HasForcedInclusionFinalizer));
+        if (!hasSettlementClient) failures.Add(nameof(HasSettlementClient));
+        if (!hasTransactionSender) failures.Add(nameof(HasTransactionSender));
+        if (!hasMessageOutbox) failures.Add(nameof(HasMessageOutbox));
+        if (!isDepositPipelineWiringComplete)
+            failures.Add(nameof(IsDepositPipelineWiringComplete));
+        if (!isMessagePipelineWiringComplete)
+            failures.Add(nameof(IsMessagePipelineWiringComplete));
+        if (!isForcedInclusionPipelineWiringComplete)
+            failures.Add(nameof(IsForcedInclusionPipelineWiringComplete));
+        if (!isSettlementClientWiringComplete)
+            failures.Add(nameof(IsSettlementClientWiringComplete));
+        return failures;
+    }
+
+    /// <summary>
     /// Build pipeline health failure names from offline passport + enablement + local batcher
     /// pending seal + checkpoint alignment + overdue forced inclusion + settlement runtime state.
     /// Empty list means <see cref="IsPipelineHealthy"/>. Not an L1 settle claim.

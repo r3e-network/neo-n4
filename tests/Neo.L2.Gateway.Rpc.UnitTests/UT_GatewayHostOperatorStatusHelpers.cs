@@ -11,6 +11,56 @@ namespace Neo.L2.Gateway.Rpc.UnitTests;
 public sealed class UT_GatewayHostOperatorStatusHelpers
 {
     [TestMethod]
+    public void BuildOfflinePassportFailures_EmptyWhenAllReady()
+    {
+        var failures = GatewayHostOperatorStatus.BuildOfflinePassportFailures(
+            isEnabled: true,
+            isPublicationConfigured: true,
+            hasDurableOutbox: true,
+            hasL1RpcEndpoint: true,
+            hasNonZeroReplayDomain: true,
+            hasNonZeroVerificationKeyId: true,
+            hasNonZeroSettlementManagerHash: true,
+            hasNonZeroMessageRouterHash: true,
+            hasExpectedNetwork: true,
+            hasPositiveMaxAutomaticRetries: true);
+
+        Assert.AreEqual(0, failures.Count);
+    }
+
+    [TestMethod]
+    public void BuildOfflinePassportFailures_NamesEachMissingFlag()
+    {
+        var failures = GatewayHostOperatorStatus.BuildOfflinePassportFailures(
+            isEnabled: false,
+            isPublicationConfigured: false,
+            hasDurableOutbox: false,
+            hasL1RpcEndpoint: false,
+            hasNonZeroReplayDomain: false,
+            hasNonZeroVerificationKeyId: false,
+            hasNonZeroSettlementManagerHash: false,
+            hasNonZeroMessageRouterHash: false,
+            hasExpectedNetwork: false,
+            hasPositiveMaxAutomaticRetries: false);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                nameof(GatewayHostOperatorStatus.IsEnabled),
+                nameof(GatewayHostOperatorStatus.IsPublicationConfigured),
+                nameof(GatewayHostOperatorStatus.HasDurableOutbox),
+                nameof(GatewayHostOperatorStatus.HasL1RpcEndpoint),
+                nameof(GatewayHostOperatorStatus.ReplayDomain),
+                nameof(GatewayHostOperatorStatus.VerificationKeyId),
+                nameof(GatewayHostOperatorStatus.SettlementManagerHash),
+                nameof(GatewayHostOperatorStatus.MessageRouterHash),
+                nameof(GatewayHostOperatorStatus.HasExpectedNetwork),
+                nameof(GatewayHostOperatorStatus.MaxAutomaticRetries),
+            },
+            failures.ToArray());
+    }
+
+    [TestMethod]
     public void BuildPublicationHealthFailures_EmptyWhenPassportAndIdle()
     {
         var failures = GatewayHostOperatorStatus.BuildPublicationHealthFailures(

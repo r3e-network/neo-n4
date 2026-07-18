@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Neo.L2;
-using Neo.Plugins.L2Settlement;
+using Neo.L2.Persistence;
+using Neo.Plugins.L2;
 
 namespace Neo.Plugins.L2Settlement.UnitTests;
 
@@ -53,5 +54,51 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             SecurityLevel.Validium, DAMode.L1));
         Assert.IsFalse(LocalHostOperatorStatus.IsSecurityLevelPairedWithDaMode(
             SecurityLevel.Validium, DAMode.Local));
+    }
+
+    [TestMethod]
+    public void BuildPipelineHealthFailures_EmptyWhenPassportPipelineAndIdle()
+    {
+        var recovery = new SettlementRecoveryStatus
+        {
+            PendingCount = 0,
+            ConfirmationLagBatches = 0,
+            State = null,
+            RetryCount = 0,
+            LastError = null,
+        };
+        var failures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
+            offlinePassportComplete: true,
+            pipelineEnabled: true,
+            pendingSettlementCount: 0,
+            recovery);
+        Assert.AreEqual(0, failures.Count);
+    }
+
+    [TestMethod]
+    public void BuildPipelineHealthFailures_NamesPassportEnablementPoisonAndIdle()
+    {
+        var recovery = new SettlementRecoveryStatus
+        {
+            PendingCount = 2,
+            ConfirmationLagBatches = 1,
+            State = SettlementRecoveryState.Poisoned,
+            RetryCount = 3,
+            LastError = "rpc timeout",
+        };
+        var failures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
+            offlinePassportComplete: false,
+            pipelineEnabled: false,
+            pendingSettlementCount: 1,
+            recovery);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                nameof(LocalHostOperatorStatus.IsOfflinePassportComplete),
+                nameof(LocalHostOperatorStatus.IsPipelineEnabled),
+                nameof(LocalHostOperatorStatus.IsSettlementPoisoned),
+                nameof(LocalHostOperatorStatus.IsSettlementIdle),
+            },
+            failures.ToArray());
     }
 }

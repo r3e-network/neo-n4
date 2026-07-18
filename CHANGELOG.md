@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Pipeline and publication health failure diagnostics — 2026-07-18
+
+- LocalHost operator status (+ JSON) exposes `PipelineHealthFailures` (failed check
+  names); `IsPipelineHealthy` is true when the list is empty. Helper
+  `LocalHostOperatorStatus.BuildPipelineHealthFailures` names offline passport,
+  pipeline enablement, settlement poison, and settlement idle gaps.
+- Gateway host (+ status/JSON) exposes `PublicationHealthFailures` for offline passport
+  plus outbox pending/queue/error/poison diagnostics; `IsPublicationHealthy` is true when
+  empty.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 settle / publication confirmation remain funded gates.
+
 ### Tested — Neo N3 testnet session10 reverify + SharedBridge deposit n11 — 2026-07-18
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

@@ -84,6 +84,9 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>Offline passport complete and outbox idle.</summary>
     public required bool IsPublicationHealthy { get; init; }
 
+    /// <summary>Failed publication health check names (empty when healthy).</summary>
+    public required IReadOnlyList<string> PublicationHealthFailures { get; init; }
+
     /// <summary>Publication-profile replay domain as 0x-hex.</summary>
     public required string ReplayDomain { get; init; }
 
@@ -135,6 +138,7 @@ public sealed record GatewayHostOperatorStatusDocument
             IsOutboxPoisoned = status.IsOutboxPoisoned,
             IsOutboxIdle = status.IsOutboxIdle,
             IsPublicationHealthy = status.IsPublicationHealthy,
+            PublicationHealthFailures = status.PublicationHealthFailures,
             ReplayDomain = status.ReplayDomain.ToString(),
             VerificationKeyId = status.VerificationKeyId.ToString(),
             SettlementManagerHash = status.SettlementManagerHash.ToString(),

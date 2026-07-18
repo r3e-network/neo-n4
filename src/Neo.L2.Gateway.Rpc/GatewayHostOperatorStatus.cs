@@ -102,8 +102,15 @@ public sealed record GatewayHostOperatorStatus
     /// <summary>
     /// <see cref="IsOfflinePassportComplete"/> and <see cref="IsOutboxIdle"/>. Offline config +
     /// local queue health; L1 confirmation remains funded.
+    /// True when <see cref="PublicationHealthFailures"/> is empty.
     /// </summary>
     public required bool IsPublicationHealthy { get; init; }
+
+    /// <summary>
+    /// Names of publication health checks that failed (empty when healthy). Combines offline
+    /// passport rollup with outbox/queue idle diagnostics. Not an L1 confirmation claim.
+    /// </summary>
+    public required IReadOnlyList<string> PublicationHealthFailures { get; init; }
 
     /// <summary>Publication-profile replay domain bound at open.</summary>
     public required UInt256 ReplayDomain { get; init; }

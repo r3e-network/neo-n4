@@ -198,8 +198,34 @@ public sealed class GatewayHostComposition : IDisposable
     /// <summary>
     /// Offline passport complete and outbox idle. Does not claim L1 confirmation of a published
     /// root (funded gate); only local queue/outbox health plus config wiring.
+    /// True when <see cref="PublicationHealthFailures"/> is empty.
     /// </summary>
-    public bool IsPublicationHealthy => IsOfflinePassportComplete && IsOutboxIdle;
+    public bool IsPublicationHealthy => PublicationHealthFailures.Count == 0;
+
+    /// <summary>
+    /// Publication health checks that failed (empty when <see cref="IsPublicationHealthy"/>).
+    /// Diagnostic only; not an L1 confirmation claim.
+    /// </summary>
+    public IReadOnlyList<string> PublicationHealthFailures
+    {
+        get
+        {
+            var failures = new List<string>();
+            if (!IsOfflinePassportComplete)
+                failures.Add(nameof(IsOfflinePassportComplete));
+            if (IsOutboxPoisoned)
+                failures.Add(nameof(IsOutboxPoisoned));
+            if (HasPendingPublication)
+                failures.Add(nameof(HasPendingPublication));
+            if (AggregatorPendingCount != 0)
+                failures.Add(nameof(AggregatorPendingCount));
+            if (OutboxStatus.QueueDepth != 0)
+                failures.Add(nameof(GatewayHostOperatorStatus.OutboxQueueDepth));
+            if (!string.IsNullOrEmpty(OutboxStatus.LastError))
+                failures.Add(nameof(GatewayHostOperatorStatus.OutboxLastError));
+            return failures;
+        }
+    }
 
     /// <summary>
     /// Terminal proof-system discriminator from <see cref="ProofProver"/>
@@ -308,6 +334,7 @@ public sealed class GatewayHostComposition : IDisposable
             IsOutboxPoisoned = IsOutboxPoisoned,
             IsOutboxIdle = IsOutboxIdle,
             IsPublicationHealthy = IsPublicationHealthy,
+            PublicationHealthFailures = PublicationHealthFailures,
             ReplayDomain = ReplayDomain,
             VerificationKeyId = VerificationKeyId,
             SettlementManagerHash = SettlementManagerHash,

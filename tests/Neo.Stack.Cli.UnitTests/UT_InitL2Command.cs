@@ -253,8 +253,10 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsPipelineEnabled");
         StringAssert.Contains(output, "IsSettlementIdle");
         StringAssert.Contains(output, "IsPipelineHealthy");
+        StringAssert.Contains(output, "PipelineHealthFailures");
         StringAssert.Contains(output, "IsOutboxIdle");
         StringAssert.Contains(output, "IsPublicationHealthy");
+        StringAssert.Contains(output, "PublicationHealthFailures");
         StringAssert.Contains(output, "HasExpectedNetwork");
         StringAssert.Contains(output, "HasScannerDeployHeights");
         StringAssert.Contains(output, "IsOfflinePassportComplete");

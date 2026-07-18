@@ -1,4 +1,5 @@
 using Neo.L2;
+using Neo.L2.Persistence;
 
 namespace Neo.Plugins.L2;
 
@@ -339,8 +340,16 @@ public sealed record LocalHostOperatorStatus
     /// <summary>
     /// Offline passport complete, pipeline enabled, settlement not poisoned, and settlement idle.
     /// Distinct from L1 settle confirmation (funded gate).
+    /// True when <see cref="PipelineHealthFailures"/> is empty.
     /// </summary>
     public required bool IsPipelineHealthy { get; init; }
+
+    /// <summary>
+    /// Names of pipeline health checks that failed (empty when <see cref="IsPipelineHealthy"/>).
+    /// Combines offline passport rollup with runtime settlement idle/poison and enablement.
+    /// Diagnostic only; not an L1 settle claim.
+    /// </summary>
+    public required IReadOnlyList<string> PipelineHealthFailures { get; init; }
 
     /// <summary>Configured L1 finality depth for production scanners.</summary>
     public required uint L1FinalityDepth { get; init; }
@@ -510,4 +519,31 @@ public sealed record LocalHostOperatorStatus
             // Sidechain/Settled/Optimistic may use Local (dev) or any public DA tier.
             _ => true,
         };
+
+    /// <summary>
+    /// Build pipeline health failure names from offline passport + enablement + local settlement
+    /// runtime state. Empty list means <see cref="IsPipelineHealthy"/>. Not an L1 settle claim.
+    /// </summary>
+    public static IReadOnlyList<string> BuildPipelineHealthFailures(
+        bool offlinePassportComplete,
+        bool pipelineEnabled,
+        int pendingSettlementCount,
+        SettlementRecoveryStatus recovery)
+    {
+        ArgumentNullException.ThrowIfNull(recovery);
+        var failures = new List<string>();
+        if (!offlinePassportComplete)
+            failures.Add(nameof(IsOfflinePassportComplete));
+        if (!pipelineEnabled)
+            failures.Add(nameof(IsPipelineEnabled));
+        if (recovery.State == SettlementRecoveryState.Poisoned)
+            failures.Add(nameof(IsSettlementPoisoned));
+        var settlementIdle = pendingSettlementCount == 0
+            && recovery.PendingCount == 0
+            && recovery.State is null
+            && string.IsNullOrEmpty(recovery.LastError);
+        if (!settlementIdle)
+            failures.Add(nameof(IsSettlementIdle));
+        return failures;
+    }
 }

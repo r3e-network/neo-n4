@@ -161,6 +161,7 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsFalse(status.IsSettlementPoisoned);
             Assert.IsTrue(status.IsSettlementIdle);
             Assert.IsTrue(status.IsPipelineHealthy);
+            Assert.AreEqual(0, status.PipelineHealthFailures.Count);
             Assert.IsTrue(status.HasExpectedNetwork);
             Assert.IsTrue(status.HasScannerDeployHeights);
             Assert.IsTrue(status.IsOfflinePassportComplete);

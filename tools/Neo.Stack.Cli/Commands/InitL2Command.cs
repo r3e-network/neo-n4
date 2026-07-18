@@ -149,12 +149,14 @@ internal static class InitL2Command
         Console.WriteLine("               IsPublicationProfileReady / HasExpectedNetwork / IsOfflinePassportComplete");
         Console.WriteLine("               OfflinePassportFailures (empty when complete)");
         Console.WriteLine("               IsOutboxIdle / IsOutboxPoisoned / IsPublicationHealthy");
+        Console.WriteLine("               PublicationHealthFailures (empty when publication healthy)");
         Console.WriteLine("               ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / IsMetricsEnabled / MetricsConfiguredPort / MetricsMaxConcurrentConnections / RegisterBridgeAsset");
         Console.WriteLine("               IsMetricsWiringComplete / HasMetricsReadinessCheck / StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host pipe  = LocalHost.IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete");
         Console.WriteLine("               IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete");
         Console.WriteLine("               IsPipelineEnabled / IsSettlementPoisoned / IsSettlementIdle / IsPipelineHealthy");
+        Console.WriteLine("               PipelineHealthFailures (empty when pipeline healthy)");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");
         Console.WriteLine("               ConsumedDepositCount / DepositSourceReadyCount / DepositSourceReservedCount / DepositSourceSoftConsumedCount");
         Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork");

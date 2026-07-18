@@ -264,6 +264,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsFalse(opStatus.IsSettlementPoisoned);
             Assert.IsTrue(opStatus.IsSettlementIdle);
             Assert.IsTrue(opStatus.IsPipelineHealthy);
+            Assert.AreEqual(0, opStatus.PipelineHealthFailures.Count);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasBatchProver);
@@ -352,6 +353,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"isSettlementIdle\": true");
             StringAssert.Contains(statusJson, "\"isSettlementPoisoned\": false");
             StringAssert.Contains(statusJson, "\"isPipelineHealthy\": true");
+            StringAssert.Contains(statusJson, "\"pipelineHealthFailures\":");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
@@ -438,6 +440,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(gatewayHost.IsOutboxIdle);
             Assert.IsFalse(gatewayHost.IsOutboxPoisoned);
             Assert.IsTrue(gatewayHost.IsPublicationHealthy);
+            Assert.AreEqual(0, gatewayHost.PublicationHealthFailures.Count);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
             Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
             var gwStatus = gatewayHost.GetOperatorStatus();

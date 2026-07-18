@@ -509,6 +509,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         ArgumentOutOfRangeException.ThrowIfNegative(depositPeekLimit);
         var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
         var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        var pipelineHealthFailures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
+            IsOfflinePassportComplete, IsPipelineEnabled, pending, recovery);
         var tracked = await GetTrackedForcedInclusionNoncesAsync(ChainId, cancellationToken)
             .ConfigureAwait(false);
         var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
@@ -602,13 +604,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
                 && recovery.PendingCount == 0
                 && recovery.State is null
                 && string.IsNullOrEmpty(recovery.LastError),
-            IsPipelineHealthy = IsOfflinePassportComplete
-                && IsPipelineEnabled
-                && recovery.State != SettlementRecoveryState.Poisoned
-                && pending == 0
-                && recovery.PendingCount == 0
-                && recovery.State is null
-                && string.IsNullOrEmpty(recovery.LastError),
+            IsPipelineHealthy = pipelineHealthFailures.Count == 0,
+            PipelineHealthFailures = pipelineHealthFailures,
             L1FinalityDepth = L1FinalityDepth,
             DepositSourceReadyCount = DepositSourceReadyCount,
             DepositSourceReservedCount = DepositSourceReservedCount,

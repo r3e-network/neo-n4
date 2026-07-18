@@ -103,9 +103,11 @@ public sealed class UT_GatewayHostComposition
             Assert.IsFalse(host.IsOutboxPoisoned);
             Assert.IsTrue(host.IsOutboxIdle);
             Assert.IsTrue(host.IsPublicationHealthy);
+            Assert.AreEqual(0, host.PublicationHealthFailures.Count);
             Assert.IsFalse(gwStatus.IsOutboxPoisoned);
             Assert.IsTrue(gwStatus.IsOutboxIdle);
             Assert.IsTrue(gwStatus.IsPublicationHealthy);
+            Assert.AreEqual(0, gwStatus.PublicationHealthFailures.Count);
             Assert.AreEqual(894710606u, host.ExpectedNetwork);
             Assert.AreEqual(894710606u, gwStatus.ExpectedNetwork);
             Assert.AreEqual(UInt256.Parse("0x" + new string('d', 64)), host.ReplayDomain);

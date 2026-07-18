@@ -294,6 +294,7 @@ public class UT_NeoHubDeployReport
                 + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                 + "LocalHostHealthProbeDocument JSON "
                 + "(passport/pipeline/metrics/settlement + pending-seal/checkpoint/FI/inbox + "
+                + "deposit ready/reserved/soft-consumed + L1Inbox consumed + staged withdrawals + "
                 + "HasMetricsReadinessCheck/HasMetricsHealthProbe flags)",
                 stores.GetProperty("localHostWriteHealthProbe").GetString());
             Assert.AreEqual(

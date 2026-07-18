@@ -499,7 +499,11 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(probe.IsSettlementRetrying);
             Assert.AreEqual(0, probe.PendingSettlementCount);
             Assert.AreEqual(0, probe.DepositSourceReadyCount);
+            Assert.AreEqual(0, probe.DepositSourceReservedCount);
+            Assert.AreEqual(0, probe.DepositSourceSoftConsumedCount);
             Assert.AreEqual(0, probe.L1InboxPendingCount);
+            Assert.AreEqual(0, probe.L1InboxConsumedCount);
+            Assert.AreEqual(0, probe.StagedWithdrawalCount);
             var probePath = Path.Combine(chainDir, "health-probe.json");
             await host.WriteHealthProbeAsync(probePath);
             Assert.IsTrue(File.Exists(probePath));
@@ -516,7 +520,11 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"isSettlementRetrying\": false");
             StringAssert.Contains(probeJson, "\"pendingSettlementCount\": 0");
             StringAssert.Contains(probeJson, "\"depositSourceReadyCount\": 0");
+            StringAssert.Contains(probeJson, "\"depositSourceReservedCount\": 0");
+            StringAssert.Contains(probeJson, "\"depositSourceSoftConsumedCount\": 0");
             StringAssert.Contains(probeJson, "\"l1InboxPendingCount\": 0");
+            StringAssert.Contains(probeJson, "\"l1InboxConsumedCount\": 0");
+            StringAssert.Contains(probeJson, "\"stagedWithdrawalCount\": 0");
             // Compact probe must not dump full operator inventory fields.
             Assert.IsFalse(probeJson.Contains("\"nextExpectedBlock\"", StringComparison.Ordinal));
             StringAssert.Contains(statusJson, "\"chainId\": 20260716");

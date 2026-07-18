@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds deposit/inbox/withdrawal soft depths — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe` JSON) adds `DepositSourceReservedCount`,
+  `DepositSourceSoftConsumedCount`, `L1InboxConsumedCount`, `StagedWithdrawalCount`
+  for deposit/batcher pipeline visibility without the full operator status dump.
+- Soft local caches only; no L1 scan/settle claim. Wireproduction notes; unit coverage.
+  No wire/ABI change. L1 settle remains a funded gate.
+
 ### Added — FormatOperatorStatusJson for LocalHost and Gateway — 2026-07-19
 
 - Multisig/Optimistic/Zk `FormatOperatorStatusJsonAsync` and Gateway

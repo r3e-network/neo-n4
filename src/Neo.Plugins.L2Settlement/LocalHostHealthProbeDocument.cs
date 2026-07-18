@@ -103,6 +103,18 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Soft deposit-source ready count (in-memory; no L1 scan).</summary>
     public required int DepositSourceReadyCount { get; init; }
 
+    /// <summary>Soft deposit-source reserved count (drained for seal; no L1 claim).</summary>
+    public required int DepositSourceReservedCount { get; init; }
+
+    /// <summary>Soft deposit-source consumed-nonce cache size (no L1 claim).</summary>
+    public required int DepositSourceSoftConsumedCount { get; init; }
+
     /// <summary>Local L1 inbox pending count (soft cache; no L1 scan claim).</summary>
     public required int L1InboxPendingCount { get; init; }
+
+    /// <summary>Local L1 inbox soft consumed count (no L1 scan claim).</summary>
+    public required int L1InboxConsumedCount { get; init; }
+
+    /// <summary>Staged L2 withdrawal count on the bridge processor (local; no L1 claim).</summary>
+    public required int StagedWithdrawalCount { get; init; }
 }

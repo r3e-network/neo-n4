@@ -1616,7 +1616,11 @@ public sealed class OptimisticLocalHostComposition : IDisposable
                 .ConfigureAwait(false),
             PendingSettlementCount = pending,
             DepositSourceReadyCount = DepositSourceReadyCount,
+            DepositSourceReservedCount = DepositSourceReservedCount,
+            DepositSourceSoftConsumedCount = DepositSourceSoftConsumedCount,
             L1InboxPendingCount = L1InboxPendingCount,
+            L1InboxConsumedCount = L1InboxConsumedCount,
+            StagedWithdrawalCount = StagedWithdrawalCount,
         };
     }
 

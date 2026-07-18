@@ -217,6 +217,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             settlementHost.InvalidateInboundMessageCache();
             Assert.AreEqual(0, settlementHost.L1InboxPendingCount);
             Assert.AreEqual(20260716u, settlementHost.ChainId);
+            Assert.AreEqual(20260716u, settlementHost.BatcherConfiguredChainId);
             Assert.AreEqual(ProofType.Multisig, settlementHost.ProofType);
             Assert.AreEqual(DAMode.Local, settlementHost.DaMode);
             Assert.AreEqual(0, settlementHost.PeekSharedBridgeDeposits(8).Count);
@@ -516,6 +517,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             var opStatus = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
+            Assert.IsTrue(opStatus.HasMessageOutbox);
+            Assert.IsTrue(host.HasMessageOutbox);
+            Assert.AreEqual(host.ChainId, host.BatcherConfiguredChainId);
+            Assert.AreEqual(host.ChainId, opStatus.BatcherConfiguredChainId);
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);
@@ -524,7 +529,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(statusPath));
-            StringAssert.Contains(File.ReadAllText(statusPath), "\"proofType\": \"Optimistic\"");
+            var optStatusJson = File.ReadAllText(statusPath);
+            StringAssert.Contains(optStatusJson, "\"proofType\": \"Optimistic\"");
+            StringAssert.Contains(optStatusJson, "\"hasMessageOutbox\": true");
+            StringAssert.Contains(optStatusJson, "\"batcherConfiguredChainId\":");
 
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
@@ -542,9 +550,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(
                 MerklePathRoundProver.ConstBackendId,
                 ((BinaryTreeAggregator)gatewayHost.Gateway.Aggregator).RoundProver.BackendId);
+            Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gatewayHost.AggregationBackendId);
+            Assert.AreNotEqual(UInt160.Zero, gatewayHost.SettlementManagerHash);
+            Assert.AreNotEqual(UInt160.Zero, gatewayHost.MessageRouterHash);
             var gwStatusPath = Path.Combine(chainDir, "gateway-status.json");
             gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(gwStatusPath));
+            var gwJson = File.ReadAllText(gwStatusPath);
+            StringAssert.Contains(gwJson, "\"settlementManagerHash\":");
+            StringAssert.Contains(gwJson, "\"aggregationBackendId\":");
         }
         finally
         {

@@ -151,6 +151,12 @@ public sealed class L2BatchPlugin : Plugin
             sequencerCommitteeHash);
     }
 
+    /// <summary>
+    /// Configured L2 chain id from batch plugin settings (0 when unset / test mode).
+    /// Distinct from runtime host <c>ChainId</c> when operators misconfigure plugins.
+    /// </summary>
+    public uint ConfiguredChainId => _settings.ChainId;
+
     /// <summary>Currently wired SharedBridge deposit source, if any.</summary>
     public ISharedBridgeDepositSource? DepositSource => _depositSource;
 

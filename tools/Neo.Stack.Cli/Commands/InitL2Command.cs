@@ -130,7 +130,7 @@ internal static class InitL2Command
         // Operator host composition roots (no Neo.CLI required for local Multisig/Optimistic/Zk).
         Console.WriteLine("  host open  = MultisigLocalHostComposition.Open / OptimisticLocalHostComposition.Open / ZkLocalHostComposition.Open");
         Console.WriteLine("  host ready = LocalHost.IsOperatorReady / GetOperatorStatusAsync (see wireproduction notes)");
-        Console.WriteLine("  host batch = LocalHost.NextExpectedBlock / NextBatchNumber / PendingSealedBatchNumber / MaxBlocksPerBatch");
+        Console.WriteLine("  host batch = LocalHost.BatcherConfiguredChainId / NextExpectedBlock / NextBatchNumber / PendingSealedBatchNumber / MaxBlocksPerBatch");
         Console.WriteLine("               MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / OpenBatchForcedInclusionCount");
         Console.WriteLine("               OpenBatchL2ToL2MessageCount / OpenBatchWithdrawalCount / HasBatchDepositSource");
         Console.WriteLine("               HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver");
@@ -138,8 +138,8 @@ internal static class InitL2Command
         Console.WriteLine("  host msg   = LocalHost.MessageOutboxL2ToL1Root / KnownInboundNonceCount / RegisterInboundMessageNonce");
         Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / SupportsLocalDaReader / RegisterForcedInclusionNonce / KnownForcedInclusionNonceCount");
         Console.WriteLine("  host gw    = GatewayHost.IsEnabled / MaxAutomaticRetries / IsPublicationConfigured");
-        Console.WriteLine("               ProofSystem / ExpectedNetwork / HasL1RpcEndpoint / ReplayDomain / VerificationKeyId");
-        Console.WriteLine("               SettlementManagerHash / MessageRouterHash");
+        Console.WriteLine("               ProofSystem / AggregationBackendId / ExpectedNetwork / HasL1RpcEndpoint");
+        Console.WriteLine("               ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / IsMetricsEnabled / MetricsConfiguredPort / MetricsMaxConcurrentConnections / RegisterBridgeAsset");
         Console.WriteLine("               StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");

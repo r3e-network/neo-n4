@@ -232,6 +232,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsOperatorReady");
         StringAssert.Contains(output, "GetOperatorStatusAsync");
         StringAssert.Contains(output, "NextExpectedBlock");
+        StringAssert.Contains(output, "BatcherConfiguredChainId");
         StringAssert.Contains(output, "NextBatchNumber");
         StringAssert.Contains(output, "PendingSealedBatchNumber");
         StringAssert.Contains(output, "MaxBlocksPerBatch");
@@ -267,6 +268,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "GatewayHost.IsEnabled");
         StringAssert.Contains(output, "MaxAutomaticRetries");
         StringAssert.Contains(output, "ProofSystem");
+        StringAssert.Contains(output, "AggregationBackendId");
         StringAssert.Contains(output, "HasL1RpcEndpoint");
         StringAssert.Contains(output, "ReplayDomain");
         StringAssert.Contains(output, "VerificationKeyId");

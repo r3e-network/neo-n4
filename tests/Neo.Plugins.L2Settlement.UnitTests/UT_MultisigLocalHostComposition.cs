@@ -125,11 +125,15 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.IsProductionWired);
             Assert.IsTrue(host.IsOperatorReady);
             Assert.AreEqual(20260716u, host.ChainId);
+            Assert.AreEqual(20260716u, host.BatcherConfiguredChainId);
+            Assert.AreEqual(host.ChainId, host.BatcherConfiguredChainId);
             Assert.AreEqual(ProofType.Multisig, host.ProofType);
             Assert.AreEqual(DAMode.Local, host.DaMode);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(20260716u, status.ChainId);
+            Assert.AreEqual(20260716u, status.BatcherConfiguredChainId);
+            Assert.AreEqual(status.ChainId, status.BatcherConfiguredChainId);
             Assert.AreEqual(ProofType.Multisig, status.ProofType);
             Assert.AreEqual(DAMode.Local, status.DaMode);
             Assert.AreEqual(host.RpcStore.SecurityLevel, status.SecurityLevel);
@@ -388,6 +392,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(File.Exists(statusPath));
             var statusJson = await File.ReadAllTextAsync(statusPath);
             StringAssert.Contains(statusJson, "\"chainId\": 20260716");
+            StringAssert.Contains(statusJson, "\"batcherConfiguredChainId\": 20260716");
             StringAssert.Contains(statusJson, "\"isOperatorReady\": true");
             StringAssert.Contains(statusJson, "\"nextExpectedBlock\": 1");
             StringAssert.Contains(statusJson, "\"hasPendingSealedBatch\": false");

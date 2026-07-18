@@ -137,6 +137,12 @@ public sealed class GatewayHostComposition : IDisposable
     public byte ProofSystem => ProofProver.ProofSystem;
 
     /// <summary>
+    /// Terminal aggregation backend id from <see cref="ProofProver"/>
+    /// (<see cref="IGatewayProofProver.AggregationBackendId"/>).
+    /// </summary>
+    public byte AggregationBackendId => ProofProver.AggregationBackendId;
+
+    /// <summary>
     /// Application/network replay domain bound into the publication profile at open
     /// (must be non-zero for production). Offline ops surface; L1 still funded.
     /// </summary>

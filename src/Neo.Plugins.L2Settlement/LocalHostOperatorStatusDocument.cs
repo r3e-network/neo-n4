@@ -14,6 +14,9 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>L2 chain id.</summary>
     public required uint ChainId { get; init; }
 
+    /// <summary>Batcher plugin configured chain id (0 when unset).</summary>
+    public required uint BatcherConfiguredChainId { get; init; }
+
     /// <summary>Proof type name.</summary>
     public required string ProofType { get; init; }
 
@@ -277,6 +280,7 @@ public sealed record LocalHostOperatorStatusDocument
         return new LocalHostOperatorStatusDocument
         {
             ChainId = status.ChainId,
+            BatcherConfiguredChainId = status.BatcherConfiguredChainId,
             ProofType = status.ProofType.ToString(),
             DaMode = status.DaMode.ToString(),
             SecurityLevel = status.SecurityLevel.ToString(),

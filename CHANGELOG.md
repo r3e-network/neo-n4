@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Batcher configured chain id and Gateway AggregationBackendId on host ops — 2026-07-18
+
+- `L2BatchPlugin.ConfiguredChainId` / Multisig/Optimistic/Zk LocalHost
+  `BatcherConfiguredChainId` (+ status/JSON) for offline batcher-vs-host chain id checks.
+- `GatewayHostComposition.AggregationBackendId` public (parity with `ProofSystem`).
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+
 ### Added — Gateway publisher NeoHub hashes on host ops — 2026-07-18
 
 - `ProofBoundRpcGlobalRootPublisher` exposes `SettlementManagerHash` /

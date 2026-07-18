@@ -88,6 +88,8 @@ public sealed class UT_GatewayHostComposition
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
             Assert.AreEqual(1, gwStatus.ProofSystem);
             Assert.AreEqual(1, host.ProofSystem);
+            Assert.AreEqual(MerklePathRoundProver.ConstBackendId, host.AggregationBackendId);
+            Assert.AreEqual(host.AggregationBackendId, gwStatus.AggregationBackendId);
             Assert.IsTrue(host.HasL1RpcEndpoint);
             Assert.IsTrue(gwStatus.HasL1RpcEndpoint);
             Assert.AreEqual(894710606u, host.ExpectedNetwork);

@@ -15,6 +15,12 @@ public sealed record LocalHostOperatorStatus
     /// <summary>L2 chain id from the wired bridge inbox.</summary>
     public required uint ChainId { get; init; }
 
+    /// <summary>
+    /// Batcher plugin settings chain id (0 when unset). Offline consistency check vs
+    /// <see cref="ChainId"/>.
+    /// </summary>
+    public required uint BatcherConfiguredChainId { get; init; }
+
     /// <summary>Configured proof type of the wired prover.</summary>
     public required ProofType ProofType { get; init; }
 

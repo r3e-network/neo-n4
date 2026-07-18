@@ -205,12 +205,13 @@ public class UT_NeoHubDeployReport
                 + "MetricsBoundPort / IsMetricsHttpListening",
                 stores.GetProperty("localHostProductionSurfaces").GetString());
             Assert.AreEqual(
-                "LocalHost.ChainId / ProofType / DaMode / HasSealedBatchSink / "
-                + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
-                + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
+                "LocalHost.ChainId / BatcherConfiguredChainId / ProofType / DaMode / "
+                + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / "
+                + "IsOperatorReady / PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
-                "LocalHost.NextExpectedBlock / LastAcknowledgedBatchNumber / LastAcknowledgedBlock / "
+                "LocalHost.BatcherConfiguredChainId / NextExpectedBlock / "
+                + "LastAcknowledgedBatchNumber / LastAcknowledgedBlock / "
                 + "NextBatchNumber / HasPendingSealedBatch / PendingSealedBatchNumber / "
                 + "PendingSealedBatchLastBlock / IsBatcherEnabled / MaxBlocksPerBatch / MaxTransactionsPerBatch / MaxBatchAgeMillis / "
                 + "MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / HasBatchDepositSource / "
@@ -309,8 +310,8 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                 + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
-                + "IsEnabled / MaxAutomaticRetries / ProofSystem / ExpectedNetwork / "
-                + "HasL1RpcEndpoint / ReplayDomain / VerificationKeyId / "
+                + "IsEnabled / MaxAutomaticRetries / ProofSystem / AggregationBackendId / "
+                + "ExpectedNetwork / HasL1RpcEndpoint / ReplayDomain / VerificationKeyId / "
                 + "SettlementManagerHash / MessageRouterHash / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
                 + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "

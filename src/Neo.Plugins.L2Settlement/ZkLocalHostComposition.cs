@@ -197,6 +197,12 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// </summary>
     public uint ChainId => Bridge.ChainId;
 
+    /// <summary>
+    /// Batcher plugin settings chain id
+    /// (<see cref="L2BatchPlugin.ConfiguredChainId"/>).
+    /// </summary>
+    public uint BatcherConfiguredChainId => Batch.ConfiguredChainId;
+
     /// <summary>Configured proof type of the wired prover host.</summary>
     public ProofType ProofType => Prover.Kind;
 
@@ -490,6 +496,7 @@ public sealed class ZkLocalHostComposition : IDisposable
         return new LocalHostOperatorStatus
         {
             ChainId = ChainId,
+            BatcherConfiguredChainId = BatcherConfiguredChainId,
             ProofType = ProofType,
             DaMode = DaMode,
             SecurityLevel = RpcStore.SecurityLevel,

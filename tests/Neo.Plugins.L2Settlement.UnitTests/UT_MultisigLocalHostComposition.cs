@@ -544,6 +544,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.MetricsBoundPort > 0);
             Assert.AreEqual(host.Metrics.BoundPort, host.MetricsBoundPort);
             Assert.IsTrue(host.HasMetricsReadinessCheck);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
             Assert.IsTrue(host.IsMetricsHttpHealthy);
             Assert.AreEqual(0, host.MetricsHttpHealthFailures.Count);
             var metricsStatus = await host.GetOperatorStatusAsync();

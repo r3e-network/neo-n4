@@ -464,7 +464,8 @@ public sealed class ZkLocalHostComposition : IDisposable
 
     /// <summary>
     /// Operator readiness without Neo.CLI: production WireProduction + sealed-batch sink.
-    /// Matches the default LocalHost <c>/readyz</c> predicate.
+    /// Minimal seal-path wiring; default metrics <c>/readyz</c> uses
+    /// <see cref="IsOfflinePassportComplete"/> (stricter offline passport).
     /// </summary>
     public bool IsOperatorReady => IsProductionWired && HasSealedBatchSink;
 
@@ -1217,11 +1218,12 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// <summary>
     /// Start (or re-enter) the metrics HTTP server. Idempotent.
     /// When <paramref name="readinessCheck"/> is null, uses
-    /// <c>() =&gt; Batch.HasSealedBatchSink</c>.
+    /// <see cref="IsOfflinePassportComplete"/> so <c>/readyz</c> tracks the offline operator
+    /// passport (not only sealed-batch sink presence).
     /// </summary>
     public void StartMetricsHttp(int? portOverride = null, Func<bool>? readinessCheck = null)
     {
-        Metrics.WithReadinessCheck(readinessCheck ?? (() => Batch.HasSealedBatchSink));
+        Metrics.WithReadinessCheck(readinessCheck ?? (() => IsOfflinePassportComplete));
         Metrics.Start(portOverride);
     }
 
@@ -1398,10 +1400,12 @@ public sealed class ZkLocalHostComposition : IDisposable
     public async ValueTask WriteOperatorStatusAsync(
         string path,
         int depositPeekLimit = 64,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var status = await GetOperatorStatusAsync(depositPeekLimit, cancellationToken)
+        var status = await GetOperatorStatusAsync(
+                depositPeekLimit, cancellationToken, nowUnixSeconds)
             .ConfigureAwait(false);
         var document = LocalHostOperatorStatusDocument.From(status);
         var fullPath = Path.GetFullPath(path);
@@ -1449,7 +1453,8 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// <param name="metricsPortOverride">Optional port override (use 0 for an ephemeral test port).</param>
     /// <param name="metricsReadinessCheck">
     /// Optional <c>/readyz</c> predicate. When <paramref name="startMetricsHttp"/> is true and
-    /// this is null, defaults to <c>() =&gt; batch.HasSealedBatchSink</c>.
+    /// this is null, defaults to <see cref="IsOfflinePassportComplete"/> via
+    /// <see cref="StartMetricsHttp"/>.
     /// </param>
     public static ZkLocalHostComposition Open(
         string chainDirectory,
@@ -1545,18 +1550,7 @@ public sealed class ZkLocalHostComposition : IDisposable
             if (deposits is not null)
                 bridge.WithDepositSource(deposits);
 
-            if (startMetricsHttp)
-            {
-                metrics.WithReadinessCheck(
-                    metricsReadinessCheck ?? (() => batch.HasSealedBatchSink));
-                metrics.Start(metricsPortOverride);
-            }
-            else if (metricsReadinessCheck is not null)
-            {
-                metrics.WithReadinessCheck(metricsReadinessCheck);
-            }
-
-            return new ZkLocalHostComposition(
+            var host = new ZkLocalHostComposition(
                 root,
                 batch,
                 settlement,
@@ -1569,6 +1563,11 @@ public sealed class ZkLocalHostComposition : IDisposable
                 bridge,
                 metrics,
                 rpcStore);
+            if (startMetricsHttp)
+                host.StartMetricsHttp(metricsPortOverride, metricsReadinessCheck);
+            else if (metricsReadinessCheck is not null)
+                host.Metrics.WithReadinessCheck(metricsReadinessCheck);
+            return host;
         }
         catch
         {

@@ -448,6 +448,7 @@ public sealed record NeoHubDeployReport(
                         + "IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / IsPipelineHealthy / "
                         + "PipelineHealthFailures / HasOverdueForcedInclusion / IsMetricsHttpHealthy / MetricsHttpHealthFailures / "
                         + "IsLocalHostHealthy / LocalHostHealthFailures / "
+                        + "StartMetricsHttp(/readyz defaults to IsOfflinePassportComplete) / "
                         + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
                         + "OfflinePassportFailures / "
                         + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "

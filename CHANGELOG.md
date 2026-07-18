@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost /readyz defaults to offline passport — 2026-07-18
+
+- Multisig/Optimistic/Zk `StartMetricsHttp` default readiness is
+  `IsOfflinePassportComplete` (was sealed-batch sink only).
+- `Open(..., startMetricsHttp: true)` builds the host first, then calls
+  `StartMetricsHttp` so the default can use the full offline passport.
+- `WriteOperatorStatusAsync` accepts optional `nowUnixSeconds` for soft FI clock.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Added — Settlement retrying + Gateway host health alias — 2026-07-18
 
 - LocalHost operator status (+ JSON) exposes `IsSettlementRetrying`; pipeline health names

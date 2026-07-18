@@ -260,6 +260,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "MetricsHttpHealthFailures");
         StringAssert.Contains(output, "IsLocalHostHealthy");
         StringAssert.Contains(output, "LocalHostHealthFailures");
+        StringAssert.Contains(output, "IsOfflinePassportComplete");
+        StringAssert.Contains(output, "StartMetricsHttp");
         StringAssert.Contains(output, "IsOutboxIdle");
         StringAssert.Contains(output, "IsPublicationHealthy");
         StringAssert.Contains(output, "PublicationHealthFailures");

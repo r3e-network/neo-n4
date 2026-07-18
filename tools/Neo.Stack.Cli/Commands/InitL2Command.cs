@@ -161,6 +161,7 @@ internal static class InitL2Command
         Console.WriteLine("               HasOverdueForcedInclusion / HasOverdueForcedInclusionCached (soft; live poll is HasOverdueForcedInclusionAsync)");
         Console.WriteLine("               IsMetricsHttpHealthy / MetricsHttpHealthFailures (N/A empty when metrics disabled)");
         Console.WriteLine("               IsLocalHostHealthy / LocalHostHealthFailures (pipeline + metrics HTTP rollup)");
+        Console.WriteLine("               StartMetricsHttp /readyz defaults to IsOfflinePassportComplete (not only HasSealedBatchSink)");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");
         Console.WriteLine("               ConsumedDepositCount / DepositSourceReadyCount / DepositSourceReservedCount / DepositSourceSoftConsumedCount");
         Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork");

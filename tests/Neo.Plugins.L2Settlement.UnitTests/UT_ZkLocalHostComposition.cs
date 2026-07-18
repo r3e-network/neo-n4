@@ -136,7 +136,11 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(host.HasBatchProver);
             Assert.AreEqual(host.ChainId, host.SettlementConfiguredChainId);
             Assert.AreEqual(ProofType.Zk, host.SettlementConfiguredProofType);
+            Assert.IsTrue(host.IsChainIdConfigConsistent);
+            Assert.IsTrue(host.IsProofTypeConfigConsistent);
             Assert.AreEqual(status.ProofType, status.SettlementConfiguredProofType);
+            Assert.IsTrue(status.IsChainIdConfigConsistent);
+            Assert.IsTrue(status.IsProofTypeConfigConsistent);
             Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, status.OpenBatchWithdrawalCount);
             Assert.IsFalse(status.SupportsLocalDaReader);

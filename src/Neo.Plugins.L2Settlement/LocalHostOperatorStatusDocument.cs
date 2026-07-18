@@ -26,6 +26,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Settlement plugin configured proof type name.</summary>
     public required string SettlementConfiguredProofType { get; init; }
 
+    /// <summary>Host/batcher/settlement chain ids agree.</summary>
+    public required bool IsChainIdConfigConsistent { get; init; }
+
+    /// <summary>Host and settlement proof types agree.</summary>
+    public required bool IsProofTypeConfigConsistent { get; init; }
+
     /// <summary>DA mode name.</summary>
     public required string DaMode { get; init; }
 
@@ -290,6 +296,8 @@ public sealed record LocalHostOperatorStatusDocument
             SettlementConfiguredChainId = status.SettlementConfiguredChainId,
             ProofType = status.ProofType.ToString(),
             SettlementConfiguredProofType = status.SettlementConfiguredProofType.ToString(),
+            IsChainIdConfigConsistent = status.IsChainIdConfigConsistent,
+            IsProofTypeConfigConsistent = status.IsProofTypeConfigConsistent,
             DaMode = status.DaMode.ToString(),
             SecurityLevel = status.SecurityLevel.ToString(),
             GatewayEnabled = status.GatewayEnabled,

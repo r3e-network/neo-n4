@@ -132,6 +132,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(ProofType.Multisig, host.ProofType);
             Assert.AreEqual(ProofType.Multisig, host.SettlementConfiguredProofType);
             Assert.AreEqual(host.ProofType, host.SettlementConfiguredProofType);
+            Assert.IsTrue(host.IsChainIdConfigConsistent);
+            Assert.IsTrue(host.IsProofTypeConfigConsistent);
             Assert.AreEqual(DAMode.Local, host.DaMode);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
@@ -142,6 +144,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(status.ChainId, status.SettlementConfiguredChainId);
             Assert.AreEqual(ProofType.Multisig, status.ProofType);
             Assert.AreEqual(ProofType.Multisig, status.SettlementConfiguredProofType);
+            Assert.IsTrue(status.IsChainIdConfigConsistent);
+            Assert.IsTrue(status.IsProofTypeConfigConsistent);
             Assert.AreEqual(DAMode.Local, status.DaMode);
             Assert.AreEqual(host.RpcStore.SecurityLevel, status.SecurityLevel);
             Assert.IsTrue(status.IsOperatorReady);

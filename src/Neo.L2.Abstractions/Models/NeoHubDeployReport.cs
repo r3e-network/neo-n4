@@ -438,7 +438,8 @@ public sealed record NeoHubDeployReport(
                         + "MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostReadiness"] =
                         "LocalHost.ChainId / BatcherConfiguredChainId / SettlementConfiguredChainId / "
-                        + "ProofType / SettlementConfiguredProofType / DaMode / HasSealedBatchSink / "
+                        + "ProofType / SettlementConfiguredProofType / IsChainIdConfigConsistent / "
+                        + "IsProofTypeConfigConsistent / DaMode / HasSealedBatchSink / "
                         + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                         + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                     ["localHostBatcherHelpers"] =

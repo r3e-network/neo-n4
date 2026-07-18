@@ -218,6 +218,17 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// </summary>
     public ProofType SettlementConfiguredProofType => Settlement.ConfiguredProofType;
 
+    /// <summary>
+    /// True when bridge <see cref="ChainId"/> matches batcher and settlement configured chain ids.
+    /// </summary>
+    public bool IsChainIdConfigConsistent =>
+        ChainId == BatcherConfiguredChainId && ChainId == SettlementConfiguredChainId;
+
+    /// <summary>
+    /// True when host <see cref="ProofType"/> matches settlement configured proof type.
+    /// </summary>
+    public bool IsProofTypeConfigConsistent => ProofType == SettlementConfiguredProofType;
+
     /// <summary>Production DA mode of the host-supplied DA writer.</summary>
     public DAMode DaMode => DaWriter.Mode;
 
@@ -512,6 +523,8 @@ public sealed class ZkLocalHostComposition : IDisposable
             SettlementConfiguredChainId = SettlementConfiguredChainId,
             ProofType = ProofType,
             SettlementConfiguredProofType = SettlementConfiguredProofType,
+            IsChainIdConfigConsistent = IsChainIdConfigConsistent,
+            IsProofTypeConfigConsistent = IsProofTypeConfigConsistent,
             DaMode = DaMode,
             SecurityLevel = RpcStore.SecurityLevel,
             GatewayEnabled = RpcStore.GatewayEnabled,

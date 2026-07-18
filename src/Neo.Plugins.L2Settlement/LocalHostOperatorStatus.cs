@@ -36,6 +36,16 @@ public sealed record LocalHostOperatorStatus
     /// </summary>
     public required ProofType SettlementConfiguredProofType { get; init; }
 
+    /// <summary>
+    /// True when <see cref="ChainId"/> equals both batcher and settlement configured chain ids.
+    /// </summary>
+    public required bool IsChainIdConfigConsistent { get; init; }
+
+    /// <summary>
+    /// True when host <see cref="ProofType"/> equals settlement configured proof type.
+    /// </summary>
+    public required bool IsProofTypeConfigConsistent { get; init; }
+
     /// <summary>DA mode of the wired DA writer.</summary>
     public required DAMode DaMode { get; init; }
 

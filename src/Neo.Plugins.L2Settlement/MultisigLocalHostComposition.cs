@@ -204,6 +204,17 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// </summary>
     public ProofType SettlementConfiguredProofType => Settlement.ConfiguredProofType;
 
+    /// <summary>
+    /// True when bridge <see cref="ChainId"/> matches batcher and settlement configured chain ids.
+    /// </summary>
+    public bool IsChainIdConfigConsistent =>
+        ChainId == BatcherConfiguredChainId && ChainId == SettlementConfiguredChainId;
+
+    /// <summary>
+    /// True when host <see cref="ProofType"/> matches settlement configured proof type.
+    /// </summary>
+    public bool IsProofTypeConfigConsistent => ProofType == SettlementConfiguredProofType;
+
     /// <summary>Local DA mode of the wired persistent DA writer.</summary>
     public DAMode DaMode => DaWriter.Mode;
 
@@ -498,6 +509,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
             SettlementConfiguredChainId = SettlementConfiguredChainId,
             ProofType = ProofType,
             SettlementConfiguredProofType = SettlementConfiguredProofType,
+            IsChainIdConfigConsistent = IsChainIdConfigConsistent,
+            IsProofTypeConfigConsistent = IsProofTypeConfigConsistent,
             DaMode = DaMode,
             SecurityLevel = RpcStore.SecurityLevel,
             GatewayEnabled = RpcStore.GatewayEnabled,

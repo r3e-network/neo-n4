@@ -206,7 +206,8 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostProductionSurfaces").GetString());
             Assert.AreEqual(
                 "LocalHost.ChainId / BatcherConfiguredChainId / SettlementConfiguredChainId / "
-                + "ProofType / SettlementConfiguredProofType / DaMode / HasSealedBatchSink / "
+                + "ProofType / SettlementConfiguredProofType / IsChainIdConfigConsistent / "
+                + "IsProofTypeConfigConsistent / DaMode / HasSealedBatchSink / "
                 + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                 + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());

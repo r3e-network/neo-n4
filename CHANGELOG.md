@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost chain id / proof type config consistency flags — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose
+  `IsChainIdConfigConsistent` (host/batcher/settlement chain ids agree) and
+  `IsProofTypeConfigConsistent` (host vs settlement proof type).
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- Offline config passport only; L1 settle / Zk prove-batch remain funded gates.
+
 ### Added — Settlement configured chain id and proof type on LocalHost ops — 2026-07-18
 
 - `L2SettlementPlugin` exposes `ConfiguredChainId` / `ConfiguredProofType` from settings.

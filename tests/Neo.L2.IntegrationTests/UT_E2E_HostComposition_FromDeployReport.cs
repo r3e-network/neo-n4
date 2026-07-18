@@ -221,10 +221,14 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(20260716u, settlementHost.SettlementConfiguredChainId);
             Assert.AreEqual(ProofType.Multisig, settlementHost.ProofType);
             Assert.AreEqual(ProofType.Multisig, settlementHost.SettlementConfiguredProofType);
+            Assert.IsTrue(settlementHost.IsChainIdConfigConsistent);
+            Assert.IsTrue(settlementHost.IsProofTypeConfigConsistent);
             Assert.AreEqual(DAMode.Local, settlementHost.DaMode);
             Assert.AreEqual(0, settlementHost.PeekSharedBridgeDeposits(8).Count);
             var opStatus = settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(opStatus.IsOperatorReady);
+            Assert.IsTrue(opStatus.IsChainIdConfigConsistent);
+            Assert.IsTrue(opStatus.IsProofTypeConfigConsistent);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasBatchProver);
@@ -291,6 +295,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"hasSharedBridgeHash\": true");
             StringAssert.Contains(statusJson, "\"hasL2BridgeHash\": false");
             StringAssert.Contains(statusJson, "\"hasMessageOutbox\": true");
+            StringAssert.Contains(statusJson, "\"isChainIdConfigConsistent\": true");
+            StringAssert.Contains(statusJson, "\"isProofTypeConfigConsistent\": true");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
@@ -526,6 +532,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(host.ChainId, opStatus.BatcherConfiguredChainId);
             Assert.AreEqual(host.ProofType, host.SettlementConfiguredProofType);
             Assert.AreEqual(opStatus.ProofType, opStatus.SettlementConfiguredProofType);
+            Assert.IsTrue(host.IsChainIdConfigConsistent);
+            Assert.IsTrue(host.IsProofTypeConfigConsistent);
+            Assert.IsTrue(opStatus.IsChainIdConfigConsistent);
+            Assert.IsTrue(opStatus.IsProofTypeConfigConsistent);
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);
@@ -620,6 +630,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(host.IsOperatorReady);
             Assert.AreEqual(ProofType.Zk, host.ProofType);
             Assert.AreEqual(ProofType.Zk, host.SettlementConfiguredProofType);
+            Assert.IsTrue(host.IsChainIdConfigConsistent);
+            Assert.IsTrue(host.IsProofTypeConfigConsistent);
             Assert.AreEqual(DAMode.L1, host.DaMode);
             Assert.AreEqual(host.ChainId, host.BatcherConfiguredChainId);
             Assert.AreEqual(host.ChainId, host.SettlementConfiguredChainId);
@@ -628,6 +640,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.AreEqual(ProofType.Zk, opStatus.ProofType);
             Assert.AreEqual(ProofType.Zk, opStatus.SettlementConfiguredProofType);
+            Assert.IsTrue(opStatus.IsChainIdConfigConsistent);
+            Assert.IsTrue(opStatus.IsProofTypeConfigConsistent);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasBatchProver);
             Assert.IsFalse(opStatus.SupportsLocalDaReader);

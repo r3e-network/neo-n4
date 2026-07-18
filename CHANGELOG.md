@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Health probes add checkpoint/FI/inbox and Gateway retry/lag — 2026-07-19
+
+- Multisig/Optimistic/Zk `IsBatcherCheckpointAlignedAsync` light probe; health probe adds
+  `IsBatcherCheckpointAligned`, `HasOverdueForcedInclusion`, `PendingSealedBatchNumber`,
+  `DepositSourceReadyCount`, `L1InboxPendingCount`.
+- Gateway health probe adds `PendingPublicationEpoch`, `OutboxRetryCount`, `OutboxLastError`,
+  `ConfirmationLagMilliseconds`, `PublicationState`.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 settle / publication confirmation remain funded gates.
+
 ### Changed — Health probe documents include runtime signal flags — 2026-07-19
 
 - `LocalHostHealthProbeDocument` adds `IsPipelineEnabled`, `HasPendingSealedBatch`,

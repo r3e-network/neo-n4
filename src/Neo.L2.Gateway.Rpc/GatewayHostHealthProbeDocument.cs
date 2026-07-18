@@ -1,3 +1,5 @@
+using Neo.Plugins.L2Gateway;
+
 namespace Neo.L2.Gateway.Rpc;
 
 /// <summary>
@@ -20,11 +22,26 @@ public sealed record GatewayHostHealthProbeDocument
     /// <summary>Unconfirmed publication remains retryable or poisoned.</summary>
     public required bool HasPendingPublication { get; init; }
 
+    /// <summary>Pending publication epoch when present; otherwise null.</summary>
+    public required ulong? PendingPublicationEpoch { get; init; }
+
     /// <summary>In-process aggregator pending commitment count.</summary>
     public required int AggregatorPendingCount { get; init; }
 
     /// <summary>Durable outbox queue depth.</summary>
     public required int OutboxQueueDepth { get; init; }
+
+    /// <summary>Consecutive outbox retry count.</summary>
+    public required int OutboxRetryCount { get; init; }
+
+    /// <summary>Most recent outbox error, if any.</summary>
+    public required string? OutboxLastError { get; init; }
+
+    /// <summary>Confirmation lag in milliseconds from durable outbox status.</summary>
+    public required long ConfirmationLagMilliseconds { get; init; }
+
+    /// <summary>Current publication state, or null when none is active.</summary>
+    public required GatewayOutboxState? PublicationState { get; init; }
 
     /// <summary>Durable outbox is poisoned.</summary>
     public required bool IsOutboxPoisoned { get; init; }

@@ -448,6 +448,7 @@ public sealed record NeoHubDeployReport(
                         + "IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / "
                         + "IsSettlementRuntimeIdle / IsSettlementPoisonedState / IsSettlementRetryingState / "
                         + "IsSettlementRuntimeIdleAsync / IsSettlementPoisonedAsync / IsSettlementRetryingAsync / "
+                        + "IsBatcherCheckpointAlignedAsync / "
                         + "IsPipelineHealthy / "
                         + "PipelineHealthFailures / HasOverdueForcedInclusion / IsOpenBatchPastMaxAge / OpenBatchAgeMillis / "
                         + "IsBatcherCheckpointAligned / "
@@ -511,7 +512,7 @@ public sealed record NeoHubDeployReport(
                     ["localHostWriteHealthProbe"] =
                         "LocalHost.GetHealthProbeAsync() / WriteHealthProbeAsync(path) → "
                         + "LocalHostHealthProbeDocument JSON "
-                        + "(passport/pipeline/metrics/settlement + pending-seal/metrics-port flags)",
+                        + "(passport/pipeline/metrics/settlement + pending-seal/checkpoint/FI/inbox flags)",
                     ["localHostWritePrometheusMetrics"] =
                         "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                     ["gatewayHostWriteOperatorStatus"] =
@@ -519,7 +520,7 @@ public sealed record NeoHubDeployReport(
                     ["gatewayHostWriteHealthProbe"] =
                         "GatewayHostComposition.GetHealthProbe() / WriteHealthProbeAsync(path) → "
                         + "GatewayHostHealthProbeDocument JSON "
-                        + "(passport/outbox/publication + pending/queue-depth flags)",
+                        + "(passport/outbox/publication + pending/queue/retry/lag flags)",
                     ["gatewayHostWritePrometheusMetrics"] =
                         "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "
                         + "(when Metrics is IMetricsSource)",

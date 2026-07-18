@@ -216,6 +216,7 @@ public class UT_NeoHubDeployReport
                 + "IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / "
                 + "IsSettlementRuntimeIdle / IsSettlementPoisonedState / IsSettlementRetryingState / "
                 + "IsSettlementRuntimeIdleAsync / IsSettlementPoisonedAsync / IsSettlementRetryingAsync / "
+                + "IsBatcherCheckpointAlignedAsync / "
                 + "IsPipelineHealthy / "
                 + "PipelineHealthFailures / HasOverdueForcedInclusion / IsOpenBatchPastMaxAge / OpenBatchAgeMillis / "
                 + "IsBatcherCheckpointAligned / "
@@ -290,7 +291,7 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.GetHealthProbeAsync() / WriteHealthProbeAsync(path) → "
                 + "LocalHostHealthProbeDocument JSON "
-                + "(passport/pipeline/metrics/settlement + pending-seal/metrics-port flags)",
+                + "(passport/pipeline/metrics/settlement + pending-seal/checkpoint/FI/inbox flags)",
                 stores.GetProperty("localHostWriteHealthProbe").GetString());
             Assert.AreEqual(
                 "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
@@ -301,7 +302,7 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "GatewayHostComposition.GetHealthProbe() / WriteHealthProbeAsync(path) → "
                 + "GatewayHostHealthProbeDocument JSON "
-                + "(passport/outbox/publication + pending/queue-depth flags)",
+                + "(passport/outbox/publication + pending/queue/retry/lag flags)",
                 stores.GetProperty("gatewayHostWriteHealthProbe").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "

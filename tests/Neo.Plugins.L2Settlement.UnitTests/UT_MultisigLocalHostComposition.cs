@@ -472,11 +472,15 @@ public sealed class UT_MultisigLocalHostComposition
             await host.WriteOperatorStatusAsync(statusPath);
             Assert.IsTrue(File.Exists(statusPath));
             var statusJson = await File.ReadAllTextAsync(statusPath);
+            Assert.IsTrue(await host.IsBatcherCheckpointAlignedAsync());
             var probe = await host.GetHealthProbeAsync();
             Assert.IsTrue(probe.IsOfflinePassportComplete);
             Assert.IsTrue(probe.IsPipelineEnabled);
             Assert.IsFalse(probe.HasPendingSealedBatch);
+            Assert.IsNull(probe.PendingSealedBatchNumber);
             Assert.IsFalse(probe.IsOpenBatchPastMaxAge);
+            Assert.IsTrue(probe.IsBatcherCheckpointAligned);
+            Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
             Assert.AreEqual(0, probe.PipelineHealthFailures.Count);
             Assert.IsFalse(probe.IsMetricsHttpListening);
@@ -485,6 +489,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(probe.IsSettlementPoisoned);
             Assert.IsFalse(probe.IsSettlementRetrying);
             Assert.AreEqual(0, probe.PendingSettlementCount);
+            Assert.AreEqual(0, probe.DepositSourceReadyCount);
+            Assert.AreEqual(0, probe.L1InboxPendingCount);
             var probePath = Path.Combine(chainDir, "health-probe.json");
             await host.WriteHealthProbeAsync(probePath);
             Assert.IsTrue(File.Exists(probePath));
@@ -493,11 +499,15 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"isPipelineEnabled\": true");
             StringAssert.Contains(probeJson, "\"hasPendingSealedBatch\": false");
             StringAssert.Contains(probeJson, "\"isOpenBatchPastMaxAge\": false");
+            StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": true");
+            StringAssert.Contains(probeJson, "\"hasOverdueForcedInclusion\": false");
             StringAssert.Contains(probeJson, "\"isPipelineHealthy\": true");
             StringAssert.Contains(probeJson, "\"isSettlementRuntimeIdle\": true");
             StringAssert.Contains(probeJson, "\"isSettlementPoisoned\": false");
             StringAssert.Contains(probeJson, "\"isSettlementRetrying\": false");
             StringAssert.Contains(probeJson, "\"pendingSettlementCount\": 0");
+            StringAssert.Contains(probeJson, "\"depositSourceReadyCount\": 0");
+            StringAssert.Contains(probeJson, "\"l1InboxPendingCount\": 0");
             // Compact probe must not dump full operator inventory fields.
             Assert.IsFalse(probeJson.Contains("\"nextExpectedBlock\"", StringComparison.Ordinal));
             StringAssert.Contains(statusJson, "\"chainId\": 20260716");

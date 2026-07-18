@@ -23,8 +23,22 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Sealed batch awaits settlement ack (local durable).</summary>
     public required bool HasPendingSealedBatch { get; init; }
 
+    /// <summary>Pending sealed batch number when present; otherwise null.</summary>
+    public required ulong? PendingSealedBatchNumber { get; init; }
+
     /// <summary>Open batch is at or past MaxBatchAgeMillis (seal-by-age overdue).</summary>
     public required bool IsOpenBatchPastMaxAge { get; init; }
+
+    /// <summary>
+    /// Batcher last-acked batch aligns with durable settlement checkpoint (local artifacts).
+    /// </summary>
+    public required bool IsBatcherCheckpointAligned { get; init; }
+
+    /// <summary>
+    /// Soft forced-inclusion overdue from local cache only (no L1 scan).
+    /// Live poll remains <c>HasOverdueForcedInclusionAsync</c>.
+    /// </summary>
+    public required bool HasOverdueForcedInclusion { get; init; }
 
     /// <summary>Pipeline health (passport + batcher/settlement runtime) is clean.</summary>
     public required bool IsPipelineHealthy { get; init; }
@@ -61,4 +75,10 @@ public sealed record LocalHostHealthProbeDocument
 
     /// <summary>Local pending settlement artifact count (no L1 claim).</summary>
     public required int PendingSettlementCount { get; init; }
+
+    /// <summary>Soft deposit-source ready count (in-memory; no L1 scan).</summary>
+    public required int DepositSourceReadyCount { get; init; }
+
+    /// <summary>Local L1 inbox pending count (soft cache; no L1 scan claim).</summary>
+    public required int L1InboxPendingCount { get; init; }
 }

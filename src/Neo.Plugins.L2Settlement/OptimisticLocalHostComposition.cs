@@ -730,6 +730,19 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     }
 
     /// <summary>
+    /// Batcher last-acked batch aligns with durable settlement checkpoint (local artifacts).
+    /// Light probe; not an L1 settle claim.
+    /// </summary>
+    public async ValueTask<bool> IsBatcherCheckpointAlignedAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(
+            LastAcknowledgedBatchNumber, checkpoint?.BatchNumber);
+    }
+
+    /// <summary>
     /// Local settlement queue idle (pending + recovery). Light probe without a full status
     /// document; does not claim L1 settle confirmation.
     /// </summary>
@@ -1539,13 +1552,19 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         var localHostFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
             pipelineFailures, metricsFailures);
         var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
+        var now = nowUnixSeconds
+            ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         return new LocalHostHealthProbeDocument
         {
             IsOfflinePassportComplete = IsOfflinePassportComplete,
             OfflinePassportFailures = OfflinePassportFailures,
             IsPipelineEnabled = IsPipelineEnabled,
             HasPendingSealedBatch = HasPendingSealedBatch,
+            PendingSealedBatchNumber = PendingSealedBatchNumber,
             IsOpenBatchPastMaxAge = IsOpenBatchPastMaxAge,
+            IsBatcherCheckpointAligned = await IsBatcherCheckpointAlignedAsync(cancellationToken)
+                .ConfigureAwait(false),
+            HasOverdueForcedInclusion = HasOverdueForcedInclusionCached(now),
             IsPipelineHealthy = pipelineFailures.Count == 0,
             PipelineHealthFailures = pipelineFailures,
             IsMetricsHttpListening = IsMetricsHttpListening,
@@ -1561,6 +1580,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             IsSettlementRetrying = await IsSettlementRetryingAsync(cancellationToken)
                 .ConfigureAwait(false),
             PendingSettlementCount = pending,
+            DepositSourceReadyCount = DepositSourceReadyCount,
+            L1InboxPendingCount = L1InboxPendingCount,
         };
     }
 

@@ -137,6 +137,15 @@ public sealed class UT_GatewayHostComposition
             Assert.AreEqual(formattedStatus, statusJson);
             var probe = host.GetHealthProbe();
             Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.IsTrue(probe.IsEnabled);
+            Assert.IsTrue(probe.IsPublicationConfigured);
+            Assert.IsTrue(probe.HasDurableOutbox);
+            Assert.IsTrue(probe.HasL1RpcEndpoint);
+            Assert.IsTrue(probe.HasExpectedNetwork);
+            Assert.AreEqual(894710606u, probe.ExpectedNetwork);
+            Assert.IsTrue(probe.IsPublicationProfileReady);
+            Assert.IsTrue(probe.MaxAutomaticRetries >= 1);
+            Assert.IsTrue(probe.HasMetrics);
             Assert.IsFalse(probe.HasPendingPublication);
             Assert.IsNull(probe.PendingPublicationEpoch);
             Assert.AreEqual(0, probe.AggregatorPendingCount);
@@ -151,6 +160,11 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(formatted, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(formatted, "\"isPublicationHealthy\": true");
             StringAssert.Contains(formatted, "\"hasPendingPublication\": false");
+            StringAssert.Contains(formatted, "\"isPublicationConfigured\": true");
+            StringAssert.Contains(formatted, "\"hasDurableOutbox\": true");
+            StringAssert.Contains(formatted, "\"isPublicationProfileReady\": true");
+            StringAssert.Contains(formatted, "\"hasExpectedNetwork\": true");
+            StringAssert.Contains(formatted, "\"hasMetrics\": true");
             Assert.IsTrue(formatted.EndsWith('\n') || formatted.EndsWith(Environment.NewLine));
             var probePath = Path.Combine(dir, "gateway-health-probe.json");
             host.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
@@ -165,7 +179,9 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(probeJson, "\"isPublicationHealthy\": true");
             StringAssert.Contains(probeJson, "\"isOutboxIdle\": true");
             StringAssert.Contains(probeJson, "\"isOutboxPoisoned\": false");
+            // Compact probe still omits full status inventory (proof system / VK hex).
             Assert.IsFalse(probeJson.Contains("\"proofSystem\"", StringComparison.Ordinal));
+            Assert.IsFalse(probeJson.Contains("\"verificationKeyId\"", StringComparison.Ordinal));
             StringAssert.Contains(statusJson, "\"hasPendingPublication\": false");
             StringAssert.Contains(statusJson, "\"aggregatorPendingCount\": 0");
             StringAssert.Contains(statusJson, "\"hasDurableOutbox\": true");

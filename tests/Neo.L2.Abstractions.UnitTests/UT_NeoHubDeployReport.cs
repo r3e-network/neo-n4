@@ -310,7 +310,8 @@ public class UT_NeoHubDeployReport
                 "GatewayHostComposition.GetHealthProbe() / FormatHealthProbeJson() / "
                 + "WriteHealthProbeAsync(path) → "
                 + "GatewayHostHealthProbeDocument JSON "
-                + "(passport/outbox/publication + pending/queue/retry/lag flags)",
+                + "(passport + enabled/publication/outbox/rpc/network/profile flags + "
+                + "pending/queue/retry/lag runtime)",
                 stores.GetProperty("gatewayHostWriteHealthProbe").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "

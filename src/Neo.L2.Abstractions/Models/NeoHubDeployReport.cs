@@ -528,7 +528,8 @@ public sealed record NeoHubDeployReport(
                         "GatewayHostComposition.GetHealthProbe() / FormatHealthProbeJson() / "
                         + "WriteHealthProbeAsync(path) → "
                         + "GatewayHostHealthProbeDocument JSON "
-                        + "(passport/outbox/publication + pending/queue/retry/lag flags)",
+                        + "(passport + enabled/publication/outbox/rpc/network/profile flags + "
+                        + "pending/queue/retry/lag runtime)",
                     ["gatewayHostWritePrometheusMetrics"] =
                         "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "
                         + "(when Metrics is IMetricsSource)",

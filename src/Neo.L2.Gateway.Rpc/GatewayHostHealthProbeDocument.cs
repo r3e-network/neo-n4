@@ -37,6 +37,33 @@ public sealed record GatewayHostHealthProbeDocument
     /// <summary>Failed offline passport checks (empty when complete).</summary>
     public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
 
+    /// <summary>Gateway plugin enabled in settings.</summary>
+    public required bool IsEnabled { get; init; }
+
+    /// <summary>Production global-root publication is configured offline.</summary>
+    public required bool IsPublicationConfigured { get; init; }
+
+    /// <summary>Durable Gateway outbox is attached.</summary>
+    public required bool HasDurableOutbox { get; init; }
+
+    /// <summary>L1 JSON-RPC endpoint is configured for publication.</summary>
+    public required bool HasL1RpcEndpoint { get; init; }
+
+    /// <summary>Expected network magic is configured (offline).</summary>
+    public required bool HasExpectedNetwork { get; init; }
+
+    /// <summary>Configured expected network magic when set; otherwise null.</summary>
+    public required uint? ExpectedNetwork { get; init; }
+
+    /// <summary>Publication profile wiring is ready (offline composite).</summary>
+    public required bool IsPublicationProfileReady { get; init; }
+
+    /// <summary>Configured max automatic publication retries before poison.</summary>
+    public required int MaxAutomaticRetries { get; init; }
+
+    /// <summary>Optional metrics sink was supplied at open.</summary>
+    public required bool HasMetrics { get; init; }
+
     /// <summary>Unconfirmed publication remains retryable or poisoned.</summary>
     public required bool HasPendingPublication { get; init; }
 

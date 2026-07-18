@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Gateway health probe adds publication passport flags — 2026-07-19
+
+- `GatewayHostHealthProbeDocument` (+ `GetHealthProbe` / `FormatHealthProbeJson`) adds
+  offline publication-profile flags: `IsEnabled`, `IsPublicationConfigured`,
+  `HasDurableOutbox`, `HasL1RpcEndpoint`, `HasExpectedNetwork`, `ExpectedNetwork`,
+  `IsPublicationProfileReady`, `MaxAutomaticRetries`, `HasMetrics` so ops can interpret
+  `OfflinePassportFailures` without the full status dump.
+- Soft/config only; L1 confirmation remains a funded gate. Wireproduction notes; unit
+  coverage. No wire/ABI change.
+
 ### Changed — LocalHost health probe adds batcher/checkpoint numbers — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

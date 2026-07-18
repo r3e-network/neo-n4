@@ -247,6 +247,9 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(0, probe.InProgressTxCount);
             Assert.AreEqual(0, probe.OpenBatchBlockCount);
             Assert.IsTrue(probe.IsBatcherCheckpointAligned);
+            Assert.AreEqual(0UL, probe.LastAcknowledgedBatchNumber);
+            Assert.AreEqual(1UL, probe.NextBatchNumber);
+            Assert.IsNull(probe.LatestCheckpointBatchNumber);
             Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
             Assert.IsTrue(probe.IsSettlementRuntimeIdle);
@@ -264,6 +267,7 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(probeJson, "\"isSettlementRuntimeIdle\": true");
             StringAssert.Contains(probeJson, "\"isPipelineEnabled\": true");
             StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": true");
+            StringAssert.Contains(probeJson, "\"nextBatchNumber\": 1");
             StringAssert.Contains(probeJson, "\"hasOpenBatch\": false");
             StringAssert.Contains(probeJson, "\"openBatchBlockCount\": 0");
             StringAssert.Contains(probeJson, "\"depositSourceReservedCount\": 0");

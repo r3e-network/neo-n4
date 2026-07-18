@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds batcher/checkpoint numbers — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe` JSON) adds `NextExpectedBlock`, `LastAcknowledgedBatchNumber` /
+  `LastAcknowledgedBlock`, `NextBatchNumber`, `LatestCheckpointBatchNumber` /
+  `LatestCheckpointLastBlock` so ops can interpret `IsBatcherCheckpointAligned`
+  without the full status dump.
+- Durable local checkpoint only; no L1 settle claim. Wireproduction notes; unit coverage.
+  No wire/ABI change. L1 settle remains a funded gate.
+
 ### Changed — LocalHost health probe adds open-batch soft counts — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

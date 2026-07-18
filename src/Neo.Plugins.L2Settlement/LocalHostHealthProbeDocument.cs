@@ -85,6 +85,28 @@ public sealed record LocalHostHealthProbeDocument
     /// </summary>
     public required bool IsBatcherCheckpointAligned { get; init; }
 
+    /// <summary>Next L2 block the batcher expects (local batcher; null when unset).</summary>
+    public required ulong? NextExpectedBlock { get; init; }
+
+    /// <summary>Last batch number the batcher has acked from settlement (local).</summary>
+    public required ulong LastAcknowledgedBatchNumber { get; init; }
+
+    /// <summary>Last L2 block the batcher has acked from settlement (local).</summary>
+    public required ulong LastAcknowledgedBlock { get; init; }
+
+    /// <summary>Next batch number the batcher will seal (local).</summary>
+    public required ulong NextBatchNumber { get; init; }
+
+    /// <summary>
+    /// Durable settlement checkpoint batch number when present; otherwise null (local store).
+    /// </summary>
+    public required ulong? LatestCheckpointBatchNumber { get; init; }
+
+    /// <summary>
+    /// Durable settlement checkpoint last L2 block when present; otherwise null (local store).
+    /// </summary>
+    public required ulong? LatestCheckpointLastBlock { get; init; }
+
     /// <summary>
     /// Soft forced-inclusion overdue from local cache only (no L1 scan).
     /// Live poll remains <c>HasOverdueForcedInclusionAsync</c>.

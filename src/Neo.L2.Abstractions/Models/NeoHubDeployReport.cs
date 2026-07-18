@@ -515,7 +515,8 @@ public sealed record NeoHubDeployReport(
                         + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                         + "LocalHostHealthProbeDocument JSON "
                         + "(passport/pipeline/metrics/settlement + pending-seal/open-batch counts + "
-                        + "checkpoint/FI/inbox + deposit ready/reserved/soft-consumed + "
+                        + "batcher ack/next + durable checkpoint numbers + "
+                        + "FI/inbox + deposit ready/reserved/soft-consumed + "
                         + "L1Inbox consumed + staged withdrawals + "
                         + "HasMetricsReadinessCheck/HasMetricsHealthProbe flags)",
                     ["localHostWritePrometheusMetrics"] =

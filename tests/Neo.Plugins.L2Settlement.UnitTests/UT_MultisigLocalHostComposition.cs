@@ -500,6 +500,13 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, probe.OpenBatchForcedInclusionCount);
             Assert.AreEqual(0, probe.OpenBatchWithdrawalCount);
             Assert.IsTrue(probe.IsBatcherCheckpointAligned);
+            // Fresh chain after empty checkpoint restore expects block 1.
+            Assert.AreEqual(1UL, probe.NextExpectedBlock);
+            Assert.AreEqual(0UL, probe.LastAcknowledgedBatchNumber);
+            Assert.AreEqual(0UL, probe.LastAcknowledgedBlock);
+            Assert.AreEqual(1UL, probe.NextBatchNumber);
+            Assert.IsNull(probe.LatestCheckpointBatchNumber);
+            Assert.IsNull(probe.LatestCheckpointLastBlock);
             Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
             Assert.AreEqual(0, probe.PipelineHealthFailures.Count);
@@ -530,6 +537,8 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"openBatchForcedInclusionCount\": 0");
             StringAssert.Contains(probeJson, "\"openBatchWithdrawalCount\": 0");
             StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": true");
+            StringAssert.Contains(probeJson, "\"lastAcknowledgedBatchNumber\": 0");
+            StringAssert.Contains(probeJson, "\"nextBatchNumber\": 1");
             StringAssert.Contains(probeJson, "\"hasOverdueForcedInclusion\": false");
             StringAssert.Contains(probeJson, "\"isPipelineHealthy\": true");
             StringAssert.Contains(probeJson, "\"isSettlementRuntimeIdle\": true");
@@ -542,8 +551,11 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"l1InboxPendingCount\": 0");
             StringAssert.Contains(probeJson, "\"l1InboxConsumedCount\": 0");
             StringAssert.Contains(probeJson, "\"stagedWithdrawalCount\": 0");
-            // Compact probe must not dump full operator inventory fields.
-            Assert.IsFalse(probeJson.Contains("\"nextExpectedBlock\"", StringComparison.Ordinal));
+            StringAssert.Contains(probeJson, "\"nextExpectedBlock\": 1");
+            StringAssert.Contains(probeJson, "\"latestCheckpointBatchNumber\": null");
+            // Compact probe still omits full inventory (e.g. proof-type / max-batch settings).
+            Assert.IsFalse(probeJson.Contains("\"maxBlocksPerBatch\"", StringComparison.Ordinal));
+            Assert.IsFalse(probeJson.Contains("\"proofType\"", StringComparison.Ordinal));
             StringAssert.Contains(statusJson, "\"chainId\": 20260716");
             StringAssert.Contains(statusJson, "\"batcherConfiguredChainId\": 20260716");
             StringAssert.Contains(statusJson, "\"settlementConfiguredChainId\": 20260716");

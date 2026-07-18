@@ -1586,6 +1586,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
         var localHostFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
             pipelineFailures, metricsFailures);
         var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
+        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
+            .ConfigureAwait(false);
         var now = nowUnixSeconds
             ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         return new LocalHostHealthProbeDocument
@@ -1607,8 +1609,14 @@ public sealed class MultisigLocalHostComposition : IDisposable
             OpenBatchL2ToL2MessageCount = OpenBatchL2ToL2MessageCount,
             OpenBatchForcedInclusionCount = OpenBatchForcedInclusionCount,
             OpenBatchWithdrawalCount = OpenBatchWithdrawalCount,
-            IsBatcherCheckpointAligned = await IsBatcherCheckpointAlignedAsync(cancellationToken)
-                .ConfigureAwait(false),
+            IsBatcherCheckpointAligned = LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(
+                LastAcknowledgedBatchNumber, checkpoint?.BatchNumber),
+            NextExpectedBlock = NextExpectedBlock,
+            LastAcknowledgedBatchNumber = LastAcknowledgedBatchNumber,
+            LastAcknowledgedBlock = LastAcknowledgedBlock,
+            NextBatchNumber = NextBatchNumber,
+            LatestCheckpointBatchNumber = checkpoint?.BatchNumber,
+            LatestCheckpointLastBlock = checkpoint?.LastBlock,
             HasOverdueForcedInclusion = HasOverdueForcedInclusionCached(now),
             IsPipelineHealthy = pipelineFailures.Count == 0,
             PipelineHealthFailures = pipelineFailures,

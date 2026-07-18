@@ -239,6 +239,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "HasBatchMessageRouter");
         StringAssert.Contains(output, "HasBatchDepositSource");
         StringAssert.Contains(output, "HasBatchProver");
+        StringAssert.Contains(output, "OpenBatchForcedInclusionCount");
         StringAssert.Contains(output, "GetLatestDurableCheckpointAsync");
         StringAssert.Contains(output, "LatestCheckpointBatchNumber");
         StringAssert.Contains(output, "InitialStateRoot");

@@ -291,6 +291,12 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     public int OpenBatchL2ToL1MessageCount => Batch.OpenBatchL2ToL1MessageCount;
 
     /// <summary>
+    /// Forced-inclusion entries staged in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchForcedInclusionCount"/>).
+    /// </summary>
+    public int OpenBatchForcedInclusionCount => Batch.OpenBatchForcedInclusionCount;
+
+    /// <summary>
     /// Last batch number that completed durable persist + acknowledgement
     /// (<see cref="L2BatchPlugin.LastAcknowledgedBatchNumber"/>).
     /// </summary>
@@ -428,6 +434,7 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             OpenBatchBlockCount = OpenBatchBlockCount,
             OpenBatchL1MessageCount = OpenBatchL1MessageCount,
             OpenBatchL2ToL1MessageCount = OpenBatchL2ToL1MessageCount,
+            OpenBatchForcedInclusionCount = OpenBatchForcedInclusionCount,
             ConsumedDepositCount = ConsumedDepositCount,
             LastAcknowledgedBatchNumber = LastAcknowledgedBatchNumber,
             LastAcknowledgedBlock = LastAcknowledgedBlock,

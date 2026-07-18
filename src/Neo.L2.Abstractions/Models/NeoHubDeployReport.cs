@@ -445,8 +445,8 @@ public sealed record NeoHubDeployReport(
                         + "MaxL1MessagesPerBatch / HasBatchDepositSource / HasBatchMessageRouter / "
                         + "HasBatchForcedInclusionSource / HasBatchProver / PendingSealedBatch / HasOpenBatch / "
                         + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
-                        + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
-                        + "TryRetryPendingSealedBatch / OnBatchSealed",
+                        + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / OpenBatchForcedInclusionCount / "
+                        + "ProcessCommittedBlock / TryRetryPendingSealedBatch / OnBatchSealed",
                     ["localHostRpcStoreHelpers"] =
                         "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
                         + "FinalizeRpcBatch / RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / "

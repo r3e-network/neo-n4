@@ -213,8 +213,8 @@ public class UT_NeoHubDeployReport
                 + "MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / HasBatchDepositSource / "
                 + "HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver / PendingSealedBatch / HasOpenBatch / "
                 + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
-                + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / ProcessCommittedBlock / "
-                + "TryRetryPendingSealedBatch / OnBatchSealed",
+                + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / OpenBatchForcedInclusionCount / "
+                + "ProcessCommittedBlock / TryRetryPendingSealedBatch / OnBatchSealed",
                 stores.GetProperty("localHostBatcherHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "

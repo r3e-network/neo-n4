@@ -286,6 +286,12 @@ public sealed class L2BatchPlugin : Plugin
     public int OpenBatchL2ToL1MessageCount => _sealer?.OpenBatchL2ToL1MessageCount ?? 0;
 
     /// <summary>
+    /// Forced-inclusion entries staged in the open batch
+    /// (<see cref="BatchSealer.OpenBatchForcedInclusionCount"/>).
+    /// </summary>
+    public int OpenBatchForcedInclusionCount => _sealer?.OpenBatchForcedInclusionCount ?? 0;
+
+    /// <summary>
     /// Last batch number that completed durable persist + acknowledgement
     /// (<see cref="BatchSealer.LastAcknowledgedBatchNumber"/>).
     /// </summary>

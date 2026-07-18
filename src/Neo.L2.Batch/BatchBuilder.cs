@@ -24,6 +24,11 @@ public sealed class BatchBuilder
     /// <summary>The in-progress batch.</summary>
     public L2Batch Batch => _batch;
 
+    /// <summary>
+    /// Forced-inclusion entries staged in this open batch (must precede ordinary txs).
+    /// </summary>
+    public int ForcedInclusionCount => _forcedInclusions.Count;
+
     /// <summary>Begin a new batch with the given parameters.</summary>
     public BatchBuilder(uint chainId, ulong batchNumber, ulong firstBlock, UInt256 preStateRoot)
     {

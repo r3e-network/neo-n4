@@ -86,6 +86,9 @@ public sealed record LocalHostOperatorStatus
     /// <summary>L2→L1 messages staged in the open batch (0 when none is open).</summary>
     public required int OpenBatchL2ToL1MessageCount { get; init; }
 
+    /// <summary>Forced-inclusion entries staged in the open batch (0 when none is open).</summary>
+    public required int OpenBatchForcedInclusionCount { get; init; }
+
     /// <summary>Soft in-memory consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }
 

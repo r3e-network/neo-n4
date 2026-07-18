@@ -188,6 +188,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.HasBatchDepositSource);
             Assert.IsTrue(settlementHost.HasBatchMessageRouter);
             Assert.IsTrue(settlementHost.HasBatchForcedInclusionSource);
+            Assert.IsTrue(settlementHost.HasBatchProver);
+            Assert.AreEqual(0, settlementHost.OpenBatchForcedInclusionCount);
+            Assert.IsNull(
+                settlementHost.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult());
             Assert.IsTrue(settlementHost.MaxForcedTransactionsPerBatch > 0);
             Assert.IsTrue(settlementHost.MetricsMaxConcurrentConnections > 0);
             Assert.IsTrue(settlementHost.MaxBlocksPerBatch > 0);
@@ -209,6 +213,13 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
+            Assert.IsTrue(opStatus.HasBatchProver);
+            Assert.AreEqual(0, opStatus.OpenBatchForcedInclusionCount);
+            Assert.IsNull(opStatus.LatestCheckpointBatchNumber);
+            Assert.AreEqual(
+                settlementHost.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult(),
+                opStatus.InitialStateRoot);
+            Assert.IsNull(opStatus.Recovery.FirstFailureAtUnixMilliseconds);
             Assert.IsTrue(opStatus.HasDepositSource);
             Assert.AreEqual(0, opStatus.DepositSourceReadyCount);
             Assert.AreEqual(0, opStatus.DepositSourceReservedCount);
@@ -244,7 +255,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             settlementHost.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(statusPath));
-            StringAssert.Contains(File.ReadAllText(statusPath), "\"isOperatorReady\": true");
+            var statusJson = File.ReadAllText(statusPath);
+            StringAssert.Contains(statusJson, "\"isOperatorReady\": true");
+            StringAssert.Contains(statusJson, "\"hasBatchProver\": true");
+            StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
+            StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(promPath));

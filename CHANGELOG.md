@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Open-batch forced-inclusion count + durable checkpoint offline tests — 2026-07-18
+
+- `BatchBuilder.ForcedInclusionCount` / `BatchSealer` / `L2BatchPlugin` /
+  Multisig/Optimistic/Zk LocalHost expose `OpenBatchForcedInclusionCount`.
+- Operator status (+ JSON) includes the open-batch FI count for offline sealer health.
+- `GetLatestDurableCheckpointAsync` unit coverage: local artifacts only (no L1 refresh);
+  integration host path asserts HasBatchProver / durable checkpoint / initial root.
+- Wireproduction notes + init-l2 tips. No wire/ABI change.
+
 ### Added — Durable checkpoint, initial root, and batch prover on LocalHost ops — 2026-07-18
 
 - Multisig/Optimistic/Zk LocalHost expose `HasBatchProver` and

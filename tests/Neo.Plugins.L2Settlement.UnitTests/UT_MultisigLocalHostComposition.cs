@@ -99,6 +99,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, host.OpenBatchBlockCount);
             Assert.AreEqual(0, host.OpenBatchL1MessageCount);
             Assert.AreEqual(0, host.OpenBatchL2ToL1MessageCount);
+            Assert.AreEqual(0, host.OpenBatchForcedInclusionCount);
             Assert.AreEqual(0, host.ConsumedDepositCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
             Assert.IsTrue(host.RegisterInboundMessageNonce(7));
@@ -129,6 +130,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, status.InProgressTxCount);
             Assert.IsNull(status.OpenBatchFirstBlock);
             Assert.AreEqual(0, status.OpenBatchBlockCount);
+            Assert.AreEqual(0, status.OpenBatchForcedInclusionCount);
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
             Assert.IsTrue(status.HasForcedInclusionFinalizer);
@@ -374,6 +376,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"inProgressTxCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchBlockCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchL1MessageCount\": 0");
+            StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
             StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
             StringAssert.Contains(statusJson, "\"lastAcknowledgedBatchNumber\": 0");
             StringAssert.Contains(statusJson, "\"nextBatchNumber\": 1");

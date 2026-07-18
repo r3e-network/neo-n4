@@ -1213,6 +1213,38 @@ public class UT_CanonicalSettlementPipeline
     }
 
     [TestMethod]
+    public async Task LatestDurableCheckpoint_ReadsLocalArtifactsWithoutL1Refresh()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient();
+        using var pipeline = CreateZkPipeline(
+            store,
+            new TestExecutor(SafeSemantic),
+            new ProductionDaWriter(),
+            new RecordingZkProver(SafeSemantic),
+            client);
+        await pipeline.PersistAsync(BuildBatch(1, 10, H(1)));
+
+        var statusReadsBefore = client.BatchStatusReadCount;
+        var rootReadsBefore = client.CanonicalStateRootReadCount;
+        var durable = await pipeline.GetLatestDurableCheckpointAsync();
+        Assert.IsNotNull(durable);
+        Assert.AreEqual(1UL, durable.BatchNumber);
+        Assert.AreEqual(10UL, durable.LastBlock);
+        Assert.AreEqual(H(3), durable.PostStateRoot);
+        Assert.AreEqual(statusReadsBefore, client.BatchStatusReadCount);
+        Assert.AreEqual(rootReadsBefore, client.CanonicalStateRootReadCount);
+
+        var refreshed = await pipeline.GetLatestCheckpointAsync();
+        Assert.IsNotNull(refreshed);
+        Assert.AreEqual(durable.BatchNumber, refreshed.BatchNumber);
+        Assert.IsTrue(
+            client.BatchStatusReadCount > statusReadsBefore
+            || client.CanonicalStateRootReadCount > rootReadsBefore);
+    }
+
+    [TestMethod]
     public async Task Persist_RejectsMissingBatchBlockGapAndStateRootGap()
     {
         await AssertSuccessorRejectedAsync(
@@ -1693,6 +1725,7 @@ public class UT_CanonicalSettlementPipeline
 
         public int SubmitCount { get; private set; }
         public int BatchStatusReadCount { get; private set; }
+        public int CanonicalStateRootReadCount { get; private set; }
         public int TransactionStatusReadCount { get; private set; }
         public bool FailNextSubmitBeforeRecord { get; set; }
         public bool FailNextSubmitAfterRecord { get; set; }
@@ -1741,7 +1774,10 @@ public class UT_CanonicalSettlementPipeline
         public ValueTask<UInt256> GetCanonicalStateRootAsync(
             uint chainId,
             CancellationToken cancellationToken = default)
-            => ValueTask.FromResult(new UInt256(CanonicalStateRoot.GetSpan()));
+        {
+            CanonicalStateRootReadCount++;
+            return ValueTask.FromResult(new UInt256(CanonicalStateRoot.GetSpan()));
+        }
 
         public ValueTask<BatchStatus> GetBatchStatusAsync(
             uint chainId,

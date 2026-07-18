@@ -508,10 +508,16 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.HasOverdueForcedInclusionAsync(nowUnixSeconds)",
                     ["localHostWriteOperatorStatus"] =
                         "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
+                    ["localHostWriteHealthProbe"] =
+                        "LocalHost.WriteHealthProbeAsync(path) → LocalHostHealthProbeDocument JSON "
+                        + "(passport/pipeline/metrics/settlement light flags)",
                     ["localHostWritePrometheusMetrics"] =
                         "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                     ["gatewayHostWriteOperatorStatus"] =
                         "GatewayHostComposition.WriteOperatorStatusAsync(path) → GatewayHostOperatorStatusDocument JSON",
+                    ["gatewayHostWriteHealthProbe"] =
+                        "GatewayHostComposition.WriteHealthProbeAsync(path) → GatewayHostHealthProbeDocument JSON "
+                        + "(passport/outbox/publication light flags)",
                     ["gatewayHostWritePrometheusMetrics"] =
                         "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "
                         + "(when Metrics is IMetricsSource)",
@@ -551,6 +557,7 @@ public sealed record NeoHubDeployReport(
                         + "OutboxStatus / Aggregator / ReceiveBatch / "
                         + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                         + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
+                        + "WriteHealthProbeAsync / "
                         + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                         + "WritePrometheusMetricsAsync",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",

@@ -288,11 +288,19 @@ public class UT_NeoHubDeployReport
                 "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
                 stores.GetProperty("localHostWriteOperatorStatus").GetString());
             Assert.AreEqual(
+                "LocalHost.WriteHealthProbeAsync(path) → LocalHostHealthProbeDocument JSON "
+                + "(passport/pipeline/metrics/settlement light flags)",
+                stores.GetProperty("localHostWriteHealthProbe").GetString());
+            Assert.AreEqual(
                 "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                 stores.GetProperty("localHostWritePrometheusMetrics").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.WriteOperatorStatusAsync(path) → GatewayHostOperatorStatusDocument JSON",
                 stores.GetProperty("gatewayHostWriteOperatorStatus").GetString());
+            Assert.AreEqual(
+                "GatewayHostComposition.WriteHealthProbeAsync(path) → GatewayHostHealthProbeDocument JSON "
+                + "(passport/outbox/publication light flags)",
+                stores.GetProperty("gatewayHostWriteHealthProbe").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "
                 + "(when Metrics is IMetricsSource)",
@@ -341,6 +349,7 @@ public class UT_NeoHubDeployReport
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
                 + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                 + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
+                + "WriteHealthProbeAsync / "
                 + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                 + "WritePrometheusMetricsAsync",
                 stores.GetProperty("gatewayHostOpsHelpers").GetString());

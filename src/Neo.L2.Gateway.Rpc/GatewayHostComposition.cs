@@ -383,6 +383,42 @@ public sealed class GatewayHostComposition : IDisposable
     }
 
     /// <summary>
+    /// Write a compact health probe JSON (passport / outbox / publication) without the full
+    /// operator status document. L1 confirmation remains a funded gate and is not claimed.
+    /// </summary>
+    public async ValueTask WriteHealthProbeAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var publicationFailures = PublicationHealthFailures;
+        var document = new GatewayHostHealthProbeDocument
+        {
+            IsOfflinePassportComplete = IsOfflinePassportComplete,
+            OfflinePassportFailures = OfflinePassportFailures,
+            IsOutboxPoisoned = IsOutboxPoisoned,
+            IsOutboxIdle = IsOutboxIdle,
+            IsPublicationHealthy = publicationFailures.Count == 0,
+            PublicationHealthFailures = publicationFailures,
+            IsGatewayHostHealthy = publicationFailures.Count == 0,
+            GatewayHostHealthFailures = publicationFailures,
+        };
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            document,
+            new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            });
+        await File.WriteAllTextAsync(fullPath, json + Environment.NewLine, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Capture an in-process metrics snapshot when <see cref="Metrics"/> implements
     /// <see cref="IMetricsSource"/>; otherwise returns <see cref="MetricsSnapshot.Empty"/>.
     /// </summary>

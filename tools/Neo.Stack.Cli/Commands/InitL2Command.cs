@@ -175,7 +175,9 @@ internal static class InitL2Command
         Console.WriteLine("               StageWithdrawal / ProveAsync / HasOverdueForcedInclusionAsync / L1InboxPendingCount");
         Console.WriteLine("               HasForcedInclusionFinalizer / HasSettlementClient / HasTransactionSender");
         Console.WriteLine("  host settle= LocalHost.GetLatestDurableCheckpointAsync / GetInitialStateRootAsync / LatestCheckpointBatchNumber / InitialStateRoot");
-        Console.WriteLine("  host status= LocalHost.WriteOperatorStatusAsync(path) (JSON health dump)");
+        Console.WriteLine("  host status= LocalHost.WriteOperatorStatusAsync(path) (full JSON health dump)");
+        Console.WriteLine("               LocalHost.WriteHealthProbeAsync(path) (compact passport/pipeline/metrics/settlement)");
+        Console.WriteLine("               GatewayHost.WriteHealthProbeAsync(path) (compact passport/outbox/publication)");
         Console.WriteLine("  host prom  = LocalHost/GatewayHost WritePrometheusMetricsAsync; GatewayHost.IsPublicationConfigured");
         Console.WriteLine("               (see l1.wireproduction-notes.json when --from-deploy-report was used)");
         return 0;

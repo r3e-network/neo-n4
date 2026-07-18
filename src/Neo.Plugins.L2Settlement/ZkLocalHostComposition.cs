@@ -1531,6 +1531,55 @@ public sealed class ZkLocalHostComposition : IDisposable
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Write a compact health probe JSON (passport / pipeline / metrics / settlement flags)
+    /// without the full operator status document. Soft FI clock via
+    /// <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public async ValueTask WriteHealthProbeAsync(
+        string path,
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var pipelineFailures = await GetPipelineHealthFailuresAsync(
+                cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        var metricsFailures = MetricsHttpHealthFailures;
+        var localHostFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
+            pipelineFailures, metricsFailures);
+        var document = new LocalHostHealthProbeDocument
+        {
+            IsOfflinePassportComplete = IsOfflinePassportComplete,
+            OfflinePassportFailures = OfflinePassportFailures,
+            IsPipelineHealthy = pipelineFailures.Count == 0,
+            PipelineHealthFailures = pipelineFailures,
+            IsMetricsHttpHealthy = metricsFailures.Count == 0,
+            MetricsHttpHealthFailures = metricsFailures,
+            IsLocalHostHealthy = localHostFailures.Count == 0,
+            LocalHostHealthFailures = localHostFailures,
+            IsSettlementRuntimeIdle = await IsSettlementRuntimeIdleAsync(cancellationToken)
+                .ConfigureAwait(false),
+            IsSettlementPoisoned = await IsSettlementPoisonedAsync(cancellationToken)
+                .ConfigureAwait(false),
+            IsSettlementRetrying = await IsSettlementRetryingAsync(cancellationToken)
+                .ConfigureAwait(false),
+        };
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            document,
+            new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            });
+        await File.WriteAllTextAsync(fullPath, json + Environment.NewLine, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public L2RpcPlugin CreateRpcPlugin()
     {
         var plugin = new L2RpcPlugin();

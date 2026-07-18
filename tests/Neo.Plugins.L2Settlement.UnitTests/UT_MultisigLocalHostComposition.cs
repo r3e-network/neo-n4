@@ -472,6 +472,17 @@ public sealed class UT_MultisigLocalHostComposition
             await host.WriteOperatorStatusAsync(statusPath);
             Assert.IsTrue(File.Exists(statusPath));
             var statusJson = await File.ReadAllTextAsync(statusPath);
+            var probePath = Path.Combine(chainDir, "health-probe.json");
+            await host.WriteHealthProbeAsync(probePath);
+            Assert.IsTrue(File.Exists(probePath));
+            var probeJson = await File.ReadAllTextAsync(probePath);
+            StringAssert.Contains(probeJson, "\"isOfflinePassportComplete\": true");
+            StringAssert.Contains(probeJson, "\"isPipelineHealthy\": true");
+            StringAssert.Contains(probeJson, "\"isSettlementRuntimeIdle\": true");
+            StringAssert.Contains(probeJson, "\"isSettlementPoisoned\": false");
+            StringAssert.Contains(probeJson, "\"isSettlementRetrying\": false");
+            // Compact probe must not dump full operator inventory fields.
+            Assert.IsFalse(probeJson.Contains("\"nextExpectedBlock\"", StringComparison.Ordinal));
             StringAssert.Contains(statusJson, "\"chainId\": 20260716");
             StringAssert.Contains(statusJson, "\"batcherConfiguredChainId\": 20260716");
             StringAssert.Contains(statusJson, "\"settlementConfiguredChainId\": 20260716");

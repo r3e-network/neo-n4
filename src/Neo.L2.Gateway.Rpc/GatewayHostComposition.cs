@@ -131,6 +131,21 @@ public sealed class GatewayHostComposition : IDisposable
     public bool HasL1RpcEndpoint { get; }
 
     /// <summary>
+    /// Offline publication-profile readiness: enabled, publication configured, durable outbox,
+    /// L1 endpoint present, and non-zero replay domain / verification key / publisher hashes.
+    /// Does not probe L1 or claim confirmation (funded gate).
+    /// </summary>
+    public bool IsPublicationProfileReady =>
+        IsEnabled
+        && IsPublicationConfigured
+        && HasDurableOutbox
+        && HasL1RpcEndpoint
+        && !ReplayDomain.Equals(UInt256.Zero)
+        && !VerificationKeyId.Equals(UInt256.Zero)
+        && !SettlementManagerHash.Equals(UInt160.Zero)
+        && !MessageRouterHash.Equals(UInt160.Zero);
+
+    /// <summary>
     /// Terminal proof-system discriminator from <see cref="ProofProver"/>
     /// (<see cref="IGatewayProofProver.ProofSystem"/>).
     /// </summary>
@@ -230,6 +245,7 @@ public sealed class GatewayHostComposition : IDisposable
             ProofSystem = ProofSystem,
             ExpectedNetwork = ExpectedNetwork,
             HasL1RpcEndpoint = HasL1RpcEndpoint,
+            IsPublicationProfileReady = IsPublicationProfileReady,
             ReplayDomain = ReplayDomain,
             VerificationKeyId = VerificationKeyId,
             SettlementManagerHash = SettlementManagerHash,

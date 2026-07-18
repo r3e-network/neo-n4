@@ -133,6 +133,7 @@ internal static class InitL2Command
         Console.WriteLine("  host batch = LocalHost.BatcherConfiguredChainId / SettlementConfiguredChainId / NextExpectedBlock / NextBatchNumber");
         Console.WriteLine("               PendingSealedBatchNumber / MaxBlocksPerBatch / SettlementConfiguredProofType");
         Console.WriteLine("               IsChainIdConfigConsistent / IsProofTypeConfigConsistent");
+        Console.WriteLine("               RpcDaMode / IsDaModeConfigConsistent");
         Console.WriteLine("               MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / OpenBatchForcedInclusionCount");
         Console.WriteLine("               OpenBatchL2ToL2MessageCount / OpenBatchWithdrawalCount / HasBatchDepositSource");
         Console.WriteLine("               HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver");
@@ -141,7 +142,8 @@ internal static class InitL2Command
         Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / SupportsLocalDaReader / RegisterForcedInclusionNonce / KnownForcedInclusionNonceCount");
         Console.WriteLine("  host gw    = GatewayHost.IsEnabled / MaxAutomaticRetries / IsPublicationConfigured");
         Console.WriteLine("               ProofSystem / AggregationBackendId / ExpectedNetwork / HasL1RpcEndpoint");
-        Console.WriteLine("               ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash");
+        Console.WriteLine("               IsPublicationProfileReady / ReplayDomain / VerificationKeyId");
+        Console.WriteLine("               SettlementManagerHash / MessageRouterHash");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / IsMetricsEnabled / MetricsConfiguredPort / MetricsMaxConcurrentConnections / RegisterBridgeAsset");
         Console.WriteLine("               StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");

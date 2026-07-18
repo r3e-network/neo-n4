@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost DA mode consistency + Gateway publication-profile ready — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose `RpcDaMode`
+  (RPC store DA mode) and `IsDaModeConfigConsistent` (wired DA writer vs RPC store).
+- `GatewayHostComposition` + operator status (+ JSON) expose `IsPublicationProfileReady`
+  (enabled + publication configured + durable outbox + L1 endpoint + non-zero
+  replay domain / verification key / publisher hashes). Offline only; L1 confirmation
+  remains a funded gate.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+
 ### Added — LocalHost chain id / proof type config consistency flags — 2026-07-18
 
 - Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose

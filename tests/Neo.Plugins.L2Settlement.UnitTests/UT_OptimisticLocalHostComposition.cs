@@ -124,9 +124,13 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(host.ProofType, host.SettlementConfiguredProofType);
             Assert.IsTrue(host.IsChainIdConfigConsistent);
             Assert.IsTrue(host.IsProofTypeConfigConsistent);
+            Assert.AreEqual(host.DaMode, host.RpcDaMode);
+            Assert.IsTrue(host.IsDaModeConfigConsistent);
             Assert.AreEqual(status.ProofType, status.SettlementConfiguredProofType);
             Assert.IsTrue(status.IsChainIdConfigConsistent);
             Assert.IsTrue(status.IsProofTypeConfigConsistent);
+            Assert.AreEqual(status.DaMode, status.RpcDaMode);
+            Assert.IsTrue(status.IsDaModeConfigConsistent);
             Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, status.OpenBatchWithdrawalCount);
             Assert.IsTrue(status.SupportsLocalDaReader);

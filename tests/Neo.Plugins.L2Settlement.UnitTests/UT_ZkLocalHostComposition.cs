@@ -138,9 +138,13 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(ProofType.Zk, host.SettlementConfiguredProofType);
             Assert.IsTrue(host.IsChainIdConfigConsistent);
             Assert.IsTrue(host.IsProofTypeConfigConsistent);
+            Assert.AreEqual(DAMode.L1, host.RpcDaMode);
+            Assert.IsTrue(host.IsDaModeConfigConsistent);
             Assert.AreEqual(status.ProofType, status.SettlementConfiguredProofType);
             Assert.IsTrue(status.IsChainIdConfigConsistent);
             Assert.IsTrue(status.IsProofTypeConfigConsistent);
+            Assert.AreEqual(DAMode.L1, status.RpcDaMode);
+            Assert.IsTrue(status.IsDaModeConfigConsistent);
             Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, status.OpenBatchWithdrawalCount);
             Assert.IsFalse(status.SupportsLocalDaReader);

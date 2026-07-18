@@ -68,6 +68,13 @@ public sealed record GatewayHostOperatorStatus
     /// <summary>L1 RPC endpoint resolved from chain layout (not connectivity-probed).</summary>
     public required bool HasL1RpcEndpoint { get; init; }
 
+    /// <summary>
+    /// Offline publication-profile readiness: enabled + publication configured + durable outbox
+    /// + L1 endpoint present + non-zero replay domain / verification key / publisher hashes.
+    /// Does not claim L1 confirmation (funded gate).
+    /// </summary>
+    public required bool IsPublicationProfileReady { get; init; }
+
     /// <summary>Publication-profile replay domain bound at open.</summary>
     public required UInt256 ReplayDomain { get; init; }
 

@@ -224,11 +224,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.IsChainIdConfigConsistent);
             Assert.IsTrue(settlementHost.IsProofTypeConfigConsistent);
             Assert.AreEqual(DAMode.Local, settlementHost.DaMode);
+            Assert.AreEqual(DAMode.Local, settlementHost.RpcDaMode);
+            Assert.IsTrue(settlementHost.IsDaModeConfigConsistent);
             Assert.AreEqual(0, settlementHost.PeekSharedBridgeDeposits(8).Count);
             var opStatus = settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.IsTrue(opStatus.IsChainIdConfigConsistent);
             Assert.IsTrue(opStatus.IsProofTypeConfigConsistent);
+            Assert.IsTrue(opStatus.IsDaModeConfigConsistent);
+            Assert.AreEqual(DAMode.Local, opStatus.RpcDaMode);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasBatchProver);
@@ -297,6 +301,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"hasMessageOutbox\": true");
             StringAssert.Contains(statusJson, "\"isChainIdConfigConsistent\": true");
             StringAssert.Contains(statusJson, "\"isProofTypeConfigConsistent\": true");
+            StringAssert.Contains(statusJson, "\"isDaModeConfigConsistent\": true");
+            StringAssert.Contains(statusJson, "\"rpcDaMode\":");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
@@ -376,6 +382,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(0, gatewayHost.AggregatorPendingCount);
             Assert.IsTrue(gatewayHost.HasDurableOutbox);
             Assert.IsTrue(gatewayHost.IsPublicationConfigured);
+            Assert.IsTrue(gatewayHost.IsPublicationProfileReady);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
             Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
             var gwStatus = gatewayHost.GetOperatorStatus();
@@ -534,8 +541,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(opStatus.ProofType, opStatus.SettlementConfiguredProofType);
             Assert.IsTrue(host.IsChainIdConfigConsistent);
             Assert.IsTrue(host.IsProofTypeConfigConsistent);
+            Assert.IsTrue(host.IsDaModeConfigConsistent);
             Assert.IsTrue(opStatus.IsChainIdConfigConsistent);
             Assert.IsTrue(opStatus.IsProofTypeConfigConsistent);
+            Assert.IsTrue(opStatus.IsDaModeConfigConsistent);
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);

@@ -217,6 +217,14 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     /// <summary>Local DA mode of the wired persistent DA writer.</summary>
     public DAMode DaMode => DaWriter.Mode;
 
+    /// <summary>DA mode advertised by the durable L2 RPC store.</summary>
+    public DAMode RpcDaMode => RpcStore.DAMode;
+
+    /// <summary>
+    /// True when wired DA writer <see cref="DaMode"/> matches <see cref="RpcDaMode"/>.
+    /// </summary>
+    public bool IsDaModeConfigConsistent => DaMode == RpcDaMode;
+
     /// <summary>
     /// True when WireProduction installed the sealed-batch sink on the batcher
     /// (<see cref="L2BatchPlugin.HasSealedBatchSink"/>).
@@ -511,6 +519,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             IsChainIdConfigConsistent = IsChainIdConfigConsistent,
             IsProofTypeConfigConsistent = IsProofTypeConfigConsistent,
             DaMode = DaMode,
+            RpcDaMode = RpcDaMode,
+            IsDaModeConfigConsistent = IsDaModeConfigConsistent,
             SecurityLevel = RpcStore.SecurityLevel,
             GatewayEnabled = RpcStore.GatewayEnabled,
             Sequencer = RpcStore.Sequencer,

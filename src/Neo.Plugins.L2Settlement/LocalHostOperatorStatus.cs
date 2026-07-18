@@ -49,6 +49,14 @@ public sealed record LocalHostOperatorStatus
     /// <summary>DA mode of the wired DA writer.</summary>
     public required DAMode DaMode { get; init; }
 
+    /// <summary>DA mode advertised by the durable L2 RPC store.</summary>
+    public required DAMode RpcDaMode { get; init; }
+
+    /// <summary>
+    /// True when wired DA writer <see cref="DaMode"/> equals <see cref="RpcDaMode"/>.
+    /// </summary>
+    public required bool IsDaModeConfigConsistent { get; init; }
+
     /// <summary>Security level advertised by the durable L2 RPC store.</summary>
     public required SecurityLevel SecurityLevel { get; init; }
 

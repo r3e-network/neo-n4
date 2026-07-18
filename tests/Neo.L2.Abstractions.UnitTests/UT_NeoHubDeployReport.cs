@@ -207,8 +207,8 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.ChainId / BatcherConfiguredChainId / SettlementConfiguredChainId / "
                 + "ProofType / SettlementConfiguredProofType / IsChainIdConfigConsistent / "
-                + "IsProofTypeConfigConsistent / DaMode / HasSealedBatchSink / "
-                + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
+                + "IsProofTypeConfigConsistent / DaMode / RpcDaMode / IsDaModeConfigConsistent / "
+                + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                 + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
@@ -313,8 +313,8 @@ public class UT_NeoHubDeployReport
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                 + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
                 + "IsEnabled / MaxAutomaticRetries / ProofSystem / AggregationBackendId / "
-                + "ExpectedNetwork / HasL1RpcEndpoint / ReplayDomain / VerificationKeyId / "
-                + "SettlementManagerHash / MessageRouterHash / "
+                + "ExpectedNetwork / HasL1RpcEndpoint / IsPublicationProfileReady / "
+                + "ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
                 + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                 + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "

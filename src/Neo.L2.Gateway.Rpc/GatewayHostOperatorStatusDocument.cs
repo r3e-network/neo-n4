@@ -60,6 +60,12 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>L1 RPC endpoint resolved from chain layout.</summary>
     public required bool HasL1RpcEndpoint { get; init; }
 
+    /// <summary>
+    /// Offline publication-profile readiness (enabled + configured + outbox + L1 endpoint +
+    /// non-zero profile/publisher bindings). L1 confirmation remains funded.
+    /// </summary>
+    public required bool IsPublicationProfileReady { get; init; }
+
     /// <summary>Publication-profile replay domain as 0x-hex.</summary>
     public required string ReplayDomain { get; init; }
 
@@ -104,6 +110,7 @@ public sealed record GatewayHostOperatorStatusDocument
             ProofSystem = status.ProofSystem,
             ExpectedNetwork = status.ExpectedNetwork,
             HasL1RpcEndpoint = status.HasL1RpcEndpoint,
+            IsPublicationProfileReady = status.IsPublicationProfileReady,
             ReplayDomain = status.ReplayDomain.ToString(),
             VerificationKeyId = status.VerificationKeyId.ToString(),
             SettlementManagerHash = status.SettlementManagerHash.ToString(),

@@ -237,6 +237,9 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "SettlementConfiguredProofType");
         StringAssert.Contains(output, "IsChainIdConfigConsistent");
         StringAssert.Contains(output, "IsProofTypeConfigConsistent");
+        StringAssert.Contains(output, "RpcDaMode");
+        StringAssert.Contains(output, "IsDaModeConfigConsistent");
+        StringAssert.Contains(output, "IsPublicationProfileReady");
         StringAssert.Contains(output, "NextBatchNumber");
         StringAssert.Contains(output, "PendingSealedBatchNumber");
         StringAssert.Contains(output, "MaxBlocksPerBatch");

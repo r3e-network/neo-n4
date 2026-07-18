@@ -32,8 +32,14 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Host and settlement proof types agree.</summary>
     public required bool IsProofTypeConfigConsistent { get; init; }
 
-    /// <summary>DA mode name.</summary>
+    /// <summary>DA mode name of the wired DA writer.</summary>
     public required string DaMode { get; init; }
+
+    /// <summary>DA mode name from the durable L2 RPC store.</summary>
+    public required string RpcDaMode { get; init; }
+
+    /// <summary>Wired DA writer and RPC store DA modes agree.</summary>
+    public required bool IsDaModeConfigConsistent { get; init; }
 
     /// <summary>Security level name.</summary>
     public required string SecurityLevel { get; init; }
@@ -299,6 +305,8 @@ public sealed record LocalHostOperatorStatusDocument
             IsChainIdConfigConsistent = status.IsChainIdConfigConsistent,
             IsProofTypeConfigConsistent = status.IsProofTypeConfigConsistent,
             DaMode = status.DaMode.ToString(),
+            RpcDaMode = status.RpcDaMode.ToString(),
+            IsDaModeConfigConsistent = status.IsDaModeConfigConsistent,
             SecurityLevel = status.SecurityLevel.ToString(),
             GatewayEnabled = status.GatewayEnabled,
             Sequencer = status.Sequencer.ToString(),

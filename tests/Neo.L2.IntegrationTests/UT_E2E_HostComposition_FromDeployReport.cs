@@ -195,6 +195,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.SupportsLocalDaReader);
             Assert.IsTrue(settlementHost.HasL1RpcEndpoint);
             Assert.IsNotNull(settlementHost.ExpectedNetwork);
+            Assert.IsTrue(settlementHost.HasSettlementManagerHash);
+            Assert.IsTrue(settlementHost.HasForcedInclusionHash);
+            Assert.IsTrue(settlementHost.HasSharedBridgeHash);
+            Assert.IsTrue(settlementHost.HasMessageRouterHash);
             Assert.IsNull(
                 settlementHost.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult());
             Assert.IsTrue(settlementHost.MaxForcedTransactionsPerBatch > 0);
@@ -225,6 +229,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.SupportsLocalDaReader);
             Assert.IsTrue(opStatus.HasL1RpcEndpoint);
             Assert.AreEqual(settlementHost.ExpectedNetwork, opStatus.ExpectedNetwork);
+            Assert.IsTrue(opStatus.HasSettlementManagerHash);
+            Assert.IsTrue(opStatus.HasSharedBridgeHash);
+            Assert.IsTrue(opStatus.HasMessageRouterHash);
             Assert.IsNull(opStatus.LatestCheckpointBatchNumber);
             Assert.AreEqual(
                 settlementHost.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult(),
@@ -273,6 +280,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"openBatchWithdrawalCount\": 0");
             StringAssert.Contains(statusJson, "\"supportsLocalDaReader\": true");
             StringAssert.Contains(statusJson, "\"hasL1RpcEndpoint\": true");
+            StringAssert.Contains(statusJson, "\"hasSettlementManagerHash\": true");
+            StringAssert.Contains(statusJson, "\"hasSharedBridgeHash\": true");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();

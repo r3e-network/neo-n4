@@ -428,6 +428,8 @@ public sealed record NeoHubDeployReport(
                         + "SettlementClient / TransactionSender / HasForcedInclusionFinalizer / "
                         + "HasSettlementClient / HasTransactionSender / IsSettlementEnabled / "
                         + "L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork / "
+                        + "HasSettlementManagerHash / HasForcedInclusionHash / "
+                        + "HasSharedBridgeHash / HasMessageRouterHash / "
                         + "DepositSourceReadyCount / DepositSourceReservedCount / "
                         + "DepositSourceSoftConsumedCount / IsMetricsEnabled / MetricsConfiguredPort / "
                         + "MetricsBindAddress / ForcedInclusionDeploymentHeight / "

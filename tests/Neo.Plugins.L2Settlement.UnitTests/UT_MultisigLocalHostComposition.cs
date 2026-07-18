@@ -105,6 +105,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.SupportsLocalDaReader);
             Assert.IsTrue(host.HasL1RpcEndpoint);
             Assert.IsNotNull(host.ExpectedNetwork);
+            Assert.IsTrue(host.HasSettlementManagerHash);
+            Assert.IsTrue(host.HasForcedInclusionHash);
+            Assert.IsTrue(host.HasSharedBridgeHash);
+            Assert.IsTrue(host.HasMessageRouterHash);
             Assert.AreEqual(0, host.ConsumedDepositCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
             Assert.IsTrue(host.RegisterInboundMessageNonce(7));
@@ -141,6 +145,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.SupportsLocalDaReader);
             Assert.IsTrue(status.HasL1RpcEndpoint);
             Assert.AreEqual(host.ExpectedNetwork, status.ExpectedNetwork);
+            Assert.IsTrue(status.HasSettlementManagerHash);
+            Assert.IsTrue(status.HasForcedInclusionHash);
+            Assert.IsTrue(status.HasSharedBridgeHash);
+            Assert.IsTrue(status.HasMessageRouterHash);
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
             Assert.IsTrue(status.HasForcedInclusionFinalizer);
@@ -392,6 +400,10 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"supportsLocalDaReader\": true");
             StringAssert.Contains(statusJson, "\"hasL1RpcEndpoint\": true");
             StringAssert.Contains(statusJson, "\"expectedNetwork\":");
+            StringAssert.Contains(statusJson, "\"hasSettlementManagerHash\": true");
+            StringAssert.Contains(statusJson, "\"hasForcedInclusionHash\": true");
+            StringAssert.Contains(statusJson, "\"hasSharedBridgeHash\": true");
+            StringAssert.Contains(statusJson, "\"hasMessageRouterHash\": true");
             StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
             StringAssert.Contains(statusJson, "\"lastAcknowledgedBatchNumber\": 0");
             StringAssert.Contains(statusJson, "\"nextBatchNumber\": 1");

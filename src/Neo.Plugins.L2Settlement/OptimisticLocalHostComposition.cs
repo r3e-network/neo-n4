@@ -326,6 +326,30 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     public uint? ExpectedNetwork => Settlement.ExpectedNetwork;
 
     /// <summary>
+    /// Settlement settings include SettlementManager hash
+    /// (<see cref="L2SettlementPlugin.HasSettlementManagerHash"/>).
+    /// </summary>
+    public bool HasSettlementManagerHash => Settlement.HasSettlementManagerHash;
+
+    /// <summary>
+    /// Settlement settings include ForcedInclusion hash
+    /// (<see cref="L2SettlementPlugin.HasForcedInclusionHash"/>).
+    /// </summary>
+    public bool HasForcedInclusionHash => Settlement.HasForcedInclusionHash;
+
+    /// <summary>
+    /// Settlement settings include SharedBridge hash
+    /// (<see cref="L2SettlementPlugin.HasSharedBridgeHash"/>).
+    /// </summary>
+    public bool HasSharedBridgeHash => Settlement.HasSharedBridgeHash;
+
+    /// <summary>
+    /// Settlement settings include MessageRouter hash
+    /// (<see cref="L2SettlementPlugin.HasMessageRouterHash"/>).
+    /// </summary>
+    public bool HasMessageRouterHash => Settlement.HasMessageRouterHash;
+
+    /// <summary>
     /// Last batch number that completed durable persist + acknowledgement
     /// (<see cref="L2BatchPlugin.LastAcknowledgedBatchNumber"/>).
     /// </summary>
@@ -469,6 +493,10 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             SupportsLocalDaReader = SupportsLocalDaReader,
             HasL1RpcEndpoint = HasL1RpcEndpoint,
             ExpectedNetwork = ExpectedNetwork,
+            HasSettlementManagerHash = HasSettlementManagerHash,
+            HasForcedInclusionHash = HasForcedInclusionHash,
+            HasSharedBridgeHash = HasSharedBridgeHash,
+            HasMessageRouterHash = HasMessageRouterHash,
             ConsumedDepositCount = ConsumedDepositCount,
             LastAcknowledgedBatchNumber = LastAcknowledgedBatchNumber,
             LastAcknowledgedBlock = LastAcknowledgedBlock,

@@ -245,6 +245,9 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "SupportsLocalDaReader");
         StringAssert.Contains(output, "HasL1RpcEndpoint");
         StringAssert.Contains(output, "ExpectedNetwork");
+        StringAssert.Contains(output, "HasSettlementManagerHash");
+        StringAssert.Contains(output, "HasSharedBridgeHash");
+        StringAssert.Contains(output, "HasMessageRouterHash");
         StringAssert.Contains(output, "GetLatestDurableCheckpointAsync");
         StringAssert.Contains(output, "LatestCheckpointBatchNumber");
         StringAssert.Contains(output, "InitialStateRoot");

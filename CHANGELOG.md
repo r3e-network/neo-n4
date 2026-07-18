@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — NeoHub contract hash readiness flags on LocalHost ops — 2026-07-18
+
+- `L2SettlementPlugin` / Multisig/Optimistic/Zk LocalHost expose
+  `HasSettlementManagerHash` / `HasForcedInclusionHash` / `HasSharedBridgeHash` /
+  `HasMessageRouterHash` from settings (presence only; not on-chain verified).
+- Operator status (+ JSON) includes the four flags for offline WireProduction config
+  completeness checks. Wireproduction notes + init-l2 tips; unit/integration coverage.
+- No wire/ABI change. Live contract state remains a funded L1 gate.
+
 ### Added — Open-batch withdrawals and settlement L1 endpoint readiness on LocalHost — 2026-07-18
 
 - `BatchSealer` / `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose

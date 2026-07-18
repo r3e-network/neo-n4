@@ -101,6 +101,18 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Configured expected L1 network magic, if any.</summary>
     public required uint? ExpectedNetwork { get; init; }
 
+    /// <summary>SettlementManager hash present in settings.</summary>
+    public required bool HasSettlementManagerHash { get; init; }
+
+    /// <summary>ForcedInclusion hash present in settings.</summary>
+    public required bool HasForcedInclusionHash { get; init; }
+
+    /// <summary>SharedBridge hash present in settings.</summary>
+    public required bool HasSharedBridgeHash { get; init; }
+
+    /// <summary>MessageRouter hash present in settings.</summary>
+    public required bool HasMessageRouterHash { get; init; }
+
     /// <summary>Soft consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }
 
@@ -288,6 +300,10 @@ public sealed record LocalHostOperatorStatusDocument
             SupportsLocalDaReader = status.SupportsLocalDaReader,
             HasL1RpcEndpoint = status.HasL1RpcEndpoint,
             ExpectedNetwork = status.ExpectedNetwork,
+            HasSettlementManagerHash = status.HasSettlementManagerHash,
+            HasForcedInclusionHash = status.HasForcedInclusionHash,
+            HasSharedBridgeHash = status.HasSharedBridgeHash,
+            HasMessageRouterHash = status.HasMessageRouterHash,
             ConsumedDepositCount = status.ConsumedDepositCount,
             LastAcknowledgedBatchNumber = status.LastAcknowledgedBatchNumber,
             LastAcknowledgedBlock = status.LastAcknowledgedBlock,

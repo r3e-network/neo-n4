@@ -110,6 +110,20 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Configured expected L1 network magic, or null when unset.</summary>
     public required uint? ExpectedNetwork { get; init; }
 
+    /// <summary>
+    /// Settlement settings include a SettlementManager hash (not on-chain verified).
+    /// </summary>
+    public required bool HasSettlementManagerHash { get; init; }
+
+    /// <summary>Settlement settings include a ForcedInclusion hash.</summary>
+    public required bool HasForcedInclusionHash { get; init; }
+
+    /// <summary>Settlement settings include a SharedBridge hash.</summary>
+    public required bool HasSharedBridgeHash { get; init; }
+
+    /// <summary>Settlement settings include a MessageRouter hash.</summary>
+    public required bool HasMessageRouterHash { get; init; }
+
     /// <summary>Soft in-memory consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }
 

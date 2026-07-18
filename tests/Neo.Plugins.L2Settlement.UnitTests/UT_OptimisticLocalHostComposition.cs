@@ -126,6 +126,9 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(host.SupportsLocalDaReader);
             Assert.IsTrue(status.HasL1RpcEndpoint);
             Assert.IsTrue(host.HasL1RpcEndpoint);
+            Assert.IsTrue(status.HasSettlementManagerHash);
+            Assert.IsTrue(status.HasSharedBridgeHash);
+            Assert.IsTrue(host.HasMessageRouterHash);
             Assert.IsNull(status.LatestCheckpointBatchNumber);
             Assert.AreEqual(UInt256.Zero, status.LatestCheckpointPostStateRoot);
             Assert.AreEqual(

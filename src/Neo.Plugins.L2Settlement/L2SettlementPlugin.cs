@@ -540,6 +540,33 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     public uint? ExpectedNetwork => _settings.ExpectedNetwork;
 
     /// <summary>
+    /// True when settlement settings include a non-empty SettlementManager hash
+    /// (does not verify on-chain deployment).
+    /// </summary>
+    public bool HasSettlementManagerHash =>
+        !string.IsNullOrWhiteSpace(_settings.SettlementManagerHash);
+
+    /// <summary>
+    /// True when settlement settings include a non-empty ForcedInclusion hash.
+    /// </summary>
+    public bool HasForcedInclusionHash =>
+        !string.IsNullOrWhiteSpace(_settings.ForcedInclusionHash);
+
+    /// <summary>
+    /// True when settlement settings include a non-empty SharedBridge hash
+    /// (enables deposit-source construction when WireProduction runs).
+    /// </summary>
+    public bool HasSharedBridgeHash =>
+        !string.IsNullOrWhiteSpace(_settings.SharedBridgeHash);
+
+    /// <summary>
+    /// True when settlement settings include a non-empty MessageRouter hash
+    /// (enables router construction when WireProduction runs).
+    /// </summary>
+    public bool HasMessageRouterHash =>
+        !string.IsNullOrWhiteSpace(_settings.MessageRouterHash);
+
+    /// <summary>
     /// Deposit source owned by the last successful <see cref="WireProduction"/> /
     /// <see cref="WireProductionFromLayout"/> when SharedBridge is configured; null when
     /// the caller supplied a deposit source or SharedBridge is not configured.

@@ -125,6 +125,10 @@ public sealed class BatchSealer
     public int OpenBatchForcedInclusionCount =>
         HasOpenBatch ? _builder!.ForcedInclusionCount : 0;
 
+    /// <summary>Withdrawals staged in the open batch (0 when none is open).</summary>
+    public int OpenBatchWithdrawalCount =>
+        HasOpenBatch ? _builder!.Batch.Withdrawals.Count : 0;
+
     /// <summary>Immutable sealed batch awaiting durable persistence and acknowledgement.</summary>
     public SealedBatch? PendingBatch => _pendingBatch;
 

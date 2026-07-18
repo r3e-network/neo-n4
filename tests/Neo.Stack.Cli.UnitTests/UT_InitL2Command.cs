@@ -241,7 +241,10 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "HasBatchProver");
         StringAssert.Contains(output, "OpenBatchForcedInclusionCount");
         StringAssert.Contains(output, "OpenBatchL2ToL2MessageCount");
+        StringAssert.Contains(output, "OpenBatchWithdrawalCount");
         StringAssert.Contains(output, "SupportsLocalDaReader");
+        StringAssert.Contains(output, "HasL1RpcEndpoint");
+        StringAssert.Contains(output, "ExpectedNetwork");
         StringAssert.Contains(output, "GetLatestDurableCheckpointAsync");
         StringAssert.Contains(output, "LatestCheckpointBatchNumber");
         StringAssert.Contains(output, "InitialStateRoot");

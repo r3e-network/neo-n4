@@ -194,7 +194,8 @@ public class UT_NeoHubDeployReport
                 "LocalHost.DepositSource / MessageRouter / ForcedInclusionFinalizer / "
                 + "SettlementClient / TransactionSender / HasForcedInclusionFinalizer / "
                 + "HasSettlementClient / HasTransactionSender / IsSettlementEnabled / "
-                + "L1FinalityDepth / DepositSourceReadyCount / DepositSourceReservedCount / "
+                + "L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork / "
+                + "DepositSourceReadyCount / DepositSourceReservedCount / "
                 + "DepositSourceSoftConsumedCount / IsMetricsEnabled / MetricsConfiguredPort / "
                 + "MetricsBindAddress / ForcedInclusionDeploymentHeight / "
                 + "SharedBridgeDeploymentHeight / MessageRouterDeploymentHeight / "
@@ -214,7 +215,8 @@ public class UT_NeoHubDeployReport
                 + "HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver / PendingSealedBatch / HasOpenBatch / "
                 + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
                 + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / OpenBatchL2ToL2MessageCount / "
-                + "OpenBatchForcedInclusionCount / ProcessCommittedBlock / TryRetryPendingSealedBatch / OnBatchSealed",
+                + "OpenBatchForcedInclusionCount / OpenBatchWithdrawalCount / ProcessCommittedBlock / "
+                + "TryRetryPendingSealedBatch / OnBatchSealed",
                 stores.GetProperty("localHostBatcherHelpers").GetString());
             Assert.AreEqual(
                 "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "

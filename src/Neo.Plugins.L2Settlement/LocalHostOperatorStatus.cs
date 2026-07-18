@@ -92,11 +92,23 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Forced-inclusion entries staged in the open batch (0 when none is open).</summary>
     public required int OpenBatchForcedInclusionCount { get; init; }
 
+    /// <summary>Withdrawals staged in the open batch (0 when none is open).</summary>
+    public required int OpenBatchWithdrawalCount { get; init; }
+
     /// <summary>
     /// True when this host can open a local DA reader
     /// (Multisig/Optimistic local DA; Zk production DA does not expose a local reader).
     /// </summary>
     public required bool SupportsLocalDaReader { get; init; }
+
+    /// <summary>
+    /// True when settlement settings include a non-empty L1 RPC endpoint
+    /// (connectivity not probed).
+    /// </summary>
+    public required bool HasL1RpcEndpoint { get; init; }
+
+    /// <summary>Configured expected L1 network magic, or null when unset.</summary>
+    public required uint? ExpectedNetwork { get; init; }
 
     /// <summary>Soft in-memory consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }

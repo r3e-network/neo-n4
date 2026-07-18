@@ -303,9 +303,27 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     public int OpenBatchForcedInclusionCount => Batch.OpenBatchForcedInclusionCount;
 
     /// <summary>
+    /// Withdrawals staged in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchWithdrawalCount"/>).
+    /// </summary>
+    public int OpenBatchWithdrawalCount => Batch.OpenBatchWithdrawalCount;
+
+    /// <summary>
     /// True when <see cref="CreateLocalDaReader"/> is available (local Optimistic DA).
     /// </summary>
     public bool SupportsLocalDaReader => true;
+
+    /// <summary>
+    /// Settlement settings include a non-empty L1 RPC endpoint
+    /// (<see cref="L2SettlementPlugin.HasL1RpcEndpoint"/>).
+    /// </summary>
+    public bool HasL1RpcEndpoint => Settlement.HasL1RpcEndpoint;
+
+    /// <summary>
+    /// Configured expected L1 network magic
+    /// (<see cref="L2SettlementPlugin.ExpectedNetwork"/>).
+    /// </summary>
+    public uint? ExpectedNetwork => Settlement.ExpectedNetwork;
 
     /// <summary>
     /// Last batch number that completed durable persist + acknowledgement
@@ -447,7 +465,10 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             OpenBatchL2ToL1MessageCount = OpenBatchL2ToL1MessageCount,
             OpenBatchL2ToL2MessageCount = OpenBatchL2ToL2MessageCount,
             OpenBatchForcedInclusionCount = OpenBatchForcedInclusionCount,
+            OpenBatchWithdrawalCount = OpenBatchWithdrawalCount,
             SupportsLocalDaReader = SupportsLocalDaReader,
+            HasL1RpcEndpoint = HasL1RpcEndpoint,
+            ExpectedNetwork = ExpectedNetwork,
             ConsumedDepositCount = ConsumedDepositCount,
             LastAcknowledgedBatchNumber = LastAcknowledgedBatchNumber,
             LastAcknowledgedBlock = LastAcknowledgedBlock,

@@ -191,7 +191,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.HasBatchProver);
             Assert.AreEqual(0, settlementHost.OpenBatchForcedInclusionCount);
             Assert.AreEqual(0, settlementHost.OpenBatchL2ToL2MessageCount);
+            Assert.AreEqual(0, settlementHost.OpenBatchWithdrawalCount);
             Assert.IsTrue(settlementHost.SupportsLocalDaReader);
+            Assert.IsTrue(settlementHost.HasL1RpcEndpoint);
+            Assert.IsNotNull(settlementHost.ExpectedNetwork);
             Assert.IsNull(
                 settlementHost.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult());
             Assert.IsTrue(settlementHost.MaxForcedTransactionsPerBatch > 0);
@@ -218,7 +221,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.HasBatchProver);
             Assert.AreEqual(0, opStatus.OpenBatchForcedInclusionCount);
             Assert.AreEqual(0, opStatus.OpenBatchL2ToL2MessageCount);
+            Assert.AreEqual(0, opStatus.OpenBatchWithdrawalCount);
             Assert.IsTrue(opStatus.SupportsLocalDaReader);
+            Assert.IsTrue(opStatus.HasL1RpcEndpoint);
+            Assert.AreEqual(settlementHost.ExpectedNetwork, opStatus.ExpectedNetwork);
             Assert.IsNull(opStatus.LatestCheckpointBatchNumber);
             Assert.AreEqual(
                 settlementHost.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult(),
@@ -264,7 +270,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"hasBatchProver\": true");
             StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchL2ToL2MessageCount\": 0");
+            StringAssert.Contains(statusJson, "\"openBatchWithdrawalCount\": 0");
             StringAssert.Contains(statusJson, "\"supportsLocalDaReader\": true");
+            StringAssert.Contains(statusJson, "\"hasL1RpcEndpoint\": true");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();

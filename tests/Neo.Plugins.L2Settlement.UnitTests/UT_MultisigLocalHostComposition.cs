@@ -101,7 +101,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, host.OpenBatchL2ToL1MessageCount);
             Assert.AreEqual(0, host.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, host.OpenBatchForcedInclusionCount);
+            Assert.AreEqual(0, host.OpenBatchWithdrawalCount);
             Assert.IsTrue(host.SupportsLocalDaReader);
+            Assert.IsTrue(host.HasL1RpcEndpoint);
+            Assert.IsNotNull(host.ExpectedNetwork);
             Assert.AreEqual(0, host.ConsumedDepositCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
             Assert.IsTrue(host.RegisterInboundMessageNonce(7));
@@ -134,7 +137,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, status.OpenBatchBlockCount);
             Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, status.OpenBatchForcedInclusionCount);
+            Assert.AreEqual(0, status.OpenBatchWithdrawalCount);
             Assert.IsTrue(status.SupportsLocalDaReader);
+            Assert.IsTrue(status.HasL1RpcEndpoint);
+            Assert.AreEqual(host.ExpectedNetwork, status.ExpectedNetwork);
             Assert.IsTrue(status.HasDepositSource);
             Assert.IsTrue(status.HasMessageRouter);
             Assert.IsTrue(status.HasForcedInclusionFinalizer);
@@ -382,7 +388,10 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"openBatchL1MessageCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchL2ToL2MessageCount\": 0");
+            StringAssert.Contains(statusJson, "\"openBatchWithdrawalCount\": 0");
             StringAssert.Contains(statusJson, "\"supportsLocalDaReader\": true");
+            StringAssert.Contains(statusJson, "\"hasL1RpcEndpoint\": true");
+            StringAssert.Contains(statusJson, "\"expectedNetwork\":");
             StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
             StringAssert.Contains(statusJson, "\"lastAcknowledgedBatchNumber\": 0");
             StringAssert.Contains(statusJson, "\"nextBatchNumber\": 1");

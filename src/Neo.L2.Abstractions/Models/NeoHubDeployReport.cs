@@ -427,7 +427,8 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.DepositSource / MessageRouter / ForcedInclusionFinalizer / "
                         + "SettlementClient / TransactionSender / HasForcedInclusionFinalizer / "
                         + "HasSettlementClient / HasTransactionSender / IsSettlementEnabled / "
-                        + "L1FinalityDepth / DepositSourceReadyCount / DepositSourceReservedCount / "
+                        + "L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork / "
+                        + "DepositSourceReadyCount / DepositSourceReservedCount / "
                         + "DepositSourceSoftConsumedCount / IsMetricsEnabled / MetricsConfiguredPort / "
                         + "MetricsBindAddress / ForcedInclusionDeploymentHeight / "
                         + "SharedBridgeDeploymentHeight / MessageRouterDeploymentHeight / "
@@ -446,7 +447,8 @@ public sealed record NeoHubDeployReport(
                         + "HasBatchForcedInclusionSource / HasBatchProver / PendingSealedBatch / HasOpenBatch / "
                         + "InProgressTxCount / OpenBatchFirstBlock / OpenBatchLastBlock / OpenBatchBlockCount / "
                         + "OpenBatchL1MessageCount / OpenBatchL2ToL1MessageCount / OpenBatchL2ToL2MessageCount / "
-                        + "OpenBatchForcedInclusionCount / ProcessCommittedBlock / TryRetryPendingSealedBatch / OnBatchSealed",
+                        + "OpenBatchForcedInclusionCount / OpenBatchWithdrawalCount / ProcessCommittedBlock / "
+                        + "TryRetryPendingSealedBatch / OnBatchSealed",
                     ["localHostRpcStoreHelpers"] =
                         "LocalHost.GetLatestRpcStateRoot / GetRpcStateRootAtBatch / AddRpcBatch / "
                         + "FinalizeRpcBatch / RecordRpcDeposit / GetRpcL1DepositStatus / GetRpcBatch / "

@@ -132,8 +132,8 @@ internal static class InitL2Command
         Console.WriteLine("  host ready = LocalHost.IsOperatorReady / GetOperatorStatusAsync (see wireproduction notes)");
         Console.WriteLine("  host batch = LocalHost.NextExpectedBlock / NextBatchNumber / PendingSealedBatchNumber / MaxBlocksPerBatch");
         Console.WriteLine("               MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / OpenBatchForcedInclusionCount");
-        Console.WriteLine("               OpenBatchL2ToL2MessageCount / HasBatchDepositSource / HasBatchMessageRouter");
-        Console.WriteLine("               HasBatchForcedInclusionSource / HasBatchProver");
+        Console.WriteLine("               OpenBatchL2ToL2MessageCount / OpenBatchWithdrawalCount / HasBatchDepositSource");
+        Console.WriteLine("               HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver");
         Console.WriteLine("  host rpc   = LocalHost.AddRpcBatch / RecordRpcDeposit / RegisterRpcAsset / MessageOutbox");
         Console.WriteLine("  host msg   = LocalHost.MessageOutboxL2ToL1Root / KnownInboundNonceCount / RegisterInboundMessageNonce");
         Console.WriteLine("  host da/fi = LocalHost.PublishDaAsync / SupportsLocalDaReader / RegisterForcedInclusionNonce / KnownForcedInclusionNonceCount");
@@ -142,7 +142,8 @@ internal static class InitL2Command
         Console.WriteLine("               StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");
         Console.WriteLine("               ConsumedDepositCount / DepositSourceReadyCount / DepositSourceReservedCount / DepositSourceSoftConsumedCount");
-        Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / ForcedInclusionDeploymentHeight / SharedBridgeDeploymentHeight");
+        Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork");
+        Console.WriteLine("               ForcedInclusionDeploymentHeight / SharedBridgeDeploymentHeight");
         Console.WriteLine("               StageWithdrawal / ProveAsync / HasOverdueForcedInclusionAsync / L1InboxPendingCount");
         Console.WriteLine("               HasForcedInclusionFinalizer / HasSettlementClient / HasTransactionSender");
         Console.WriteLine("  host settle= LocalHost.GetLatestDurableCheckpointAsync / GetInitialStateRootAsync / LatestCheckpointBatchNumber / InitialStateRoot");

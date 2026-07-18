@@ -298,6 +298,12 @@ public sealed class L2BatchPlugin : Plugin
     public int OpenBatchForcedInclusionCount => _sealer?.OpenBatchForcedInclusionCount ?? 0;
 
     /// <summary>
+    /// Withdrawals staged in the open batch
+    /// (<see cref="BatchSealer.OpenBatchWithdrawalCount"/>).
+    /// </summary>
+    public int OpenBatchWithdrawalCount => _sealer?.OpenBatchWithdrawalCount ?? 0;
+
+    /// <summary>
     /// Last batch number that completed durable persist + acknowledgement
     /// (<see cref="BatchSealer.LastAcknowledgedBatchNumber"/>).
     /// </summary>

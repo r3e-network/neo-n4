@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Open-batch withdrawals and settlement L1 endpoint readiness on LocalHost — 2026-07-18
+
+- `BatchSealer` / `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose
+  `OpenBatchWithdrawalCount` (open sealer withdrawals; distinct from bridge
+  `StagedWithdrawalCount`).
+- Settlement/LocalHost expose `HasL1RpcEndpoint` and `ExpectedNetwork` from settings
+  for offline production-wiring checks (no RPC probe; L1 traffic remains funded).
+- Operator status (+ JSON), wireproduction notes, init-l2 tips; unit/integration coverage.
+  No wire/ABI change.
+
 ### Added — Open-batch L2→L2 count and local DA reader readiness on LocalHost — 2026-07-18
 
 - `BatchSealer` / `L2BatchPlugin` / Multisig/Optimistic/Zk LocalHost expose

@@ -89,8 +89,17 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Forced-inclusion entries in the open batch.</summary>
     public required int OpenBatchForcedInclusionCount { get; init; }
 
+    /// <summary>Withdrawals in the open batch.</summary>
+    public required int OpenBatchWithdrawalCount { get; init; }
+
     /// <summary>Local DA reader available on this host profile.</summary>
     public required bool SupportsLocalDaReader { get; init; }
+
+    /// <summary>Settlement settings include a non-empty L1 RPC endpoint.</summary>
+    public required bool HasL1RpcEndpoint { get; init; }
+
+    /// <summary>Configured expected L1 network magic, if any.</summary>
+    public required uint? ExpectedNetwork { get; init; }
 
     /// <summary>Soft consumed-deposit cache size.</summary>
     public required int ConsumedDepositCount { get; init; }
@@ -275,7 +284,10 @@ public sealed record LocalHostOperatorStatusDocument
             OpenBatchL2ToL1MessageCount = status.OpenBatchL2ToL1MessageCount,
             OpenBatchL2ToL2MessageCount = status.OpenBatchL2ToL2MessageCount,
             OpenBatchForcedInclusionCount = status.OpenBatchForcedInclusionCount,
+            OpenBatchWithdrawalCount = status.OpenBatchWithdrawalCount,
             SupportsLocalDaReader = status.SupportsLocalDaReader,
+            HasL1RpcEndpoint = status.HasL1RpcEndpoint,
+            ExpectedNetwork = status.ExpectedNetwork,
             ConsumedDepositCount = status.ConsumedDepositCount,
             LastAcknowledgedBatchNumber = status.LastAcknowledgedBatchNumber,
             LastAcknowledgedBlock = status.LastAcknowledgedBlock,

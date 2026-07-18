@@ -529,6 +529,17 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     public uint MessageRouterDeploymentHeight => _settings.MessageRouterDeploymentHeight;
 
     /// <summary>
+    /// True when settlement settings include a non-empty L1 RPC endpoint string
+    /// (does not probe connectivity; L1 traffic remains a funded gate).
+    /// </summary>
+    public bool HasL1RpcEndpoint => !string.IsNullOrWhiteSpace(_settings.L1RpcEndpoint);
+
+    /// <summary>
+    /// Configured expected L1 network magic, or null when unset in settings.
+    /// </summary>
+    public uint? ExpectedNetwork => _settings.ExpectedNetwork;
+
+    /// <summary>
     /// Deposit source owned by the last successful <see cref="WireProduction"/> /
     /// <see cref="WireProductionFromLayout"/> when SharedBridge is configured; null when
     /// the caller supplied a deposit source or SharedBridge is not configured.

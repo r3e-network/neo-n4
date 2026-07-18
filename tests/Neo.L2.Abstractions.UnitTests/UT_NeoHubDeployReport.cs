@@ -210,6 +210,9 @@ public class UT_NeoHubDeployReport
                 + "IsProofTypeConfigConsistent / DaMode / RpcDaMode / IsDaModeConfigConsistent / "
                 + "IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete / "
                 + "IsSecurityLevelProofTypeConsistent / IsSecurityLevelDaModeConsistent / "
+                + "IsMetricsWiringComplete / HasMetricsReadinessCheck / "
+                + "IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete / "
+                + "IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete / "
                 + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
                 + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                 + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
@@ -253,6 +256,7 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostMetricsExport").GetString());
             Assert.AreEqual(
                 "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
+                + "IsMetricsWiringComplete / HasMetricsReadinessCheck / "
                 + "MetricsMaxConcurrentConnections / MetricsBoundPort / IsMetricsHttpListening",
                 stores.GetProperty("localHostMetricsSettings").GetString());
             Assert.AreEqual(

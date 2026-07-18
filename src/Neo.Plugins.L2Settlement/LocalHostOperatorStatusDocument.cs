@@ -266,6 +266,24 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Configured metrics bind address from settings.</summary>
     public required string MetricsBindAddress { get; init; }
 
+    /// <summary>Metrics settings operator-ready (enabled + port + bind address).</summary>
+    public required bool IsMetricsWiringComplete { get; init; }
+
+    /// <summary>Metrics /readyz predicate installed.</summary>
+    public required bool HasMetricsReadinessCheck { get; init; }
+
+    /// <summary>Production + batcher deposit sources both wired.</summary>
+    public required bool IsDepositPipelineWiringComplete { get; init; }
+
+    /// <summary>Production MessageRouter + batcher MessageRouter + MessageOutbox wired.</summary>
+    public required bool IsMessagePipelineWiringComplete { get; init; }
+
+    /// <summary>FI finalizer + batcher FI source both wired.</summary>
+    public required bool IsForcedInclusionPipelineWiringComplete { get; init; }
+
+    /// <summary>Settlement client + transaction sender + settlement enabled.</summary>
+    public required bool IsSettlementClientWiringComplete { get; init; }
+
     /// <summary>ForcedInclusion scanner deployment height.</summary>
     public required uint ForcedInclusionDeploymentHeight { get; init; }
 
@@ -406,6 +424,12 @@ public sealed record LocalHostOperatorStatusDocument
             IsMetricsEnabled = status.IsMetricsEnabled,
             MetricsConfiguredPort = status.MetricsConfiguredPort,
             MetricsBindAddress = status.MetricsBindAddress,
+            IsMetricsWiringComplete = status.IsMetricsWiringComplete,
+            HasMetricsReadinessCheck = status.HasMetricsReadinessCheck,
+            IsDepositPipelineWiringComplete = status.IsDepositPipelineWiringComplete,
+            IsMessagePipelineWiringComplete = status.IsMessagePipelineWiringComplete,
+            IsForcedInclusionPipelineWiringComplete = status.IsForcedInclusionPipelineWiringComplete,
+            IsSettlementClientWiringComplete = status.IsSettlementClientWiringComplete,
             ForcedInclusionDeploymentHeight = status.ForcedInclusionDeploymentHeight,
             SharedBridgeDeploymentHeight = status.SharedBridgeDeploymentHeight,
             MessageRouterDeploymentHeight = status.MessageRouterDeploymentHeight,

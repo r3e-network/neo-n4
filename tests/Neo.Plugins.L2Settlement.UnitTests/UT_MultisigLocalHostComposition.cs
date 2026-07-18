@@ -142,6 +142,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.IsBatcherInboxWiringComplete);
             Assert.IsTrue(host.IsSecurityLevelProofTypeConsistent);
             Assert.IsTrue(host.IsSecurityLevelDaModeConsistent);
+            Assert.IsTrue(host.IsMetricsWiringComplete);
+            Assert.IsFalse(host.HasMetricsReadinessCheck);
+            Assert.IsTrue(host.IsDepositPipelineWiringComplete);
+            Assert.IsTrue(host.IsMessagePipelineWiringComplete);
+            Assert.IsTrue(host.IsForcedInclusionPipelineWiringComplete);
+            Assert.IsTrue(host.IsSettlementClientWiringComplete);
             Assert.IsTrue(host.HasExpectedNetwork);
             Assert.IsTrue(host.HasScannerDeployHeights);
             Assert.IsTrue(host.IsOfflinePassportComplete);
@@ -164,6 +170,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.IsBatcherInboxWiringComplete);
             Assert.IsTrue(status.IsSecurityLevelProofTypeConsistent);
             Assert.IsTrue(status.IsSecurityLevelDaModeConsistent);
+            Assert.IsTrue(status.IsMetricsWiringComplete);
+            Assert.IsFalse(status.HasMetricsReadinessCheck);
+            Assert.IsTrue(status.IsDepositPipelineWiringComplete);
+            Assert.IsTrue(status.IsMessagePipelineWiringComplete);
+            Assert.IsTrue(status.IsForcedInclusionPipelineWiringComplete);
+            Assert.IsTrue(status.IsSettlementClientWiringComplete);
             Assert.IsTrue(status.HasExpectedNetwork);
             Assert.IsTrue(status.HasScannerDeployHeights);
             Assert.IsTrue(status.IsOfflinePassportComplete);

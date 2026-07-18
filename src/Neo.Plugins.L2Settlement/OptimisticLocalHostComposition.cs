@@ -602,6 +602,12 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             IsMetricsEnabled = IsMetricsEnabled,
             MetricsConfiguredPort = MetricsConfiguredPort,
             MetricsBindAddress = MetricsBindAddress,
+            IsMetricsWiringComplete = IsMetricsWiringComplete,
+            HasMetricsReadinessCheck = HasMetricsReadinessCheck,
+            IsDepositPipelineWiringComplete = IsDepositPipelineWiringComplete,
+            IsMessagePipelineWiringComplete = IsMessagePipelineWiringComplete,
+            IsForcedInclusionPipelineWiringComplete = IsForcedInclusionPipelineWiringComplete,
+            IsSettlementClientWiringComplete = IsSettlementClientWiringComplete,
             ForcedInclusionDeploymentHeight = ForcedInclusionDeploymentHeight,
             SharedBridgeDeploymentHeight = SharedBridgeDeploymentHeight,
             MessageRouterDeploymentHeight = MessageRouterDeploymentHeight,
@@ -944,6 +950,42 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         ForcedInclusionDeploymentHeight > 0
         && SharedBridgeDeploymentHeight > 0
         && MessageRouterDeploymentHeight > 0;
+
+    /// <summary>
+    /// True when metrics settings are operator-ready: enabled, port &gt; 0, non-empty bind address.
+    /// Does not claim the HTTP server is listening.
+    /// </summary>
+    public bool IsMetricsWiringComplete =>
+        IsMetricsEnabled
+        && MetricsConfiguredPort > 0
+        && !string.IsNullOrWhiteSpace(MetricsBindAddress);
+
+    /// <summary>True when a <c>/readyz</c> readiness predicate is installed on the metrics plugin.</summary>
+    public bool HasMetricsReadinessCheck => Metrics.HasReadinessCheck;
+
+    /// <summary>
+    /// True when production deposit source and batcher deposit source are both wired.
+    /// </summary>
+    public bool IsDepositPipelineWiringComplete =>
+        DepositSource is not null && HasBatchDepositSource;
+
+    /// <summary>
+    /// True when production MessageRouter, batcher MessageRouter, and MessageOutbox are wired.
+    /// </summary>
+    public bool IsMessagePipelineWiringComplete =>
+        MessageRouter is not null && HasBatchMessageRouter && HasMessageOutbox;
+
+    /// <summary>
+    /// True when forced-inclusion finalizer and batcher forced-inclusion source are both wired.
+    /// </summary>
+    public bool IsForcedInclusionPipelineWiringComplete =>
+        ForcedInclusionFinalizer is not null && HasBatchForcedInclusionSource;
+
+    /// <summary>
+    /// True when settlement client, transaction sender, and settlement enablement are all ready.
+    /// </summary>
+    public bool IsSettlementClientWiringComplete =>
+        SettlementClient is not null && TransactionSender is not null && IsSettlementEnabled;
 
     /// <summary>
     /// Offline operator passport: ready + config consistency + NeoHub/inbox wiring +

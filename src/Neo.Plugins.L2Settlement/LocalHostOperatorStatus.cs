@@ -347,6 +347,35 @@ public sealed record LocalHostOperatorStatus
     /// <summary>Configured metrics bind address from settings.</summary>
     public required string MetricsBindAddress { get; init; }
 
+    /// <summary>
+    /// True when metrics settings are operator-ready: enabled, port &gt; 0, non-empty bind address.
+    /// Does not claim the HTTP server is listening (<see cref="IsMetricsHttpListening"/>).
+    /// </summary>
+    public required bool IsMetricsWiringComplete { get; init; }
+
+    /// <summary>True when a <c>/readyz</c> readiness predicate is installed on the metrics plugin.</summary>
+    public required bool HasMetricsReadinessCheck { get; init; }
+
+    /// <summary>
+    /// True when production deposit source and batcher deposit source are both wired.
+    /// </summary>
+    public required bool IsDepositPipelineWiringComplete { get; init; }
+
+    /// <summary>
+    /// True when production MessageRouter, batcher MessageRouter, and MessageOutbox are wired.
+    /// </summary>
+    public required bool IsMessagePipelineWiringComplete { get; init; }
+
+    /// <summary>
+    /// True when forced-inclusion finalizer and batcher forced-inclusion source are both wired.
+    /// </summary>
+    public required bool IsForcedInclusionPipelineWiringComplete { get; init; }
+
+    /// <summary>
+    /// True when settlement client, transaction sender, and settlement enablement are all ready.
+    /// </summary>
+    public required bool IsSettlementClientWiringComplete { get; init; }
+
     /// <summary>ForcedInclusion scanner deployment height (0 when unset).</summary>
     public required uint ForcedInclusionDeploymentHeight { get; init; }
 

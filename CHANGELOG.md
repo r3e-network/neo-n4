@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost metrics/pipeline wiring completeness flags — 2026-07-18
+
+- `L2MetricsPlugin.HasReadinessCheck`; Multisig/Optimistic/Zk LocalHost + operator status
+  (+ JSON) expose `IsMetricsWiringComplete`, `HasMetricsReadinessCheck`,
+  `IsDepositPipelineWiringComplete`, `IsMessagePipelineWiringComplete`,
+  `IsForcedInclusionPipelineWiringComplete`, and `IsSettlementClientWiringComplete`.
+- Dedicated unit coverage for
+  `LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType` /
+  `IsSecurityLevelPairedWithDaMode`. Wireproduction notes + init-l2 tips. No wire/ABI change.
+- Offline diagnostics only; L1 scan/settle and prove-batch remain funded gates.
+
 ### Added — SecurityLevel/DA consistency + Gateway offline passport — 2026-07-18
 
 - Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose

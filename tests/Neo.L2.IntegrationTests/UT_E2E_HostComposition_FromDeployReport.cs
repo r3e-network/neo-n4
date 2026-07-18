@@ -176,6 +176,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             settlementHost.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(settlementHost.IsMetricsHttpListening);
             Assert.IsTrue(settlementHost.MetricsBoundPort > 0);
+            Assert.IsTrue(settlementHost.HasMetricsReadinessCheck);
             Assert.IsTrue(settlementHost.IsProductionWired);
             Assert.IsTrue(settlementHost.IsOperatorReady);
             Assert.IsTrue(settlementHost.HasSealedBatchSink);
@@ -231,6 +232,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.IsBatcherInboxWiringComplete);
             Assert.IsTrue(settlementHost.IsSecurityLevelProofTypeConsistent);
             Assert.IsTrue(settlementHost.IsSecurityLevelDaModeConsistent);
+            Assert.IsTrue(settlementHost.IsMetricsWiringComplete);
+            Assert.IsTrue(settlementHost.IsDepositPipelineWiringComplete);
+            Assert.IsTrue(settlementHost.IsMessagePipelineWiringComplete);
+            Assert.IsTrue(settlementHost.IsForcedInclusionPipelineWiringComplete);
+            Assert.IsTrue(settlementHost.IsSettlementClientWiringComplete);
             Assert.IsTrue(settlementHost.HasExpectedNetwork);
             Assert.IsTrue(settlementHost.HasScannerDeployHeights);
             Assert.IsTrue(settlementHost.IsOfflinePassportComplete);
@@ -245,6 +251,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.IsBatcherInboxWiringComplete);
             Assert.IsTrue(opStatus.IsSecurityLevelProofTypeConsistent);
             Assert.IsTrue(opStatus.IsSecurityLevelDaModeConsistent);
+            Assert.IsTrue(opStatus.IsMetricsWiringComplete);
+            Assert.IsTrue(opStatus.IsDepositPipelineWiringComplete);
+            Assert.IsTrue(opStatus.IsMessagePipelineWiringComplete);
+            Assert.IsTrue(opStatus.IsForcedInclusionPipelineWiringComplete);
+            Assert.IsTrue(opStatus.IsSettlementClientWiringComplete);
             Assert.IsTrue(opStatus.HasExpectedNetwork);
             Assert.IsTrue(opStatus.HasScannerDeployHeights);
             Assert.IsTrue(opStatus.IsOfflinePassportComplete);
@@ -323,6 +334,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"isBatcherInboxWiringComplete\": true");
             StringAssert.Contains(statusJson, "\"isSecurityLevelProofTypeConsistent\": true");
             StringAssert.Contains(statusJson, "\"isSecurityLevelDaModeConsistent\": true");
+            StringAssert.Contains(statusJson, "\"isMetricsWiringComplete\": true");
+            StringAssert.Contains(statusJson, "\"hasMetricsReadinessCheck\": true");
+            StringAssert.Contains(statusJson, "\"isDepositPipelineWiringComplete\": true");
+            StringAssert.Contains(statusJson, "\"isMessagePipelineWiringComplete\": true");
+            StringAssert.Contains(statusJson, "\"isForcedInclusionPipelineWiringComplete\": true");
+            StringAssert.Contains(statusJson, "\"isSettlementClientWiringComplete\": true");
             StringAssert.Contains(statusJson, "\"hasExpectedNetwork\": true");
             StringAssert.Contains(statusJson, "\"hasScannerDeployHeights\": true");
             StringAssert.Contains(statusJson, "\"isOfflinePassportComplete\": true");

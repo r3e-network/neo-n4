@@ -442,6 +442,9 @@ public sealed record NeoHubDeployReport(
                         + "IsProofTypeConfigConsistent / DaMode / RpcDaMode / IsDaModeConfigConsistent / "
                         + "IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete / "
                         + "IsSecurityLevelProofTypeConsistent / IsSecurityLevelDaModeConsistent / "
+                        + "IsMetricsWiringComplete / HasMetricsReadinessCheck / "
+                        + "IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete / "
+                        + "IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete / "
                         + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
                         + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                         + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
@@ -479,6 +482,7 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.CaptureMetricsSnapshot / ExportPrometheusMetrics",
                     ["localHostMetricsSettings"] =
                         "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
+                        + "IsMetricsWiringComplete / HasMetricsReadinessCheck / "
                         + "MetricsMaxConcurrentConnections / MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostBridgeRegistry"] =
                         "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "

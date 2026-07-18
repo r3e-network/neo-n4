@@ -5,13 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added — Compact host health probe JSON writers — 2026-07-19
+### Added — In-memory host health probes + JSON writers — 2026-07-19
 
-- Multisig/Optimistic/Zk `WriteHealthProbeAsync` → `LocalHostHealthProbeDocument`
-  (passport / pipeline / metrics / settlement light flags; not full operator status).
-- `GatewayHostComposition.WriteHealthProbeAsync` → `GatewayHostHealthProbeDocument`
-  (passport / outbox / publication light flags).
-- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- Multisig/Optimistic/Zk `GetHealthProbeAsync` returns `LocalHostHealthProbeDocument`;
+  `WriteHealthProbeAsync` serializes it (passport / pipeline / metrics / settlement).
+- `GatewayHostComposition.GetHealthProbe` returns `GatewayHostHealthProbeDocument`;
+  `WriteHealthProbeAsync` serializes it (passport / outbox / publication).
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
 - L1 settle / publication confirmation remain funded gates.
 
 ### Added — Settlement runtime light probes (idle/poisoned/retrying) — 2026-07-19

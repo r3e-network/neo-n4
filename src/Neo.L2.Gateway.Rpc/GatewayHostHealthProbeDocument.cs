@@ -6,7 +6,8 @@ namespace Neo.L2.Gateway.Rpc;
 /// <remarks>
 /// See doc.md §4 / §14.2. Smaller than <see cref="GatewayHostOperatorStatusDocument"/>;
 /// does not claim L1 publication confirmation (funded gate).
-/// Produced by <see cref="GatewayHostComposition.WriteHealthProbeAsync"/>.
+/// Produced by <see cref="GatewayHostComposition.GetHealthProbe"/> /
+/// <see cref="GatewayHostComposition.WriteHealthProbeAsync"/>.
 /// </remarks>
 public sealed record GatewayHostHealthProbeDocument
 {

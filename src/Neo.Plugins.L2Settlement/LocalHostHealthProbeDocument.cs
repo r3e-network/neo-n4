@@ -6,7 +6,8 @@ namespace Neo.Plugins.L2;
 /// <remarks>
 /// See doc.md §7.5 / §14.2. Smaller than <see cref="LocalHostOperatorStatusDocument"/>;
 /// does not claim L1 settle, prove-batch, or live scan (funded gates).
-/// Produced by Multisig/Optimistic/Zk <c>WriteHealthProbeAsync</c>.
+/// Produced by Multisig/Optimistic/Zk <c>GetHealthProbeAsync</c> /
+/// <c>WriteHealthProbeAsync</c>.
 /// </remarks>
 public sealed record LocalHostHealthProbeDocument
 {

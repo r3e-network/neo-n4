@@ -1524,23 +1524,21 @@ public sealed class OptimisticLocalHostComposition : IDisposable
     }
 
     /// <summary>
-    /// Write a compact health probe JSON (passport / pipeline / metrics / settlement flags)
+    /// Build a compact in-memory health probe (passport / pipeline / metrics / settlement)
     /// without the full operator status document. Soft FI clock via
     /// <paramref name="nowUnixSeconds"/>; no L1 settle claim.
     /// </summary>
-    public async ValueTask WriteHealthProbeAsync(
-        string path,
+    public async ValueTask<LocalHostHealthProbeDocument> GetHealthProbeAsync(
         CancellationToken cancellationToken = default,
         uint? nowUnixSeconds = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var pipelineFailures = await GetPipelineHealthFailuresAsync(
                 cancellationToken, nowUnixSeconds)
             .ConfigureAwait(false);
         var metricsFailures = MetricsHttpHealthFailures;
         var localHostFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
             pipelineFailures, metricsFailures);
-        var document = new LocalHostHealthProbeDocument
+        return new LocalHostHealthProbeDocument
         {
             IsOfflinePassportComplete = IsOfflinePassportComplete,
             OfflinePassportFailures = OfflinePassportFailures,
@@ -1557,6 +1555,21 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             IsSettlementRetrying = await IsSettlementRetryingAsync(cancellationToken)
                 .ConfigureAwait(false),
         };
+    }
+
+    /// <summary>
+    /// Write <see cref="GetHealthProbeAsync"/> as indented camelCase JSON for ops scripts
+    /// without the full operator status document. Soft FI clock via
+    /// <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public async ValueTask WriteHealthProbeAsync(
+        string path,
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var document = await GetHealthProbeAsync(cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
         var fullPath = Path.GetFullPath(path);
         var dir = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(dir))

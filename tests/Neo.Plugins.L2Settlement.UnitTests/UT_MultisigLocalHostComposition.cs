@@ -472,6 +472,13 @@ public sealed class UT_MultisigLocalHostComposition
             await host.WriteOperatorStatusAsync(statusPath);
             Assert.IsTrue(File.Exists(statusPath));
             var statusJson = await File.ReadAllTextAsync(statusPath);
+            var probe = await host.GetHealthProbeAsync();
+            Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.IsTrue(probe.IsPipelineHealthy);
+            Assert.AreEqual(0, probe.PipelineHealthFailures.Count);
+            Assert.IsTrue(probe.IsSettlementRuntimeIdle);
+            Assert.IsFalse(probe.IsSettlementPoisoned);
+            Assert.IsFalse(probe.IsSettlementRetrying);
             var probePath = Path.Combine(chainDir, "health-probe.json");
             await host.WriteHealthProbeAsync(probePath);
             Assert.IsTrue(File.Exists(probePath));

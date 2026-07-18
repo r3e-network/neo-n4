@@ -383,16 +383,13 @@ public sealed class GatewayHostComposition : IDisposable
     }
 
     /// <summary>
-    /// Write a compact health probe JSON (passport / outbox / publication) without the full
-    /// operator status document. L1 confirmation remains a funded gate and is not claimed.
+    /// Build a compact in-memory health probe (passport / outbox / publication) without the
+    /// full operator status document. L1 confirmation remains a funded gate and is not claimed.
     /// </summary>
-    public async ValueTask WriteHealthProbeAsync(
-        string path,
-        CancellationToken cancellationToken = default)
+    public GatewayHostHealthProbeDocument GetHealthProbe()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var publicationFailures = PublicationHealthFailures;
-        var document = new GatewayHostHealthProbeDocument
+        return new GatewayHostHealthProbeDocument
         {
             IsOfflinePassportComplete = IsOfflinePassportComplete,
             OfflinePassportFailures = OfflinePassportFailures,
@@ -403,6 +400,18 @@ public sealed class GatewayHostComposition : IDisposable
             IsGatewayHostHealthy = publicationFailures.Count == 0,
             GatewayHostHealthFailures = publicationFailures,
         };
+    }
+
+    /// <summary>
+    /// Write <see cref="GetHealthProbe"/> as indented camelCase JSON for ops scripts without
+    /// the full operator status document. L1 confirmation remains a funded gate and is not claimed.
+    /// </summary>
+    public async ValueTask WriteHealthProbeAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var document = GetHealthProbe();
         var fullPath = Path.GetFullPath(path);
         var dir = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(dir))

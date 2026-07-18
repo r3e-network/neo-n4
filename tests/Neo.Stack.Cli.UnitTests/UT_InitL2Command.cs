@@ -269,6 +269,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsSettlementPoisonedAsync");
         StringAssert.Contains(output, "IsSettlementRetryingAsync");
         StringAssert.Contains(output, "WriteHealthProbeAsync");
+        StringAssert.Contains(output, "GetHealthProbeAsync");
+        StringAssert.Contains(output, "GetHealthProbe");
         StringAssert.Contains(output, "IsBatcherCheckpointAligned");
         StringAssert.Contains(output, "OpenBatchAgeMillis");
         StringAssert.Contains(output, "IsOpenBatchPastMaxAge");

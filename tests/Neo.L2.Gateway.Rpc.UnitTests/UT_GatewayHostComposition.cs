@@ -130,6 +130,12 @@ public sealed class UT_GatewayHostComposition
             host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(statusPath));
             var statusJson = File.ReadAllText(statusPath);
+            var probe = host.GetHealthProbe();
+            Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.IsTrue(probe.IsPublicationHealthy);
+            Assert.IsTrue(probe.IsOutboxIdle);
+            Assert.IsFalse(probe.IsOutboxPoisoned);
+            Assert.AreEqual(0, probe.PublicationHealthFailures.Count);
             var probePath = Path.Combine(dir, "gateway-health-probe.json");
             host.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(probePath));

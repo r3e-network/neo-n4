@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Batcher checkpoint alignment + LocalHostHealthyAsync — 2026-07-18
+
+- LocalHost operator status (+ JSON) exposes `IsBatcherCheckpointAligned` (batcher
+  last-acked vs durable settlement checkpoint). Included in `PipelineHealthFailures`.
+- Helper `LocalHostOperatorStatus.IsBatcherCheckpointAligned`. Multisig/Optimistic/Zk
+  hosts expose `GetLocalHostHealthFailuresAsync` / `IsLocalHostHealthyAsync` for light
+  probes without a full status document.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Changed — LocalHost /readyz defaults to offline passport — 2026-07-18
 
 - Multisig/Optimistic/Zk `StartMetricsHttp` default readiness is

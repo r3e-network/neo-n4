@@ -71,6 +71,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             offlinePassportComplete: true,
             pipelineEnabled: true,
             hasPendingSealedBatch: false,
+            isBatcherCheckpointAligned: true,
             hasOverdueForcedInclusion: false,
             pendingSettlementCount: 0,
             recovery);
@@ -78,7 +79,16 @@ public sealed class UT_LocalHostOperatorStatusHelpers
     }
 
     [TestMethod]
-    public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealOverdueFiPoison()
+    public void AreBatcherAndCheckpointAligned_FreshAndMatching()
+    {
+        Assert.IsTrue(LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(0, null));
+        Assert.IsFalse(LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(1, null));
+        Assert.IsTrue(LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(3, 3UL));
+        Assert.IsFalse(LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(2, 3UL));
+    }
+
+    [TestMethod]
+    public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealMisalignedOverdueFiPoison()
     {
         var recovery = new SettlementRecoveryStatus
         {
@@ -92,6 +102,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             offlinePassportComplete: false,
             pipelineEnabled: false,
             hasPendingSealedBatch: true,
+            isBatcherCheckpointAligned: false,
             hasOverdueForcedInclusion: true,
             pendingSettlementCount: 1,
             recovery);
@@ -101,6 +112,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
                 nameof(LocalHostOperatorStatus.IsOfflinePassportComplete),
                 nameof(LocalHostOperatorStatus.IsPipelineEnabled),
                 nameof(LocalHostOperatorStatus.HasPendingSealedBatch),
+                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned),
                 nameof(LocalHostOperatorStatus.HasOverdueForcedInclusion),
                 nameof(LocalHostOperatorStatus.IsSettlementPoisoned),
             },
@@ -122,6 +134,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             offlinePassportComplete: true,
             pipelineEnabled: true,
             hasPendingSealedBatch: false,
+            isBatcherCheckpointAligned: true,
             hasOverdueForcedInclusion: false,
             pendingSettlementCount: 0,
             recovery);

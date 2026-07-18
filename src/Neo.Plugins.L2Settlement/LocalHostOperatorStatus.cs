@@ -351,17 +351,17 @@ public sealed record LocalHostOperatorStatus
     public required bool IsSettlementIdle { get; init; }
 
     /// <summary>
-    /// Offline passport complete, pipeline enabled, no pending sealed batch, no overdue
-    /// forced inclusion, settlement not poisoned/retrying, and settlement idle. Distinct from
-    /// L1 settle confirmation (funded gate). True when <see cref="PipelineHealthFailures"/>
-    /// is empty.
+    /// Offline passport complete, pipeline enabled, no pending sealed batch, batcher/checkpoint
+    /// aligned, no overdue forced inclusion, settlement not poisoned/retrying, and settlement
+    /// idle. Distinct from L1 settle confirmation (funded gate). True when
+    /// <see cref="PipelineHealthFailures"/> is empty.
     /// </summary>
     public required bool IsPipelineHealthy { get; init; }
 
     /// <summary>
     /// Names of pipeline health checks that failed (empty when <see cref="IsPipelineHealthy"/>).
-    /// Combines offline passport rollup with runtime sealed-batch pending, overdue forced
-    /// inclusion, settlement idle/retry/poison, and enablement. Diagnostic only; not an L1 claim.
+    /// Combines offline passport rollup with runtime sealed-batch pending, checkpoint alignment,
+    /// overdue forced inclusion, settlement idle/retry/poison, and enablement. Diagnostic only.
     /// </summary>
     public required IReadOnlyList<string> PipelineHealthFailures { get; init; }
 
@@ -528,6 +528,12 @@ public sealed record LocalHostOperatorStatus
     public required UInt256 LatestCheckpointPostStateRoot { get; init; }
 
     /// <summary>
+    /// True when batcher <see cref="LastAcknowledgedBatchNumber"/> matches durable
+    /// <see cref="LatestCheckpointBatchNumber"/> (or both empty/zero). Local integrity only.
+    /// </summary>
+    public required bool IsBatcherCheckpointAligned { get; init; }
+
+    /// <summary>
     /// Authenticated genesis / initial state root from the settlement sink (zero for legacy).
     /// </summary>
     public required UInt256 InitialStateRoot { get; init; }
@@ -562,14 +568,28 @@ public sealed record LocalHostOperatorStatus
         };
 
     /// <summary>
+    /// Offline alignment of batcher last-acked batch vs durable settlement checkpoint.
+    /// Fresh (no ack, no checkpoint) is aligned; otherwise batch numbers must match.
+    /// </summary>
+    public static bool AreBatcherAndCheckpointAligned(
+        ulong lastAcknowledgedBatchNumber,
+        ulong? latestCheckpointBatchNumber)
+    {
+        if (latestCheckpointBatchNumber is null)
+            return lastAcknowledgedBatchNumber == 0;
+        return latestCheckpointBatchNumber.Value == lastAcknowledgedBatchNumber;
+    }
+
+    /// <summary>
     /// Build pipeline health failure names from offline passport + enablement + local batcher
-    /// pending seal + overdue forced inclusion + settlement runtime state.
+    /// pending seal + checkpoint alignment + overdue forced inclusion + settlement runtime state.
     /// Empty list means <see cref="IsPipelineHealthy"/>. Not an L1 settle claim.
     /// </summary>
     public static IReadOnlyList<string> BuildPipelineHealthFailures(
         bool offlinePassportComplete,
         bool pipelineEnabled,
         bool hasPendingSealedBatch,
+        bool isBatcherCheckpointAligned,
         bool hasOverdueForcedInclusion,
         int pendingSettlementCount,
         SettlementRecoveryStatus recovery)
@@ -582,6 +602,8 @@ public sealed record LocalHostOperatorStatus
             failures.Add(nameof(IsPipelineEnabled));
         if (hasPendingSealedBatch)
             failures.Add(nameof(HasPendingSealedBatch));
+        if (!isBatcherCheckpointAligned)
+            failures.Add(nameof(IsBatcherCheckpointAligned));
         if (hasOverdueForcedInclusion)
             failures.Add(nameof(HasOverdueForcedInclusion));
         var isPoisoned = recovery.State == SettlementRecoveryState.Poisoned;

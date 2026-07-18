@@ -362,6 +362,9 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Durable checkpoint post-state root as 0x-hex.</summary>
     public required string LatestCheckpointPostStateRoot { get; init; }
 
+    /// <summary>Batcher last-acked batch matches durable checkpoint (or both empty).</summary>
+    public required bool IsBatcherCheckpointAligned { get; init; }
+
     /// <summary>Settlement initial/genesis state root as 0x-hex.</summary>
     public required string InitialStateRoot { get; init; }
 
@@ -492,6 +495,7 @@ public sealed record LocalHostOperatorStatusDocument
             LatestCheckpointBatchNumber = status.LatestCheckpointBatchNumber,
             LatestCheckpointLastBlock = status.LatestCheckpointLastBlock,
             LatestCheckpointPostStateRoot = status.LatestCheckpointPostStateRoot.ToString(),
+            IsBatcherCheckpointAligned = status.IsBatcherCheckpointAligned,
             InitialStateRoot = status.InitialStateRoot.ToString(),
             Recovery = LocalHostRecoveryDocument.From(status.Recovery),
         };

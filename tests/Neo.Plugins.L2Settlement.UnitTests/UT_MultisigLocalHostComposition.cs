@@ -187,8 +187,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(status.HasOverdueForcedInclusion);
             Assert.IsFalse(host.HasOverdueForcedInclusionCached());
             Assert.IsFalse(status.IsSettlementRetrying);
+            Assert.IsTrue(status.IsBatcherCheckpointAligned);
             Assert.IsTrue(status.IsPipelineHealthy);
             Assert.AreEqual(0, status.PipelineHealthFailures.Count);
+            Assert.IsFalse(await host.IsLocalHostHealthyAsync());
+            var healthFailures = await host.GetLocalHostHealthFailuresAsync();
+            Assert.IsTrue(healthFailures.Count >= 1);
             Assert.IsFalse(status.IsMetricsHttpHealthy);
             Assert.IsFalse(host.IsMetricsHttpHealthy);
             CollectionAssert.Contains(
@@ -552,6 +556,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, metricsStatus.MetricsHttpHealthFailures.Count);
             Assert.IsTrue(metricsStatus.IsLocalHostHealthy);
             Assert.AreEqual(0, metricsStatus.LocalHostHealthFailures.Count);
+            Assert.IsTrue(await host.IsLocalHostHealthyAsync());
+            Assert.AreEqual(0, (await host.GetLocalHostHealthFailuresAsync()).Count);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.TransactionSender);

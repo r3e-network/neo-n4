@@ -540,14 +540,19 @@ public sealed class ZkLocalHostComposition : IDisposable
         ArgumentOutOfRangeException.ThrowIfNegative(depositPeekLimit);
         var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
         var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
+            .ConfigureAwait(false);
         var now = nowUnixSeconds
             ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         // Soft cache-only overdue (no L1 scan); live poll remains HasOverdueForcedInclusionAsync.
         var hasOverdueForcedInclusion = HasOverdueForcedInclusionCached(now);
+        var isBatcherCheckpointAligned = LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(
+            LastAcknowledgedBatchNumber, checkpoint?.BatchNumber);
         var pipelineHealthFailures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
             IsOfflinePassportComplete,
             IsPipelineEnabled,
             HasPendingSealedBatch,
+            isBatcherCheckpointAligned,
             hasOverdueForcedInclusion,
             pending,
             recovery);
@@ -555,8 +560,6 @@ public sealed class ZkLocalHostComposition : IDisposable
         var localHostHealthFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
             pipelineHealthFailures, metricsHttpHealthFailures);
         var tracked = await GetTrackedForcedInclusionNoncesAsync(ChainId, cancellationToken)
-            .ConfigureAwait(false);
-        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
             .ConfigureAwait(false);
         var initialStateRoot = await GetInitialStateRootAsync(cancellationToken).ConfigureAwait(false);
         var readyDeposits = PeekSharedBridgeDeposits(depositPeekLimit);
@@ -683,8 +686,48 @@ public sealed class ZkLocalHostComposition : IDisposable
             LatestCheckpointBatchNumber = checkpoint?.BatchNumber,
             LatestCheckpointLastBlock = checkpoint?.LastBlock,
             LatestCheckpointPostStateRoot = checkpoint?.PostStateRoot ?? UInt256.Zero,
+            IsBatcherCheckpointAligned = isBatcherCheckpointAligned,
             InitialStateRoot = initialStateRoot,
         };
+    }
+
+    /// <summary>
+    /// Local host health failure names (pipeline + metrics HTTP) without a full status document.
+    /// Soft FI clock via <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public async ValueTask<IReadOnlyList<string>> GetLocalHostHealthFailuresAsync(
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var now = nowUnixSeconds
+            ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var pipeline = LocalHostOperatorStatus.BuildPipelineHealthFailures(
+            IsOfflinePassportComplete,
+            IsPipelineEnabled,
+            HasPendingSealedBatch,
+            LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(
+                LastAcknowledgedBatchNumber, checkpoint?.BatchNumber),
+            HasOverdueForcedInclusionCached(now),
+            pending,
+            recovery);
+        return LocalHostOperatorStatus.BuildLocalHostHealthFailures(
+            pipeline, MetricsHttpHealthFailures);
+    }
+
+    /// <summary>
+    /// True when <see cref="GetLocalHostHealthFailuresAsync"/> is empty.
+    /// </summary>
+    public async ValueTask<bool> IsLocalHostHealthyAsync(
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var failures = await GetLocalHostHealthFailuresAsync(cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        return failures.Count == 0;
     }
 
     /// <summary>

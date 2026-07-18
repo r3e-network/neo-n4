@@ -134,9 +134,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(host.ProofType, host.SettlementConfiguredProofType);
             Assert.IsTrue(host.IsChainIdConfigConsistent);
             Assert.IsTrue(host.IsProofTypeConfigConsistent);
+            Assert.AreEqual(host.ChainId, host.RpcChainId);
             Assert.AreEqual(DAMode.Local, host.DaMode);
             Assert.AreEqual(DAMode.Local, host.RpcDaMode);
             Assert.IsTrue(host.IsDaModeConfigConsistent);
+            Assert.IsTrue(host.IsNeoHubHashWiringComplete);
+            Assert.IsTrue(host.IsBatcherInboxWiringComplete);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(20260716u, status.ChainId);
@@ -148,9 +151,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(ProofType.Multisig, status.SettlementConfiguredProofType);
             Assert.IsTrue(status.IsChainIdConfigConsistent);
             Assert.IsTrue(status.IsProofTypeConfigConsistent);
+            Assert.AreEqual(status.ChainId, status.RpcChainId);
             Assert.AreEqual(DAMode.Local, status.DaMode);
             Assert.AreEqual(DAMode.Local, status.RpcDaMode);
             Assert.IsTrue(status.IsDaModeConfigConsistent);
+            Assert.IsTrue(status.IsNeoHubHashWiringComplete);
+            Assert.IsTrue(status.IsBatcherInboxWiringComplete);
             Assert.AreEqual(host.RpcStore.SecurityLevel, status.SecurityLevel);
             Assert.IsTrue(status.IsOperatorReady);
             Assert.IsTrue(status.IsProductionWired);

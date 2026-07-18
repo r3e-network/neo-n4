@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost RpcChainId + NeoHub/inbox wiring completeness flags — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose `RpcChainId`;
+  `IsChainIdConfigConsistent` now also requires host == RPC store chain id.
+- `IsNeoHubHashWiringComplete` (SettlementManager + ForcedInclusion + SharedBridge +
+  MessageRouter hashes present) and `IsBatcherInboxWiringComplete` (deposit + message
+  router + forced-inclusion sources on the batcher) for offline wiring passport checks.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- Presence/consistency only; L1 settle / prove-batch remain funded gates.
+
 ### Added — LocalHost DA mode consistency + Gateway publication-profile ready — 2026-07-18
 
 - Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose `RpcDaMode`

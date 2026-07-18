@@ -223,9 +223,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(ProofType.Multisig, settlementHost.SettlementConfiguredProofType);
             Assert.IsTrue(settlementHost.IsChainIdConfigConsistent);
             Assert.IsTrue(settlementHost.IsProofTypeConfigConsistent);
+            Assert.AreEqual(settlementHost.ChainId, settlementHost.RpcChainId);
             Assert.AreEqual(DAMode.Local, settlementHost.DaMode);
             Assert.AreEqual(DAMode.Local, settlementHost.RpcDaMode);
             Assert.IsTrue(settlementHost.IsDaModeConfigConsistent);
+            Assert.IsTrue(settlementHost.IsNeoHubHashWiringComplete);
+            Assert.IsTrue(settlementHost.IsBatcherInboxWiringComplete);
             Assert.AreEqual(0, settlementHost.PeekSharedBridgeDeposits(8).Count);
             var opStatus = settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(opStatus.IsOperatorReady);
@@ -233,6 +236,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.IsProofTypeConfigConsistent);
             Assert.IsTrue(opStatus.IsDaModeConfigConsistent);
             Assert.AreEqual(DAMode.Local, opStatus.RpcDaMode);
+            Assert.IsTrue(opStatus.IsNeoHubHashWiringComplete);
+            Assert.IsTrue(opStatus.IsBatcherInboxWiringComplete);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasBatchProver);
@@ -303,6 +308,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"isProofTypeConfigConsistent\": true");
             StringAssert.Contains(statusJson, "\"isDaModeConfigConsistent\": true");
             StringAssert.Contains(statusJson, "\"rpcDaMode\":");
+            StringAssert.Contains(statusJson, "\"rpcChainId\":");
+            StringAssert.Contains(statusJson, "\"isNeoHubHashWiringComplete\": true");
+            StringAssert.Contains(statusJson, "\"isBatcherInboxWiringComplete\": true");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
@@ -542,9 +550,13 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(host.IsChainIdConfigConsistent);
             Assert.IsTrue(host.IsProofTypeConfigConsistent);
             Assert.IsTrue(host.IsDaModeConfigConsistent);
+            Assert.IsTrue(host.IsNeoHubHashWiringComplete);
+            Assert.IsTrue(host.IsBatcherInboxWiringComplete);
             Assert.IsTrue(opStatus.IsChainIdConfigConsistent);
             Assert.IsTrue(opStatus.IsProofTypeConfigConsistent);
             Assert.IsTrue(opStatus.IsDaModeConfigConsistent);
+            Assert.IsTrue(opStatus.IsNeoHubHashWiringComplete);
+            Assert.IsTrue(opStatus.IsBatcherInboxWiringComplete);
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);

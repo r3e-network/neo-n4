@@ -209,6 +209,9 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// </summary>
     public uint SettlementConfiguredChainId => Settlement.ConfiguredChainId;
 
+    /// <summary>L2 chain id from the durable RPC store.</summary>
+    public uint RpcChainId => RpcStore.ChainId;
+
     /// <summary>Configured proof type of the wired prover host.</summary>
     public ProofType ProofType => Prover.Kind;
 
@@ -219,10 +222,12 @@ public sealed class ZkLocalHostComposition : IDisposable
     public ProofType SettlementConfiguredProofType => Settlement.ConfiguredProofType;
 
     /// <summary>
-    /// True when bridge <see cref="ChainId"/> matches batcher and settlement configured chain ids.
+    /// True when bridge <see cref="ChainId"/> matches batcher, settlement, and RPC store chain ids.
     /// </summary>
     public bool IsChainIdConfigConsistent =>
-        ChainId == BatcherConfiguredChainId && ChainId == SettlementConfiguredChainId;
+        ChainId == BatcherConfiguredChainId
+        && ChainId == SettlementConfiguredChainId
+        && ChainId == RpcChainId;
 
     /// <summary>
     /// True when host <see cref="ProofType"/> matches settlement configured proof type.
@@ -529,6 +534,7 @@ public sealed class ZkLocalHostComposition : IDisposable
             ChainId = ChainId,
             BatcherConfiguredChainId = BatcherConfiguredChainId,
             SettlementConfiguredChainId = SettlementConfiguredChainId,
+            RpcChainId = RpcChainId,
             ProofType = ProofType,
             SettlementConfiguredProofType = SettlementConfiguredProofType,
             IsChainIdConfigConsistent = IsChainIdConfigConsistent,
@@ -614,6 +620,8 @@ public sealed class ZkLocalHostComposition : IDisposable
             ForcedInclusionDeploymentHeight = ForcedInclusionDeploymentHeight,
             SharedBridgeDeploymentHeight = SharedBridgeDeploymentHeight,
             MessageRouterDeploymentHeight = MessageRouterDeploymentHeight,
+            IsNeoHubHashWiringComplete = IsNeoHubHashWiringComplete,
+            IsBatcherInboxWiringComplete = IsBatcherInboxWiringComplete,
             HasBatchProver = HasBatchProver,
             LatestCheckpointBatchNumber = checkpoint?.BatchNumber,
             LatestCheckpointLastBlock = checkpoint?.LastBlock,
@@ -898,6 +906,22 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// (<see cref="L2BatchPlugin.HasMessageRouter"/>).
     /// </summary>
     public bool HasBatchMessageRouter => Batch.HasMessageRouter;
+
+    /// <summary>
+    /// True when the batcher has deposit, message-router, and forced-inclusion inbox sources.
+    /// </summary>
+    public bool IsBatcherInboxWiringComplete =>
+        HasBatchDepositSource && HasBatchMessageRouter && HasBatchForcedInclusionSource;
+
+    /// <summary>
+    /// True when settlement settings include SettlementManager, ForcedInclusion, SharedBridge,
+    /// and MessageRouter hashes (presence only; not on-chain verified).
+    /// </summary>
+    public bool IsNeoHubHashWiringComplete =>
+        HasSettlementManagerHash
+        && HasForcedInclusionHash
+        && HasSharedBridgeHash
+        && HasMessageRouterHash;
 
     /// <summary>
     /// Max forced-inclusion entries per sealed batch

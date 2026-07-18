@@ -27,6 +27,9 @@ public sealed record LocalHostOperatorStatus
     /// </summary>
     public required uint SettlementConfiguredChainId { get; init; }
 
+    /// <summary>L2 chain id advertised by the durable L2 RPC store.</summary>
+    public required uint RpcChainId { get; init; }
+
     /// <summary>Configured proof type of the wired prover.</summary>
     public required ProofType ProofType { get; init; }
 
@@ -37,7 +40,7 @@ public sealed record LocalHostOperatorStatus
     public required ProofType SettlementConfiguredProofType { get; init; }
 
     /// <summary>
-    /// True when <see cref="ChainId"/> equals both batcher and settlement configured chain ids.
+    /// True when <see cref="ChainId"/> equals batcher, settlement, and RPC store chain ids.
     /// </summary>
     public required bool IsChainIdConfigConsistent { get; init; }
 
@@ -352,6 +355,17 @@ public sealed record LocalHostOperatorStatus
 
     /// <summary>MessageRouter scanner deployment height (0 when unset).</summary>
     public required uint MessageRouterDeploymentHeight { get; init; }
+
+    /// <summary>
+    /// True when settlement settings include SettlementManager, ForcedInclusion, SharedBridge,
+    /// and MessageRouter hashes (presence only; not on-chain verified).
+    /// </summary>
+    public required bool IsNeoHubHashWiringComplete { get; init; }
+
+    /// <summary>
+    /// True when the batcher has deposit, message-router, and forced-inclusion inbox sources.
+    /// </summary>
+    public required bool IsBatcherInboxWiringComplete { get; init; }
 
     /// <summary>
     /// True when the batch prover plugin has installed an <see cref="IL2Prover"/>.

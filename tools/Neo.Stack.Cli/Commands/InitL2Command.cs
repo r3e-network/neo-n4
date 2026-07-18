@@ -132,8 +132,9 @@ internal static class InitL2Command
         Console.WriteLine("  host ready = LocalHost.IsOperatorReady / GetOperatorStatusAsync (see wireproduction notes)");
         Console.WriteLine("  host batch = LocalHost.BatcherConfiguredChainId / SettlementConfiguredChainId / NextExpectedBlock / NextBatchNumber");
         Console.WriteLine("               PendingSealedBatchNumber / MaxBlocksPerBatch / SettlementConfiguredProofType");
-        Console.WriteLine("               IsChainIdConfigConsistent / IsProofTypeConfigConsistent");
+        Console.WriteLine("               RpcChainId / IsChainIdConfigConsistent / IsProofTypeConfigConsistent");
         Console.WriteLine("               RpcDaMode / IsDaModeConfigConsistent");
+        Console.WriteLine("               IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete");
         Console.WriteLine("               MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / OpenBatchForcedInclusionCount");
         Console.WriteLine("               OpenBatchL2ToL2MessageCount / OpenBatchWithdrawalCount / HasBatchDepositSource");
         Console.WriteLine("               HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver");

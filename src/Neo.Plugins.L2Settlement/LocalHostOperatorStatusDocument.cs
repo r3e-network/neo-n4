@@ -20,13 +20,16 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Settlement plugin configured chain id.</summary>
     public required uint SettlementConfiguredChainId { get; init; }
 
+    /// <summary>RPC store chain id.</summary>
+    public required uint RpcChainId { get; init; }
+
     /// <summary>Proof type name.</summary>
     public required string ProofType { get; init; }
 
     /// <summary>Settlement plugin configured proof type name.</summary>
     public required string SettlementConfiguredProofType { get; init; }
 
-    /// <summary>Host/batcher/settlement chain ids agree.</summary>
+    /// <summary>Host/batcher/settlement/RPC chain ids agree.</summary>
     public required bool IsChainIdConfigConsistent { get; init; }
 
     /// <summary>Host and settlement proof types agree.</summary>
@@ -272,6 +275,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>MessageRouter scanner deployment height.</summary>
     public required uint MessageRouterDeploymentHeight { get; init; }
 
+    /// <summary>SettlementManager + ForcedInclusion + SharedBridge + MessageRouter hashes present.</summary>
+    public required bool IsNeoHubHashWiringComplete { get; init; }
+
+    /// <summary>Batcher deposit + message-router + forced-inclusion sources present.</summary>
+    public required bool IsBatcherInboxWiringComplete { get; init; }
+
     /// <summary>Batch prover installed on the host.</summary>
     public required bool HasBatchProver { get; init; }
 
@@ -300,6 +309,7 @@ public sealed record LocalHostOperatorStatusDocument
             ChainId = status.ChainId,
             BatcherConfiguredChainId = status.BatcherConfiguredChainId,
             SettlementConfiguredChainId = status.SettlementConfiguredChainId,
+            RpcChainId = status.RpcChainId,
             ProofType = status.ProofType.ToString(),
             SettlementConfiguredProofType = status.SettlementConfiguredProofType.ToString(),
             IsChainIdConfigConsistent = status.IsChainIdConfigConsistent,
@@ -384,6 +394,8 @@ public sealed record LocalHostOperatorStatusDocument
             ForcedInclusionDeploymentHeight = status.ForcedInclusionDeploymentHeight,
             SharedBridgeDeploymentHeight = status.SharedBridgeDeploymentHeight,
             MessageRouterDeploymentHeight = status.MessageRouterDeploymentHeight,
+            IsNeoHubHashWiringComplete = status.IsNeoHubHashWiringComplete,
+            IsBatcherInboxWiringComplete = status.IsBatcherInboxWiringComplete,
             HasBatchProver = status.HasBatchProver,
             LatestCheckpointBatchNumber = status.LatestCheckpointBatchNumber,
             LatestCheckpointLastBlock = status.LatestCheckpointLastBlock,

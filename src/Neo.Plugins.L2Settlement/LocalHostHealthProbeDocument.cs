@@ -44,8 +44,41 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Pending sealed batch number when present; otherwise null.</summary>
     public required ulong? PendingSealedBatchNumber { get; init; }
 
+    /// <summary>A batch is currently being accumulated (local batcher).</summary>
+    public required bool HasOpenBatch { get; init; }
+
+    /// <summary>Wall-clock age of the open batch in milliseconds when open; otherwise null.</summary>
+    public required long? OpenBatchAgeMillis { get; init; }
+
     /// <summary>Open batch is at or past MaxBatchAgeMillis (seal-by-age overdue).</summary>
     public required bool IsOpenBatchPastMaxAge { get; init; }
+
+    /// <summary>Transaction count in the open batch (local batcher).</summary>
+    public required int InProgressTxCount { get; init; }
+
+    /// <summary>First L2 block in the open batch when open; otherwise null.</summary>
+    public required ulong? OpenBatchFirstBlock { get; init; }
+
+    /// <summary>Last L2 block in the open batch when open; otherwise null.</summary>
+    public required ulong? OpenBatchLastBlock { get; init; }
+
+    /// <summary>Block count in the open batch (local batcher).</summary>
+    public required int OpenBatchBlockCount { get; init; }
+
+    /// <summary>L1 messages consumed into the open batch (local batcher).</summary>
+    public required int OpenBatchL1MessageCount { get; init; }
+
+    /// <summary>L2→L1 messages staged in the open batch (local batcher).</summary>
+    public required int OpenBatchL2ToL1MessageCount { get; init; }
+
+    /// <summary>L2→L2 messages staged in the open batch (local batcher).</summary>
+    public required int OpenBatchL2ToL2MessageCount { get; init; }
+
+    /// <summary>Forced-inclusion entries staged in the open batch (local batcher).</summary>
+    public required int OpenBatchForcedInclusionCount { get; init; }
+
+    /// <summary>Withdrawals staged in the open batch (local batcher).</summary>
+    public required int OpenBatchWithdrawalCount { get; init; }
 
     /// <summary>
     /// Batcher last-acked batch aligns with durable settlement checkpoint (local artifacts).

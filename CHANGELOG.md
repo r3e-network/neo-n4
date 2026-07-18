@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds open-batch soft counts — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe` JSON) adds open-batch soft signals: `HasOpenBatch`,
+  `OpenBatchAgeMillis`, `InProgressTxCount`, first/last block, block/L1/L2→L1/L2→L2/
+  FI/withdrawal counts for batcher seal-path visibility without full status.
+- Soft local batcher state only; no L1 settle claim. Wireproduction notes; unit coverage.
+  No wire/ABI change. L1 settle remains a funded gate.
+
 ### Changed — LocalHost health probe adds deposit/inbox/withdrawal soft depths — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

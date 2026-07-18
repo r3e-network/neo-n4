@@ -243,6 +243,9 @@ public sealed class UT_OptimisticLocalHostComposition
             var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(probe.IsPipelineEnabled);
             Assert.IsFalse(probe.HasPendingSealedBatch);
+            Assert.IsFalse(probe.HasOpenBatch);
+            Assert.AreEqual(0, probe.InProgressTxCount);
+            Assert.AreEqual(0, probe.OpenBatchBlockCount);
             Assert.IsTrue(probe.IsBatcherCheckpointAligned);
             Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
@@ -261,6 +264,8 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(probeJson, "\"isSettlementRuntimeIdle\": true");
             StringAssert.Contains(probeJson, "\"isPipelineEnabled\": true");
             StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": true");
+            StringAssert.Contains(probeJson, "\"hasOpenBatch\": false");
+            StringAssert.Contains(probeJson, "\"openBatchBlockCount\": 0");
             StringAssert.Contains(probeJson, "\"depositSourceReservedCount\": 0");
             StringAssert.Contains(probeJson, "\"l1InboxConsumedCount\": 0");
             StringAssert.Contains(probeJson, "\"stagedWithdrawalCount\": 0");

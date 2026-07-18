@@ -233,6 +233,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "GetOperatorStatusAsync");
         StringAssert.Contains(output, "NextExpectedBlock");
         StringAssert.Contains(output, "BatcherConfiguredChainId");
+        StringAssert.Contains(output, "SettlementConfiguredChainId");
+        StringAssert.Contains(output, "SettlementConfiguredProofType");
         StringAssert.Contains(output, "NextBatchNumber");
         StringAssert.Contains(output, "PendingSealedBatchNumber");
         StringAssert.Contains(output, "MaxBlocksPerBatch");

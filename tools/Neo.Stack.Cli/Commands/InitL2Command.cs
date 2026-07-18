@@ -130,7 +130,8 @@ internal static class InitL2Command
         // Operator host composition roots (no Neo.CLI required for local Multisig/Optimistic/Zk).
         Console.WriteLine("  host open  = MultisigLocalHostComposition.Open / OptimisticLocalHostComposition.Open / ZkLocalHostComposition.Open");
         Console.WriteLine("  host ready = LocalHost.IsOperatorReady / GetOperatorStatusAsync (see wireproduction notes)");
-        Console.WriteLine("  host batch = LocalHost.BatcherConfiguredChainId / NextExpectedBlock / NextBatchNumber / PendingSealedBatchNumber / MaxBlocksPerBatch");
+        Console.WriteLine("  host batch = LocalHost.BatcherConfiguredChainId / SettlementConfiguredChainId / NextExpectedBlock / NextBatchNumber");
+        Console.WriteLine("               PendingSealedBatchNumber / MaxBlocksPerBatch / SettlementConfiguredProofType");
         Console.WriteLine("               MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / OpenBatchForcedInclusionCount");
         Console.WriteLine("               OpenBatchL2ToL2MessageCount / OpenBatchWithdrawalCount / HasBatchDepositSource");
         Console.WriteLine("               HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver");

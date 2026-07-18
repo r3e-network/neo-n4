@@ -205,9 +205,10 @@ public class UT_NeoHubDeployReport
                 + "MetricsBoundPort / IsMetricsHttpListening",
                 stores.GetProperty("localHostProductionSurfaces").GetString());
             Assert.AreEqual(
-                "LocalHost.ChainId / BatcherConfiguredChainId / ProofType / DaMode / "
-                + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / "
-                + "IsOperatorReady / PeekSharedBridgeDeposits / GetOperatorStatusAsync",
+                "LocalHost.ChainId / BatcherConfiguredChainId / SettlementConfiguredChainId / "
+                + "ProofType / SettlementConfiguredProofType / DaMode / HasSealedBatchSink / "
+                + "NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
+                + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
             Assert.AreEqual(
                 "LocalHost.BatcherConfiguredChainId / NextExpectedBlock / "

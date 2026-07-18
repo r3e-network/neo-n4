@@ -120,6 +120,9 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(status.L1FinalityDepth >= 1);
             Assert.IsTrue(status.HasBatchProver);
             Assert.IsTrue(host.HasBatchProver);
+            Assert.AreEqual(host.ChainId, host.SettlementConfiguredChainId);
+            Assert.AreEqual(host.ProofType, host.SettlementConfiguredProofType);
+            Assert.AreEqual(status.ProofType, status.SettlementConfiguredProofType);
             Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, status.OpenBatchWithdrawalCount);
             Assert.IsTrue(status.SupportsLocalDaReader);

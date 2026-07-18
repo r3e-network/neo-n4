@@ -189,8 +189,20 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// </summary>
     public uint BatcherConfiguredChainId => Batch.ConfiguredChainId;
 
+    /// <summary>
+    /// Settlement plugin settings chain id
+    /// (<see cref="L2SettlementPlugin.ConfiguredChainId"/>).
+    /// </summary>
+    public uint SettlementConfiguredChainId => Settlement.ConfiguredChainId;
+
     /// <summary>Configured proof type of the wired prover host.</summary>
     public ProofType ProofType => Prover.Kind;
+
+    /// <summary>
+    /// Settlement plugin settings proof type
+    /// (<see cref="L2SettlementPlugin.ConfiguredProofType"/>).
+    /// </summary>
+    public ProofType SettlementConfiguredProofType => Settlement.ConfiguredProofType;
 
     /// <summary>Local DA mode of the wired persistent DA writer.</summary>
     public DAMode DaMode => DaWriter.Mode;
@@ -483,7 +495,9 @@ public sealed class MultisigLocalHostComposition : IDisposable
         {
             ChainId = ChainId,
             BatcherConfiguredChainId = BatcherConfiguredChainId,
+            SettlementConfiguredChainId = SettlementConfiguredChainId,
             ProofType = ProofType,
+            SettlementConfiguredProofType = SettlementConfiguredProofType,
             DaMode = DaMode,
             SecurityLevel = RpcStore.SecurityLevel,
             GatewayEnabled = RpcStore.GatewayEnabled,

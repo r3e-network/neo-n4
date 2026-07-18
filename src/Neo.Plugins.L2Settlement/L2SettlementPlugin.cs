@@ -514,6 +514,18 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     public bool IsEnabled => _settings.Enabled;
 
     /// <summary>
+    /// Configured L2 chain id from settlement plugin settings
+    /// (offline consistency check vs host bridge <c>ChainId</c>).
+    /// </summary>
+    public uint ConfiguredChainId => _settings.ChainId;
+
+    /// <summary>
+    /// Configured proof type from settlement plugin settings
+    /// (offline consistency check vs host prover <c>ProofType</c>).
+    /// </summary>
+    public ProofType ConfiguredProofType => Neo.L2.ProofTypeExtensions.Resolve(_settings.ProofType);
+
+    /// <summary>
     /// Configured L1 finality depth used by deposit / FI / MessageRouter scanners
     /// when WireProduction does not override per-scanner depths.
     /// </summary>

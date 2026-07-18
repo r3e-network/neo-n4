@@ -21,8 +21,20 @@ public sealed record LocalHostOperatorStatus
     /// </summary>
     public required uint BatcherConfiguredChainId { get; init; }
 
+    /// <summary>
+    /// Settlement plugin settings chain id. Offline consistency check vs
+    /// <see cref="ChainId"/> / <see cref="BatcherConfiguredChainId"/>.
+    /// </summary>
+    public required uint SettlementConfiguredChainId { get; init; }
+
     /// <summary>Configured proof type of the wired prover.</summary>
     public required ProofType ProofType { get; init; }
+
+    /// <summary>
+    /// Settlement plugin settings proof type. Offline consistency check vs
+    /// <see cref="ProofType"/>.
+    /// </summary>
+    public required ProofType SettlementConfiguredProofType { get; init; }
 
     /// <summary>DA mode of the wired DA writer.</summary>
     public required DAMode DaMode { get; init; }

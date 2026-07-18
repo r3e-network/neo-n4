@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Settlement configured chain id and proof type on LocalHost ops — 2026-07-18
+
+- `L2SettlementPlugin` exposes `ConfiguredChainId` / `ConfiguredProofType` from settings.
+- Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) include
+  `SettlementConfiguredChainId` / `SettlementConfiguredProofType` for offline consistency
+  checks against host `ChainId` / `ProofType` / `BatcherConfiguredChainId`.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+
 ### Added — Batcher configured chain id and Gateway AggregationBackendId on host ops — 2026-07-18
 
 - `L2BatchPlugin.ConfiguredChainId` / Multisig/Optimistic/Zk LocalHost

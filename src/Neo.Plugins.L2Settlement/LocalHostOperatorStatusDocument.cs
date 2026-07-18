@@ -17,8 +17,14 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Batcher plugin configured chain id (0 when unset).</summary>
     public required uint BatcherConfiguredChainId { get; init; }
 
+    /// <summary>Settlement plugin configured chain id.</summary>
+    public required uint SettlementConfiguredChainId { get; init; }
+
     /// <summary>Proof type name.</summary>
     public required string ProofType { get; init; }
+
+    /// <summary>Settlement plugin configured proof type name.</summary>
+    public required string SettlementConfiguredProofType { get; init; }
 
     /// <summary>DA mode name.</summary>
     public required string DaMode { get; init; }
@@ -281,7 +287,9 @@ public sealed record LocalHostOperatorStatusDocument
         {
             ChainId = status.ChainId,
             BatcherConfiguredChainId = status.BatcherConfiguredChainId,
+            SettlementConfiguredChainId = status.SettlementConfiguredChainId,
             ProofType = status.ProofType.ToString(),
+            SettlementConfiguredProofType = status.SettlementConfiguredProofType.ToString(),
             DaMode = status.DaMode.ToString(),
             SecurityLevel = status.SecurityLevel.ToString(),
             GatewayEnabled = status.GatewayEnabled,

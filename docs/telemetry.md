@@ -43,17 +43,23 @@ exposition. Port 0 lets the OS pick any free port.
 
 ## Endpoints
 
-The HTTP handler answers three paths (everything else is 404):
+The HTTP handler answers four paths (everything else is 404):
 
 | Path | Status | Description |
 |---|---|---|
 | `GET /metrics` | 200 | Prometheus exposition text |
 | `GET /healthz` | 200 | Process liveness — always 200 if the server is responding |
-| `GET /readyz` | 200 / 503 | Wired predicate; 200 when no predicate is supplied |
+| `GET /readyz` | 200 / 503 | Wired predicate; **503 when no predicate is supplied** (fail closed) |
+| `GET /healthprobe` | 200 / 503 | Compact operator health JSON when wired; **503 when unwired** |
 
 `/healthz` and `/readyz` follow the Kubernetes naming convention. Use
 `/healthz` for liveness (restart on failure) and `/readyz` for readiness
-(remove from load balancer on failure). For example:
+(remove from load balancer on failure). LocalHost `StartMetricsHttp` wires
+`/readyz` to offline passport completeness and `/healthprobe` to
+`FormatHealthProbeJson` (`LocalHostHealthProbeDocument` camelCase JSON).
+`/healthprobe` stays HTTP 200 with health flags in the body so ops can
+`curl | jq` without treating local runtime soft-fail as a scrape outage.
+It does **not** claim L1 settle or prove-batch (funded gates). For example:
 
 ```csharp
 var handler = new MetricsRequestHandler(metrics, readinessCheck: () =>

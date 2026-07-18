@@ -455,7 +455,7 @@ public sealed record NeoHubDeployReport(
                         + "IsMetricsHttpHealthy / MetricsHttpHealthFailures / "
                         + "IsLocalHostHealthy / LocalHostHealthFailures / IsLocalHostHealthyAsync / "
                         + "IsPipelineHealthyAsync / GetPipelineHealthFailuresAsync / "
-                        + "StartMetricsHttp(/readyz defaults to IsOfflinePassportComplete) / "
+                        + "StartMetricsHttp(/readyz defaults to IsOfflinePassportComplete; /healthprobe → FormatHealthProbeJson) / "
                         + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
                         + "OfflinePassportFailures / BuildOfflinePassportFailures / "
                         + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
@@ -510,7 +510,8 @@ public sealed record NeoHubDeployReport(
                     ["localHostWriteOperatorStatus"] =
                         "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
                     ["localHostWriteHealthProbe"] =
-                        "LocalHost.GetHealthProbeAsync() / WriteHealthProbeAsync(path) → "
+                        "LocalHost.GetHealthProbeAsync() / FormatHealthProbeJson() / "
+                        + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                         + "LocalHostHealthProbeDocument JSON "
                         + "(passport/pipeline/metrics/settlement + pending-seal/checkpoint/FI/inbox flags)",
                     ["localHostWritePrometheusMetrics"] =
@@ -535,11 +536,13 @@ public sealed record NeoHubDeployReport(
                         + "LatestCheckpointPostStateRoot / InitialStateRoot",
                     ["localHostStartMetricsHttp"] =
                         "LocalHost.StartMetricsHttp(portOverride?, readiness?) / StopMetricsHttp / "
-                        + "Open startMetricsHttp",
+                        + "Open startMetricsHttp "
+                        + "(wires /readyz + /healthprobe before Metrics.Start)",
                     ["localHostCreateRpcPlugin"] =
                         "LocalHost.CreateRpcPlugin() then NeoSystem.AddService(RpcStore)",
                     ["metricsReadiness"] =
-                        "LocalHost Open startMetricsHttp → WithReadinessCheck(HasSealedBatchSink)",
+                        "LocalHost StartMetricsHttp → WithReadinessCheck(IsOfflinePassportComplete) + "
+                        + "WithHealthProbe(FormatHealthProbeJson) → /readyz + /healthprobe",
                     ["gatewayHostCompositionMerkle"] =
                         "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",
                     ["gatewayHostCompositionMultisig"] =

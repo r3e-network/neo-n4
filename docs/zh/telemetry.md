@@ -37,16 +37,20 @@ body 长度、Prometheus exposition 的开头几行。Port 0 让 OS 自选空闲
 
 ## 端点
 
-HTTP handler 答应 3 条路径(其它都是 404):
+HTTP handler 答应 4 条路径(其它都是 404):
 
 | 路径 | 状态 | 说明 |
 |------|------|------|
 | `GET /metrics` | 200 | Prometheus exposition 文本 |
 | `GET /healthz` | 200 | 进程存活 —— server 在响应就一律 200 |
-| `GET /readyz` | 200 / 503 | 接线了的判定;不传判定时一律 200 |
+| `GET /readyz` | 200 / 503 | 接线了的判定;不传判定时 **503**(fail closed) |
+| `GET /healthprobe` | 200 / 503 | 紧凑运维健康 JSON;未接线时 **503** |
 
 `/healthz` 和 `/readyz` 沿用 Kubernetes 命名约定。`/healthz` 用作 liveness(失败则
-重启),`/readyz` 用作 readiness(失败则从负载均衡摘出)。例如:
+重启),`/readyz` 用作 readiness(失败则从负载均衡摘出)。LocalHost `StartMetricsHttp`
+把 `/readyz` 接到 offline passport,把 `/healthprobe` 接到 `FormatHealthProbeJson`
+(camelCase `LocalHostHealthProbeDocument`)。`/healthprobe` 在 body 里带健康标志、
+HTTP 仍 200,便于 `curl | jq`;不声称 L1 settle / prove-batch(funded 门禁)。例如:
 
 ```csharp
 var handler = new MetricsRequestHandler(metrics, readinessCheck: () =>

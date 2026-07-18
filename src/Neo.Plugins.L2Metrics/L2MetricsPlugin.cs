@@ -27,6 +27,7 @@ public sealed class L2MetricsPlugin : Plugin
     private InMemoryMetrics _metrics = new();
     private MetricsHttpServer? _server;
     private Func<bool>? _readinessCheck;
+    private Func<string>? _healthProbeBody;
     private readonly Lock _startGate = new();
 
     /// <summary>Construct with default settings (port 9090, loopback).</summary>
@@ -81,7 +82,8 @@ public sealed class L2MetricsPlugin : Plugin
     public override string Name => "L2MetricsPlugin";
 
     /// <inheritdoc />
-    public override string Description => "Hosts the shared L2 metrics sink and the /metrics + /healthz + /readyz HTTP server.";
+    public override string Description =>
+        "Hosts the shared L2 metrics sink and the /metrics + /healthz + /readyz + /healthprobe HTTP server.";
 
     /// <summary>
     /// True when a <c>/readyz</c> predicate has been installed via
@@ -90,14 +92,34 @@ public sealed class L2MetricsPlugin : Plugin
     public bool HasReadinessCheck => _readinessCheck is not null;
 
     /// <summary>
+    /// True when a <c>/healthprobe</c> JSON body provider has been installed via
+    /// <see cref="WithHealthProbe"/>. When false, <c>/healthprobe</c> fails closed with 503.
+    /// </summary>
+    public bool HasHealthProbe => _healthProbeBody is not null;
+
+    /// <summary>
     /// Wire a readiness predicate. <c>/readyz</c> evaluates this on every request;
     /// <c>true</c> → 200, <c>false</c> → 503. When unwired, <c>/readyz</c> fails closed with 503.
     /// Common predicates: "is the latest batch within N seconds?", "is the prover queue draining?".
+    /// Must be installed before <see cref="Start"/> (handler is built once at start).
     /// </summary>
     public void WithReadinessCheck(Func<bool> check)
     {
         ArgumentNullException.ThrowIfNull(check);
         _readinessCheck = check;
+    }
+
+    /// <summary>
+    /// Wire a compact health-probe JSON body for <c>/healthprobe</c>.
+    /// Evaluated on every request; returns 200 + <c>application/json</c> with the body.
+    /// When unwired, <c>/healthprobe</c> fails closed with 503.
+    /// Must be installed before <see cref="Start"/> (handler is built once at start).
+    /// LocalHost compositions supply camelCase <c>LocalHostHealthProbeDocument</c> JSON.
+    /// </summary>
+    public void WithHealthProbe(Func<string> body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        _healthProbeBody = body;
     }
 
     /// <inheritdoc />
@@ -118,7 +140,11 @@ public sealed class L2MetricsPlugin : Plugin
             if (!_settings.Enabled || _server is not null) return;
             var address = ResolveBindAddress(_settings.BindAddress);
 
-            var handler = new MetricsRequestHandler(_metrics, _readinessCheck);
+            var handler = new MetricsRequestHandler(
+                _metrics,
+                _readinessCheck,
+                livenessCheck: null,
+                healthProbeBody: _healthProbeBody);
             var port = portOverride ?? _settings.Port;
             var server = new MetricsHttpServer(
                 address,

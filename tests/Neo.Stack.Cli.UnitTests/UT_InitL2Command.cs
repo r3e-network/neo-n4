@@ -271,6 +271,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsBatcherCheckpointAlignedAsync");
         StringAssert.Contains(output, "WriteHealthProbeAsync");
         StringAssert.Contains(output, "GetHealthProbeAsync");
+        StringAssert.Contains(output, "FormatHealthProbeJson");
+        StringAssert.Contains(output, "/healthprobe");
         StringAssert.Contains(output, "GetHealthProbe");
         StringAssert.Contains(output, "IsBatcherCheckpointAligned");
         StringAssert.Contains(output, "OpenBatchAgeMillis");

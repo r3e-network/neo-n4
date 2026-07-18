@@ -616,6 +616,17 @@ public sealed class UT_MultisigLocalHostComposition
             var health = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/healthz");
             Assert.AreEqual(System.Net.HttpStatusCode.OK, health.StatusCode);
 
+            Assert.IsTrue(host.Metrics.HasHealthProbe);
+            var probeHttp = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/healthprobe");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, probeHttp.StatusCode);
+            Assert.IsTrue(probeHttp.Content.Headers.ContentType?.MediaType is "application/json");
+            var probeBody = await probeHttp.Content.ReadAsStringAsync();
+            StringAssert.Contains(probeBody, "isOfflinePassportComplete");
+            StringAssert.Contains(probeBody, "isLocalHostHealthy");
+            StringAssert.Contains(probeBody, "isBatcherCheckpointAligned");
+            var formatted = host.FormatHealthProbeJson();
+            StringAssert.Contains(formatted, "isOfflinePassportComplete");
+
             Assert.AreEqual(0, await host.GetPendingCountAsync());
             await host.ReconcileAsync();
             await host.SubmitNextAsync();
@@ -641,6 +652,10 @@ public sealed class UT_MultisigLocalHostComposition
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.IsTrue(host.Metrics.HasHealthProbe);
+            var probeAfterRestart = await client.GetAsync(
+                $"http://127.0.0.1:{host.MetricsBoundPort}/healthprobe");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, probeAfterRestart.StatusCode);
         }
         finally
         {

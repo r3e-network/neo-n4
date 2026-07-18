@@ -140,12 +140,28 @@ public class UT_L2MetricsPlugin
     }
 
     [TestMethod]
+    public void WithHealthProbe_RejectsNull()
+    {
+        using var plugin = new L2MetricsPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.WithHealthProbe(null!));
+    }
+
+    [TestMethod]
     public void HasReadinessCheck_FalseUntilInstalled()
     {
         using var plugin = new L2MetricsPlugin();
         Assert.IsFalse(plugin.HasReadinessCheck);
         plugin.WithReadinessCheck(static () => true);
         Assert.IsTrue(plugin.HasReadinessCheck);
+    }
+
+    [TestMethod]
+    public void HasHealthProbe_FalseUntilInstalled()
+    {
+        using var plugin = new L2MetricsPlugin();
+        Assert.IsFalse(plugin.HasHealthProbe);
+        plugin.WithHealthProbe(static () => "{}");
+        Assert.IsTrue(plugin.HasHealthProbe);
     }
 
     [TestMethod]
@@ -160,6 +176,38 @@ public class UT_L2MetricsPlugin
         Assert.AreEqual(503, (int)(await client.GetAsync($"http://127.0.0.1:{plugin.BoundPort}/readyz")).StatusCode);
         ready = true;
         Assert.AreEqual(200, (int)(await client.GetAsync($"http://127.0.0.1:{plugin.BoundPort}/readyz")).StatusCode);
+    }
+
+    [TestMethod]
+    public async Task HealthProbe_ServesJsonWhenWired()
+    {
+        using var plugin = new L2MetricsPlugin();
+        plugin.WithHealthProbe(static () => """{"isLocalHostHealthy":true}""");
+        plugin.Start(portOverride: 0);
+
+        using var client = new HttpClient(new HttpClientHandler { UseProxy = false })
+        {
+            Timeout = TimeSpan.FromSeconds(5),
+        };
+        var resp = await client.GetAsync($"http://127.0.0.1:{plugin.BoundPort}/healthprobe");
+        Assert.AreEqual(200, (int)resp.StatusCode);
+        Assert.IsTrue(resp.Content.Headers.ContentType?.MediaType is "application/json");
+        var body = await resp.Content.ReadAsStringAsync();
+        StringAssert.Contains(body, "isLocalHostHealthy");
+    }
+
+    [TestMethod]
+    public async Task HealthProbe_Unwired_FailsClosedWith503()
+    {
+        using var plugin = new L2MetricsPlugin();
+        plugin.Start(portOverride: 0);
+
+        using var client = new HttpClient(new HttpClientHandler { UseProxy = false })
+        {
+            Timeout = TimeSpan.FromSeconds(5),
+        };
+        var resp = await client.GetAsync($"http://127.0.0.1:{plugin.BoundPort}/healthprobe");
+        Assert.AreEqual(503, (int)resp.StatusCode);
     }
 
     [TestMethod]

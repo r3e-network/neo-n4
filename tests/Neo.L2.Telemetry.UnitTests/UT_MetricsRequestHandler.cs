@@ -200,4 +200,67 @@ public class UT_MetricsRequestHandler
         Assert.AreEqual(503, response.StatusCode);
         StringAssert.Contains(response.Body, "predicate threw");
     }
+
+    [TestMethod]
+    public void HealthProbe_NoProvider_FailsClosedWith503()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+
+        var response = handler.Handle("/healthprobe");
+
+        Assert.AreEqual(503, response.StatusCode);
+        StringAssert.Contains(response.Body, "not configured");
+    }
+
+    [TestMethod]
+    public void HealthProbe_ProviderReturnsJson_Returns200ApplicationJson()
+    {
+        var handler = new MetricsRequestHandler(
+            new InMemoryMetrics(),
+            healthProbeBody: static () => """{"isLocalHostHealthy":true}""");
+
+        var response = handler.Handle("/healthprobe");
+
+        Assert.AreEqual(200, response.StatusCode);
+        Assert.AreEqual("application/json; charset=utf-8", response.ContentType);
+        StringAssert.Contains(response.Body, "isLocalHostHealthy");
+        Assert.IsTrue(response.Body.EndsWith('\n'));
+    }
+
+    [TestMethod]
+    public void HealthProbe_TolerantOf_TrailingSlashAndQuery()
+    {
+        var handler = new MetricsRequestHandler(
+            new InMemoryMetrics(),
+            healthProbeBody: static () => "{}");
+
+        Assert.AreEqual(200, handler.Handle("/healthprobe/").StatusCode);
+        Assert.AreEqual(200, handler.Handle("/healthprobe?pretty=1").StatusCode);
+    }
+
+    [TestMethod]
+    public void HealthProbe_ProviderThrows_Returns500()
+    {
+        var handler = new MetricsRequestHandler(
+            new InMemoryMetrics(),
+            healthProbeBody: static () => throw new InvalidOperationException("probe down"));
+
+        var response = handler.Handle("/healthprobe");
+
+        Assert.AreEqual(500, response.StatusCode);
+        StringAssert.Contains(response.Body, "health probe failed");
+    }
+
+    [TestMethod]
+    public void HealthProbe_ProviderReturnsNull_Returns500()
+    {
+        var handler = new MetricsRequestHandler(
+            new InMemoryMetrics(),
+            healthProbeBody: static () => null!);
+
+        var response = handler.Handle("/healthprobe");
+
+        Assert.AreEqual(500, response.StatusCode);
+        StringAssert.Contains(response.Body, "health probe failed");
+    }
 }

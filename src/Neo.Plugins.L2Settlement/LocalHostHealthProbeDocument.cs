@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Neo.Plugins.L2;
 
 /// <summary>
@@ -7,10 +9,26 @@ namespace Neo.Plugins.L2;
 /// See doc.md §7.5 / §14.2. Smaller than <see cref="LocalHostOperatorStatusDocument"/>;
 /// does not claim L1 settle, prove-batch, or live scan (funded gates).
 /// Produced by Multisig/Optimistic/Zk <c>GetHealthProbeAsync</c> /
-/// <c>WriteHealthProbeAsync</c>.
+/// <c>WriteHealthProbeAsync</c> / metrics HTTP <c>/healthprobe</c>.
 /// </remarks>
 public sealed record LocalHostHealthProbeDocument
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    /// <summary>
+    /// Serialize as indented camelCase JSON (trailing newline) for ops scripts and
+    /// metrics HTTP <c>/healthprobe</c>.
+    /// </summary>
+    public static string FormatJson(LocalHostHealthProbeDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return JsonSerializer.Serialize(document, JsonOptions) + Environment.NewLine;
+    }
+
     /// <summary>Offline wiring/config passport is complete.</summary>
     public required bool IsOfflinePassportComplete { get; init; }
 

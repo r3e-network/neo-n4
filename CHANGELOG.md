@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Metrics HTTP `/healthprobe` for LocalHost compact health JSON — 2026-07-19
+
+- `MetricsRequestHandler` serves optional `GET /healthprobe` (application/json);
+  unwired fails closed 503; provider errors → 500. Body stays 200 with flags so
+  ops can `curl | jq` without scrape outage semantics.
+- `L2MetricsPlugin.WithHealthProbe` / `HasHealthProbe`; handler built at `Start`.
+- Multisig/Optimistic/Zk `StartMetricsHttp` wires `/healthprobe` to
+  `FormatHealthProbeJson` (`LocalHostHealthProbeDocument.FormatJson`).
+- Wireproduction notes + init-l2 tips + telemetry docs; unit/integration coverage.
+  No wire/ABI change. L1 settle remains a funded gate.
+
 ### Tested — Neo N3 testnet session12 reverify + SharedBridge deposit n13 — 2026-07-19
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

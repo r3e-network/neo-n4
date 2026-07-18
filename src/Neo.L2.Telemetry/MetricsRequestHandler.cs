@@ -2,7 +2,7 @@ namespace Neo.L2.Telemetry;
 
 /// <summary>
 /// Pure HTTP request handler for the operator-facing endpoints (<c>/metrics</c>,
-/// <c>/healthz</c>, <c>/readyz</c>). Framework-agnostic — plug it into
+/// <c>/healthz</c>, <c>/readyz</c>, <c>/healthprobe</c>). Framework-agnostic — plug it into
 /// <see cref="MetricsHttpServer"/>, ASP.NET, Kestrel, or an existing RpcServer plugin
 /// endpoint by routing GET requests through <see cref="Handle"/>.
 /// </summary>
@@ -15,14 +15,23 @@ namespace Neo.L2.Telemetry;
 /// an explicitly wired readiness predicate returns <c>true</c>; otherwise 503.
 /// Standard pattern for Kubernetes / Docker / load-balancer probes.
 /// </para>
+/// <para>
+/// <c>/healthprobe</c> returns compact operator health JSON when a body provider is wired
+/// (LocalHost composition supplies <c>LocalHostHealthProbeDocument</c>); when unwired it
+/// fails closed with 503. The JSON body carries healthy/unhealthy flags — HTTP status stays
+/// 200 so ops scripts can <c>curl | jq</c> without treating partial local runtime as a scrape outage.
+/// Does not claim L1 settle or prove-batch (funded gates).
+/// </para>
 /// </remarks>
 public sealed class MetricsRequestHandler
 {
     private const string PlainText = "text/plain; charset=utf-8";
+    private const string ApplicationJson = "application/json; charset=utf-8";
 
     private readonly IMetricsSource _source;
     private readonly Func<bool>? _readinessCheck;
     private readonly Func<bool>? _livenessCheck;
+    private readonly Func<string>? _healthProbeBody;
 
     /// <summary>Construct a handler reading from <paramref name="source"/>.</summary>
     /// <param name="source">Metrics snapshot source.</param>
@@ -36,12 +45,22 @@ public sealed class MetricsRequestHandler
     /// still ticking?") to detect process hangs. Avoid heavy checks — k8s
     /// liveness probes run frequently and a slow check can trigger a restart.
     /// </param>
-    public MetricsRequestHandler(IMetricsSource source, Func<bool>? readinessCheck = null, Func<bool>? livenessCheck = null)
+    /// <param name="healthProbeBody">
+    /// Optional provider for <c>/healthprobe</c> JSON body. When <c>null</c>,
+    /// <c>/healthprobe</c> fails closed with 503. Prefer compact camelCase JSON
+    /// (e.g. serialized <c>LocalHostHealthProbeDocument</c>).
+    /// </param>
+    public MetricsRequestHandler(
+        IMetricsSource source,
+        Func<bool>? readinessCheck = null,
+        Func<bool>? livenessCheck = null,
+        Func<string>? healthProbeBody = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         _source = source;
         _readinessCheck = readinessCheck;
         _livenessCheck = livenessCheck;
+        _healthProbeBody = healthProbeBody;
     }
 
     /// <summary>Handle a request. <paramref name="path"/> is the URL path component (e.g. <c>"/metrics"</c>).</summary>
@@ -54,6 +73,7 @@ public sealed class MetricsRequestHandler
             "/metrics" => HandleMetrics(),
             "/healthz" => HandleLiveness(),
             "/readyz" => HandleReady(),
+            "/healthprobe" => HandleHealthProbe(),
             _ => new MetricsHttpResponse(404, PlainText, "Not Found\n"),
         };
     }
@@ -110,6 +130,27 @@ public sealed class MetricsRequestHandler
         return isReady
             ? new MetricsHttpResponse(200, PlainText, "ready\n")
             : new MetricsHttpResponse(503, PlainText, "not ready\n");
+    }
+
+    private MetricsHttpResponse HandleHealthProbe()
+    {
+        if (_healthProbeBody is null)
+            return new MetricsHttpResponse(503, PlainText, "health probe not configured\n");
+
+        try
+        {
+            var body = _healthProbeBody()
+                ?? throw new InvalidOperationException("health probe body provider returned null");
+            if (string.IsNullOrWhiteSpace(body))
+                throw new InvalidOperationException("health probe body provider returned empty body");
+            if (!body.EndsWith('\n'))
+                body += "\n";
+            return new MetricsHttpResponse(200, ApplicationJson, body);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return new MetricsHttpResponse(500, PlainText, "health probe failed\n");
+        }
     }
 
     private static string NormalizePath(string path)

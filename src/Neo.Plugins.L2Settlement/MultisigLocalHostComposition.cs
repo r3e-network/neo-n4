@@ -1334,11 +1334,28 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// When <paramref name="readinessCheck"/> is null, uses
     /// <see cref="IsOfflinePassportComplete"/> so <c>/readyz</c> tracks the offline operator
     /// passport (not only sealed-batch sink presence).
+    /// Also wires <c>/healthprobe</c> to <see cref="FormatHealthProbeJson"/> so ops can
+    /// <c>curl</c> compact health JSON without writing a status file.
     /// </summary>
     public void StartMetricsHttp(int? portOverride = null, Func<bool>? readinessCheck = null)
     {
         Metrics.WithReadinessCheck(readinessCheck ?? (() => IsOfflinePassportComplete));
+        Metrics.WithHealthProbe(() => FormatHealthProbeJson());
         Metrics.Start(portOverride);
+    }
+
+    /// <summary>
+    /// Serialize <see cref="GetHealthProbeAsync"/> as indented camelCase JSON for ops
+    /// scripts and metrics HTTP <c>/healthprobe</c>. Soft FI clock via
+    /// <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public string FormatHealthProbeJson(uint? nowUnixSeconds = null)
+    {
+        var document = GetHealthProbeAsync(CancellationToken.None, nowUnixSeconds)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        return LocalHostHealthProbeDocument.FormatJson(document);
     }
 
     /// <summary>
@@ -1603,14 +1620,10 @@ public sealed class MultisigLocalHostComposition : IDisposable
         var dir = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
-        var json = System.Text.Json.JsonSerializer.Serialize(
-            document,
-            new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-            });
-        await File.WriteAllTextAsync(fullPath, json + Environment.NewLine, cancellationToken)
+        await File.WriteAllTextAsync(
+                fullPath,
+                LocalHostHealthProbeDocument.FormatJson(document),
+                cancellationToken)
             .ConfigureAwait(false);
     }
 

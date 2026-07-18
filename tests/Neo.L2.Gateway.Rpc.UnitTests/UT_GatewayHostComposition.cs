@@ -94,6 +94,10 @@ public sealed class UT_GatewayHostComposition
             Assert.IsTrue(gwStatus.HasL1RpcEndpoint);
             Assert.IsTrue(host.IsPublicationProfileReady);
             Assert.IsTrue(gwStatus.IsPublicationProfileReady);
+            Assert.IsTrue(host.HasExpectedNetwork);
+            Assert.IsTrue(gwStatus.HasExpectedNetwork);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
+            Assert.IsTrue(gwStatus.IsOfflinePassportComplete);
             Assert.AreEqual(894710606u, host.ExpectedNetwork);
             Assert.AreEqual(894710606u, gwStatus.ExpectedNetwork);
             Assert.AreEqual(UInt256.Parse("0x" + new string('d', 64)), host.ReplayDomain);
@@ -117,6 +121,8 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(statusJson, "\"hasDurableOutbox\": true");
             StringAssert.Contains(statusJson, "\"isPublicationConfigured\": true");
             StringAssert.Contains(statusJson, "\"isPublicationProfileReady\": true");
+            StringAssert.Contains(statusJson, "\"hasExpectedNetwork\": true");
+            StringAssert.Contains(statusJson, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(statusJson, "\"outboxQueueDepth\": 0");
             StringAssert.Contains(statusJson, "\"hasMetrics\": true");
             StringAssert.Contains(statusJson, "\"hasL1RpcEndpoint\": true");

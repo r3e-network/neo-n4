@@ -609,6 +609,7 @@ public sealed class MultisigLocalHostComposition : IDisposable
             IsNeoHubHashWiringComplete = IsNeoHubHashWiringComplete,
             IsBatcherInboxWiringComplete = IsBatcherInboxWiringComplete,
             IsSecurityLevelProofTypeConsistent = IsSecurityLevelProofTypeConsistent,
+            IsSecurityLevelDaModeConsistent = IsSecurityLevelDaModeConsistent,
             HasExpectedNetwork = HasExpectedNetwork,
             HasScannerDeployHeights = HasScannerDeployHeights,
             IsOfflinePassportComplete = IsOfflinePassportComplete,
@@ -926,6 +927,13 @@ public sealed class MultisigLocalHostComposition : IDisposable
     public bool IsSecurityLevelProofTypeConsistent =>
         LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(RpcStore.SecurityLevel, ProofType);
 
+    /// <summary>
+    /// True when RPC-store security level is a recommended pairing with host
+    /// <see cref="DaMode"/> (Validity→L1, Validium→off-chain DA).
+    /// </summary>
+    public bool IsSecurityLevelDaModeConsistent =>
+        LocalHostOperatorStatus.IsSecurityLevelPairedWithDaMode(RpcStore.SecurityLevel, DaMode);
+
     /// <summary>True when settlement settings include a non-null expected L1 network magic.</summary>
     public bool HasExpectedNetwork => ExpectedNetwork is not null;
 
@@ -949,6 +957,7 @@ public sealed class MultisigLocalHostComposition : IDisposable
         && IsProofTypeConfigConsistent
         && IsDaModeConfigConsistent
         && IsSecurityLevelProofTypeConsistent
+        && IsSecurityLevelDaModeConsistent
         && IsNeoHubHashWiringComplete
         && IsBatcherInboxWiringComplete
         && HasBatchProver

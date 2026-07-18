@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — SecurityLevel/DA consistency + Gateway offline passport — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose
+  `IsSecurityLevelDaModeConsistent` (Validity→L1, Validium→off-chain DA); included in
+  `IsOfflinePassportComplete`. Helper
+  `LocalHostOperatorStatus.IsSecurityLevelPairedWithDaMode`.
+- `GatewayHostComposition` + operator status (+ JSON) expose `HasExpectedNetwork` and
+  `IsOfflinePassportComplete` (publication profile + network + retry budget). Offline only;
+  L1 confirmation remains a funded gate.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+
 ### Added — LocalHost offline passport + security/height readiness flags — 2026-07-18
 
 - Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose

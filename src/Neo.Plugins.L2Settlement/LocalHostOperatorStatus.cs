@@ -373,6 +373,12 @@ public sealed record LocalHostOperatorStatus
     /// </summary>
     public required bool IsSecurityLevelProofTypeConsistent { get; init; }
 
+    /// <summary>
+    /// True when RPC-store <see cref="SecurityLevel"/> is a recommended pairing with host
+    /// <see cref="DaMode"/> (Validity→L1, Validium→off-chain DA).
+    /// </summary>
+    public required bool IsSecurityLevelDaModeConsistent { get; init; }
+
     /// <summary>True when settlement settings include a non-null expected L1 network magic.</summary>
     public required bool HasExpectedNetwork { get; init; }
 
@@ -429,5 +435,19 @@ public sealed record LocalHostOperatorStatus
             SecurityLevel.Sidechain or SecurityLevel.Settled =>
                 proofType is ProofType.None or ProofType.Multisig,
             _ => false,
+        };
+
+    /// <summary>
+    /// Offline heuristic: whether <paramref name="securityLevel"/> is a recommended pairing
+    /// with <paramref name="daMode"/> (Validity requires L1 DA; Validium requires off-chain DA).
+    /// </summary>
+    public static bool IsSecurityLevelPairedWithDaMode(SecurityLevel securityLevel, DAMode daMode)
+        => securityLevel switch
+        {
+            SecurityLevel.Validity => daMode == DAMode.L1,
+            SecurityLevel.Validium =>
+                daMode is DAMode.NeoFS or DAMode.External or DAMode.DAC,
+            // Sidechain/Settled/Optimistic may use Local (dev) or any public DA tier.
+            _ => true,
         };
 }

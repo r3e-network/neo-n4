@@ -145,6 +145,18 @@ public sealed class GatewayHostComposition : IDisposable
         && !SettlementManagerHash.Equals(UInt160.Zero)
         && !MessageRouterHash.Equals(UInt160.Zero);
 
+    /// <summary>True when chain layout / settlement config provided a non-null expected network.</summary>
+    public bool HasExpectedNetwork => ExpectedNetwork is not null;
+
+    /// <summary>
+    /// Offline Gateway passport: <see cref="IsPublicationProfileReady"/> plus expected network
+    /// and valid automatic-retry budget. Does not claim L1 confirmation (funded gate).
+    /// </summary>
+    public bool IsOfflinePassportComplete =>
+        IsPublicationProfileReady
+        && HasExpectedNetwork
+        && MaxAutomaticRetries >= 1;
+
     /// <summary>
     /// Terminal proof-system discriminator from <see cref="ProofProver"/>
     /// (<see cref="IGatewayProofProver.ProofSystem"/>).
@@ -246,6 +258,8 @@ public sealed class GatewayHostComposition : IDisposable
             ExpectedNetwork = ExpectedNetwork,
             HasL1RpcEndpoint = HasL1RpcEndpoint,
             IsPublicationProfileReady = IsPublicationProfileReady,
+            HasExpectedNetwork = HasExpectedNetwork,
+            IsOfflinePassportComplete = IsOfflinePassportComplete,
             ReplayDomain = ReplayDomain,
             VerificationKeyId = VerificationKeyId,
             SettlementManagerHash = SettlementManagerHash,

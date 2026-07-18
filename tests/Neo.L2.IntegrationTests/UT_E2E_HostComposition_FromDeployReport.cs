@@ -230,6 +230,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.IsNeoHubHashWiringComplete);
             Assert.IsTrue(settlementHost.IsBatcherInboxWiringComplete);
             Assert.IsTrue(settlementHost.IsSecurityLevelProofTypeConsistent);
+            Assert.IsTrue(settlementHost.IsSecurityLevelDaModeConsistent);
             Assert.IsTrue(settlementHost.HasExpectedNetwork);
             Assert.IsTrue(settlementHost.HasScannerDeployHeights);
             Assert.IsTrue(settlementHost.IsOfflinePassportComplete);
@@ -243,6 +244,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.IsNeoHubHashWiringComplete);
             Assert.IsTrue(opStatus.IsBatcherInboxWiringComplete);
             Assert.IsTrue(opStatus.IsSecurityLevelProofTypeConsistent);
+            Assert.IsTrue(opStatus.IsSecurityLevelDaModeConsistent);
             Assert.IsTrue(opStatus.HasExpectedNetwork);
             Assert.IsTrue(opStatus.HasScannerDeployHeights);
             Assert.IsTrue(opStatus.IsOfflinePassportComplete);
@@ -320,6 +322,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"isNeoHubHashWiringComplete\": true");
             StringAssert.Contains(statusJson, "\"isBatcherInboxWiringComplete\": true");
             StringAssert.Contains(statusJson, "\"isSecurityLevelProofTypeConsistent\": true");
+            StringAssert.Contains(statusJson, "\"isSecurityLevelDaModeConsistent\": true");
             StringAssert.Contains(statusJson, "\"hasExpectedNetwork\": true");
             StringAssert.Contains(statusJson, "\"hasScannerDeployHeights\": true");
             StringAssert.Contains(statusJson, "\"isOfflinePassportComplete\": true");
@@ -403,6 +406,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(gatewayHost.HasDurableOutbox);
             Assert.IsTrue(gatewayHost.IsPublicationConfigured);
             Assert.IsTrue(gatewayHost.IsPublicationProfileReady);
+            Assert.IsTrue(gatewayHost.HasExpectedNetwork);
+            Assert.IsTrue(gatewayHost.IsOfflinePassportComplete);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
             Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
             var gwStatus = gatewayHost.GetOperatorStatus();

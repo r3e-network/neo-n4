@@ -284,6 +284,9 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>RPC security level pairs with host proof type (offline heuristic).</summary>
     public required bool IsSecurityLevelProofTypeConsistent { get; init; }
 
+    /// <summary>RPC security level pairs with host DA mode (offline heuristic).</summary>
+    public required bool IsSecurityLevelDaModeConsistent { get; init; }
+
     /// <summary>Expected L1 network magic is configured.</summary>
     public required bool HasExpectedNetwork { get; init; }
 
@@ -409,6 +412,7 @@ public sealed record LocalHostOperatorStatusDocument
             IsNeoHubHashWiringComplete = status.IsNeoHubHashWiringComplete,
             IsBatcherInboxWiringComplete = status.IsBatcherInboxWiringComplete,
             IsSecurityLevelProofTypeConsistent = status.IsSecurityLevelProofTypeConsistent,
+            IsSecurityLevelDaModeConsistent = status.IsSecurityLevelDaModeConsistent,
             HasExpectedNetwork = status.HasExpectedNetwork,
             HasScannerDeployHeights = status.HasScannerDeployHeights,
             IsOfflinePassportComplete = status.IsOfflinePassportComplete,

@@ -66,6 +66,12 @@ public sealed record GatewayHostOperatorStatusDocument
     /// </summary>
     public required bool IsPublicationProfileReady { get; init; }
 
+    /// <summary>Expected L1 network magic is configured.</summary>
+    public required bool HasExpectedNetwork { get; init; }
+
+    /// <summary>Offline Gateway passport (profile + network + retry budget).</summary>
+    public required bool IsOfflinePassportComplete { get; init; }
+
     /// <summary>Publication-profile replay domain as 0x-hex.</summary>
     public required string ReplayDomain { get; init; }
 
@@ -111,6 +117,8 @@ public sealed record GatewayHostOperatorStatusDocument
             ExpectedNetwork = status.ExpectedNetwork,
             HasL1RpcEndpoint = status.HasL1RpcEndpoint,
             IsPublicationProfileReady = status.IsPublicationProfileReady,
+            HasExpectedNetwork = status.HasExpectedNetwork,
+            IsOfflinePassportComplete = status.IsOfflinePassportComplete,
             ReplayDomain = status.ReplayDomain.ToString(),
             VerificationKeyId = status.VerificationKeyId.ToString(),
             SettlementManagerHash = status.SettlementManagerHash.ToString(),

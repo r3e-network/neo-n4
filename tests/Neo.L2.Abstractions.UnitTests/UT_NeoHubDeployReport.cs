@@ -209,8 +209,8 @@ public class UT_NeoHubDeployReport
                 + "RpcChainId / ProofType / SettlementConfiguredProofType / IsChainIdConfigConsistent / "
                 + "IsProofTypeConfigConsistent / DaMode / RpcDaMode / IsDaModeConfigConsistent / "
                 + "IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete / "
-                + "IsSecurityLevelProofTypeConsistent / HasExpectedNetwork / HasScannerDeployHeights / "
-                + "IsOfflinePassportComplete / "
+                + "IsSecurityLevelProofTypeConsistent / IsSecurityLevelDaModeConsistent / "
+                + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
                 + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                 + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
@@ -317,6 +317,7 @@ public class UT_NeoHubDeployReport
                 + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
                 + "IsEnabled / MaxAutomaticRetries / ProofSystem / AggregationBackendId / "
                 + "ExpectedNetwork / HasL1RpcEndpoint / IsPublicationProfileReady / "
+                + "HasExpectedNetwork / IsOfflinePassportComplete / "
                 + "ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
                 + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "

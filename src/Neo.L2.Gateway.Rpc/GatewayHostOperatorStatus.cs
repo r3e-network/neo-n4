@@ -75,6 +75,15 @@ public sealed record GatewayHostOperatorStatus
     /// </summary>
     public required bool IsPublicationProfileReady { get; init; }
 
+    /// <summary>True when expected L1 network magic is configured.</summary>
+    public required bool HasExpectedNetwork { get; init; }
+
+    /// <summary>
+    /// Offline Gateway passport: publication profile ready + expected network + retry budget.
+    /// Does not claim L1 confirmation (funded gate).
+    /// </summary>
+    public required bool IsOfflinePassportComplete { get; init; }
+
     /// <summary>Publication-profile replay domain bound at open.</summary>
     public required UInt256 ReplayDomain { get; init; }
 

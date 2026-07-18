@@ -139,6 +139,7 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(host.HasExpectedNetwork);
             Assert.IsTrue(host.HasScannerDeployHeights);
             Assert.IsTrue(host.IsOfflinePassportComplete);
+            Assert.AreEqual(0, host.OfflinePassportFailures.Count);
             Assert.AreEqual(status.ProofType, status.SettlementConfiguredProofType);
             Assert.IsTrue(status.IsChainIdConfigConsistent);
             Assert.IsTrue(status.IsProofTypeConfigConsistent);
@@ -157,6 +158,7 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(status.HasExpectedNetwork);
             Assert.IsTrue(status.HasScannerDeployHeights);
             Assert.IsTrue(status.IsOfflinePassportComplete);
+            Assert.AreEqual(0, status.OfflinePassportFailures.Count);
             Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, status.OpenBatchWithdrawalCount);
             Assert.IsTrue(status.SupportsLocalDaReader);

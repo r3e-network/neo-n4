@@ -80,9 +80,15 @@ public sealed record GatewayHostOperatorStatus
 
     /// <summary>
     /// Offline Gateway passport: publication profile ready + expected network + retry budget.
-    /// Does not claim L1 confirmation (funded gate).
+    /// Does not claim L1 confirmation (funded gate). True when
+    /// <see cref="OfflinePassportFailures"/> is empty.
     /// </summary>
     public required bool IsOfflinePassportComplete { get; init; }
+
+    /// <summary>
+    /// Names of offline Gateway passport checks that failed (empty when complete).
+    /// </summary>
+    public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
 
     /// <summary>Publication-profile replay domain bound at open.</summary>
     public required UInt256 ReplayDomain { get; init; }

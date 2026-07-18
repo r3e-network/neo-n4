@@ -633,6 +633,7 @@ public sealed class ZkLocalHostComposition : IDisposable
             HasExpectedNetwork = HasExpectedNetwork,
             HasScannerDeployHeights = HasScannerDeployHeights,
             IsOfflinePassportComplete = IsOfflinePassportComplete,
+            OfflinePassportFailures = OfflinePassportFailures,
             HasBatchProver = HasBatchProver,
             LatestCheckpointBatchNumber = checkpoint?.BatchNumber,
             LatestCheckpointLastBlock = checkpoint?.LastBlock,
@@ -997,31 +998,47 @@ public sealed class ZkLocalHostComposition : IDisposable
         SettlementClient is not null && TransactionSender is not null && IsSettlementEnabled;
 
     /// <summary>
-    /// Offline operator passport: ready + config consistency + NeoHub/inbox wiring +
-    /// enablement + L1 endpoint/network/heights + production surfaces. Does not claim L1
-    /// settle, prove-batch, or live scan (funded gates).
+    /// Offline passport checks that failed (empty when complete). Diagnostic names only;
+    /// does not claim L1 settle, prove-batch, or live scan (funded gates).
     /// </summary>
-    public bool IsOfflinePassportComplete =>
-        IsOperatorReady
-        && IsChainIdConfigConsistent
-        && IsProofTypeConfigConsistent
-        && IsDaModeConfigConsistent
-        && IsSecurityLevelProofTypeConsistent
-        && IsSecurityLevelDaModeConsistent
-        && IsNeoHubHashWiringComplete
-        && IsBatcherInboxWiringComplete
-        && HasBatchProver
-        && IsSettlementEnabled
-        && IsBatcherEnabled
-        && HasL1RpcEndpoint
-        && HasExpectedNetwork
-        && HasScannerDeployHeights
-        && DepositSource is not null
-        && MessageRouter is not null
-        && ForcedInclusionFinalizer is not null
-        && SettlementClient is not null
-        && TransactionSender is not null
-        && HasMessageOutbox;
+    public IReadOnlyList<string> OfflinePassportFailures
+    {
+        get
+        {
+            var failures = new List<string>();
+            if (!IsOperatorReady) failures.Add(nameof(IsOperatorReady));
+            if (!IsChainIdConfigConsistent) failures.Add(nameof(IsChainIdConfigConsistent));
+            if (!IsProofTypeConfigConsistent) failures.Add(nameof(IsProofTypeConfigConsistent));
+            if (!IsDaModeConfigConsistent) failures.Add(nameof(IsDaModeConfigConsistent));
+            if (!IsSecurityLevelProofTypeConsistent) failures.Add(nameof(IsSecurityLevelProofTypeConsistent));
+            if (!IsSecurityLevelDaModeConsistent) failures.Add(nameof(IsSecurityLevelDaModeConsistent));
+            if (!IsNeoHubHashWiringComplete) failures.Add(nameof(IsNeoHubHashWiringComplete));
+            if (!IsBatcherInboxWiringComplete) failures.Add(nameof(IsBatcherInboxWiringComplete));
+            if (!HasBatchProver) failures.Add(nameof(HasBatchProver));
+            if (!IsSettlementEnabled) failures.Add(nameof(IsSettlementEnabled));
+            if (!IsBatcherEnabled) failures.Add(nameof(IsBatcherEnabled));
+            if (!HasL1RpcEndpoint) failures.Add(nameof(HasL1RpcEndpoint));
+            if (!HasExpectedNetwork) failures.Add(nameof(HasExpectedNetwork));
+            if (!HasScannerDeployHeights) failures.Add(nameof(HasScannerDeployHeights));
+            if (DepositSource is null) failures.Add(nameof(DepositSource));
+            if (MessageRouter is null) failures.Add(nameof(MessageRouter));
+            if (ForcedInclusionFinalizer is null) failures.Add(nameof(ForcedInclusionFinalizer));
+            if (SettlementClient is null) failures.Add(nameof(SettlementClient));
+            if (TransactionSender is null) failures.Add(nameof(TransactionSender));
+            if (!HasMessageOutbox) failures.Add(nameof(HasMessageOutbox));
+            if (!IsDepositPipelineWiringComplete) failures.Add(nameof(IsDepositPipelineWiringComplete));
+            if (!IsMessagePipelineWiringComplete) failures.Add(nameof(IsMessagePipelineWiringComplete));
+            if (!IsForcedInclusionPipelineWiringComplete) failures.Add(nameof(IsForcedInclusionPipelineWiringComplete));
+            if (!IsSettlementClientWiringComplete) failures.Add(nameof(IsSettlementClientWiringComplete));
+            return failures;
+        }
+    }
+
+    /// <summary>
+    /// Offline operator passport: true when <see cref="OfflinePassportFailures"/> is empty.
+    /// Does not claim L1 settle, prove-batch, or live scan (funded gates).
+    /// </summary>
+    public bool IsOfflinePassportComplete => OfflinePassportFailures.Count == 0;
 
     /// <summary>
     /// Max forced-inclusion entries per sealed batch

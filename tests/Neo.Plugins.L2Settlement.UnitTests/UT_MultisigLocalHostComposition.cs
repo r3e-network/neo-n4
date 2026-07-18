@@ -151,6 +151,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.HasExpectedNetwork);
             Assert.IsTrue(host.HasScannerDeployHeights);
             Assert.IsTrue(host.IsOfflinePassportComplete);
+            Assert.AreEqual(0, host.OfflinePassportFailures.Count);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(20260716u, status.ChainId);
@@ -179,6 +180,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.HasExpectedNetwork);
             Assert.IsTrue(status.HasScannerDeployHeights);
             Assert.IsTrue(status.IsOfflinePassportComplete);
+            Assert.AreEqual(0, status.OfflinePassportFailures.Count);
             Assert.AreEqual(host.RpcStore.SecurityLevel, status.SecurityLevel);
             Assert.IsTrue(status.IsOperatorReady);
             Assert.IsTrue(status.IsProductionWired);

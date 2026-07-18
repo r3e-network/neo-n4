@@ -253,6 +253,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "HasExpectedNetwork");
         StringAssert.Contains(output, "HasScannerDeployHeights");
         StringAssert.Contains(output, "IsOfflinePassportComplete");
+        StringAssert.Contains(output, "OfflinePassportFailures");
         StringAssert.Contains(output, "IsPublicationProfileReady");
         StringAssert.Contains(output, "NextBatchNumber");
         StringAssert.Contains(output, "PendingSealedBatchNumber");

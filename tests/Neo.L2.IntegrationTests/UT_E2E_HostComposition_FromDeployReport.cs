@@ -240,6 +240,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.HasExpectedNetwork);
             Assert.IsTrue(settlementHost.HasScannerDeployHeights);
             Assert.IsTrue(settlementHost.IsOfflinePassportComplete);
+            Assert.AreEqual(0, settlementHost.OfflinePassportFailures.Count);
             Assert.AreEqual(0, settlementHost.PeekSharedBridgeDeposits(8).Count);
             var opStatus = settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(opStatus.IsOperatorReady);
@@ -259,6 +260,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.HasExpectedNetwork);
             Assert.IsTrue(opStatus.HasScannerDeployHeights);
             Assert.IsTrue(opStatus.IsOfflinePassportComplete);
+            Assert.AreEqual(0, opStatus.OfflinePassportFailures.Count);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasBatchProver);
@@ -343,6 +345,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"hasExpectedNetwork\": true");
             StringAssert.Contains(statusJson, "\"hasScannerDeployHeights\": true");
             StringAssert.Contains(statusJson, "\"isOfflinePassportComplete\": true");
+            StringAssert.Contains(statusJson, "\"offlinePassportFailures\":");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
@@ -425,6 +428,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(gatewayHost.IsPublicationProfileReady);
             Assert.IsTrue(gatewayHost.HasExpectedNetwork);
             Assert.IsTrue(gatewayHost.IsOfflinePassportComplete);
+            Assert.AreEqual(0, gatewayHost.OfflinePassportFailures.Count);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
             Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
             var gwStatus = gatewayHost.GetOperatorStatus();

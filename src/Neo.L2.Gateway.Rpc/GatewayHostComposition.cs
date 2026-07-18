@@ -149,13 +149,33 @@ public sealed class GatewayHostComposition : IDisposable
     public bool HasExpectedNetwork => ExpectedNetwork is not null;
 
     /// <summary>
-    /// Offline Gateway passport: <see cref="IsPublicationProfileReady"/> plus expected network
-    /// and valid automatic-retry budget. Does not claim L1 confirmation (funded gate).
+    /// Offline Gateway passport checks that failed (empty when complete). Diagnostic names only;
+    /// does not claim L1 confirmation (funded gate).
     /// </summary>
-    public bool IsOfflinePassportComplete =>
-        IsPublicationProfileReady
-        && HasExpectedNetwork
-        && MaxAutomaticRetries >= 1;
+    public IReadOnlyList<string> OfflinePassportFailures
+    {
+        get
+        {
+            var failures = new List<string>();
+            if (!IsEnabled) failures.Add(nameof(IsEnabled));
+            if (!IsPublicationConfigured) failures.Add(nameof(IsPublicationConfigured));
+            if (!HasDurableOutbox) failures.Add(nameof(HasDurableOutbox));
+            if (!HasL1RpcEndpoint) failures.Add(nameof(HasL1RpcEndpoint));
+            if (ReplayDomain.Equals(UInt256.Zero)) failures.Add(nameof(ReplayDomain));
+            if (VerificationKeyId.Equals(UInt256.Zero)) failures.Add(nameof(VerificationKeyId));
+            if (SettlementManagerHash.Equals(UInt160.Zero)) failures.Add(nameof(SettlementManagerHash));
+            if (MessageRouterHash.Equals(UInt160.Zero)) failures.Add(nameof(MessageRouterHash));
+            if (!HasExpectedNetwork) failures.Add(nameof(HasExpectedNetwork));
+            if (MaxAutomaticRetries < 1) failures.Add(nameof(MaxAutomaticRetries));
+            return failures;
+        }
+    }
+
+    /// <summary>
+    /// Offline Gateway passport: true when <see cref="OfflinePassportFailures"/> is empty.
+    /// Does not claim L1 confirmation (funded gate).
+    /// </summary>
+    public bool IsOfflinePassportComplete => OfflinePassportFailures.Count == 0;
 
     /// <summary>
     /// Terminal proof-system discriminator from <see cref="ProofProver"/>
@@ -260,6 +280,7 @@ public sealed class GatewayHostComposition : IDisposable
             IsPublicationProfileReady = IsPublicationProfileReady,
             HasExpectedNetwork = HasExpectedNetwork,
             IsOfflinePassportComplete = IsOfflinePassportComplete,
+            OfflinePassportFailures = OfflinePassportFailures,
             ReplayDomain = ReplayDomain,
             VerificationKeyId = VerificationKeyId,
             SettlementManagerHash = SettlementManagerHash,

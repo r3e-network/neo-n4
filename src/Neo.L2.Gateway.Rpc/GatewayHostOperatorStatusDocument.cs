@@ -72,6 +72,9 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>Offline Gateway passport (profile + network + retry budget).</summary>
     public required bool IsOfflinePassportComplete { get; init; }
 
+    /// <summary>Failed offline Gateway passport check names (empty when complete).</summary>
+    public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
+
     /// <summary>Publication-profile replay domain as 0x-hex.</summary>
     public required string ReplayDomain { get; init; }
 
@@ -119,6 +122,7 @@ public sealed record GatewayHostOperatorStatusDocument
             IsPublicationProfileReady = status.IsPublicationProfileReady,
             HasExpectedNetwork = status.HasExpectedNetwork,
             IsOfflinePassportComplete = status.IsOfflinePassportComplete,
+            OfflinePassportFailures = status.OfflinePassportFailures,
             ReplayDomain = status.ReplayDomain.ToString(),
             VerificationKeyId = status.VerificationKeyId.ToString(),
             SettlementManagerHash = status.SettlementManagerHash.ToString(),

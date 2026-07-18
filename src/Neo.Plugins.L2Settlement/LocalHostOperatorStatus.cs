@@ -421,8 +421,15 @@ public sealed record LocalHostOperatorStatus
     /// Offline operator passport: ready + config consistency + NeoHub/inbox wiring +
     /// production plugin enablement + L1 endpoint/network/heights + deposit/message/FI/client
     /// surfaces. Does not claim L1 settle, prove-batch, or live scan (funded gates).
+    /// True when <see cref="OfflinePassportFailures"/> is empty.
     /// </summary>
     public required bool IsOfflinePassportComplete { get; init; }
+
+    /// <summary>
+    /// Names of offline passport checks that failed (empty when
+    /// <see cref="IsOfflinePassportComplete"/>). Diagnostic only; not an L1 claim.
+    /// </summary>
+    public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
 
     /// <summary>
     /// True when the batch prover plugin has installed an <see cref="IL2Prover"/>.

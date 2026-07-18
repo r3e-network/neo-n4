@@ -314,6 +314,9 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Offline operator passport (no L1 settle/prove claim).</summary>
     public required bool IsOfflinePassportComplete { get; init; }
 
+    /// <summary>Failed offline passport check names (empty when complete).</summary>
+    public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
+
     /// <summary>Batch prover installed on the host.</summary>
     public required bool HasBatchProver { get; init; }
 
@@ -440,6 +443,7 @@ public sealed record LocalHostOperatorStatusDocument
             HasExpectedNetwork = status.HasExpectedNetwork,
             HasScannerDeployHeights = status.HasScannerDeployHeights,
             IsOfflinePassportComplete = status.IsOfflinePassportComplete,
+            OfflinePassportFailures = status.OfflinePassportFailures,
             HasBatchProver = status.HasBatchProver,
             LatestCheckpointBatchNumber = status.LatestCheckpointBatchNumber,
             LatestCheckpointLastBlock = status.LatestCheckpointLastBlock,

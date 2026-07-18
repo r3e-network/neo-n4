@@ -137,6 +137,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete");
         Console.WriteLine("               IsSecurityLevelProofTypeConsistent / IsSecurityLevelDaModeConsistent");
         Console.WriteLine("               HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete");
+        Console.WriteLine("               OfflinePassportFailures (empty when complete)");
         Console.WriteLine("               MaxForcedTransactionsPerBatch / MaxL1MessagesPerBatch / OpenBatchForcedInclusionCount");
         Console.WriteLine("               OpenBatchL2ToL2MessageCount / OpenBatchWithdrawalCount / HasBatchDepositSource");
         Console.WriteLine("               HasBatchMessageRouter / HasBatchForcedInclusionSource / HasBatchProver");
@@ -146,6 +147,7 @@ internal static class InitL2Command
         Console.WriteLine("  host gw    = GatewayHost.IsEnabled / MaxAutomaticRetries / IsPublicationConfigured");
         Console.WriteLine("               ProofSystem / AggregationBackendId / ExpectedNetwork / HasL1RpcEndpoint");
         Console.WriteLine("               IsPublicationProfileReady / HasExpectedNetwork / IsOfflinePassportComplete");
+        Console.WriteLine("               OfflinePassportFailures (empty when complete)");
         Console.WriteLine("               ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / IsMetricsEnabled / MetricsConfiguredPort / MetricsMaxConcurrentConnections / RegisterBridgeAsset");
         Console.WriteLine("               IsMetricsWiringComplete / HasMetricsReadinessCheck / StartMetricsHttp / StopMetricsHttp");

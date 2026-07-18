@@ -214,6 +214,7 @@ public class UT_NeoHubDeployReport
                 + "IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete / "
                 + "IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete / "
                 + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
+                + "OfflinePassportFailures / "
                 + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
                 + "PeekSharedBridgeDeposits / GetOperatorStatusAsync",
                 stores.GetProperty("localHostReadiness").GetString());
@@ -321,7 +322,7 @@ public class UT_NeoHubDeployReport
                 + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
                 + "IsEnabled / MaxAutomaticRetries / ProofSystem / AggregationBackendId / "
                 + "ExpectedNetwork / HasL1RpcEndpoint / IsPublicationProfileReady / "
-                + "HasExpectedNetwork / IsOfflinePassportComplete / "
+                + "HasExpectedNetwork / IsOfflinePassportComplete / OfflinePassportFailures / "
                 + "ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
                 + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — OfflinePassportFailures diagnostic lists on LocalHost and Gateway — 2026-07-18
+
+- Multisig/Optimistic/Zk LocalHost + operator status (+ JSON) expose
+  `OfflinePassportFailures` (failed check names); `IsOfflinePassportComplete` is true when
+  the list is empty (also folds pipeline wiring completeness checks).
+- `GatewayHostComposition` + operator status (+ JSON) expose the same failure list for
+  publication-profile, network, and retry-budget checks. Offline diagnostics only.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 settle / prove-batch / publication confirmation remain funded gates.
+
 ### Added — LocalHost metrics/pipeline wiring completeness flags — 2026-07-18
 
 - `L2MetricsPlugin.HasReadinessCheck`; Multisig/Optimistic/Zk LocalHost + operator status

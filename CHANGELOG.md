@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Settlement runtime light probes (idle/poisoned/retrying) — 2026-07-19
+
+- Multisig/Optimistic/Zk hosts expose `IsSettlementRuntimeIdleAsync` /
+  `IsSettlementPoisonedAsync` / `IsSettlementRetryingAsync` light probes (no full status).
+- Pure helpers `IsSettlementPoisonedState` / `IsSettlementRetryingState` shared by status +
+  pipeline health builders.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 settle confirmation remains a funded gate.
+
 ### Added — Settlement/outbox runtime idle pure helpers — 2026-07-19
 
 - `LocalHostOperatorStatus.IsSettlementRuntimeIdle` pure helper; Multisig/Optimistic/Zk

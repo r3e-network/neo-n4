@@ -162,6 +162,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsMetricsHttpHealthy / MetricsHttpHealthFailures (N/A empty when metrics disabled)");
         Console.WriteLine("               IsLocalHostHealthy / LocalHostHealthFailures / IsLocalHostHealthyAsync (pipeline + metrics HTTP)");
         Console.WriteLine("               IsPipelineHealthyAsync / GetPipelineHealthFailuresAsync (pipeline only; no metrics HTTP)");
+        Console.WriteLine("               IsSettlementRuntimeIdleAsync / IsSettlementPoisonedAsync / IsSettlementRetryingAsync (settlement light probes)");
         Console.WriteLine("               IsBatcherCheckpointAligned (batcher last-ack vs durable settlement checkpoint)");
         Console.WriteLine("               OpenBatchAgeMillis / IsOpenBatchPastMaxAge (seal-by-age overdue when true)");
         Console.WriteLine("               StartMetricsHttp /readyz defaults to IsOfflinePassportComplete (not only HasSealedBatchSink)");

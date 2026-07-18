@@ -194,6 +194,9 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, status.PipelineHealthFailures.Count);
             Assert.IsTrue(await host.IsPipelineHealthyAsync());
             Assert.AreEqual(0, (await host.GetPipelineHealthFailuresAsync()).Count);
+            Assert.IsTrue(await host.IsSettlementRuntimeIdleAsync());
+            Assert.IsFalse(await host.IsSettlementPoisonedAsync());
+            Assert.IsFalse(await host.IsSettlementRetryingAsync());
             Assert.IsFalse(await host.IsLocalHostHealthyAsync());
             var healthFailures = await host.GetLocalHostHealthFailuresAsync();
             Assert.IsTrue(healthFailures.Count >= 1);

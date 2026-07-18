@@ -185,6 +185,9 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
             Assert.AreEqual(
                 0, host.GetPipelineHealthFailuresAsync().AsTask().GetAwaiter().GetResult().Count);
+            Assert.IsTrue(host.IsSettlementRuntimeIdleAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsFalse(host.IsSettlementPoisonedAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsFalse(host.IsSettlementRetryingAsync().AsTask().GetAwaiter().GetResult());
             Assert.IsFalse(host.IsLocalHostHealthyAsync().AsTask().GetAwaiter().GetResult());
             Assert.IsFalse(status.IsMetricsHttpHealthy);
             Assert.IsFalse(host.IsMetricsHttpHealthy);

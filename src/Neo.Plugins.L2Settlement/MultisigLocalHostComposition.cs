@@ -648,8 +648,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
             MetricsMaxConcurrentConnections = MetricsMaxConcurrentConnections,
             IsSettlementEnabled = IsSettlementEnabled,
             IsPipelineEnabled = IsPipelineEnabled,
-            IsSettlementPoisoned = recovery.State == SettlementRecoveryState.Poisoned,
-            IsSettlementRetrying = recovery.State == SettlementRecoveryState.Retrying,
+            IsSettlementPoisoned = LocalHostOperatorStatus.IsSettlementPoisonedState(recovery),
+            IsSettlementRetrying = LocalHostOperatorStatus.IsSettlementRetryingState(recovery),
             IsSettlementIdle = LocalHostOperatorStatus.IsSettlementRuntimeIdle(pending, recovery),
             IsPipelineHealthy = pipelineHealthFailures.Count == 0,
             PipelineHealthFailures = pipelineHealthFailures,
@@ -728,6 +728,38 @@ public sealed class MultisigLocalHostComposition : IDisposable
         var failures = await GetPipelineHealthFailuresAsync(cancellationToken, nowUnixSeconds)
             .ConfigureAwait(false);
         return failures.Count == 0;
+    }
+
+    /// <summary>
+    /// Local settlement queue idle (pending + recovery). Light probe without a full status
+    /// document; does not claim L1 settle confirmation.
+    /// </summary>
+    public async ValueTask<bool> IsSettlementRuntimeIdleAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        return LocalHostOperatorStatus.IsSettlementRuntimeIdle(pending, recovery);
+    }
+
+    /// <summary>
+    /// Local durable recovery is poisoned. Light probe; not an L1 settle claim.
+    /// </summary>
+    public async ValueTask<bool> IsSettlementPoisonedAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        return LocalHostOperatorStatus.IsSettlementPoisonedState(recovery);
+    }
+
+    /// <summary>
+    /// Local durable recovery is retrying. Light probe; not an L1 settle claim.
+    /// </summary>
+    public async ValueTask<bool> IsSettlementRetryingAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        return LocalHostOperatorStatus.IsSettlementRetryingState(recovery);
     }
 
     /// <summary>

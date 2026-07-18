@@ -197,6 +197,29 @@ public sealed class UT_LocalHostOperatorStatusHelpers
     }
 
     [TestMethod]
+    public void IsSettlementPoisonedAndRetryingState_ClassifyRecovery()
+    {
+        var baseRecovery = new SettlementRecoveryStatus
+        {
+            PendingCount = 0,
+            ConfirmationLagBatches = 0,
+            State = null,
+            RetryCount = 0,
+            LastError = null,
+        };
+        Assert.IsFalse(LocalHostOperatorStatus.IsSettlementPoisonedState(baseRecovery));
+        Assert.IsFalse(LocalHostOperatorStatus.IsSettlementRetryingState(baseRecovery));
+        Assert.IsTrue(LocalHostOperatorStatus.IsSettlementPoisonedState(
+            baseRecovery with { State = SettlementRecoveryState.Poisoned }));
+        Assert.IsFalse(LocalHostOperatorStatus.IsSettlementRetryingState(
+            baseRecovery with { State = SettlementRecoveryState.Poisoned }));
+        Assert.IsTrue(LocalHostOperatorStatus.IsSettlementRetryingState(
+            baseRecovery with { State = SettlementRecoveryState.Retrying }));
+        Assert.IsFalse(LocalHostOperatorStatus.IsSettlementPoisonedState(
+            baseRecovery with { State = SettlementRecoveryState.Retrying }));
+    }
+
+    [TestMethod]
     public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealAgeMisalignedOverdueFiPoison()
     {
         var recovery = new SettlementRecoveryStatus

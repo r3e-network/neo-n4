@@ -265,6 +265,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(opStatus.IsSettlementIdle);
             Assert.IsTrue(opStatus.IsPipelineHealthy);
             Assert.AreEqual(0, opStatus.PipelineHealthFailures.Count);
+            Assert.IsTrue(settlementHost.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsTrue(settlementHost.IsSettlementRuntimeIdleAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsFalse(settlementHost.IsSettlementPoisonedAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsFalse(settlementHost.IsSettlementRetryingAsync().AsTask().GetAwaiter().GetResult());
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
             Assert.AreEqual(0, opStatus.ReadyDepositCount);
             Assert.IsTrue(opStatus.HasBatchProver);

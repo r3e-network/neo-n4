@@ -592,6 +592,26 @@ public sealed record LocalHostOperatorStatus
     }
 
     /// <summary>
+    /// True when durable recovery is poisoned (automatic retries exhausted).
+    /// Does not claim L1 settle confirmation (funded gate).
+    /// </summary>
+    public static bool IsSettlementPoisonedState(SettlementRecoveryStatus recovery)
+    {
+        ArgumentNullException.ThrowIfNull(recovery);
+        return recovery.State == SettlementRecoveryState.Poisoned;
+    }
+
+    /// <summary>
+    /// True when durable recovery is retrying a failed artifact.
+    /// Does not claim L1 settle confirmation (funded gate).
+    /// </summary>
+    public static bool IsSettlementRetryingState(SettlementRecoveryStatus recovery)
+    {
+        ArgumentNullException.ThrowIfNull(recovery);
+        return recovery.State == SettlementRecoveryState.Retrying;
+    }
+
+    /// <summary>
     /// True when the local settlement queue is idle: no host/recovery pending, no poison/retry
     /// state, and no last error. Does not claim L1 settle confirmation (funded gate).
     /// </summary>
@@ -602,8 +622,7 @@ public sealed record LocalHostOperatorStatus
         ArgumentNullException.ThrowIfNull(recovery);
         if (pendingSettlementCount != 0 || recovery.PendingCount != 0)
             return false;
-        if (recovery.State is SettlementRecoveryState.Poisoned
-            or SettlementRecoveryState.Retrying)
+        if (IsSettlementPoisonedState(recovery) || IsSettlementRetryingState(recovery))
             return false;
         return string.IsNullOrEmpty(recovery.LastError);
     }
@@ -701,12 +720,10 @@ public sealed record LocalHostOperatorStatus
             failures.Add(nameof(IsBatcherCheckpointAligned));
         if (hasOverdueForcedInclusion)
             failures.Add(nameof(HasOverdueForcedInclusion));
-        var isPoisoned = recovery.State == SettlementRecoveryState.Poisoned;
-        var isRetrying = recovery.State == SettlementRecoveryState.Retrying;
         // Prefer specific recovery labels over a generic idle miss when state is set.
-        if (isPoisoned)
+        if (IsSettlementPoisonedState(recovery))
             failures.Add(nameof(IsSettlementPoisoned));
-        else if (isRetrying)
+        else if (IsSettlementRetryingState(recovery))
             failures.Add(nameof(IsSettlementRetrying));
         else if (!IsSettlementRuntimeIdle(pendingSettlementCount, recovery))
             failures.Add(nameof(IsSettlementIdle));

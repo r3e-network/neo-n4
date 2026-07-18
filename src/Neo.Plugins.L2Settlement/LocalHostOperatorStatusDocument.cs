@@ -254,6 +254,9 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Durable settlement recovery is poisoned.</summary>
     public required bool IsSettlementPoisoned { get; init; }
 
+    /// <summary>Durable settlement recovery is retrying automatic attempts.</summary>
+    public required bool IsSettlementRetrying { get; init; }
+
     /// <summary>No pending settlement work and recovery is idle.</summary>
     public required bool IsSettlementIdle { get; init; }
 
@@ -453,6 +456,7 @@ public sealed record LocalHostOperatorStatusDocument
             IsSettlementEnabled = status.IsSettlementEnabled,
             IsPipelineEnabled = status.IsPipelineEnabled,
             IsSettlementPoisoned = status.IsSettlementPoisoned,
+            IsSettlementRetrying = status.IsSettlementRetrying,
             IsSettlementIdle = status.IsSettlementIdle,
             IsPipelineHealthy = status.IsPipelineHealthy,
             PipelineHealthFailures = status.PipelineHealthFailures,

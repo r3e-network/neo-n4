@@ -228,6 +228,18 @@ public sealed class GatewayHostComposition : IDisposable
     }
 
     /// <summary>
+    /// Gateway host combined local health (publication profile + outbox idle).
+    /// Alias of <see cref="IsPublicationHealthy"/> for parity with LocalHost
+    /// <c>IsLocalHostHealthy</c>. Does not claim L1 confirmation.
+    /// </summary>
+    public bool IsGatewayHostHealthy => IsPublicationHealthy;
+
+    /// <summary>
+    /// Failed Gateway host health checks (same as <see cref="PublicationHealthFailures"/>).
+    /// </summary>
+    public IReadOnlyList<string> GatewayHostHealthFailures => PublicationHealthFailures;
+
+    /// <summary>
     /// Terminal proof-system discriminator from <see cref="ProofProver"/>
     /// (<see cref="IGatewayProofProver.ProofSystem"/>).
     /// </summary>
@@ -335,6 +347,8 @@ public sealed class GatewayHostComposition : IDisposable
             IsOutboxIdle = IsOutboxIdle,
             IsPublicationHealthy = IsPublicationHealthy,
             PublicationHealthFailures = PublicationHealthFailures,
+            IsGatewayHostHealthy = IsGatewayHostHealthy,
+            GatewayHostHealthFailures = GatewayHostHealthFailures,
             ReplayDomain = ReplayDomain,
             VerificationKeyId = VerificationKeyId,
             SettlementManagerHash = SettlementManagerHash,

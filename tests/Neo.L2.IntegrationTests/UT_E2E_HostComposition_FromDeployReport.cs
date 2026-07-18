@@ -355,6 +355,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"isPipelineHealthy\": true");
             StringAssert.Contains(statusJson, "\"pipelineHealthFailures\":");
             StringAssert.Contains(statusJson, "\"hasOverdueForcedInclusion\": false");
+            StringAssert.Contains(statusJson, "\"isSettlementRetrying\": false");
             StringAssert.Contains(statusJson, "\"isMetricsHttpHealthy\":");
             StringAssert.Contains(statusJson, "\"metricsHttpHealthFailures\":");
             StringAssert.Contains(statusJson, "\"isLocalHostHealthy\":");
@@ -446,6 +447,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsFalse(gatewayHost.IsOutboxPoisoned);
             Assert.IsTrue(gatewayHost.IsPublicationHealthy);
             Assert.AreEqual(0, gatewayHost.PublicationHealthFailures.Count);
+            Assert.IsTrue(gatewayHost.IsGatewayHostHealthy);
+            Assert.AreEqual(0, gatewayHost.GatewayHostHealthFailures.Count);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
             Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
             var gwStatus = gatewayHost.GetOperatorStatus();

@@ -87,6 +87,12 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>Failed publication health check names (empty when healthy).</summary>
     public required IReadOnlyList<string> PublicationHealthFailures { get; init; }
 
+    /// <summary>Combined Gateway host local health (same as IsPublicationHealthy).</summary>
+    public required bool IsGatewayHostHealthy { get; init; }
+
+    /// <summary>Failed Gateway host health checks (same as PublicationHealthFailures).</summary>
+    public required IReadOnlyList<string> GatewayHostHealthFailures { get; init; }
+
     /// <summary>Publication-profile replay domain as 0x-hex.</summary>
     public required string ReplayDomain { get; init; }
 
@@ -139,6 +145,8 @@ public sealed record GatewayHostOperatorStatusDocument
             IsOutboxIdle = status.IsOutboxIdle,
             IsPublicationHealthy = status.IsPublicationHealthy,
             PublicationHealthFailures = status.PublicationHealthFailures,
+            IsGatewayHostHealthy = status.IsGatewayHostHealthy,
+            GatewayHostHealthFailures = status.GatewayHostHealthFailures,
             ReplayDomain = status.ReplayDomain.ToString(),
             VerificationKeyId = status.VerificationKeyId.ToString(),
             SettlementManagerHash = status.SettlementManagerHash.ToString(),

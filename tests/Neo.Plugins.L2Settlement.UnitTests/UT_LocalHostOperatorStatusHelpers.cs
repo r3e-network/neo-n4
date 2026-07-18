@@ -78,7 +78,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
     }
 
     [TestMethod]
-    public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealOverdueFiPoisonAndIdle()
+    public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealOverdueFiPoison()
     {
         var recovery = new SettlementRecoveryStatus
         {
@@ -103,8 +103,30 @@ public sealed class UT_LocalHostOperatorStatusHelpers
                 nameof(LocalHostOperatorStatus.HasPendingSealedBatch),
                 nameof(LocalHostOperatorStatus.HasOverdueForcedInclusion),
                 nameof(LocalHostOperatorStatus.IsSettlementPoisoned),
-                nameof(LocalHostOperatorStatus.IsSettlementIdle),
             },
+            failures.ToArray());
+    }
+
+    [TestMethod]
+    public void BuildPipelineHealthFailures_NamesRetryingWithoutGenericIdle()
+    {
+        var recovery = new SettlementRecoveryStatus
+        {
+            PendingCount = 1,
+            ConfirmationLagBatches = 1,
+            State = SettlementRecoveryState.Retrying,
+            RetryCount = 1,
+            LastError = "transient",
+        };
+        var failures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
+            offlinePassportComplete: true,
+            pipelineEnabled: true,
+            hasPendingSealedBatch: false,
+            hasOverdueForcedInclusion: false,
+            pendingSettlementCount: 0,
+            recovery);
+        CollectionAssert.AreEqual(
+            new[] { nameof(LocalHostOperatorStatus.IsSettlementRetrying) },
             failures.ToArray());
     }
 

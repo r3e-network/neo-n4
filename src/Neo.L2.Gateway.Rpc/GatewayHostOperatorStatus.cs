@@ -112,6 +112,17 @@ public sealed record GatewayHostOperatorStatus
     /// </summary>
     public required IReadOnlyList<string> PublicationHealthFailures { get; init; }
 
+    /// <summary>
+    /// Combined Gateway host local health (same as <see cref="IsPublicationHealthy"/>).
+    /// Naming parity with LocalHost <c>IsLocalHostHealthy</c>.
+    /// </summary>
+    public required bool IsGatewayHostHealthy { get; init; }
+
+    /// <summary>
+    /// Failed Gateway host health checks (same as <see cref="PublicationHealthFailures"/>).
+    /// </summary>
+    public required IReadOnlyList<string> GatewayHostHealthFailures { get; init; }
+
     /// <summary>Publication-profile replay domain bound at open.</summary>
     public required UInt256 ReplayDomain { get; init; }
 

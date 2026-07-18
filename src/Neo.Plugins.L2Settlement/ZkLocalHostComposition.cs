@@ -504,11 +504,23 @@ public sealed class ZkLocalHostComposition : IDisposable
     /// <summary>
     /// True when any unconsumed forced-inclusion entry is past
     /// <paramref name="nowUnixSeconds"/> (<see cref="IForcedInclusionSource.HasOverdueEntryAsync"/>).
+    /// Live L1 poll; for soft cache-only status use <see cref="HasOverdueForcedInclusionCached"/>.
     /// </summary>
     public ValueTask<bool> HasOverdueForcedInclusionAsync(
         uint nowUnixSeconds,
         CancellationToken cancellationToken = default)
         => ForcedInclusion.HasOverdueEntryAsync(nowUnixSeconds, cancellationToken);
+
+    /// <summary>
+    /// Soft overdue check against the last FI drain cache only (no L1 scan).
+    /// When <paramref name="nowUnixSeconds"/> is null, uses UTC now.
+    /// </summary>
+    public bool HasOverdueForcedInclusionCached(uint? nowUnixSeconds = null)
+    {
+        var now = nowUnixSeconds
+            ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        return ForcedInclusion.HasOverdueCachedEntry(now);
+    }
 
     /// <summary>
     /// Aggregate local operator readiness (durable settlement + deposit peek + metrics)
@@ -530,7 +542,7 @@ public sealed class ZkLocalHostComposition : IDisposable
         var now = nowUnixSeconds
             ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         // Soft cache-only overdue (no L1 scan); live poll remains HasOverdueForcedInclusionAsync.
-        var hasOverdueForcedInclusion = ForcedInclusion.HasOverdueCachedEntry(now);
+        var hasOverdueForcedInclusion = HasOverdueForcedInclusionCached(now);
         var pipelineHealthFailures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
             IsOfflinePassportComplete,
             IsPipelineEnabled,
@@ -631,6 +643,7 @@ public sealed class ZkLocalHostComposition : IDisposable
             IsSettlementEnabled = IsSettlementEnabled,
             IsPipelineEnabled = IsPipelineEnabled,
             IsSettlementPoisoned = recovery.State == SettlementRecoveryState.Poisoned,
+            IsSettlementRetrying = recovery.State == SettlementRecoveryState.Retrying,
             IsSettlementIdle = pending == 0
                 && recovery.PendingCount == 0
                 && recovery.State is null

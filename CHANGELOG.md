@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Settlement retrying + Gateway host health alias — 2026-07-18
+
+- LocalHost operator status (+ JSON) exposes `IsSettlementRetrying`; pipeline health names
+  retrying distinctly from poison/idle (no double-label).
+- Multisig/Optimistic/Zk hosts expose sync `HasOverdueForcedInclusionCached`.
+- Gateway host (+ status/JSON) exposes `IsGatewayHostHealthy` /
+  `GatewayHostHealthFailures` (alias of publication health; LocalHost naming parity).
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 settle / publication confirmation remain funded gates.
+
 ### Added — Forced-inclusion overdue on LocalHost pipeline health — 2026-07-18
 
 - `RpcForcedInclusionSource.HasOverdueCachedEntry` soft-checks the last drain cache without

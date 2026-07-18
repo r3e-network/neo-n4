@@ -339,6 +339,12 @@ public sealed record LocalHostOperatorStatus
     public required bool IsSettlementPoisoned { get; init; }
 
     /// <summary>
+    /// True when durable settlement recovery state is retrying (bounded automatic retries).
+    /// Distinct from <see cref="IsSettlementPoisoned"/>; not an L1 claim.
+    /// </summary>
+    public required bool IsSettlementRetrying { get; init; }
+
+    /// <summary>
     /// True when no pending settlement artifacts and recovery is not retrying/poisoned.
     /// Runtime idle health from local stores (not L1 confirmation).
     /// </summary>
@@ -346,15 +352,16 @@ public sealed record LocalHostOperatorStatus
 
     /// <summary>
     /// Offline passport complete, pipeline enabled, no pending sealed batch, no overdue
-    /// forced inclusion, settlement not poisoned, and settlement idle. Distinct from L1 settle
-    /// confirmation (funded gate). True when <see cref="PipelineHealthFailures"/> is empty.
+    /// forced inclusion, settlement not poisoned/retrying, and settlement idle. Distinct from
+    /// L1 settle confirmation (funded gate). True when <see cref="PipelineHealthFailures"/>
+    /// is empty.
     /// </summary>
     public required bool IsPipelineHealthy { get; init; }
 
     /// <summary>
     /// Names of pipeline health checks that failed (empty when <see cref="IsPipelineHealthy"/>).
     /// Combines offline passport rollup with runtime sealed-batch pending, overdue forced
-    /// inclusion, settlement idle/poison, and enablement. Diagnostic only; not an L1 claim.
+    /// inclusion, settlement idle/retry/poison, and enablement. Diagnostic only; not an L1 claim.
     /// </summary>
     public required IReadOnlyList<string> PipelineHealthFailures { get; init; }
 
@@ -577,13 +584,19 @@ public sealed record LocalHostOperatorStatus
             failures.Add(nameof(HasPendingSealedBatch));
         if (hasOverdueForcedInclusion)
             failures.Add(nameof(HasOverdueForcedInclusion));
-        if (recovery.State == SettlementRecoveryState.Poisoned)
+        var isPoisoned = recovery.State == SettlementRecoveryState.Poisoned;
+        var isRetrying = recovery.State == SettlementRecoveryState.Retrying;
+        // Prefer specific recovery labels over a generic idle miss when state is set.
+        if (isPoisoned)
             failures.Add(nameof(IsSettlementPoisoned));
+        else if (isRetrying)
+            failures.Add(nameof(IsSettlementRetrying));
         var settlementIdle = pendingSettlementCount == 0
             && recovery.PendingCount == 0
-            && recovery.State is null
+            && !isPoisoned
+            && !isRetrying
             && string.IsNullOrEmpty(recovery.LastError);
-        if (!settlementIdle)
+        if (!settlementIdle && !isPoisoned && !isRetrying)
             failures.Add(nameof(IsSettlementIdle));
         return failures;
     }

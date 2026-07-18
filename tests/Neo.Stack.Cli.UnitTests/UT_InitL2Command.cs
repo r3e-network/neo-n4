@@ -255,6 +255,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsPipelineHealthy");
         StringAssert.Contains(output, "PipelineHealthFailures");
         StringAssert.Contains(output, "HasOverdueForcedInclusion");
+        StringAssert.Contains(output, "IsSettlementRetrying");
         StringAssert.Contains(output, "IsMetricsHttpHealthy");
         StringAssert.Contains(output, "MetricsHttpHealthFailures");
         StringAssert.Contains(output, "IsLocalHostHealthy");
@@ -262,6 +263,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsOutboxIdle");
         StringAssert.Contains(output, "IsPublicationHealthy");
         StringAssert.Contains(output, "PublicationHealthFailures");
+        StringAssert.Contains(output, "IsGatewayHostHealthy");
+        StringAssert.Contains(output, "GatewayHostHealthFailures");
         StringAssert.Contains(output, "HasExpectedNetwork");
         StringAssert.Contains(output, "HasScannerDeployHeights");
         StringAssert.Contains(output, "IsOfflinePassportComplete");

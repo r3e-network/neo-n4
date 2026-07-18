@@ -175,6 +175,8 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsFalse(status.IsSettlementPoisoned);
             Assert.IsTrue(status.IsSettlementIdle);
             Assert.IsFalse(status.HasOverdueForcedInclusion);
+            Assert.IsFalse(host.HasOverdueForcedInclusionCached());
+            Assert.IsFalse(status.IsSettlementRetrying);
             Assert.IsTrue(status.IsPipelineHealthy);
             Assert.AreEqual(0, status.PipelineHealthFailures.Count);
             Assert.IsFalse(status.IsMetricsHttpHealthy);

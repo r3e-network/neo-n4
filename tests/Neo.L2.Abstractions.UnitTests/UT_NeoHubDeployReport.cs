@@ -311,6 +311,7 @@ public class UT_NeoHubDeployReport
                 + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
                 + "IsEnabled / MaxAutomaticRetries / ProofSystem / ExpectedNetwork / "
                 + "HasL1RpcEndpoint / ReplayDomain / VerificationKeyId / "
+                + "SettlementManagerHash / MessageRouterHash / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
                 + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                 + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "

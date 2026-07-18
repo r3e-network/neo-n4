@@ -357,6 +357,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(gatewayHost.ReplayDomain, gwOpStatus.ReplayDomain);
             Assert.AreEqual(gatewayHost.VerificationKeyId, gwOpStatus.VerificationKeyId);
             Assert.AreEqual(gatewayHost.ProofSystem, gwOpStatus.ProofSystem);
+            Assert.AreNotEqual(UInt160.Zero, gatewayHost.SettlementManagerHash);
+            Assert.AreNotEqual(UInt160.Zero, gatewayHost.MessageRouterHash);
+            Assert.AreEqual(gatewayHost.SettlementManagerHash, gwOpStatus.SettlementManagerHash);
+            Assert.AreEqual(gatewayHost.MessageRouterHash, gwOpStatus.MessageRouterHash);
             Assert.AreSame(gatewayProof, gatewayHost.ProofProver);
             Assert.IsFalse(gatewayHost.HasPendingPublication);
             Assert.IsNull(gatewayHost.PendingPublicationEpoch);

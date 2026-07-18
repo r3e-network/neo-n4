@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway publisher NeoHub hashes on host ops — 2026-07-18
+
+- `ProofBoundRpcGlobalRootPublisher` exposes `SettlementManagerHash` /
+  `MessageRouterHash`; `GatewayHostComposition` and operator status (+ JSON) surface
+  both for offline config cross-checks against deploy reports.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 publication confirmation remains a funded gate.
+
 ### Added — Gateway replay domain and verification key on host ops — 2026-07-18
 
 - `GatewayHostComposition` retains `ReplayDomain` and `VerificationKeyId` from open

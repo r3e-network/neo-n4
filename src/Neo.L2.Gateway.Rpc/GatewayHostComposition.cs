@@ -149,6 +149,18 @@ public sealed class GatewayHostComposition : IDisposable
     public UInt256 VerificationKeyId { get; }
 
     /// <summary>
+    /// SettlementManager hash from the proof-bound publisher
+    /// (<see cref="ProofBoundRpcGlobalRootPublisher.SettlementManagerHash"/>).
+    /// </summary>
+    public UInt160 SettlementManagerHash => Publisher.SettlementManagerHash;
+
+    /// <summary>
+    /// MessageRouter hash from the proof-bound publisher
+    /// (<see cref="ProofBoundRpcGlobalRootPublisher.MessageRouterHash"/>).
+    /// </summary>
+    public UInt160 MessageRouterHash => Publisher.MessageRouterHash;
+
+    /// <summary>
     /// Durable outbox / confirmation-lag status
     /// (<see cref="L2GatewayPlugin.OutboxStatus"/>).
     /// </summary>
@@ -214,6 +226,8 @@ public sealed class GatewayHostComposition : IDisposable
             HasL1RpcEndpoint = HasL1RpcEndpoint,
             ReplayDomain = ReplayDomain,
             VerificationKeyId = VerificationKeyId,
+            SettlementManagerHash = SettlementManagerHash,
+            MessageRouterHash = MessageRouterHash,
             OwnsProofProver = OwnsProofProver,
             HasMetrics = Metrics is not null,
             MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,

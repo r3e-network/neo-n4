@@ -74,6 +74,12 @@ public sealed record GatewayHostOperatorStatus
     /// <summary>Publication-profile verification key id bound at open.</summary>
     public required UInt256 VerificationKeyId { get; init; }
 
+    /// <summary>SettlementManager script hash bound on the publisher.</summary>
+    public required UInt160 SettlementManagerHash { get; init; }
+
+    /// <summary>MessageRouter script hash bound on the publisher.</summary>
+    public required UInt160 MessageRouterHash { get; init; }
+
     /// <summary>True when this composition owns proof-prover disposal.</summary>
     public required bool OwnsProofProver { get; init; }
 

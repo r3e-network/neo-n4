@@ -90,6 +90,17 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
     }
 
     /// <summary>
+    /// SettlementManager contract hash bound at construction (non-zero). Offline ops surface;
+    /// L1 publication remains a funded gate.
+    /// </summary>
+    public UInt160 SettlementManagerHash => _settlementManagerHash;
+
+    /// <summary>
+    /// MessageRouter contract hash bound at construction (non-zero). Offline ops surface.
+    /// </summary>
+    public UInt160 MessageRouterHash => _messageRouterHash;
+
+    /// <summary>
     /// Open a publisher from a chain working directory: L1 RPC endpoint and NeoHub hashes from
     /// settlement plugin config and/or <c>l1.deployed.json</c>. Caller supplies
     /// <paramref name="signAndSend"/> (HSM or <see cref="CreateSignAndSend"/>).

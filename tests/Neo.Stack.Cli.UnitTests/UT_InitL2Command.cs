@@ -270,6 +270,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "HasL1RpcEndpoint");
         StringAssert.Contains(output, "ReplayDomain");
         StringAssert.Contains(output, "VerificationKeyId");
+        StringAssert.Contains(output, "SettlementManagerHash");
+        StringAssert.Contains(output, "MessageRouterHash");
         StringAssert.Contains(output, "StopMetricsHttp");
         StringAssert.Contains(output, "ConsumedDepositCount");
         StringAssert.Contains(output, "L1InboxPendingCount");

@@ -96,6 +96,11 @@ public sealed class UT_GatewayHostComposition
             Assert.AreEqual(UInt256.Parse("0x" + new string('e', 64)), host.VerificationKeyId);
             Assert.AreEqual(host.ReplayDomain, gwStatus.ReplayDomain);
             Assert.AreEqual(host.VerificationKeyId, gwStatus.VerificationKeyId);
+            Assert.AreEqual(SettlementManager, host.SettlementManagerHash);
+            Assert.AreEqual(MessageRouter, host.MessageRouterHash);
+            Assert.AreEqual(host.SettlementManagerHash, gwStatus.SettlementManagerHash);
+            Assert.AreEqual(host.MessageRouterHash, gwStatus.MessageRouterHash);
+            Assert.AreEqual(host.Publisher.SettlementManagerHash, host.SettlementManagerHash);
             Assert.IsFalse(gwStatus.OwnsProofProver);
             Assert.IsTrue(gwStatus.HasMetrics);
             Assert.IsTrue(gwStatus.MetricsEntryCount >= 0);
@@ -114,6 +119,8 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(statusJson, "\"proofSystem\": 1");
             StringAssert.Contains(statusJson, "\"replayDomain\":");
             StringAssert.Contains(statusJson, "\"verificationKeyId\":");
+            StringAssert.Contains(statusJson, "\"settlementManagerHash\":");
+            StringAssert.Contains(statusJson, "\"messageRouterHash\":");
             Assert.IsNotNull(host.Publisher);
             // Durable outbox host compositions fail closed on direct PullAggregate.
             Assert.ThrowsExactly<InvalidOperationException>(() => host.PullAggregate());

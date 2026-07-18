@@ -66,6 +66,12 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>Publication-profile verification key id as 0x-hex.</summary>
     public required string VerificationKeyId { get; init; }
 
+    /// <summary>SettlementManager script hash as 0x-hex.</summary>
+    public required string SettlementManagerHash { get; init; }
+
+    /// <summary>MessageRouter script hash as 0x-hex.</summary>
+    public required string MessageRouterHash { get; init; }
+
     /// <summary>True when this composition owns proof-prover disposal.</summary>
     public required bool OwnsProofProver { get; init; }
 
@@ -100,6 +106,8 @@ public sealed record GatewayHostOperatorStatusDocument
             HasL1RpcEndpoint = status.HasL1RpcEndpoint,
             ReplayDomain = status.ReplayDomain.ToString(),
             VerificationKeyId = status.VerificationKeyId.ToString(),
+            SettlementManagerHash = status.SettlementManagerHash.ToString(),
+            MessageRouterHash = status.MessageRouterHash.ToString(),
             OwnsProofProver = status.OwnsProofProver,
             HasMetrics = status.HasMetrics,
             MetricsEntryCount = status.MetricsEntryCount,

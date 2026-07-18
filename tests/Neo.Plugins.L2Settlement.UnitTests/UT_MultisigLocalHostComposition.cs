@@ -192,6 +192,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsNull(status.OpenBatchAgeMillis);
             Assert.IsTrue(status.IsPipelineHealthy);
             Assert.AreEqual(0, status.PipelineHealthFailures.Count);
+            Assert.IsTrue(await host.IsPipelineHealthyAsync());
+            Assert.AreEqual(0, (await host.GetPipelineHealthFailuresAsync()).Count);
             Assert.IsFalse(await host.IsLocalHostHealthyAsync());
             var healthFailures = await host.GetLocalHostHealthFailuresAsync();
             Assert.IsTrue(healthFailures.Count >= 1);
@@ -558,6 +560,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, metricsStatus.MetricsHttpHealthFailures.Count);
             Assert.IsTrue(metricsStatus.IsLocalHostHealthy);
             Assert.AreEqual(0, metricsStatus.LocalHostHealthFailures.Count);
+            Assert.IsTrue(await host.IsPipelineHealthyAsync());
+            Assert.AreEqual(0, (await host.GetPipelineHealthFailuresAsync()).Count);
             Assert.IsTrue(await host.IsLocalHostHealthyAsync());
             Assert.AreEqual(0, (await host.GetLocalHostHealthFailuresAsync()).Count);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);

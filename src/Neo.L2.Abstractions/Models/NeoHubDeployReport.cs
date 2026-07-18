@@ -450,6 +450,7 @@ public sealed record NeoHubDeployReport(
                         + "IsBatcherCheckpointAligned / "
                         + "IsMetricsHttpHealthy / MetricsHttpHealthFailures / "
                         + "IsLocalHostHealthy / LocalHostHealthFailures / IsLocalHostHealthyAsync / "
+                        + "IsPipelineHealthyAsync / GetPipelineHealthFailuresAsync / "
                         + "StartMetricsHttp(/readyz defaults to IsOfflinePassportComplete) / "
                         + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
                         + "OfflinePassportFailures / "

@@ -694,10 +694,11 @@ public sealed class MultisigLocalHostComposition : IDisposable
     }
 
     /// <summary>
-    /// Local host health failure names (pipeline + metrics HTTP) without a full status document.
-    /// Soft FI clock via <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// Pipeline-only health failure names (offline passport + enablement + batcher/settlement
+    /// runtime) without metrics HTTP. Soft FI clock via <paramref name="nowUnixSeconds"/>;
+    /// no L1 settle claim.
     /// </summary>
-    public async ValueTask<IReadOnlyList<string>> GetLocalHostHealthFailuresAsync(
+    public async ValueTask<IReadOnlyList<string>> GetPipelineHealthFailuresAsync(
         CancellationToken cancellationToken = default,
         uint? nowUnixSeconds = null)
     {
@@ -707,7 +708,7 @@ public sealed class MultisigLocalHostComposition : IDisposable
             .ConfigureAwait(false);
         var now = nowUnixSeconds
             ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var pipeline = LocalHostOperatorStatus.BuildPipelineHealthFailures(
+        return LocalHostOperatorStatus.BuildPipelineHealthFailures(
             IsOfflinePassportComplete,
             IsPipelineEnabled,
             HasPendingSealedBatch,
@@ -717,6 +718,31 @@ public sealed class MultisigLocalHostComposition : IDisposable
             HasOverdueForcedInclusionCached(now),
             pending,
             recovery);
+    }
+
+    /// <summary>
+    /// True when <see cref="GetPipelineHealthFailuresAsync"/> is empty (pipeline only;
+    /// metrics HTTP may still be down).
+    /// </summary>
+    public async ValueTask<bool> IsPipelineHealthyAsync(
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var failures = await GetPipelineHealthFailuresAsync(cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        return failures.Count == 0;
+    }
+
+    /// <summary>
+    /// Local host health failure names (pipeline + metrics HTTP) without a full status document.
+    /// Soft FI clock via <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public async ValueTask<IReadOnlyList<string>> GetLocalHostHealthFailuresAsync(
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var pipeline = await GetPipelineHealthFailuresAsync(cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
         return LocalHostOperatorStatus.BuildLocalHostHealthFailures(
             pipeline, MetricsHttpHealthFailures);
     }

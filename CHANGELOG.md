@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — LocalHost pipeline-only health probes (no metrics HTTP) — 2026-07-18
+
+- Multisig/Optimistic/Zk hosts expose `GetPipelineHealthFailuresAsync` /
+  `IsPipelineHealthyAsync` for light pipeline probes without requiring metrics HTTP.
+- `GetLocalHostHealthFailuresAsync` reuses the pipeline probe then merges metrics HTTP.
+- Default Open (metrics not started): pipeline healthy, LocalHostHealthy still false.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Tested — Neo N3 testnet session11 reverify + SharedBridge deposit n12 — 2026-07-18
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

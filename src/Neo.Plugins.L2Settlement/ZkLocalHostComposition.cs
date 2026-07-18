@@ -1539,6 +1539,23 @@ public sealed class ZkLocalHostComposition : IDisposable
     }
 
     /// <summary>
+    /// Serialize <see cref="GetOperatorStatusAsync"/> as indented camelCase JSON for ops
+    /// scripts without writing a file (primitive fields + recovery summary only).
+    /// Soft FI clock via <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public async ValueTask<string> FormatOperatorStatusJsonAsync(
+        int depositPeekLimit = 64,
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var status = await GetOperatorStatusAsync(
+                depositPeekLimit, cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        return LocalHostOperatorStatusDocument.FormatJson(
+            LocalHostOperatorStatusDocument.From(status));
+    }
+
+    /// <summary>
     /// Write <see cref="GetOperatorStatusAsync"/> as indented JSON for host health files
     /// without Neo.CLI (primitive fields + recovery summary only).
     /// </summary>
@@ -1549,22 +1566,14 @@ public sealed class ZkLocalHostComposition : IDisposable
         uint? nowUnixSeconds = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var status = await GetOperatorStatusAsync(
+        var json = await FormatOperatorStatusJsonAsync(
                 depositPeekLimit, cancellationToken, nowUnixSeconds)
             .ConfigureAwait(false);
-        var document = LocalHostOperatorStatusDocument.From(status);
         var fullPath = Path.GetFullPath(path);
         var dir = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
-        var json = System.Text.Json.JsonSerializer.Serialize(
-            document,
-            new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-            });
-        await File.WriteAllTextAsync(fullPath, json + Environment.NewLine, cancellationToken)
+        await File.WriteAllTextAsync(fullPath, json, cancellationToken)
             .ConfigureAwait(false);
     }
 

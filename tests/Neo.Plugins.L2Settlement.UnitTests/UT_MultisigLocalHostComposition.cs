@@ -473,10 +473,14 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreNotEqual(UInt256.Zero, outbound.MessageHash);
             Assert.AreNotEqual(UInt256.Zero, host.MessageOutboxL2ToL1Root);
             Assert.AreEqual(host.MessageOutbox.L2ToL1Root, host.MessageOutboxL2ToL1Root);
+            var formattedStatus = await host.FormatOperatorStatusJsonAsync();
+            StringAssert.Contains(formattedStatus, "\"isOfflinePassportComplete\"");
+            Assert.IsTrue(formattedStatus.EndsWith('\n') || formattedStatus.EndsWith(Environment.NewLine));
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             await host.WriteOperatorStatusAsync(statusPath);
             Assert.IsTrue(File.Exists(statusPath));
             var statusJson = await File.ReadAllTextAsync(statusPath);
+            Assert.AreEqual(formattedStatus, statusJson);
             Assert.IsTrue(await host.IsBatcherCheckpointAlignedAsync());
             var probe = await host.GetHealthProbeAsync();
             Assert.IsTrue(probe.IsOfflinePassportComplete);

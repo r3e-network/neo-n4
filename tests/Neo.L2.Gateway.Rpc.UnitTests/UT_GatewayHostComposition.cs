@@ -126,10 +126,15 @@ public sealed class UT_GatewayHostComposition
             Assert.IsFalse(gwStatus.OwnsProofProver);
             Assert.IsTrue(gwStatus.HasMetrics);
             Assert.IsTrue(gwStatus.MetricsEntryCount >= 0);
+            var formattedStatus = host.FormatOperatorStatusJson();
+            StringAssert.Contains(formattedStatus, "\"isOfflinePassportComplete\": true");
+            StringAssert.Contains(formattedStatus, "\"hasPendingPublication\": false");
+            Assert.IsTrue(formattedStatus.EndsWith('\n') || formattedStatus.EndsWith(Environment.NewLine));
             var statusPath = Path.Combine(dir, "gateway-status.json");
             host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(statusPath));
             var statusJson = File.ReadAllText(statusPath);
+            Assert.AreEqual(formattedStatus, statusJson);
             var probe = host.GetHealthProbe();
             Assert.IsTrue(probe.IsOfflinePassportComplete);
             Assert.IsFalse(probe.HasPendingPublication);

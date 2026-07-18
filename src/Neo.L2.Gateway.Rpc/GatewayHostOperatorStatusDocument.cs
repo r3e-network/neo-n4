@@ -1,14 +1,33 @@
+using System.Text.Json;
+
 namespace Neo.L2.Gateway.Rpc;
 
 /// <summary>
 /// JSON-serializable projection of <see cref="GatewayHostOperatorStatus"/> for host health files.
 /// </summary>
 /// <remarks>
-/// See doc.md §4 / §14.2. Produced by <see cref="GatewayHostComposition.WriteOperatorStatusAsync"/>.
+/// See doc.md §4 / §14.2. Produced by <see cref="GatewayHostComposition.FormatOperatorStatusJson"/> /
+/// <see cref="GatewayHostComposition.WriteOperatorStatusAsync"/>.
 /// L1 confirmation remains a funded gate and is not claimed here.
 /// </remarks>
 public sealed record GatewayHostOperatorStatusDocument
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    /// <summary>
+    /// Serialize as indented camelCase JSON (trailing newline) for ops scripts and
+    /// host composition <c>FormatOperatorStatusJson</c>.
+    /// </summary>
+    public static string FormatJson(GatewayHostOperatorStatusDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return JsonSerializer.Serialize(document, JsonOptions) + Environment.NewLine;
+    }
+
     /// <summary>Absolute chain working directory.</summary>
     public required string ChainDirectory { get; init; }
 

@@ -233,10 +233,12 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsNotNull(host.DepositProcessor);
             Assert.IsNotNull(host.WithdrawalProcessor);
             Assert.IsNotNull(host.BatchProver);
+            var formattedStatus = host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult();
+            StringAssert.Contains(formattedStatus, "\"proofType\": \"Optimistic\"");
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(statusPath));
-            StringAssert.Contains(File.ReadAllText(statusPath), "\"proofType\": \"Optimistic\"");
+            Assert.AreEqual(formattedStatus, File.ReadAllText(statusPath));
             Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
             var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(probe.IsPipelineEnabled);

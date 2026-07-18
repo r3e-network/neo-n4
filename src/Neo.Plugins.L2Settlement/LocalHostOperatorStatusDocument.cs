@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Neo.L2;
 
 namespace Neo.Plugins.L2;
@@ -7,10 +8,27 @@ namespace Neo.Plugins.L2;
 /// </summary>
 /// <remarks>
 /// See doc.md §7.5 / §14.2. Roots and enums are stringified so operators can dump status
-/// without custom UInt256 converters. Produced by <c>WriteOperatorStatusAsync</c>.
+/// without custom UInt256 converters. Produced by <c>FormatOperatorStatusJson</c> /
+/// <c>WriteOperatorStatusAsync</c>.
 /// </remarks>
 public sealed record LocalHostOperatorStatusDocument
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    /// <summary>
+    /// Serialize as indented camelCase JSON (trailing newline) for ops scripts and
+    /// host composition <c>FormatOperatorStatusJson</c>.
+    /// </summary>
+    public static string FormatJson(LocalHostOperatorStatusDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return JsonSerializer.Serialize(document, JsonOptions) + Environment.NewLine;
+    }
+
     /// <summary>L2 chain id.</summary>
     public required uint ChainId { get; init; }
 

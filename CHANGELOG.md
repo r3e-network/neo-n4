@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — FormatOperatorStatusJson for LocalHost and Gateway — 2026-07-19
+
+- Multisig/Optimistic/Zk `FormatOperatorStatusJsonAsync` and Gateway
+  `FormatOperatorStatusJson` serialize full operator status without writing a file;
+  `WriteOperatorStatusAsync` reuses the same `*OperatorStatusDocument.FormatJson`.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 settle / publication confirmation remain funded gates.
+
 ### Added — Gateway FormatHealthProbeJson (LocalHost parity) — 2026-07-19
 
 - `GatewayHostHealthProbeDocument.FormatJson` + `GatewayHostComposition.FormatHealthProbeJson`

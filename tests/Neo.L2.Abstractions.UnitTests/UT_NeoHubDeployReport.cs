@@ -286,7 +286,8 @@ public class UT_NeoHubDeployReport
                 "LocalHost.HasOverdueForcedInclusionAsync(nowUnixSeconds)",
                 stores.GetProperty("localHostForcedInclusionOverdue").GetString());
             Assert.AreEqual(
-                "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
+                "LocalHost.FormatOperatorStatusJsonAsync() / WriteOperatorStatusAsync(path) → "
+                + "LocalHostOperatorStatusDocument JSON",
                 stores.GetProperty("localHostWriteOperatorStatus").GetString());
             Assert.AreEqual(
                 "LocalHost.GetHealthProbeAsync() / FormatHealthProbeJson() / "
@@ -299,7 +300,8 @@ public class UT_NeoHubDeployReport
                 "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                 stores.GetProperty("localHostWritePrometheusMetrics").GetString());
             Assert.AreEqual(
-                "GatewayHostComposition.WriteOperatorStatusAsync(path) → GatewayHostOperatorStatusDocument JSON",
+                "GatewayHostComposition.FormatOperatorStatusJson() / WriteOperatorStatusAsync(path) → "
+                + "GatewayHostOperatorStatusDocument JSON",
                 stores.GetProperty("gatewayHostWriteOperatorStatus").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.GetHealthProbe() / FormatHealthProbeJson() / "
@@ -356,7 +358,8 @@ public class UT_NeoHubDeployReport
                 + "ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
                 + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
-                + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
+                + "RecoverPoisonedPublication / GetOperatorStatus / FormatOperatorStatusJson / "
+                + "WriteOperatorStatusAsync / "
                 + "GetHealthProbe / FormatHealthProbeJson / WriteHealthProbeAsync / "
                 + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                 + "WritePrometheusMetricsAsync",

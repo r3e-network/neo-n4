@@ -358,6 +358,14 @@ public sealed class GatewayHostComposition : IDisposable
     }
 
     /// <summary>
+    /// Serialize <see cref="GetOperatorStatus"/> as indented camelCase JSON for ops scripts
+    /// without writing a file. L1 confirmation remains funded and is not claimed.
+    /// </summary>
+    public string FormatOperatorStatusJson()
+        => GatewayHostOperatorStatusDocument.FormatJson(
+            GatewayHostOperatorStatusDocument.From(GetOperatorStatus()));
+
+    /// <summary>
     /// Write <see cref="GetOperatorStatus"/> as indented camelCase JSON for host health files
     /// without Neo.CLI (L1 confirmation remains funded and is not claimed).
     /// </summary>
@@ -366,19 +374,11 @@ public sealed class GatewayHostComposition : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var document = GatewayHostOperatorStatusDocument.From(GetOperatorStatus());
         var fullPath = Path.GetFullPath(path);
         var dir = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
-        var json = System.Text.Json.JsonSerializer.Serialize(
-            document,
-            new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
-            });
-        await File.WriteAllTextAsync(fullPath, json + Environment.NewLine, cancellationToken)
+        await File.WriteAllTextAsync(fullPath, FormatOperatorStatusJson(), cancellationToken)
             .ConfigureAwait(false);
     }
 

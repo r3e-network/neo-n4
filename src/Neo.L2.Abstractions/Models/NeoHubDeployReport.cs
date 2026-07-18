@@ -508,7 +508,8 @@ public sealed record NeoHubDeployReport(
                     ["localHostForcedInclusionOverdue"] =
                         "LocalHost.HasOverdueForcedInclusionAsync(nowUnixSeconds)",
                     ["localHostWriteOperatorStatus"] =
-                        "LocalHost.WriteOperatorStatusAsync(path) → LocalHostOperatorStatusDocument JSON",
+                        "LocalHost.FormatOperatorStatusJsonAsync() / WriteOperatorStatusAsync(path) → "
+                        + "LocalHostOperatorStatusDocument JSON",
                     ["localHostWriteHealthProbe"] =
                         "LocalHost.GetHealthProbeAsync() / FormatHealthProbeJson() / "
                         + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
@@ -518,7 +519,8 @@ public sealed record NeoHubDeployReport(
                     ["localHostWritePrometheusMetrics"] =
                         "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                     ["gatewayHostWriteOperatorStatus"] =
-                        "GatewayHostComposition.WriteOperatorStatusAsync(path) → GatewayHostOperatorStatusDocument JSON",
+                        "GatewayHostComposition.FormatOperatorStatusJson() / WriteOperatorStatusAsync(path) → "
+                        + "GatewayHostOperatorStatusDocument JSON",
                     ["gatewayHostWriteHealthProbe"] =
                         "GatewayHostComposition.GetHealthProbe() / FormatHealthProbeJson() / "
                         + "WriteHealthProbeAsync(path) → "
@@ -564,7 +566,8 @@ public sealed record NeoHubDeployReport(
                         + "ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash / "
                         + "OutboxStatus / Aggregator / ReceiveBatch / "
                         + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
-                        + "RecoverPoisonedPublication / GetOperatorStatus / WriteOperatorStatusAsync / "
+                        + "RecoverPoisonedPublication / GetOperatorStatus / FormatOperatorStatusJson / "
+                        + "WriteOperatorStatusAsync / "
                         + "GetHealthProbe / FormatHealthProbeJson / WriteHealthProbeAsync / "
                         + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                         + "WritePrometheusMetricsAsync",

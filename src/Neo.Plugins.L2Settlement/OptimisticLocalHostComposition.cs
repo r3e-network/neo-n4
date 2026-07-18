@@ -510,7 +510,9 @@ public sealed class OptimisticLocalHostComposition : IDisposable
         var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
         var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
         var pipelineHealthFailures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
-            IsOfflinePassportComplete, IsPipelineEnabled, pending, recovery);
+            IsOfflinePassportComplete, IsPipelineEnabled, HasPendingSealedBatch, pending, recovery);
+        var metricsHttpHealthFailures = LocalHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            IsMetricsEnabled, IsMetricsWiringComplete, IsMetricsHttpListening, HasMetricsReadinessCheck);
         var tracked = await GetTrackedForcedInclusionNoncesAsync(ChainId, cancellationToken)
             .ConfigureAwait(false);
         var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
@@ -606,6 +608,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
                 && string.IsNullOrEmpty(recovery.LastError),
             IsPipelineHealthy = pipelineHealthFailures.Count == 0,
             PipelineHealthFailures = pipelineHealthFailures,
+            IsMetricsHttpHealthy = metricsHttpHealthFailures.Count == 0,
+            MetricsHttpHealthFailures = metricsHttpHealthFailures,
             L1FinalityDepth = L1FinalityDepth,
             DepositSourceReadyCount = DepositSourceReadyCount,
             DepositSourceReservedCount = DepositSourceReservedCount,

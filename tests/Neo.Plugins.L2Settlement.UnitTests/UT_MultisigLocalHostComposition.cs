@@ -186,6 +186,13 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.IsSettlementIdle);
             Assert.IsTrue(status.IsPipelineHealthy);
             Assert.AreEqual(0, status.PipelineHealthFailures.Count);
+            Assert.IsFalse(status.IsMetricsHttpHealthy);
+            CollectionAssert.Contains(
+                status.MetricsHttpHealthFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.IsMetricsHttpListening));
+            CollectionAssert.Contains(
+                status.MetricsHttpHealthFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.HasMetricsReadinessCheck));
             Assert.IsTrue(status.HasExpectedNetwork);
             Assert.IsTrue(status.HasScannerDeployHeights);
             Assert.IsTrue(status.IsOfflinePassportComplete);
@@ -527,6 +534,10 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);
             Assert.AreEqual(host.Metrics.BoundPort, host.MetricsBoundPort);
+            Assert.IsTrue(host.HasMetricsReadinessCheck);
+            var metricsStatus = await host.GetOperatorStatusAsync();
+            Assert.IsTrue(metricsStatus.IsMetricsHttpHealthy);
+            Assert.AreEqual(0, metricsStatus.MetricsHttpHealthFailures.Count);
             Assert.IsTrue(host.Batch.HasSealedBatchSink);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.TransactionSender);

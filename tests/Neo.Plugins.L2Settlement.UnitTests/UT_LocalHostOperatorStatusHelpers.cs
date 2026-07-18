@@ -70,13 +70,14 @@ public sealed class UT_LocalHostOperatorStatusHelpers
         var failures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
             offlinePassportComplete: true,
             pipelineEnabled: true,
+            hasPendingSealedBatch: false,
             pendingSettlementCount: 0,
             recovery);
         Assert.AreEqual(0, failures.Count);
     }
 
     [TestMethod]
-    public void BuildPipelineHealthFailures_NamesPassportEnablementPoisonAndIdle()
+    public void BuildPipelineHealthFailures_NamesPassportEnablementPendingSealPoisonAndIdle()
     {
         var recovery = new SettlementRecoveryStatus
         {
@@ -89,6 +90,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
         var failures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
             offlinePassportComplete: false,
             pipelineEnabled: false,
+            hasPendingSealedBatch: true,
             pendingSettlementCount: 1,
             recovery);
         CollectionAssert.AreEqual(
@@ -96,9 +98,46 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             {
                 nameof(LocalHostOperatorStatus.IsOfflinePassportComplete),
                 nameof(LocalHostOperatorStatus.IsPipelineEnabled),
+                nameof(LocalHostOperatorStatus.HasPendingSealedBatch),
                 nameof(LocalHostOperatorStatus.IsSettlementPoisoned),
                 nameof(LocalHostOperatorStatus.IsSettlementIdle),
             },
             failures.ToArray());
+    }
+
+    [TestMethod]
+    public void BuildMetricsHttpHealthFailures_EmptyWhenMetricsDisabled()
+    {
+        var failures = LocalHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            metricsEnabled: false,
+            metricsWiringComplete: false,
+            metricsHttpListening: false,
+            hasMetricsReadinessCheck: false);
+        Assert.AreEqual(0, failures.Count);
+    }
+
+    [TestMethod]
+    public void BuildMetricsHttpHealthFailures_NamesWiringListeningAndReadinessWhenEnabled()
+    {
+        var failures = LocalHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            metricsEnabled: true,
+            metricsWiringComplete: false,
+            metricsHttpListening: false,
+            hasMetricsReadinessCheck: false);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                nameof(LocalHostOperatorStatus.IsMetricsWiringComplete),
+                nameof(LocalHostOperatorStatus.IsMetricsHttpListening),
+                nameof(LocalHostOperatorStatus.HasMetricsReadinessCheck),
+            },
+            failures.ToArray());
+
+        var ok = LocalHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            metricsEnabled: true,
+            metricsWiringComplete: true,
+            metricsHttpListening: true,
+            hasMetricsReadinessCheck: true);
+        Assert.AreEqual(0, ok.Count);
     }
 }

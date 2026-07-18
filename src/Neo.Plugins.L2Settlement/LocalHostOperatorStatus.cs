@@ -338,18 +338,32 @@ public sealed record LocalHostOperatorStatus
     public required bool IsSettlementIdle { get; init; }
 
     /// <summary>
-    /// Offline passport complete, pipeline enabled, settlement not poisoned, and settlement idle.
-    /// Distinct from L1 settle confirmation (funded gate).
+    /// Offline passport complete, pipeline enabled, no pending sealed batch, settlement not
+    /// poisoned, and settlement idle. Distinct from L1 settle confirmation (funded gate).
     /// True when <see cref="PipelineHealthFailures"/> is empty.
     /// </summary>
     public required bool IsPipelineHealthy { get; init; }
 
     /// <summary>
     /// Names of pipeline health checks that failed (empty when <see cref="IsPipelineHealthy"/>).
-    /// Combines offline passport rollup with runtime settlement idle/poison and enablement.
-    /// Diagnostic only; not an L1 settle claim.
+    /// Combines offline passport rollup with runtime sealed-batch pending, settlement
+    /// idle/poison, and enablement. Diagnostic only; not an L1 settle claim.
     /// </summary>
     public required IReadOnlyList<string> PipelineHealthFailures { get; init; }
+
+    /// <summary>
+    /// Metrics HTTP runtime health when metrics are enabled in settings: wiring complete,
+    /// HTTP listening, and <c>/readyz</c> predicate installed. When metrics are disabled,
+    /// treated as healthy (not required). True when <see cref="MetricsHttpHealthFailures"/>
+    /// is empty. Does not claim scrape clients or L1.
+    /// </summary>
+    public required bool IsMetricsHttpHealthy { get; init; }
+
+    /// <summary>
+    /// Names of metrics HTTP health checks that failed (empty when
+    /// <see cref="IsMetricsHttpHealthy"/>). Empty when metrics are disabled.
+    /// </summary>
+    public required IReadOnlyList<string> MetricsHttpHealthFailures { get; init; }
 
     /// <summary>Configured L1 finality depth for production scanners.</summary>
     public required uint L1FinalityDepth { get; init; }
@@ -521,12 +535,14 @@ public sealed record LocalHostOperatorStatus
         };
 
     /// <summary>
-    /// Build pipeline health failure names from offline passport + enablement + local settlement
-    /// runtime state. Empty list means <see cref="IsPipelineHealthy"/>. Not an L1 settle claim.
+    /// Build pipeline health failure names from offline passport + enablement + local batcher
+    /// pending seal + settlement runtime state. Empty list means <see cref="IsPipelineHealthy"/>.
+    /// Not an L1 settle claim.
     /// </summary>
     public static IReadOnlyList<string> BuildPipelineHealthFailures(
         bool offlinePassportComplete,
         bool pipelineEnabled,
+        bool hasPendingSealedBatch,
         int pendingSettlementCount,
         SettlementRecoveryStatus recovery)
     {
@@ -536,6 +552,8 @@ public sealed record LocalHostOperatorStatus
             failures.Add(nameof(IsOfflinePassportComplete));
         if (!pipelineEnabled)
             failures.Add(nameof(IsPipelineEnabled));
+        if (hasPendingSealedBatch)
+            failures.Add(nameof(HasPendingSealedBatch));
         if (recovery.State == SettlementRecoveryState.Poisoned)
             failures.Add(nameof(IsSettlementPoisoned));
         var settlementIdle = pendingSettlementCount == 0
@@ -544,6 +562,29 @@ public sealed record LocalHostOperatorStatus
             && string.IsNullOrEmpty(recovery.LastError);
         if (!settlementIdle)
             failures.Add(nameof(IsSettlementIdle));
+        return failures;
+    }
+
+    /// <summary>
+    /// Build metrics HTTP health failure names. When metrics are disabled, returns empty
+    /// (not required). When enabled, requires wiring + listening + readiness check.
+    /// </summary>
+    public static IReadOnlyList<string> BuildMetricsHttpHealthFailures(
+        bool metricsEnabled,
+        bool metricsWiringComplete,
+        bool metricsHttpListening,
+        bool hasMetricsReadinessCheck)
+    {
+        if (!metricsEnabled)
+            return Array.Empty<string>();
+
+        var failures = new List<string>();
+        if (!metricsWiringComplete)
+            failures.Add(nameof(IsMetricsWiringComplete));
+        if (!metricsHttpListening)
+            failures.Add(nameof(IsMetricsHttpListening));
+        if (!hasMetricsReadinessCheck)
+            failures.Add(nameof(HasMetricsReadinessCheck));
         return failures;
     }
 }

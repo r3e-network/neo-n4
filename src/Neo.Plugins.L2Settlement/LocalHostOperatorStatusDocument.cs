@@ -254,11 +254,17 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>No pending settlement work and recovery is idle.</summary>
     public required bool IsSettlementIdle { get; init; }
 
-    /// <summary>Offline passport + pipeline enabled + settlement not poisoned + idle.</summary>
+    /// <summary>Offline passport + pipeline enabled + no pending seal + settlement not poisoned + idle.</summary>
     public required bool IsPipelineHealthy { get; init; }
 
     /// <summary>Failed pipeline health check names (empty when healthy).</summary>
     public required IReadOnlyList<string> PipelineHealthFailures { get; init; }
+
+    /// <summary>Metrics HTTP runtime healthy when metrics enabled (or N/A when disabled).</summary>
+    public required bool IsMetricsHttpHealthy { get; init; }
+
+    /// <summary>Failed metrics HTTP health check names (empty when healthy or metrics disabled).</summary>
+    public required IReadOnlyList<string> MetricsHttpHealthFailures { get; init; }
 
     /// <summary>Configured L1 finality depth.</summary>
     public required uint L1FinalityDepth { get; init; }
@@ -440,6 +446,8 @@ public sealed record LocalHostOperatorStatusDocument
             IsSettlementIdle = status.IsSettlementIdle,
             IsPipelineHealthy = status.IsPipelineHealthy,
             PipelineHealthFailures = status.PipelineHealthFailures,
+            IsMetricsHttpHealthy = status.IsMetricsHttpHealthy,
+            MetricsHttpHealthFailures = status.MetricsHttpHealthFailures,
             L1FinalityDepth = status.L1FinalityDepth,
             DepositSourceReadyCount = status.DepositSourceReadyCount,
             DepositSourceReservedCount = status.DepositSourceReservedCount,

@@ -354,6 +354,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(statusJson, "\"isSettlementPoisoned\": false");
             StringAssert.Contains(statusJson, "\"isPipelineHealthy\": true");
             StringAssert.Contains(statusJson, "\"pipelineHealthFailures\":");
+            StringAssert.Contains(statusJson, "\"isMetricsHttpHealthy\":");
+            StringAssert.Contains(statusJson, "\"metricsHttpHealthFailures\":");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
             var promPath = Path.Combine(chainDir, "metrics.prom");
             settlementHost.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();

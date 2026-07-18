@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Pending sealed batch + metrics HTTP health diagnostics — 2026-07-18
+
+- `PipelineHealthFailures` / `IsPipelineHealthy` also name `HasPendingSealedBatch` when the
+  batcher has a sealed batch awaiting sink ack (local seal queue, not L1).
+- LocalHost operator status (+ JSON) exposes `IsMetricsHttpHealthy` and
+  `MetricsHttpHealthFailures` (wiring + HTTP listening + `/readyz` when metrics enabled;
+  empty/N/A when metrics disabled). Helper
+  `LocalHostOperatorStatus.BuildMetricsHttpHealthFailures`.
+- Wireproduction notes + init-l2 tips; unit/integration coverage. No wire/ABI change.
+- L1 settle / scrape clients remain funded or out-of-band gates.
+
 ### Added — Pipeline and publication health failure diagnostics — 2026-07-18
 
 - LocalHost operator status (+ JSON) exposes `PipelineHealthFailures` (failed check

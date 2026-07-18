@@ -442,7 +442,7 @@ public sealed record NeoHubDeployReport(
                         + "IsProofTypeConfigConsistent / DaMode / RpcDaMode / IsDaModeConfigConsistent / "
                         + "IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete / "
                         + "IsSecurityLevelProofTypeConsistent / IsSecurityLevelDaModeConsistent / "
-                        + "IsMetricsWiringComplete / HasMetricsReadinessCheck / "
+                        + "IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / "
                         + "IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete / "
                         + "IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete / "
                         + "IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / "
@@ -494,7 +494,7 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.CaptureMetricsSnapshot / ExportPrometheusMetrics",
                     ["localHostMetricsSettings"] =
                         "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
-                        + "IsMetricsWiringComplete / HasMetricsReadinessCheck / "
+                        + "IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / "
                         + "MetricsMaxConcurrentConnections / MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostBridgeRegistry"] =
                         "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
@@ -513,7 +513,8 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.GetHealthProbeAsync() / FormatHealthProbeJson() / "
                         + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                         + "LocalHostHealthProbeDocument JSON "
-                        + "(passport/pipeline/metrics/settlement + pending-seal/checkpoint/FI/inbox flags)",
+                        + "(passport/pipeline/metrics/settlement + pending-seal/checkpoint/FI/inbox + "
+                        + "HasMetricsReadinessCheck/HasMetricsHealthProbe flags)",
                     ["localHostWritePrometheusMetrics"] =
                         "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                     ["gatewayHostWriteOperatorStatus"] =

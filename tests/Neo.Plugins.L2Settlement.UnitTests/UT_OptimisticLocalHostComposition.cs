@@ -267,6 +267,12 @@ public sealed class UT_OptimisticLocalHostComposition
             host.StartMetricsHttp(portOverride: 0);
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.IsTrue(host.HasMetricsHealthProbe);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+            var probeAfterStart = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(probeAfterStart.HasMetricsHealthProbe);
+            Assert.IsTrue(probeAfterStart.HasMetricsReadinessCheck);
+            Assert.IsTrue(probeAfterStart.IsMetricsHttpHealthy);
             var rpcPlugin = host.CreateRpcPlugin();
             Assert.IsNotNull(rpcPlugin);
             Assert.IsFalse(rpcPlugin.IsRegistered(894710606));

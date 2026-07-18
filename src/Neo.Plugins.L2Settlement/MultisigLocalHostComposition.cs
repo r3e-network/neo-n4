@@ -666,6 +666,7 @@ public sealed class MultisigLocalHostComposition : IDisposable
             MetricsBindAddress = MetricsBindAddress,
             IsMetricsWiringComplete = IsMetricsWiringComplete,
             HasMetricsReadinessCheck = HasMetricsReadinessCheck,
+            HasMetricsHealthProbe = HasMetricsHealthProbe,
             IsDepositPipelineWiringComplete = IsDepositPipelineWiringComplete,
             IsMessagePipelineWiringComplete = IsMessagePipelineWiringComplete,
             IsForcedInclusionPipelineWiringComplete = IsForcedInclusionPipelineWiringComplete,
@@ -1155,6 +1156,11 @@ public sealed class MultisigLocalHostComposition : IDisposable
     public bool HasMetricsReadinessCheck => Metrics.HasReadinessCheck;
 
     /// <summary>
+    /// True when a <c>/healthprobe</c> JSON body provider is installed on the metrics plugin.
+    /// </summary>
+    public bool HasMetricsHealthProbe => Metrics.HasHealthProbe;
+
+    /// <summary>
     /// True when production deposit source and batcher deposit source are both wired.
     /// </summary>
     public bool IsDepositPipelineWiringComplete =>
@@ -1321,7 +1327,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
             IsMetricsEnabled,
             IsMetricsWiringComplete,
             IsMetricsHttpListening,
-            HasMetricsReadinessCheck);
+            HasMetricsReadinessCheck,
+            HasMetricsHealthProbe);
 
     /// <summary>
     /// True when <see cref="MetricsHttpHealthFailures"/> is empty
@@ -1587,6 +1594,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
             PipelineHealthFailures = pipelineFailures,
             IsMetricsHttpListening = IsMetricsHttpListening,
             MetricsBoundPort = MetricsBoundPort,
+            HasMetricsReadinessCheck = HasMetricsReadinessCheck,
+            HasMetricsHealthProbe = HasMetricsHealthProbe,
             IsMetricsHttpHealthy = metricsFailures.Count == 0,
             MetricsHttpHealthFailures = metricsFailures,
             IsLocalHostHealthy = localHostFailures.Count == 0,

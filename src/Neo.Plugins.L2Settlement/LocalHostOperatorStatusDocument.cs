@@ -311,6 +311,9 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Metrics /readyz predicate installed.</summary>
     public required bool HasMetricsReadinessCheck { get; init; }
 
+    /// <summary>Metrics /healthprobe JSON body provider installed.</summary>
+    public required bool HasMetricsHealthProbe { get; init; }
+
     /// <summary>Production + batcher deposit sources both wired.</summary>
     public required bool IsDepositPipelineWiringComplete { get; init; }
 
@@ -484,6 +487,7 @@ public sealed record LocalHostOperatorStatusDocument
             MetricsBindAddress = status.MetricsBindAddress,
             IsMetricsWiringComplete = status.IsMetricsWiringComplete,
             HasMetricsReadinessCheck = status.HasMetricsReadinessCheck,
+            HasMetricsHealthProbe = status.HasMetricsHealthProbe,
             IsDepositPipelineWiringComplete = status.IsDepositPipelineWiringComplete,
             IsMessagePipelineWiringComplete = status.IsMessagePipelineWiringComplete,
             IsForcedInclusionPipelineWiringComplete = status.IsForcedInclusionPipelineWiringComplete,

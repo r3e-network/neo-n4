@@ -70,6 +70,12 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Bound metrics port when listening; otherwise 0.</summary>
     public required int MetricsBoundPort { get; init; }
 
+    /// <summary>Metrics <c>/readyz</c> predicate is installed.</summary>
+    public required bool HasMetricsReadinessCheck { get; init; }
+
+    /// <summary>Metrics <c>/healthprobe</c> JSON body provider is installed.</summary>
+    public required bool HasMetricsHealthProbe { get; init; }
+
     /// <summary>Metrics HTTP health is clean (or metrics disabled).</summary>
     public required bool IsMetricsHttpHealthy { get; init; }
 

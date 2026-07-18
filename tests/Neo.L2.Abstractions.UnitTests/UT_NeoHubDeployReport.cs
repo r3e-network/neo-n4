@@ -210,7 +210,7 @@ public class UT_NeoHubDeployReport
                 + "IsProofTypeConfigConsistent / DaMode / RpcDaMode / IsDaModeConfigConsistent / "
                 + "IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete / "
                 + "IsSecurityLevelProofTypeConsistent / IsSecurityLevelDaModeConsistent / "
-                + "IsMetricsWiringComplete / HasMetricsReadinessCheck / "
+                + "IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / "
                 + "IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete / "
                 + "IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete / "
                 + "IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / "
@@ -268,7 +268,7 @@ public class UT_NeoHubDeployReport
                 stores.GetProperty("localHostMetricsExport").GetString());
             Assert.AreEqual(
                 "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
-                + "IsMetricsWiringComplete / HasMetricsReadinessCheck / "
+                + "IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / "
                 + "MetricsMaxConcurrentConnections / MetricsBoundPort / IsMetricsHttpListening",
                 stores.GetProperty("localHostMetricsSettings").GetString());
             Assert.AreEqual(
@@ -292,7 +292,8 @@ public class UT_NeoHubDeployReport
                 "LocalHost.GetHealthProbeAsync() / FormatHealthProbeJson() / "
                 + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                 + "LocalHostHealthProbeDocument JSON "
-                + "(passport/pipeline/metrics/settlement + pending-seal/checkpoint/FI/inbox flags)",
+                + "(passport/pipeline/metrics/settlement + pending-seal/checkpoint/FI/inbox + "
+                + "HasMetricsReadinessCheck/HasMetricsHealthProbe flags)",
                 stores.GetProperty("localHostWriteHealthProbe").GetString());
             Assert.AreEqual(
                 "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",

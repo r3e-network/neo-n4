@@ -285,24 +285,27 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             metricsEnabled: false,
             metricsWiringComplete: false,
             metricsHttpListening: false,
-            hasMetricsReadinessCheck: false);
+            hasMetricsReadinessCheck: false,
+            hasMetricsHealthProbe: false);
         Assert.AreEqual(0, failures.Count);
     }
 
     [TestMethod]
-    public void BuildMetricsHttpHealthFailures_NamesWiringListeningAndReadinessWhenEnabled()
+    public void BuildMetricsHttpHealthFailures_NamesWiringListeningReadinessAndHealthProbeWhenEnabled()
     {
         var failures = LocalHostOperatorStatus.BuildMetricsHttpHealthFailures(
             metricsEnabled: true,
             metricsWiringComplete: false,
             metricsHttpListening: false,
-            hasMetricsReadinessCheck: false);
+            hasMetricsReadinessCheck: false,
+            hasMetricsHealthProbe: false);
         CollectionAssert.AreEqual(
             new[]
             {
                 nameof(LocalHostOperatorStatus.IsMetricsWiringComplete),
                 nameof(LocalHostOperatorStatus.IsMetricsHttpListening),
                 nameof(LocalHostOperatorStatus.HasMetricsReadinessCheck),
+                nameof(LocalHostOperatorStatus.HasMetricsHealthProbe),
             },
             failures.ToArray());
 
@@ -310,7 +313,8 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             metricsEnabled: true,
             metricsWiringComplete: true,
             metricsHttpListening: true,
-            hasMetricsReadinessCheck: true);
+            hasMetricsReadinessCheck: true,
+            hasMetricsHealthProbe: true);
         Assert.AreEqual(0, ok.Count);
     }
 

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Metrics HTTP health requires `/healthprobe` provider — 2026-07-19
+
+- Multisig/Optimistic/Zk expose `HasMetricsHealthProbe`; operator status (+ JSON) and
+  compact health probe include `HasMetricsReadinessCheck` / `HasMetricsHealthProbe`.
+- `BuildMetricsHttpHealthFailures` fails closed on missing health-probe body when metrics
+  are enabled (alongside wiring / listening / readiness), matching `StartMetricsHttp`
+  which wires both `/readyz` and `/healthprobe`.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 settle remains a funded gate; external scrapers remain out-of-band.
+
 ### Added — Metrics HTTP `/healthprobe` for LocalHost compact health JSON — 2026-07-19
 
 - `MetricsRequestHandler` serves optional `GET /healthprobe` (application/json);

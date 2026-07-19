@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal LatestRpc tip, Prometheus scrapes, Reconcile→Poisoned — 2026-07-19
+
+- After soft-seal `FinalizeRpcBatch`, Multisig/Opt unit pin `LatestRpcStateRoot` on
+  status/probe/JSON while settlement remains Retrying.
+- Soft-seal host + gateway `ExportPrometheusMetrics` / `WritePrometheusMetricsAsync`
+  scrape files (no metrics HTTP required); E2E SoftSeal host+gateway parity.
+- Mock L1 `ReconcileAsync` fails closed (`OverflowException`); further `SubmitNext`
+  escalates durable recovery to **Poisoned** (preferred pipeline label over Retrying);
+  pending settle + latest RPC tip retained; after-submit status file pins Poisoned.
+- No wire/ABI change. L1 settle + gateway publish + poison recovery remain funded/operator gates.
+
 ### Changed — SoftSeal checkpoint JSON, RPC Finalize tip, PullAggregate fail-closed — 2026-07-19
 
 - Multisig/Optimistic unit SoftSeal status/probe JSON pin `latestCheckpointBatchNumber=1`

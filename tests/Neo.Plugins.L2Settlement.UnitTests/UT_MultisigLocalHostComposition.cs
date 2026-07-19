@@ -955,6 +955,27 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(1));
             host.FinalizeRpcBatch(1);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
+            var statusAfterFinalize = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, statusAfterFinalize.LatestRpcStateRoot);
+            Assert.IsTrue(statusAfterFinalize.IsSettlementRetrying);
+            Assert.IsFalse(statusAfterFinalize.IsPipelineHealthy);
+            var statusAfterFinalizeJson = host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult();
+            StringAssert.Contains(
+                statusAfterFinalizeJson,
+                "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
+            StringAssert.Contains(statusAfterFinalizeJson, "\"isSettlementRetrying\": true");
+            var probeAfterFinalize = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(
+                SoftPassThroughExecutor.PostStateRoot.ToString(),
+                probeAfterFinalize.LatestRpcStateRoot);
+            Assert.IsTrue(probeAfterFinalize.IsSettlementRetrying);
+            // Soft-seal host metrics scrape file (no metrics HTTP required).
+            var hostProm = host.ExportPrometheusMetrics();
+            Assert.IsFalse(string.IsNullOrWhiteSpace(hostProm));
+            var hostPromPath = Path.Combine(chainDir, "soft-seal-host.prom");
+            host.WritePrometheusMetricsAsync(hostPromPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(hostPromPath));
+            Assert.AreEqual(hostProm, File.ReadAllText(hostPromPath));
 
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
@@ -1027,14 +1048,50 @@ public sealed class UT_MultisigLocalHostComposition
             gatewayHost.WriteHealthProbeAsync(gwProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(gwProbePath));
             Assert.AreEqual(gwProbeJson, File.ReadAllText(gwProbePath));
+            // Shared metrics plugin: gateway scrape file after ReceiveBatch backlog.
+            var gwProm = gatewayHost.ExportPrometheusMetrics();
+            Assert.IsFalse(string.IsNullOrWhiteSpace(gwProm));
+            var gwPromPath = Path.Combine(chainDir, "soft-seal-gateway.prom");
+            gatewayHost.WritePrometheusMetricsAsync(gwPromPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(gwPromPath));
+            Assert.AreEqual(gwProm, File.ReadAllText(gwPromPath));
 
-            // SubmitNext/Reconcile against mock L1 cannot clear the L1 settle queue (funded gate).
-            // Best-effort path must not crash the host; pending remains ≥1; still Retrying.
+            // Reconcile against mock L1 fails closed; further SubmitNext escalates durable recovery
+            // to Poisoned (preferred label over Retrying). Pending settle remains until funded L1.
+            Assert.ThrowsExactly<OverflowException>(
+                () => host.ReconcileAsync().GetAwaiter().GetResult());
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
             var afterSubmit = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsFalse(afterSubmit.IsSettlementIdle);
-            Assert.IsTrue(afterSubmit.IsSettlementRetrying);
+            Assert.IsTrue(afterSubmit.IsSettlementPoisoned);
+            Assert.IsFalse(afterSubmit.IsSettlementRetrying);
+            Assert.IsFalse(afterSubmit.IsPipelineHealthy);
+            CollectionAssert.Contains(
+                afterSubmit.PipelineHealthFailures.ToArray(),
+                nameof(afterSubmit.IsSettlementPoisoned));
+            CollectionAssert.DoesNotContain(
+                afterSubmit.PipelineHealthFailures.ToArray(),
+                nameof(afterSubmit.IsSettlementRetrying));
+            Assert.AreEqual(SettlementRecoveryState.Poisoned, afterSubmit.Recovery.State);
+            Assert.IsFalse(string.IsNullOrEmpty(afterSubmit.Recovery.LastError));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, afterSubmit.LatestRpcStateRoot);
+            Assert.IsTrue(afterSubmit.SettlementRetryCount >= 1);
+            CollectionAssert.Contains(
+                host.GetPipelineHealthFailuresAsync().AsTask().GetAwaiter().GetResult().ToArray(),
+                "IsSettlementPoisoned");
+            var afterSubmitJson = host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult();
+            StringAssert.Contains(afterSubmitJson, "\"isSettlementPoisoned\": true");
+            StringAssert.Contains(afterSubmitJson, "\"isSettlementRetrying\": false");
+            StringAssert.Contains(afterSubmitJson, "\"isPipelineHealthy\": false");
+            StringAssert.Contains(afterSubmitJson, "IsSettlementPoisoned");
+            StringAssert.Contains(
+                afterSubmitJson,
+                "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
+            var afterSubmitStatusPath = Path.Combine(chainDir, "soft-seal-after-submit-status.json");
+            host.WriteOperatorStatusAsync(afterSubmitStatusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(afterSubmitStatusPath));
+            StringAssert.Contains(File.ReadAllText(afterSubmitStatusPath), "\"isSettlementPoisoned\": true");
         }
         finally
         {

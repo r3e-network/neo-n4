@@ -811,6 +811,17 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 host.Metrics,
                 ProofType.Multisig,
                 Account(0x55));
+            // After Finalize inside gateway helper, tip + host scrape remain operator-readable.
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
+            var statusAfterGw = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, statusAfterGw.LatestRpcStateRoot);
+            Assert.IsTrue(statusAfterGw.IsSettlementRetrying);
+            var hostProm = host.ExportPrometheusMetrics();
+            Assert.IsFalse(string.IsNullOrWhiteSpace(hostProm));
+            var hostPromPath = Path.Combine(chainDir, "soft-seal-host.prom");
+            host.WritePrometheusMetricsAsync(hostPromPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(hostPromPath));
+            Assert.AreEqual(hostProm, File.ReadAllText(hostPromPath));
         }
         finally
         {
@@ -908,6 +919,16 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 host.Metrics,
                 ProofType.Optimistic,
                 Account(0x57));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
+            var statusAfterGw = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, statusAfterGw.LatestRpcStateRoot);
+            Assert.IsTrue(statusAfterGw.IsSettlementRetrying);
+            var hostProm = host.ExportPrometheusMetrics();
+            Assert.IsFalse(string.IsNullOrWhiteSpace(hostProm));
+            var hostPromPath = Path.Combine(chainDir, "soft-seal-host.prom");
+            host.WritePrometheusMetricsAsync(hostPromPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(hostPromPath));
+            Assert.AreEqual(hostProm, File.ReadAllText(hostPromPath));
         }
         finally
         {
@@ -1337,6 +1358,13 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         gatewayHost.WriteHealthProbeAsync(gwProbePath).AsTask().GetAwaiter().GetResult();
         Assert.IsTrue(File.Exists(gwProbePath));
         Assert.AreEqual(gwProbeJson, File.ReadAllText(gwProbePath));
+        // Soft-seal gateway metrics scrape (shared host metrics plugin when supplied).
+        var gwProm = gatewayHost.ExportPrometheusMetrics();
+        Assert.IsFalse(string.IsNullOrWhiteSpace(gwProm));
+        var gwPromPath = Path.Combine(chainDir, "soft-seal-gateway.prom");
+        gatewayHost.WritePrometheusMetricsAsync(gwPromPath).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(gwPromPath));
+        Assert.AreEqual(gwProm, File.ReadAllText(gwPromPath));
         // PublishAggregateAsync remains a funded L1 publication gate.
     }
 

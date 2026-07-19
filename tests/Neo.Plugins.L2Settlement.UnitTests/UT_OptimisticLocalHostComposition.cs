@@ -652,6 +652,24 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(softSealStatusJson, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(softSealStatusJson, "IsSettlementRetrying");
             StringAssert.Contains(softSealStatusJson, "\"pendingSettlementCount\": 1");
+            var softSealStatusPath = Path.Combine(chainDir, "soft-seal-operator-status.json");
+            host.WriteOperatorStatusAsync(softSealStatusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(softSealStatusPath));
+            var softSealStatusFile = File.ReadAllText(softSealStatusPath);
+            StringAssert.Contains(softSealStatusFile, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(softSealStatusFile, "\"isPipelineHealthy\": false");
+            StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
+            var softSealProbeJson = host.FormatHealthProbeJson();
+            StringAssert.Contains(softSealProbeJson, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(softSealProbeJson, "\"isPipelineHealthy\": false");
+            StringAssert.Contains(softSealProbeJson, "\"pendingSettlementCount\": 1");
+            StringAssert.Contains(softSealProbeJson, "IsSettlementRetrying");
+            var softSealProbePath = Path.Combine(chainDir, "soft-seal-health-probe.json");
+            host.WriteHealthProbeAsync(softSealProbePath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(softSealProbePath));
+            var softSealProbeFile = File.ReadAllText(softSealProbePath);
+            StringAssert.Contains(softSealProbeFile, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
 
             // Soft seal → gateway aggregator (no L1 PublishAggregate). Multisig unit parity.
             var z = UInt256.Zero;
@@ -728,6 +746,19 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(gwJson, "\"isOutboxIdle\": false");
             StringAssert.Contains(gwJson, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(gwJson, "AggregatorPendingCount");
+            var gwStatusPath = Path.Combine(chainDir, "soft-seal-gateway-status.json");
+            gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(gwStatusPath));
+            Assert.AreEqual(gwJson, File.ReadAllText(gwStatusPath));
+            var gwProbeJson = gatewayHost.FormatHealthProbeJson();
+            StringAssert.Contains(gwProbeJson, "\"aggregatorPendingCount\":");
+            StringAssert.Contains(gwProbeJson, "\"isPublicationHealthy\": false");
+            StringAssert.Contains(gwProbeJson, "\"isOutboxIdle\": false");
+            StringAssert.Contains(gwProbeJson, "AggregatorPendingCount");
+            var gwProbePath = Path.Combine(chainDir, "soft-seal-gateway-probe.json");
+            gatewayHost.WriteHealthProbeAsync(gwProbePath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(gwProbePath));
+            Assert.AreEqual(gwProbeJson, File.ReadAllText(gwProbePath));
 
             // SubmitNext/Reconcile against mock L1 cannot clear the L1 settle queue (funded gate).
             host.SubmitNextAsync().GetAwaiter().GetResult();

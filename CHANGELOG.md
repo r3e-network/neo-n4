@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal durable ops file writers (status/probe) — 2026-07-19
+
+- Multisig/Optimistic unit SoftSeal after mock L1 retry pins durable host writers:
+  `WriteOperatorStatusAsync` + `FormatHealthProbeJson` / `WriteHealthProbeAsync` with
+  `isSettlementRetrying` / `isPipelineHealthy` / `IsSettlementRetrying` failure label.
+- Soft seal → Gateway ReceiveBatch unit+E2E pins durable gateway writers:
+  `WriteOperatorStatusAsync` equals `FormatOperatorStatusJson`, and
+  `WriteHealthProbeAsync` equals `FormatHealthProbeJson`, both carrying
+  `AggregatorPendingCount` backlog + `hasPendingPublication: false`.
+- Operator scripts can snapshot soft-seal health without metrics HTTP. No wire/ABI change.
+- L1 settle + gateway publish remain funded gates.
+
 ### Changed — SoftSeal ops JSON + Gateway aggregator-backlog health pins — 2026-07-19
 
 - Multisig/Optimistic unit SoftSeal pins host rollup health after mock L1 retry:

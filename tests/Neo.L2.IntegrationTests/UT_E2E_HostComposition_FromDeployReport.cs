@@ -1274,6 +1274,20 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(gwJson, "\"isOutboxIdle\": false");
         StringAssert.Contains(gwJson, "\"isOfflinePassportComplete\": true");
         StringAssert.Contains(gwJson, "AggregatorPendingCount");
+        var gwStatusPath = Path.Combine(chainDir, "soft-seal-gateway-status.json");
+        gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(gwStatusPath));
+        Assert.AreEqual(gwJson, File.ReadAllText(gwStatusPath));
+        var gwProbeJson = gatewayHost.FormatHealthProbeJson();
+        StringAssert.Contains(gwProbeJson, "\"aggregatorPendingCount\":");
+        StringAssert.Contains(gwProbeJson, "\"hasPendingPublication\": false");
+        StringAssert.Contains(gwProbeJson, "\"isPublicationHealthy\": false");
+        StringAssert.Contains(gwProbeJson, "\"isOutboxIdle\": false");
+        StringAssert.Contains(gwProbeJson, "AggregatorPendingCount");
+        var gwProbePath = Path.Combine(chainDir, "soft-seal-gateway-probe.json");
+        gatewayHost.WriteHealthProbeAsync(gwProbePath).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(gwProbePath));
+        Assert.AreEqual(gwProbeJson, File.ReadAllText(gwProbePath));
         // PublishAggregateAsync remains a funded L1 publication gate.
     }
 

@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Soft inbound L1 message operator surface (Multisig/Opt/Zk) — 2026-07-20
+
+- E2E `AssertSoftInboundMessageOperatorSurface` after soft FI for Multisig/Optimistic/Zk:
+  offline `RegisterInboundMessageNonce` (idempotent), `KnownInboundNonceCount=1`,
+  `OpenBatchL1MessageCount=0` / `L1InboxPendingCount=0` without L1 drain, message
+  pipeline wiring complete, status/probe + durable
+  `soft-inbound-status.json` / `soft-inbound-probe.json`.
+- No wire/ABI change. L1 message scan/inclusion remain funded gates.
+
 ### Changed — Soft ForcedInclusion operator surface (Multisig/Opt/Zk) — 2026-07-20
 
 - E2E `AssertSoftForcedInclusionOperatorSurface` after soft open-batch for

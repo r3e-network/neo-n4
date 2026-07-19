@@ -251,10 +251,23 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => settlementHost.WriteHealthProbeAsync(path).AsTask(),
                 chainDir,
                 softNonce: 11);
-            Assert.IsTrue(settlementHost.RegisterInboundMessageNonce(11));
-            Assert.AreEqual(1, settlementHost.KnownInboundNonceCount);
-            settlementHost.InvalidateInboundMessageCache();
-            Assert.AreEqual(0, settlementHost.L1InboxPendingCount);
+            AssertSoftInboundMessageOperatorSurface(
+                settlementHost.RegisterInboundMessageNonce,
+                () => settlementHost.KnownInboundNonceCount,
+                () => settlementHost.HasBatchMessageRouter,
+                () => settlementHost.HasMessageRouter,
+                () => settlementHost.IsMessagePipelineWiringComplete,
+                settlementHost.InvalidateInboundMessageCache,
+                () => settlementHost.OpenBatchL1MessageCount,
+                () => settlementHost.L1InboxPendingCount,
+                () => settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.FormatHealthProbeJson(),
+                path => settlementHost.WriteOperatorStatusAsync(path).AsTask(),
+                path => settlementHost.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                softNonce: 11);
             Assert.AreEqual(20260716u, settlementHost.ChainId);
             Assert.AreEqual(20260716u, settlementHost.BatcherConfiguredChainId);
             Assert.AreEqual(20260716u, settlementHost.SettlementConfiguredChainId);
@@ -1137,6 +1150,23 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => host.WriteHealthProbeAsync(path).AsTask(),
                 chainDir,
                 softNonce: 11);
+            AssertSoftInboundMessageOperatorSurface(
+                host.RegisterInboundMessageNonce,
+                () => host.KnownInboundNonceCount,
+                () => host.HasBatchMessageRouter,
+                () => host.HasMessageRouter,
+                () => host.IsMessagePipelineWiringComplete,
+                host.InvalidateInboundMessageCache,
+                () => host.OpenBatchL1MessageCount,
+                () => host.L1InboxPendingCount,
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                softNonce: 11);
             var opStatus = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
@@ -1345,6 +1375,23 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 () => host.HasOverdueForcedInclusionCached(),
                 host.InvalidateForcedInclusionCache,
                 () => host.OpenBatchForcedInclusionCount,
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                softNonce: 11);
+            AssertSoftInboundMessageOperatorSurface(
+                host.RegisterInboundMessageNonce,
+                () => host.KnownInboundNonceCount,
+                () => host.HasBatchMessageRouter,
+                () => host.HasMessageRouter,
+                () => host.IsMessagePipelineWiringComplete,
+                host.InvalidateInboundMessageCache,
+                () => host.OpenBatchL1MessageCount,
+                () => host.L1InboxPendingCount,
                 () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
                 () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
                 () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
@@ -1781,6 +1828,92 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         var probeFile = File.ReadAllText(probePath);
         StringAssert.Contains(probeFile, "\"knownForcedInclusionNonceCount\": 1");
         StringAssert.Contains(probeFile, "\"hasOverdueForcedInclusion\": false");
+    }
+
+    /// <summary>
+    /// Soft inbound L1 message ops surface: register a known inbound nonce offline (no scan),
+    /// pin cache/status/probe, open-batch L1 message count stays 0 without L1 drain entries,
+    /// L1InboxPendingCount stays 0. L1 message scan/inclusion remain funded gates.
+    /// </summary>
+    private static void AssertSoftInboundMessageOperatorSurface(
+        Func<ulong, bool> registerInboundMessageNonce,
+        Func<int> knownInboundNonceCount,
+        Func<bool> hasBatchMessageRouter,
+        Func<bool> hasMessageRouter,
+        Func<bool> isMessagePipelineWiringComplete,
+        Action invalidateInboundMessageCache,
+        Func<int> openBatchL1MessageCount,
+        Func<int> l1InboxPendingCount,
+        Func<LocalHostOperatorStatus> getOperatorStatus,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> formatHealthProbeJson,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        string chainDir,
+        ulong softNonce)
+    {
+        Assert.IsTrue(hasBatchMessageRouter());
+        Assert.IsTrue(hasMessageRouter());
+        Assert.IsTrue(isMessagePipelineWiringComplete());
+        Assert.IsTrue(registerInboundMessageNonce(softNonce));
+        Assert.IsFalse(registerInboundMessageNonce(softNonce));
+        Assert.AreEqual(1, knownInboundNonceCount());
+        // Soft nonce bookkeeping only — L1 messages enter open batches via drain, not Register alone.
+        Assert.AreEqual(0, openBatchL1MessageCount());
+        Assert.AreEqual(0, l1InboxPendingCount());
+
+        invalidateInboundMessageCache();
+        Assert.AreEqual(1, knownInboundNonceCount());
+        Assert.AreEqual(0, l1InboxPendingCount());
+
+        var status = getOperatorStatus();
+        Assert.AreEqual(1, status.KnownInboundNonceCount);
+        Assert.IsTrue(status.HasBatchMessageRouter);
+        Assert.IsTrue(status.HasMessageRouter);
+        Assert.IsTrue(status.IsMessagePipelineWiringComplete);
+        Assert.AreEqual(0, status.OpenBatchL1MessageCount);
+        Assert.AreEqual(0, status.L1InboxPendingCount);
+        Assert.IsTrue(status.IsPipelineHealthy);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        Assert.IsTrue(status.IsOperatorReady);
+
+        var probe = getHealthProbe();
+        Assert.AreEqual(1, probe.KnownInboundNonceCount);
+        Assert.IsTrue(probe.HasBatchMessageRouter);
+        Assert.IsTrue(probe.IsMessagePipelineWiringComplete);
+        Assert.AreEqual(0, probe.OpenBatchL1MessageCount);
+        Assert.AreEqual(0, probe.L1InboxPendingCount);
+        Assert.IsTrue(probe.IsPipelineHealthy);
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(statusJson, "\"hasBatchMessageRouter\": true");
+        StringAssert.Contains(statusJson, "\"hasMessageRouter\": true");
+        StringAssert.Contains(statusJson, "\"isMessagePipelineWiringComplete\": true");
+        StringAssert.Contains(statusJson, "\"openBatchL1MessageCount\": 0");
+        StringAssert.Contains(statusJson, "\"l1InboxPendingCount\": 0");
+        StringAssert.Contains(statusJson, "\"isPipelineHealthy\": true");
+
+        var probeJson = formatHealthProbeJson();
+        StringAssert.Contains(probeJson, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(probeJson, "\"openBatchL1MessageCount\": 0");
+        StringAssert.Contains(probeJson, "\"l1InboxPendingCount\": 0");
+
+        var statusPath = Path.Combine(chainDir, "soft-inbound-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        var statusFile = File.ReadAllText(statusPath);
+        StringAssert.Contains(statusFile, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(statusFile, "\"hasBatchMessageRouter\": true");
+        StringAssert.Contains(statusFile, "\"isMessagePipelineWiringComplete\": true");
+
+        var probePath = Path.Combine(chainDir, "soft-inbound-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        var probeFile = File.ReadAllText(probePath);
+        StringAssert.Contains(probeFile, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(probeFile, "\"l1InboxPendingCount\": 0");
     }
 
     /// <summary>

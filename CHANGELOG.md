@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Optimistic/Zk offline withdrawal staging + L2→L1 outbox coverage — 2026-07-19
+
+- Unit coverage: Optimistic + Zk host compositions exercise offline
+  `StageWithdrawal` / `SealWithdrawalBatch` / `EnqueueOutboundMessagesAsync` after
+  deposit mint (same Multisig path); status JSON pins `messageOutboxL2ToL1Count`,
+  `stagedWithdrawalCount`, `consumedDepositCount`, and `isSettlementIdle`.
+- Full status keeps `IsSettlementIdle` only (cannot dual-name the static helper
+  `LocalHostOperatorStatus.IsSettlementRuntimeIdle`); compact probe retains both names.
+- Multisig status JSON asserts outbox count after enqueue. No wire/ABI change.
+- L1 scan / settle / prove-batch / withdrawal claim remain funded gates.
+
 ### Changed — LocalHost operator status settlement retry/lag + Optimistic/Zk deposit mint — 2026-07-19
 
 - `LocalHostOperatorStatus` / `LocalHostOperatorStatusDocument` / `/operatorstatus`

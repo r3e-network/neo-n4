@@ -8,6 +8,7 @@ using Neo.L2.Bridge;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.Proving;
 using Neo.L2.Settlement.Rpc;
+using Neo.L2.State;
 using Neo.Network.P2P.Payloads;
 using Neo.Wallets;
 
@@ -266,10 +267,41 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(host.HasConsumedDeposit(0, 1));
             Assert.AreEqual(1, host.ConsumedDepositCount);
             Assert.AreEqual(0, host.ProcessReadyDeposits().Count);
+            // Offline withdrawal staging + L2→L1 outbox (no funded L1).
+            var sender = Account(0x77);
+            var wdLeaf = host.StageWithdrawal(new WithdrawalRequest
+            {
+                ChainId = 20260716u,
+                EmittingContract = sender,
+                L2Sender = sender,
+                L1Recipient = sender,
+                L2Asset = l2Asset,
+                Amount = new BigInteger(50),
+                Nonce = 1,
+            });
+            Assert.AreNotEqual(UInt256.Zero, wdLeaf);
+            Assert.AreEqual(1, host.StagedWithdrawalCount);
+            var sealedWd = host.SealWithdrawalBatch();
+            Assert.AreNotEqual(UInt256.Zero, sealedWd.Root);
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            var outboundDraft = new CrossChainMessage
+            {
+                SourceChainId = 20260716u,
+                TargetChainId = 0,
+                Nonce = 9,
+                Sender = sender,
+                Receiver = sender,
+                MessageType = MessageType.Event,
+                Payload = new byte[] { 0x01 },
+                MessageHash = UInt256.Zero,
+            };
+            var outbound = outboundDraft with { MessageHash = MessageHasher.HashMessage(outboundDraft) };
+            host.EnqueueOutboundMessagesAsync([outbound]).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(1, host.MessageOutbox!.L2ToL1Count);
+            Assert.AreNotEqual(UInt256.Zero, host.MessageOutboxL2ToL1Root);
             var prom = host.ExportPrometheusMetrics();
             Assert.IsFalse(string.IsNullOrWhiteSpace(prom));
             Assert.IsNotNull(host.CaptureMetricsSnapshot());
-            Assert.AreEqual(0, host.StagedWithdrawalCount);
             Assert.IsNotNull(host.DepositProcessor);
             Assert.IsNotNull(host.WithdrawalProcessor);
             Assert.IsNotNull(host.BatchProver);
@@ -278,6 +310,9 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(formattedStatus, "\"settlementRetryCount\": 0");
             StringAssert.Contains(formattedStatus, "\"settlementConfirmationLagBatches\":");
             StringAssert.Contains(formattedStatus, "\"consumedDepositCount\": 1");
+            StringAssert.Contains(formattedStatus, "\"isSettlementIdle\": true");
+            StringAssert.Contains(formattedStatus, "\"messageOutboxL2ToL1Count\": 1");
+            StringAssert.Contains(formattedStatus, "\"stagedWithdrawalCount\": 0");
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(statusPath));
@@ -286,6 +321,8 @@ public sealed class UT_OptimisticLocalHostComposition
             var statusAfterDeposit = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1, statusAfterDeposit.ConsumedDepositCount);
             Assert.AreEqual(0, statusAfterDeposit.SettlementRetryCount);
+            Assert.IsTrue(statusAfterDeposit.IsSettlementIdle);
+            Assert.AreEqual(1, statusAfterDeposit.MessageOutboxL2ToL1Count);
             Assert.AreEqual(
                 statusAfterDeposit.Recovery.ConfirmationLagBatches,
                 statusAfterDeposit.SettlementConfirmationLagBatches);

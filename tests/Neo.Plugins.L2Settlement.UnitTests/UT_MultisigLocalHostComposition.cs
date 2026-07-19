@@ -487,6 +487,8 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(formattedStatus, "\"isOfflinePassportComplete\"");
             StringAssert.Contains(formattedStatus, "\"settlementRetryCount\":");
             StringAssert.Contains(formattedStatus, "\"settlementConfirmationLagBatches\":");
+            StringAssert.Contains(formattedStatus, "\"isSettlementIdle\": true");
+            StringAssert.Contains(formattedStatus, "\"messageOutboxL2ToL1Count\": 1");
             Assert.IsTrue(formattedStatus.EndsWith('\n') || formattedStatus.EndsWith(Environment.NewLine));
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             await host.WriteOperatorStatusAsync(statusPath);

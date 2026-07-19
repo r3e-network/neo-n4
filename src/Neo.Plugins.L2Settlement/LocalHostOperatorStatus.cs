@@ -357,7 +357,10 @@ public sealed record LocalHostOperatorStatus
 
     /// <summary>
     /// True when no pending settlement artifacts and recovery is not retrying/poisoned.
-    /// Runtime idle health from local stores (not L1 confirmation).
+    /// Runtime idle health from local stores (not L1 confirmation). Compact probe also exposes
+    /// <c>IsSettlementRuntimeIdle</c> as the same predicate (helper name); full status keeps
+    /// the pipeline failure name <see cref="IsSettlementIdle"/> only (cannot dual-name the
+    /// static helper <c>IsSettlementRuntimeIdle</c>).
     /// </summary>
     public required bool IsSettlementIdle { get; init; }
 

@@ -77,6 +77,26 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Configured metrics HTTP port from settings (0 when unset).</summary>
     public required int MetricsConfiguredPort { get; init; }
 
+    /// <summary>Configured metrics bind address (offline).</summary>
+    public required string MetricsBindAddress { get; init; }
+
+    /// <summary>Configured max concurrent metrics HTTP connections.</summary>
+    public required int MetricsMaxConcurrentConnections { get; init; }
+
+    /// <summary>
+    /// Soft metrics snapshot entry count when exportable (local sink only).
+    /// </summary>
+    public required int MetricsEntryCount { get; init; }
+
+    /// <summary>RPC-store gateway enabled flag (offline config).</summary>
+    public required bool GatewayEnabled { get; init; }
+
+    /// <summary>Local DA reader is supported for this host profile (offline).</summary>
+    public required bool SupportsLocalDaReader { get; init; }
+
+    /// <summary>Registered bridge assets count (local registry; soft).</summary>
+    public required int BridgeAssetCount { get; init; }
+
     /// <summary>Production wired and sealed-batch sink present (local operator ready).</summary>
     public required bool IsOperatorReady { get; init; }
 
@@ -217,6 +237,27 @@ public sealed record LocalHostHealthProbeDocument
 
     /// <summary>A batch is currently being accumulated (local batcher).</summary>
     public required bool HasOpenBatch { get; init; }
+
+    /// <summary>
+    /// Max blocks per sealed batch (batcher settings). Helps interpret open-batch
+    /// block counts without the full status dump.
+    /// </summary>
+    public required int MaxBlocksPerBatch { get; init; }
+
+    /// <summary>Max transactions per sealed batch (batcher settings).</summary>
+    public required int MaxTransactionsPerBatch { get; init; }
+
+    /// <summary>
+    /// Max open-batch age in milliseconds (batcher settings). Helps interpret
+    /// <see cref="IsOpenBatchPastMaxAge"/>.
+    /// </summary>
+    public required int MaxBatchAgeMillis { get; init; }
+
+    /// <summary>Max forced-inclusion entries per sealed batch (batcher settings).</summary>
+    public required int MaxForcedTransactionsPerBatch { get; init; }
+
+    /// <summary>Max L1 inbox messages per sealed batch (batcher settings).</summary>
+    public required int MaxL1MessagesPerBatch { get; init; }
 
     /// <summary>Wall-clock age of the open batch in milliseconds when open; otherwise null.</summary>
     public required long? OpenBatchAgeMillis { get; init; }

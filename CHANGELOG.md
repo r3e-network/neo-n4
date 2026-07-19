@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds batcher limits and DA/metrics soft config — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe`) adds batcher max limits (`MaxBlocksPerBatch` /
+  `MaxTransactionsPerBatch` / `MaxBatchAgeMillis` /
+  `MaxForcedTransactionsPerBatch` / `MaxL1MessagesPerBatch`), plus soft config
+  `SupportsLocalDaReader`, `GatewayEnabled`, `BridgeAssetCount`,
+  `MetricsBindAddress`, `MetricsMaxConcurrentConnections`, `MetricsEntryCount`
+  so ops can interpret open-batch age / metrics wiring without the full status dump.
+- Wireproduction notes; unit coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Changed — LocalHost health probe adds NeoHub hash and scanner/inbox flags — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

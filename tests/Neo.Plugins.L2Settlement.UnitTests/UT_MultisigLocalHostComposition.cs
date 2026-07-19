@@ -502,6 +502,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(host.IsMetricsEnabled, probe.IsMetricsEnabled);
             Assert.AreEqual(host.IsMetricsWiringComplete, probe.IsMetricsWiringComplete);
             Assert.AreEqual(host.MetricsConfiguredPort, probe.MetricsConfiguredPort);
+            Assert.AreEqual(host.MetricsBindAddress, probe.MetricsBindAddress);
+            Assert.AreEqual(host.MetricsMaxConcurrentConnections, probe.MetricsMaxConcurrentConnections);
+            Assert.IsTrue(probe.MetricsEntryCount >= 0);
+            Assert.AreEqual(host.RpcStore.GatewayEnabled, probe.GatewayEnabled);
+            Assert.IsTrue(probe.SupportsLocalDaReader);
+            Assert.AreEqual(host.BridgeAssetCount, probe.BridgeAssetCount);
             Assert.IsTrue(probe.IsOperatorReady);
             Assert.IsTrue(probe.IsProductionWired);
             Assert.IsTrue(probe.HasSealedBatchSink);
@@ -545,6 +551,13 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsNull(probe.PendingSealedBatchNumber);
             Assert.IsNull(probe.PendingSealedBatchLastBlock);
             Assert.IsFalse(probe.HasOpenBatch);
+            Assert.AreEqual(host.MaxBlocksPerBatch, probe.MaxBlocksPerBatch);
+            Assert.AreEqual(host.MaxTransactionsPerBatch, probe.MaxTransactionsPerBatch);
+            Assert.AreEqual(host.MaxBatchAgeMillis, probe.MaxBatchAgeMillis);
+            Assert.AreEqual(host.MaxForcedTransactionsPerBatch, probe.MaxForcedTransactionsPerBatch);
+            Assert.AreEqual(host.MaxL1MessagesPerBatch, probe.MaxL1MessagesPerBatch);
+            Assert.IsTrue(probe.MaxBlocksPerBatch > 0);
+            Assert.IsTrue(probe.MaxBatchAgeMillis > 0);
             Assert.IsNull(probe.OpenBatchAgeMillis);
             Assert.IsFalse(probe.IsOpenBatchPastMaxAge);
             Assert.AreEqual(0, probe.InProgressTxCount);
@@ -650,8 +663,18 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"sharedBridgeDeploymentHeight\":");
             StringAssert.Contains(probeJson, "\"messageRouterDeploymentHeight\":");
             StringAssert.Contains(probeJson, "\"l1FinalityDepth\":");
-            // Compact probe still omits full inventory (e.g. max-batch settings).
-            Assert.IsFalse(probeJson.Contains("\"maxBlocksPerBatch\"", StringComparison.Ordinal));
+            StringAssert.Contains(probeJson, "\"maxBlocksPerBatch\":");
+            StringAssert.Contains(probeJson, "\"maxTransactionsPerBatch\":");
+            StringAssert.Contains(probeJson, "\"maxBatchAgeMillis\":");
+            StringAssert.Contains(probeJson, "\"maxForcedTransactionsPerBatch\":");
+            StringAssert.Contains(probeJson, "\"maxL1MessagesPerBatch\":");
+            StringAssert.Contains(probeJson, "\"metricsBindAddress\":");
+            StringAssert.Contains(probeJson, "\"supportsLocalDaReader\": true");
+            StringAssert.Contains(probeJson, "\"bridgeAssetCount\":");
+            StringAssert.Contains(probeJson, "\"metricsEntryCount\":");
+            StringAssert.Contains(probeJson, "\"gatewayEnabled\":");
+            // Compact probe still omits full inventory (e.g. recovery nested object, roots).
+            Assert.IsFalse(probeJson.Contains("\"latestCheckpointPostStateRoot\"", StringComparison.Ordinal));
             StringAssert.Contains(statusJson, "\"chainId\": 20260716");
             StringAssert.Contains(statusJson, "\"batcherConfiguredChainId\": 20260716");
             StringAssert.Contains(statusJson, "\"settlementConfiguredChainId\": 20260716");

@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tested — Neo N3 testnet session13 reverify + SharedBridge deposit n14 — 2026-07-19
+
+- Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,
+  **29/29 postdeploy reused**, **42/42 smoke ok** against magic `894710606`
+  (`https://n3seed1.ngd.network:20332/`).
+- CLI `--fraud-replay-domain` must be on-chain **raw wire** bytes
+  (`0xf1e2d3c4…1100`); report `ToString` may display the reversed form. Using the
+  reversed hex fails postdeploy `RegisterPermissionlessFraudProfile` with
+  `verifier replay domain mismatch`.
+- Live SharedBridge Deposit **nonce 14** HALT (`0xc9ecb5ec…c820`, 0.001 GAS,
+  `WitnessScope.Global`, Transfer + DepositEnqueued); `getDeposit` confirmed.
+- Chain `20260716` still active (securityLevel=3, daMode=0); TokenRegistry GAS/NEO
+  active; ForcedInclusion production-ready; fixed bridge still independent of legacy
+  registry pointer.
+- Evidence: `docs/audit/testnet-deployment-20260719-session13-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-19-session13.json`.
+- WIF only via process env `NEO_N4_TESTNET_WIF` (not committed). Funded gates still open:
+  L1 settle, Zk prove-batch, production DA, 2-of-2 bridge retarget, full Neo.CLI stack.
+
 ### Added — Metrics HTTP `/operatorstatus` for full LocalHost status JSON — 2026-07-19
 
 - `MetricsRequestHandler` serves optional `GET /operatorstatus` (application/json);

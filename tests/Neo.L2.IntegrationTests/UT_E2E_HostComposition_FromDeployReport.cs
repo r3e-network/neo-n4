@@ -828,10 +828,36 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 checkpoint.BatchNumber,
                 chainDir);
 
+            // Seal batch 2 while batch 1 still pending L1 (before inbound nonce registration
+            // so L1 message drain does not attempt mock getMessage for soft-registered nonces).
+            AssertSoftSealSecondBatchWhilePending(
+                (idx, ts, net, txs) => host.ProcessCommittedBlock(idx, ts, net, txs),
+                () => host.NextExpectedBlock,
+                () => host.LastAcknowledgedBatchNumber,
+                () => host.LastAcknowledgedBlock,
+                () => host.NextBatchNumber,
+                () => host.HasOpenBatch,
+                () => host.HasPendingSealedBatch,
+                () => host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult(),
+                req => host.PublishDaAsync(req).AsTask(),
+                receipt => host.IsDaAvailableAsync(receipt).AsTask(),
+                () => host.SupportsLocalDaReader,
+                () => host.CreateLocalDaReader(),
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                host.HasConsumedDeposit,
+                chainDir,
+                expectSoftOfflineBookkeeping: false);
+
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
-            Assert.AreEqual(1UL, status.LatestCheckpointBatchNumber);
+            Assert.AreEqual(2UL, status.LatestCheckpointBatchNumber);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, status.LatestCheckpointPostStateRoot);
-            Assert.AreEqual(1, status.PendingSettlementCount);
+            Assert.IsTrue(status.PendingSettlementCount >= 2);
             Assert.IsFalse(status.IsSettlementIdle);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
             // Mock L1 settle fails → durable recovery Retrying (preferred over generic idle miss).
@@ -908,7 +934,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(File.Exists(softSealStatusPath));
             var softSealStatusFile = File.ReadAllText(softSealStatusPath);
             StringAssert.Contains(softSealStatusFile, "\"isSettlementRetrying\": true");
-            StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
             StringAssert.Contains(softSealStatusFile, "\"consumedDepositCount\": 1");
             StringAssert.Contains(softSealStatusFile, "\"knownForcedInclusionNonceCount\": 1");
@@ -918,25 +944,27 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(File.Exists(softSealProbePath));
             var softSealProbeFile = File.ReadAllText(softSealProbePath);
             StringAssert.Contains(softSealProbeFile, "\"isSettlementRetrying\": true");
-            StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
             StringAssert.Contains(softSealProbeFile, "\"consumedDepositCount\": 1");
             StringAssert.Contains(softSealProbeFile, "\"knownForcedInclusionNonceCount\": 1");
             StringAssert.Contains(softSealProbeFile, "\"knownInboundNonceCount\": 1");
 
-            // Soft SubmitNext/Reconcile: may fire L1 client against mock; do not claim settle.
-            // Pending count stays ≥1 without funded settle confirmation.
-            host.SubmitNextAsync().GetAwaiter().GetResult();
-            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+            // Multi-batch soft queue still pending L1 (no funded settle). Avoid SubmitNext here:
+            // extra SubmitNext with ≥2 pending can escalate to Poisoned before the explicit
+            // Reconcile→poison path below (unit SoftSeal also defers SubmitNext until poison).
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
+            Assert.IsTrue(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementRetrying);
 
-            // Soft seal → gateway aggregator (no L1 PublishAggregate).
+            // Soft seal → gateway aggregator (no L1 PublishAggregate). Use batch-1 checkpoint
+            // for gateway ReceiveBatch parity with unit SoftSeal (latest tip is batch 2).
             AssertSoftSealFeedsGatewayReceiveBatch(
                 host.AddRpcBatch,
                 host.FinalizeRpcBatch,
                 host.GetRpcBatch,
                 host.GetLatestRpcStateRoot,
-                host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult()!,
+                checkpoint,
                 chainDir,
                 host.Metrics,
                 ProofType.Multisig,
@@ -946,6 +974,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             var statusAfterGw = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, statusAfterGw.LatestRpcStateRoot);
             Assert.IsTrue(statusAfterGw.IsSettlementRetrying);
+            Assert.IsFalse(statusAfterGw.IsSettlementIdle);
+            Assert.IsTrue(statusAfterGw.PendingSettlementCount >= 2);
             var hostProm = host.ExportPrometheusMetrics();
             Assert.IsFalse(string.IsNullOrWhiteSpace(hostProm));
             var hostPromPath = Path.Combine(chainDir, "soft-seal-host.prom");
@@ -1010,6 +1040,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"consumedDepositCount\": 1");
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownForcedInclusionNonceCount\": 1");
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownInboundNonceCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"latestCheckpointBatchNumber\": 2");
+            StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"latestCheckpointBatchNumber\": 2");
         }
         finally
         {
@@ -1074,9 +1106,33 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 checkpoint.BatchNumber,
                 chainDir);
 
+            AssertSoftSealSecondBatchWhilePending(
+                (idx, ts, net, txs) => host.ProcessCommittedBlock(idx, ts, net, txs),
+                () => host.NextExpectedBlock,
+                () => host.LastAcknowledgedBatchNumber,
+                () => host.LastAcknowledgedBlock,
+                () => host.NextBatchNumber,
+                () => host.HasOpenBatch,
+                () => host.HasPendingSealedBatch,
+                () => host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult(),
+                req => host.PublishDaAsync(req).AsTask(),
+                receipt => host.IsDaAvailableAsync(receipt).AsTask(),
+                () => host.SupportsLocalDaReader,
+                () => host.CreateLocalDaReader(),
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                host.HasConsumedDeposit,
+                chainDir,
+                expectSoftOfflineBookkeeping: false);
+
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
-            Assert.AreEqual(1UL, status.LatestCheckpointBatchNumber);
-            Assert.AreEqual(1, status.PendingSettlementCount);
+            Assert.AreEqual(2UL, status.LatestCheckpointBatchNumber);
+            Assert.IsTrue(status.PendingSettlementCount >= 2);
             Assert.IsFalse(status.IsSettlementIdle);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
             Assert.IsTrue(status.IsOfflinePassportComplete);
@@ -1150,7 +1206,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(File.Exists(softSealStatusPath));
             var softSealStatusFile = File.ReadAllText(softSealStatusPath);
             StringAssert.Contains(softSealStatusFile, "\"isSettlementRetrying\": true");
-            StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
             StringAssert.Contains(softSealStatusFile, "\"consumedDepositCount\": 1");
             StringAssert.Contains(softSealStatusFile, "\"knownForcedInclusionNonceCount\": 1");
@@ -1160,15 +1216,16 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(File.Exists(softSealProbePath));
             var softSealProbeFile = File.ReadAllText(softSealProbePath);
             StringAssert.Contains(softSealProbeFile, "\"isSettlementRetrying\": true");
-            StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
             StringAssert.Contains(softSealProbeFile, "\"consumedDepositCount\": 1");
             StringAssert.Contains(softSealProbeFile, "\"knownForcedInclusionNonceCount\": 1");
             StringAssert.Contains(softSealProbeFile, "\"knownInboundNonceCount\": 1");
 
-            host.SubmitNextAsync().GetAwaiter().GetResult();
-            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+            // Multi-batch soft queue still pending L1 (defer SubmitNext until poison path).
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
+            Assert.IsTrue(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementRetrying);
 
             AssertSoftSealFeedsGatewayReceiveBatch(
                 host.AddRpcBatch,
@@ -1184,6 +1241,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             var statusAfterGw = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, statusAfterGw.LatestRpcStateRoot);
             Assert.IsTrue(statusAfterGw.IsSettlementRetrying);
+            Assert.IsFalse(statusAfterGw.IsSettlementIdle);
+            Assert.IsTrue(statusAfterGw.PendingSettlementCount >= 2);
             var hostProm = host.ExportPrometheusMetrics();
             Assert.IsFalse(string.IsNullOrWhiteSpace(hostProm));
             var hostPromPath = Path.Combine(chainDir, "soft-seal-host.prom");
@@ -1247,6 +1306,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"consumedDepositCount\": 1");
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownForcedInclusionNonceCount\": 1");
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownInboundNonceCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"latestCheckpointBatchNumber\": 2");
+            StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"latestCheckpointBatchNumber\": 2");
         }
         finally
         {
@@ -1682,6 +1743,138 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
     }
 
     /// <summary>
+    /// SoftSeal multi-batch queue: after batch 1 is still pending L1 settle, seal block 2 as
+    /// batch 2 (MaxBlocks=1), pin pending≥2, latest checkpoint=2, soft offline state retained.
+    /// Does not claim L1 settle for either batch.
+    /// </summary>
+    private static void AssertSoftSealSecondBatchWhilePending(
+        Action<uint, ulong, uint, IReadOnlyList<byte[]>> processCommittedBlock,
+        Func<ulong?> nextExpectedBlock,
+        Func<ulong> lastAcknowledgedBatchNumber,
+        Func<ulong> lastAcknowledgedBlock,
+        Func<ulong> nextBatchNumber,
+        Func<bool> hasOpenBatch,
+        Func<bool> hasPendingSealedBatch,
+        Func<int> getPendingCount,
+        Func<SealedBatchCheckpoint?> getLatestDurableCheckpoint,
+        Func<DAPublishRequest, Task<DAReceipt>> publishDaAsync,
+        Func<DAReceipt, Task<bool>> isDaAvailableAsync,
+        Func<bool> supportsLocalDaReader,
+        Func<IDAReader> createLocalDaReader,
+        Func<LocalHostOperatorStatus> getOperatorStatus,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> formatHealthProbeJson,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        Func<uint, ulong, bool> hasConsumedDeposit,
+        string chainDir,
+        bool expectSoftOfflineBookkeeping)
+    {
+        Assert.AreEqual(2UL, nextExpectedBlock());
+        Assert.AreEqual(1UL, lastAcknowledgedBatchNumber());
+        Assert.AreEqual(2UL, nextBatchNumber());
+        Assert.IsTrue(getPendingCount() >= 1);
+
+        var ts2 = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        processCommittedBlock(2, ts2, 894710606, Array.Empty<byte[]>());
+
+        Assert.IsFalse(hasOpenBatch());
+        Assert.IsFalse(hasPendingSealedBatch());
+        Assert.AreEqual(3UL, nextExpectedBlock());
+        Assert.AreEqual(2UL, lastAcknowledgedBatchNumber());
+        Assert.AreEqual(2UL, lastAcknowledgedBlock());
+        Assert.AreEqual(3UL, nextBatchNumber());
+        Assert.IsTrue(getPendingCount() >= 2);
+
+        var checkpoint2 = getLatestDurableCheckpoint();
+        Assert.IsNotNull(checkpoint2);
+        Assert.AreEqual(2UL, checkpoint2!.BatchNumber);
+        Assert.AreEqual(2UL, checkpoint2.LastBlock);
+        Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, checkpoint2.PostStateRoot);
+
+        // Local DA for sealed batch 2 (batch 1 DA already published earlier on SoftSeal path).
+        Assert.IsTrue(supportsLocalDaReader());
+        var softDaPayload = new byte[] { 0xDA, 0x52, 0x02 };
+        var softDaReceipt = publishDaAsync(new DAPublishRequest
+        {
+            ChainId = 20260716u,
+            BatchNumber = 2,
+            Payload = softDaPayload,
+        }).GetAwaiter().GetResult();
+        Assert.AreEqual(DAMode.Local, softDaReceipt.Layer);
+        Assert.AreEqual(DAReceiptKind.LocalPersistence, softDaReceipt.Kind);
+        Assert.IsTrue(isDaAvailableAsync(softDaReceipt).GetAwaiter().GetResult());
+        var softDaRead = createLocalDaReader().ReadAsync(softDaReceipt).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(softDaRead is { Length: 3 });
+        CollectionAssert.AreEqual(softDaPayload, softDaRead!.Value.ToArray());
+
+        var status = getOperatorStatus();
+        Assert.AreEqual(2UL, status.LatestCheckpointBatchNumber);
+        Assert.AreEqual(2UL, status.LatestCheckpointLastBlock);
+        Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, status.LatestCheckpointPostStateRoot);
+        Assert.IsTrue(status.PendingSettlementCount >= 2);
+        Assert.IsFalse(status.IsSettlementIdle);
+        Assert.IsTrue(status.IsSettlementRetrying);
+        Assert.IsFalse(status.IsSettlementPoisoned);
+        Assert.IsFalse(status.IsPipelineHealthy);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        Assert.IsTrue(status.IsOperatorReady);
+        Assert.IsTrue(status.IsBatcherCheckpointAligned);
+        Assert.IsFalse(status.HasOpenBatch);
+        CollectionAssert.Contains(
+            status.PipelineHealthFailures.ToArray(),
+            nameof(status.IsSettlementRetrying));
+        if (expectSoftOfflineBookkeeping)
+        {
+            Assert.IsTrue(hasConsumedDeposit(0, 1));
+            Assert.AreEqual(1, status.ConsumedDepositCount);
+            Assert.AreEqual(1, status.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(1, status.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(1, status.KnownInboundNonceCount);
+        }
+
+        var probe = getHealthProbe();
+        Assert.AreEqual(2UL, probe.LatestCheckpointBatchNumber);
+        Assert.IsTrue(probe.PendingSettlementCount >= 2);
+        Assert.IsTrue(probe.IsSettlementRetrying);
+        if (expectSoftOfflineBookkeeping)
+        {
+            Assert.AreEqual(1, probe.ConsumedDepositCount);
+            Assert.AreEqual(1, probe.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(1, probe.KnownInboundNonceCount);
+        }
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"latestCheckpointBatchNumber\": 2");
+        StringAssert.Contains(statusJson, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(statusJson, "IsSettlementRetrying");
+        if (expectSoftOfflineBookkeeping)
+        {
+            StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
+            StringAssert.Contains(statusJson, "\"knownForcedInclusionNonceCount\": 1");
+            StringAssert.Contains(statusJson, "\"knownInboundNonceCount\": 1");
+        }
+
+        var probeJson = formatHealthProbeJson();
+        StringAssert.Contains(probeJson, "\"latestCheckpointBatchNumber\": 2");
+        StringAssert.Contains(probeJson, "\"isSettlementRetrying\": true");
+
+        var statusPath = Path.Combine(chainDir, "soft-seal-second-batch-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        var statusFile = File.ReadAllText(statusPath);
+        StringAssert.Contains(statusFile, "\"latestCheckpointBatchNumber\": 2");
+        StringAssert.Contains(statusFile, "\"isSettlementRetrying\": true");
+
+        var probePath = Path.Combine(chainDir, "soft-seal-second-batch-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        var probeFile = File.ReadAllText(probePath);
+        StringAssert.Contains(probeFile, "\"latestCheckpointBatchNumber\": 2");
+    }
+
+    /// <summary>
     /// SoftSeal poison→recover: offline deposit/FI/inbound/outbox bookkeeping survives
     /// RecoverPoisonedBatch and remains visible while settlement is still Retrying.
     /// Does not claim L1 settle.
@@ -1711,11 +1904,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Assert.AreEqual(0, afterRecover.OpenBatchL1MessageCount);
         Assert.AreEqual(0, afterRecover.L1InboxPendingCount);
         Assert.IsFalse(afterRecover.HasOpenBatch);
-        Assert.AreEqual(1UL, afterRecover.LatestCheckpointBatchNumber);
+        Assert.AreEqual(2UL, afterRecover.LatestCheckpointBatchNumber);
         Assert.IsTrue(afterRecover.IsSettlementRetrying);
         Assert.IsFalse(afterRecover.IsSettlementPoisoned);
         Assert.IsFalse(afterRecover.IsSettlementIdle);
-        Assert.IsTrue(afterRecover.PendingSettlementCount >= 1);
+        Assert.IsTrue(afterRecover.PendingSettlementCount >= 2);
         Assert.IsTrue(afterRecover.IsOfflinePassportComplete);
         Assert.IsTrue(afterRecover.IsOperatorReady);
 
@@ -1731,7 +1924,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Assert.AreEqual(1, probe.KnownInboundNonceCount);
         Assert.IsTrue(probe.IsSettlementRetrying);
         Assert.IsFalse(probe.IsSettlementPoisoned);
-        Assert.AreEqual(1UL, probe.LatestCheckpointBatchNumber);
+        Assert.AreEqual(2UL, probe.LatestCheckpointBatchNumber);
+        Assert.IsTrue(probe.PendingSettlementCount >= 2);
 
         var statusJson = formatOperatorStatusJson();
         StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
@@ -1740,13 +1934,14 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(statusJson, "\"knownInboundNonceCount\": 1");
         StringAssert.Contains(statusJson, "\"isSettlementRetrying\": true");
         StringAssert.Contains(statusJson, "\"isSettlementPoisoned\": false");
-        StringAssert.Contains(statusJson, "\"latestCheckpointBatchNumber\": 1");
+        StringAssert.Contains(statusJson, "\"latestCheckpointBatchNumber\": 2");
 
         var probeJson = formatHealthProbeJson();
         StringAssert.Contains(probeJson, "\"consumedDepositCount\": 1");
         StringAssert.Contains(probeJson, "\"knownForcedInclusionNonceCount\": 1");
         StringAssert.Contains(probeJson, "\"knownInboundNonceCount\": 1");
         StringAssert.Contains(probeJson, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(probeJson, "\"latestCheckpointBatchNumber\": 2");
 
         var statusPath = Path.Combine(chainDir, "soft-seal-after-recover-retention-status.json");
         writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
@@ -1756,6 +1951,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(statusFile, "\"knownForcedInclusionNonceCount\": 1");
         StringAssert.Contains(statusFile, "\"knownInboundNonceCount\": 1");
         StringAssert.Contains(statusFile, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(statusFile, "\"latestCheckpointBatchNumber\": 2");
 
         var probePath = Path.Combine(chainDir, "soft-seal-after-recover-retention-probe.json");
         writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
@@ -1764,6 +1960,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(probeFile, "\"consumedDepositCount\": 1");
         StringAssert.Contains(probeFile, "\"knownForcedInclusionNonceCount\": 1");
         StringAssert.Contains(probeFile, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(probeFile, "\"latestCheckpointBatchNumber\": 2");
     }
 
     /// <summary>

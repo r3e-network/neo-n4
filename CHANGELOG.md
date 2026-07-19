@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal multi-batch pending queue while L1 unsettled — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after batch-1 local DA, seal block 2
+  while batch 1 is still pending L1 (before inbound nonce registration) so mock
+  L1 message drain never fetches soft-registered nonces mid-path.
+- Pins `latestCheckpointBatchNumber=2`, `PendingSettlementCount≥2`, local DA for
+  batch 2, durable `soft-seal-second-batch-status.json` / probe; after-recover
+  retention and soft-seal operator status/probe also pin checkpoint 2 + pending≥2.
+- E2E defers pre-gateway `SubmitNext` until the explicit Reconcile→Poison path
+  (extra SubmitNext with multi-pending can escalate early).
+- No wire/ABI change. L1 settle for either pending batch remains a funded gate.
+
 ### Tested — Neo N3 testnet session17 reverify + SharedBridge deposit n18 — 2026-07-20
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

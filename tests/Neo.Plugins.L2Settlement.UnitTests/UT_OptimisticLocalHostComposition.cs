@@ -848,13 +848,23 @@ public sealed class UT_OptimisticLocalHostComposition
 
             Assert.IsNotNull(afterSubmit.Recovery.BlockedBatchNumber);
             Assert.IsNotNull(afterSubmit.Recovery.ArtifactContentHash);
-            host.RecoverPoisonedBatchAsync(
-                    afterSubmit.Recovery.BlockedBatchNumber!.Value,
-                    afterSubmit.Recovery.ArtifactContentHash!)
-                .GetAwaiter().GetResult();
+            var blockedBatch = afterSubmit.Recovery.BlockedBatchNumber!.Value;
+            var contentHash = afterSubmit.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(blockedBatch, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            Assert.IsTrue(host.IsSettlementPoisonedAsync().AsTask().GetAwaiter().GetResult());
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(blockedBatch + 99, contentHash)
+                    .GetAwaiter().GetResult());
+            Assert.IsTrue(host.IsSettlementPoisonedAsync().AsTask().GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(blockedBatch, contentHash).GetAwaiter().GetResult();
             Assert.IsFalse(host.IsSettlementPoisonedAsync().AsTask().GetAwaiter().GetResult());
             Assert.IsTrue(host.IsSettlementRetryingAsync().AsTask().GetAwaiter().GetResult());
             var afterRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            var recoveryAfter = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(afterRecover.Recovery.State, recoveryAfter.State);
+            Assert.AreEqual(afterRecover.Recovery.RetryCount, recoveryAfter.RetryCount);
             Assert.IsFalse(afterRecover.IsSettlementPoisoned);
             Assert.IsTrue(afterRecover.IsSettlementRetrying);
             Assert.IsFalse(afterRecover.IsSettlementIdle);
@@ -870,10 +880,17 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(0, afterRecover.SettlementRetryCount);
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, afterRecover.LatestRpcStateRoot);
+            Assert.IsTrue(afterRecover.IsOfflinePassportComplete);
+            Assert.AreEqual(0, afterRecover.OfflinePassportFailures.Count);
+            Assert.IsTrue(afterRecover.IsOperatorReady);
+            Assert.IsTrue(afterRecover.IsBatcherCheckpointAligned);
+            Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
             var afterRecoverJson = host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(afterRecoverJson, "\"isSettlementPoisoned\": false");
             StringAssert.Contains(afterRecoverJson, "\"isSettlementRetrying\": true");
             StringAssert.Contains(afterRecoverJson, "IsSettlementRetrying");
+            StringAssert.Contains(afterRecoverJson, "\"isOfflinePassportComplete\": true");
+            StringAssert.Contains(afterRecoverJson, "\"isBatcherCheckpointAligned\": true");
             var afterRecoverStatusPath = Path.Combine(chainDir, "soft-seal-after-recover-status.json");
             host.WriteOperatorStatusAsync(afterRecoverStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(afterRecoverStatusPath));
@@ -901,6 +918,12 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(
                 afterRecoverJson,
                 "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+            Assert.IsFalse(gatewayHost.HasPendingPublication);
+            Assert.IsFalse(gatewayHost.IsPublicationHealthy);
+            CollectionAssert.Contains(
+                gatewayHost.PublicationHealthFailures.ToArray(),
+                nameof(gatewayHost.AggregatorPendingCount));
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);

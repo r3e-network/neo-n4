@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal recover fail-closed + passport/gateway independence — 2026-07-20
+
+- Multisig/Opt unit SoftSeal: wrong content hash or batch number on
+  `RecoverPoisonedBatchAsync` fail-closed (`InvalidOperationException`) and leave
+  host Poisoned; correct hash resets Retrying.
+- After recover pin offline passport complete, operator ready, batcher/checkpoint
+  aligned; `GetRecoveryStatusAsync` matches operator status recovery fields.
+- Host recover does not clear Gateway `AggregatorPendingCount` backlog (independent
+  soft paths; still `HasPendingPublication=false` / publication unhealthy).
+- E2E Multisig/Opt SoftSeal: wrong-hash recover fail-closed + after-recover
+  passport/alignment/status JSON pins.
+- No wire/ABI change. Funded L1 settle + gateway publish remain operator-owned.
+
 ### Changed — SoftSeal E2E Opt recover parity + post-recover host health — 2026-07-20
 
 - E2E Optimistic SoftSeal pins Multisig-parity mock Reconcile→Poisoned→

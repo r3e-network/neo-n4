@@ -835,10 +835,13 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 nameof(afterPoison.IsSettlementPoisoned));
             Assert.IsNotNull(afterPoison.Recovery.BlockedBatchNumber);
             Assert.IsNotNull(afterPoison.Recovery.ArtifactContentHash);
-            host.RecoverPoisonedBatchAsync(
-                    afterPoison.Recovery.BlockedBatchNumber!.Value,
-                    afterPoison.Recovery.ArtifactContentHash!)
-                .GetAwaiter().GetResult();
+            var blockedBatch = afterPoison.Recovery.BlockedBatchNumber!.Value;
+            var contentHash = afterPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(blockedBatch, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            Assert.IsTrue(host.IsSettlementPoisonedAsync().AsTask().GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(blockedBatch, contentHash).GetAwaiter().GetResult();
             var afterRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsFalse(afterRecover.IsSettlementPoisoned);
             Assert.IsTrue(afterRecover.IsSettlementRetrying);
@@ -851,9 +854,13 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 afterRecover.LocalHostHealthFailures.ToArray(),
                 nameof(afterRecover.IsSettlementRetrying));
             Assert.IsFalse(host.IsSettlementRuntimeIdleAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsTrue(afterRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterRecover.IsBatcherCheckpointAligned);
+            Assert.IsTrue(afterRecover.IsOperatorReady);
             var afterRecoverStatusPath = Path.Combine(chainDir, "soft-seal-after-recover-status.json");
             host.WriteOperatorStatusAsync(afterRecoverStatusPath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isSettlementRetrying\": true");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isOfflinePassportComplete\": true");
             var afterRecoverProbePath = Path.Combine(chainDir, "soft-seal-after-recover-probe.json");
             host.WriteHealthProbeAsync(afterRecoverProbePath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"isSettlementRetrying\": true");
@@ -977,10 +984,13 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 nameof(afterPoison.IsSettlementPoisoned));
             Assert.IsNotNull(afterPoison.Recovery.BlockedBatchNumber);
             Assert.IsNotNull(afterPoison.Recovery.ArtifactContentHash);
-            host.RecoverPoisonedBatchAsync(
-                    afterPoison.Recovery.BlockedBatchNumber!.Value,
-                    afterPoison.Recovery.ArtifactContentHash!)
-                .GetAwaiter().GetResult();
+            var blockedBatch = afterPoison.Recovery.BlockedBatchNumber!.Value;
+            var contentHash = afterPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(blockedBatch, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            Assert.IsTrue(host.IsSettlementPoisonedAsync().AsTask().GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(blockedBatch, contentHash).GetAwaiter().GetResult();
             var afterRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsFalse(afterRecover.IsSettlementPoisoned);
             Assert.IsTrue(afterRecover.IsSettlementRetrying);
@@ -992,9 +1002,13 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             CollectionAssert.Contains(
                 afterRecover.LocalHostHealthFailures.ToArray(),
                 nameof(afterRecover.IsSettlementRetrying));
+            Assert.IsTrue(afterRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterRecover.IsBatcherCheckpointAligned);
+            Assert.IsTrue(afterRecover.IsOperatorReady);
             var afterRecoverStatusPath = Path.Combine(chainDir, "soft-seal-after-recover-status.json");
             host.WriteOperatorStatusAsync(afterRecoverStatusPath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isSettlementRetrying\": true");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isOfflinePassportComplete\": true");
             var afterRecoverProbePath = Path.Combine(chainDir, "soft-seal-after-recover-probe.json");
             host.WriteHealthProbeAsync(afterRecoverProbePath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"isSettlementRetrying\": true");

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Offline bridge → L2 RPC store proof hand-off — 2026-07-20
+
+- E2E Multisig/Optimistic/Zk after offline mint/withdrawal/outbox pins
+  `AssertOfflineBridgeRpcStoreSurface`: `RecordRpcDeposit` (ConsumedOnL2),
+  `RegisterRpcAsset` asset map, canonical `MerkleProofSerializer` withdrawal
+  proof via sealed tree `GetProof(0)`, `RecordRpcWithdrawalProof` /
+  `RecordRpcMessageProof` / `RecordMessageRouterFinalizedProof` round-trips.
+- Durable `soft-offline-bridge-rpc-surface.json` for operator scripts.
+- No wire/ABI change. L1 withdrawal claim / message claim remain funded gates.
+
 ### Changed — Offline bridge soft ops surface after mint/outbox — 2026-07-20
 
 - E2E Multisig/Optimistic/Zk `AssertOfflineBridgeMintWithdrawalOutbox` also pins

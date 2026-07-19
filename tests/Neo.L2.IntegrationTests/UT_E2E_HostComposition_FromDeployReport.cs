@@ -455,7 +455,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             }
 
             // Offline deposit → withdrawal → L2→L1 outbox (no funded L1 scan/claim).
-            AssertOfflineBridgeMintWithdrawalOutbox(
+            var offlineBridge = AssertOfflineBridgeMintWithdrawalOutbox(
                 settlementHost.RegisterBridgeAsset,
                 settlementHost.ProcessDeposit,
                 settlementHost.HasConsumedDeposit,
@@ -467,6 +467,20 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 msgs => settlementHost.EnqueueOutboundMessagesAsync(msgs).AsTask(),
                 () => settlementHost.MessageOutbox!.L2ToL1Count,
                 () => settlementHost.MessageOutboxL2ToL1Root);
+            AssertOfflineBridgeRpcStoreSurface(
+                offlineBridge,
+                settlementHost.RecordRpcDeposit,
+                settlementHost.GetRpcL1DepositStatus,
+                settlementHost.RegisterRpcAsset,
+                settlementHost.GetRpcBridgedAsset,
+                settlementHost.GetRpcCanonicalAsset,
+                settlementHost.RecordRpcWithdrawalProof,
+                settlementHost.GetRpcWithdrawalProof,
+                settlementHost.RecordRpcMessageProof,
+                settlementHost.GetRpcMessageProof,
+                settlementHost.RecordMessageRouterFinalizedProof,
+                msgHash => settlementHost.GetMessageRouterProofAsync(msgHash).AsTask(),
+                chainDir);
             AssertOfflineBridgeOperatorSurface(
                 () => settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
                 () => settlementHost.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
@@ -1134,7 +1148,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(optStatusJson, "\"hasMessageOutbox\": true");
             StringAssert.Contains(optStatusJson, "\"batcherConfiguredChainId\":");
 
-            AssertOfflineBridgeMintWithdrawalOutbox(
+            var offlineBridge = AssertOfflineBridgeMintWithdrawalOutbox(
                 host.RegisterBridgeAsset,
                 host.ProcessDeposit,
                 host.HasConsumedDeposit,
@@ -1146,6 +1160,20 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
                 () => host.MessageOutbox!.L2ToL1Count,
                 () => host.MessageOutboxL2ToL1Root);
+            AssertOfflineBridgeRpcStoreSurface(
+                offlineBridge,
+                host.RecordRpcDeposit,
+                host.GetRpcL1DepositStatus,
+                host.RegisterRpcAsset,
+                host.GetRpcBridgedAsset,
+                host.GetRpcCanonicalAsset,
+                host.RecordRpcWithdrawalProof,
+                host.GetRpcWithdrawalProof,
+                host.RecordRpcMessageProof,
+                host.GetRpcMessageProof,
+                host.RecordMessageRouterFinalizedProof,
+                msgHash => host.GetMessageRouterProofAsync(msgHash).AsTask(),
+                chainDir);
             AssertOfflineBridgeOperatorSurface(
                 () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
                 () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
@@ -1300,7 +1328,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(host.CreateRpcPlugin());
             Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
 
-            AssertOfflineBridgeMintWithdrawalOutbox(
+            var offlineBridge = AssertOfflineBridgeMintWithdrawalOutbox(
                 host.RegisterBridgeAsset,
                 host.ProcessDeposit,
                 host.HasConsumedDeposit,
@@ -1312,6 +1340,20 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
                 () => host.MessageOutbox!.L2ToL1Count,
                 () => host.MessageOutboxL2ToL1Root);
+            AssertOfflineBridgeRpcStoreSurface(
+                offlineBridge,
+                host.RecordRpcDeposit,
+                host.GetRpcL1DepositStatus,
+                host.RegisterRpcAsset,
+                host.GetRpcBridgedAsset,
+                host.GetRpcCanonicalAsset,
+                host.RecordRpcWithdrawalProof,
+                host.GetRpcWithdrawalProof,
+                host.RecordRpcMessageProof,
+                host.GetRpcMessageProof,
+                host.RecordMessageRouterFinalizedProof,
+                msgHash => host.GetMessageRouterProofAsync(msgHash).AsTask(),
+                chainDir);
             AssertOfflineBridgeOperatorSurface(
                 () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
                 () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
@@ -1730,7 +1772,19 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
     /// register asset → ProcessDeposit → StageWithdrawal/Seal → EnqueueOutbound (L2→L1).
     /// Does not claim L1 scan, settle, prove-batch, or withdrawal claim (funded gates).
     /// </summary>
-    private static void AssertOfflineBridgeMintWithdrawalOutbox(
+    /// <summary>
+    /// Soft offline bridge results used to pin L2 RPC-store proof hand-off without L1.
+    /// </summary>
+    private sealed record OfflineBridgeSoftResult(
+        UInt160 L1Asset,
+        UInt160 L2Asset,
+        ulong DepositNonce,
+        UInt256 WithdrawalLeaf,
+        UInt256 WithdrawalRoot,
+        WithdrawalTree WithdrawalTree,
+        UInt256 OutboundMessageHash);
+
+    private static OfflineBridgeSoftResult AssertOfflineBridgeMintWithdrawalOutbox(
         Action<AssetMapping> registerBridgeAsset,
         Func<CrossChainMessage, MintInstruction> processDeposit,
         Func<uint, ulong, bool> hasConsumedDeposit,
@@ -1812,6 +1866,91 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         enqueueOutbound([outbound]).GetAwaiter().GetResult();
         Assert.AreEqual(1, messageOutboxL2ToL1Count());
         Assert.AreNotEqual(UInt256.Zero, messageOutboxL2ToL1Root());
+        return new OfflineBridgeSoftResult(
+            l1Asset,
+            l2Asset,
+            DepositNonce: 1,
+            WithdrawalLeaf: wdLeaf,
+            WithdrawalRoot: sealedWd.Root,
+            WithdrawalTree: sealedWd.Tree,
+            OutboundMessageHash: outbound.MessageHash);
+    }
+
+    /// <summary>
+    /// After offline mint/withdrawal/outbox, pin L2 RPC-store deposit status + canonical
+    /// withdrawal Merkle proof + message/router proof durability (explorer/RPC surface).
+    /// Does not broadcast L1 claim txs (funded gate).
+    /// </summary>
+    private static void AssertOfflineBridgeRpcStoreSurface(
+        OfflineBridgeSoftResult soft,
+        Action<DepositStatus> recordRpcDeposit,
+        Func<uint, ulong, DepositStatus?> getRpcL1DepositStatus,
+        Action<UInt160, UInt160> registerRpcAsset,
+        Func<UInt160, UInt160?> getRpcBridgedAsset,
+        Func<UInt160, UInt160?> getRpcCanonicalAsset,
+        Action<UInt256, byte[]> recordRpcWithdrawalProof,
+        Func<UInt256, ReadOnlyMemory<byte>?> getRpcWithdrawalProof,
+        Action<UInt256, byte[]> recordRpcMessageProof,
+        Func<UInt256, ReadOnlyMemory<byte>?> getRpcMessageProof,
+        Action<UInt256, ReadOnlyMemory<byte>> recordMessageRouterFinalizedProof,
+        Func<UInt256, Task<ReadOnlyMemory<byte>?>> getMessageRouterProofAsync,
+        string chainDir)
+    {
+        recordRpcDeposit(new DepositStatus(
+            SourceChainId: 0,
+            Nonce: soft.DepositNonce,
+            ConsumedOnL2: true,
+            IncludedInBatch: null));
+        var depositStatus = getRpcL1DepositStatus(0, soft.DepositNonce);
+        Assert.IsNotNull(depositStatus);
+        Assert.IsTrue(depositStatus!.Value.ConsumedOnL2);
+        Assert.AreEqual(soft.DepositNonce, depositStatus.Value.Nonce);
+
+        registerRpcAsset(soft.L1Asset, soft.L2Asset);
+        Assert.AreEqual(soft.L2Asset, getRpcBridgedAsset(soft.L1Asset));
+        Assert.AreEqual(soft.L1Asset, getRpcCanonicalAsset(soft.L2Asset));
+
+        Assert.AreEqual(1, soft.WithdrawalTree.Count);
+        var merkleProof = soft.WithdrawalTree.GetProof(0);
+        Assert.AreEqual(soft.WithdrawalLeaf, merkleProof.Leaf);
+        var proofBytes = MerkleProofSerializer.Encode(merkleProof);
+        Assert.IsTrue(proofBytes.Length >= MerkleProofSerializer.HeaderSize);
+        recordRpcWithdrawalProof(soft.WithdrawalLeaf, proofBytes);
+        var storedWdProof = getRpcWithdrawalProof(soft.WithdrawalLeaf);
+        Assert.IsTrue(storedWdProof is { Length: > 0 });
+        CollectionAssert.AreEqual(proofBytes, storedWdProof!.Value.ToArray());
+
+        // Soft message inclusion bytes for RPC explorers (not an L1 MessageRouter claim).
+        var messageProofBytes = soft.OutboundMessageHash.GetSpan().ToArray();
+        recordRpcMessageProof(soft.OutboundMessageHash, messageProofBytes);
+        var storedMsgProof = getRpcMessageProof(soft.OutboundMessageHash);
+        Assert.IsTrue(storedMsgProof is { Length: > 0 });
+        CollectionAssert.AreEqual(messageProofBytes, storedMsgProof!.Value.ToArray());
+
+        recordMessageRouterFinalizedProof(soft.OutboundMessageHash, messageProofBytes);
+        var routerProof = getMessageRouterProofAsync(soft.OutboundMessageHash).GetAwaiter().GetResult();
+        Assert.IsTrue(routerProof is { Length: > 0 });
+        CollectionAssert.AreEqual(messageProofBytes, routerProof!.Value.ToArray());
+
+        var surfacePath = Path.Combine(chainDir, "soft-offline-bridge-rpc-surface.json");
+        File.WriteAllText(surfacePath, $$"""
+            {
+              "depositNonce": {{soft.DepositNonce}},
+              "depositConsumedOnL2": true,
+              "withdrawalLeaf": "{{soft.WithdrawalLeaf}}",
+              "withdrawalRoot": "{{soft.WithdrawalRoot}}",
+              "withdrawalProofBytes": {{proofBytes.Length}},
+              "outboundMessageHash": "{{soft.OutboundMessageHash}}",
+              "messageProofBytes": {{messageProofBytes.Length}},
+              "l1Asset": "{{soft.L1Asset}}",
+              "l2Asset": "{{soft.L2Asset}}"
+            }
+            """);
+        Assert.IsTrue(File.Exists(surfacePath));
+        var surfaceJson = File.ReadAllText(surfacePath);
+        StringAssert.Contains(surfaceJson, "\"depositConsumedOnL2\": true");
+        StringAssert.Contains(surfaceJson, "\"withdrawalLeaf\": \"" + soft.WithdrawalLeaf + "\"");
+        StringAssert.Contains(surfaceJson, "\"outboundMessageHash\": \"" + soft.OutboundMessageHash + "\"");
     }
 
     /// <summary>

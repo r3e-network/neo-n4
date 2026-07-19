@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds recovery document and idle-name parity — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe`) embeds `Recovery` (`LocalHostRecoveryDocument`: pending/state/
+  blocked batch/artifact hash/last error/failure timestamps), `ReadyDepositCount`
+  (soft peek), and `IsSettlementIdle` (alias of runtime idle matching
+  `PipelineHealthFailures` name `IsSettlementIdle`) so ops can diagnose
+  poison/retry without the full status dump.
+- Wireproduction notes; unit coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Changed — LocalHost health probe adds durable roots and sequencer/exit identity — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

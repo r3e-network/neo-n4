@@ -281,8 +281,12 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
             Assert.IsTrue(probe.IsSettlementRuntimeIdle);
+            Assert.IsTrue(probe.IsSettlementIdle);
             Assert.IsFalse(probe.IsSettlementPoisoned);
             Assert.AreEqual(0, probe.PendingSettlementCount);
+            Assert.IsNotNull(probe.Recovery);
+            Assert.AreEqual(0, probe.Recovery.PendingCount);
+            Assert.AreEqual(0, probe.ReadyDepositCount);
             Assert.AreEqual(host.DepositSourceReadyCount, probe.DepositSourceReadyCount);
             Assert.AreEqual(host.DepositSourceReservedCount, probe.DepositSourceReservedCount);
             Assert.AreEqual(host.DepositSourceSoftConsumedCount, probe.DepositSourceSoftConsumedCount);

@@ -383,6 +383,12 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Local settlement queue is idle (no L1 settle claim).</summary>
     public required bool IsSettlementRuntimeIdle { get; init; }
 
+    /// <summary>
+    /// Alias of <see cref="IsSettlementRuntimeIdle"/> matching pipeline failure name
+    /// <c>IsSettlementIdle</c> for ops interpretability.
+    /// </summary>
+    public required bool IsSettlementIdle { get; init; }
+
     /// <summary>Durable recovery is poisoned (no L1 settle claim).</summary>
     public required bool IsSettlementPoisoned { get; init; }
 
@@ -398,8 +404,20 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Local pending settlement artifact count (no L1 claim).</summary>
     public required int PendingSettlementCount { get; init; }
 
+    /// <summary>
+    /// Durable recovery snapshot (pending/retry/poison identity). Same shape as full status
+    /// <c>Recovery</c>; no L1 settle claim.
+    /// </summary>
+    public required LocalHostRecoveryDocument Recovery { get; init; }
+
     /// <summary>Soft deposit-source ready count (in-memory; no L1 scan).</summary>
     public required int DepositSourceReadyCount { get; init; }
+
+    /// <summary>
+    /// Count of ready SharedBridge deposits via non-mutating peek (capped; soft local only).
+    /// Distinct from uncapped <see cref="DepositSourceReadyCount"/>.
+    /// </summary>
+    public required int ReadyDepositCount { get; init; }
 
     /// <summary>Soft deposit-source reserved count (drained for seal; no L1 claim).</summary>
     public required int DepositSourceReservedCount { get; init; }

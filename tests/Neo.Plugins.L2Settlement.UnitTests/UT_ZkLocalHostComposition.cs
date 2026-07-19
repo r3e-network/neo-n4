@@ -289,8 +289,12 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
             Assert.IsTrue(probe.IsSettlementRuntimeIdle);
+            Assert.IsTrue(probe.IsSettlementIdle);
             Assert.IsFalse(probe.IsSettlementPoisoned);
             Assert.AreEqual(0, probe.PendingSettlementCount);
+            Assert.IsNotNull(probe.Recovery);
+            Assert.AreEqual(0, probe.Recovery.PendingCount);
+            Assert.AreEqual(0, probe.ReadyDepositCount);
             Assert.AreEqual(0, probe.L1InboxPendingCount);
             Assert.AreEqual(host.DepositSourceReservedCount, probe.DepositSourceReservedCount);
             Assert.AreEqual(host.ConsumedDepositCount, probe.ConsumedDepositCount);

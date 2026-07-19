@@ -592,12 +592,19 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(probe.IsMetricsHttpListening);
             Assert.AreEqual(0, probe.MetricsBoundPort);
             Assert.IsTrue(probe.IsSettlementRuntimeIdle);
+            Assert.IsTrue(probe.IsSettlementIdle);
             Assert.IsFalse(probe.IsSettlementPoisoned);
             Assert.IsFalse(probe.IsSettlementRetrying);
             Assert.AreEqual(0, probe.SettlementRetryCount);
             Assert.AreEqual(0, probe.SettlementConfirmationLagBatches);
             Assert.AreEqual(0, probe.PendingSettlementCount);
+            Assert.IsNotNull(probe.Recovery);
+            Assert.AreEqual(0, probe.Recovery.PendingCount);
+            Assert.AreEqual(0, probe.Recovery.RetryCount);
+            Assert.IsNull(probe.Recovery.State);
+            Assert.IsNull(probe.Recovery.LastError);
             Assert.AreEqual(host.DepositSourceReadyCount, probe.DepositSourceReadyCount);
+            Assert.AreEqual(0, probe.ReadyDepositCount);
             Assert.AreEqual(host.DepositSourceReservedCount, probe.DepositSourceReservedCount);
             Assert.AreEqual(host.DepositSourceSoftConsumedCount, probe.DepositSourceSoftConsumedCount);
             Assert.AreEqual(host.ConsumedDepositCount, probe.ConsumedDepositCount);
@@ -693,8 +700,13 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"messageOutboxL2ToL1Root\":");
             StringAssert.Contains(probeJson, "\"messageOutboxL2ToL2Root\":");
             StringAssert.Contains(probeJson, "\"trackedForcedInclusionNonceCount\": 0");
-            // Compact probe still omits full inventory (e.g. nested recovery object).
-            Assert.IsFalse(probeJson.Contains("\"recovery\"", StringComparison.Ordinal));
+            StringAssert.Contains(probeJson, "\"isSettlementIdle\": true");
+            StringAssert.Contains(probeJson, "\"readyDepositCount\": 0");
+            StringAssert.Contains(probeJson, "\"recovery\":");
+            StringAssert.Contains(probeJson, "\"pendingCount\": 0");
+            StringAssert.Contains(probeJson, "\"retryCount\": 0");
+            // Compact probe still omits full inventory (e.g. full deposit peeks).
+            Assert.IsFalse(probeJson.Contains("\"readyDeposits\"", StringComparison.Ordinal));
             StringAssert.Contains(statusJson, "\"chainId\": 20260716");
             StringAssert.Contains(statusJson, "\"batcherConfiguredChainId\": 20260716");
             StringAssert.Contains(statusJson, "\"settlementConfiguredChainId\": 20260716");

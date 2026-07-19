@@ -527,7 +527,9 @@ public sealed record NeoHubDeployReport(
                         + "MetricsBindAddress/MetricsMaxConcurrentConnections/MetricsEntryCount + "
                         + "pipeline/metrics/settlement + "
                         + "pending-seal/open-batch counts + batcher ack/next + durable checkpoint + "
-                        + "settlement retry/lag + FI/inbox + deposit queues + message outbox + "
+                        + "settlement retry/lag + Recovery (LocalHostRecoveryDocument) + "
+                        + "IsSettlementIdle + ReadyDepositCount + "
+                        + "FI/inbox + deposit queues + message outbox + "
                         + "HasMetricsReadinessCheck/HasMetricsHealthProbe/HasMetricsOperatorStatus flags)",
                     ["localHostWritePrometheusMetrics"] =
                         "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",

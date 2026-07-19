@@ -188,6 +188,11 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.IsPipelineEnabled);
             Assert.IsFalse(status.IsSettlementPoisoned);
             Assert.IsTrue(status.IsSettlementIdle);
+            Assert.AreEqual(0, status.SettlementRetryCount);
+            Assert.AreEqual(status.Recovery.RetryCount, status.SettlementRetryCount);
+            Assert.AreEqual(
+                status.Recovery.ConfirmationLagBatches,
+                status.SettlementConfirmationLagBatches);
             Assert.IsFalse(status.HasOverdueForcedInclusion);
             Assert.IsFalse(host.HasOverdueForcedInclusionCached());
             Assert.IsFalse(status.IsSettlementRetrying);
@@ -480,6 +485,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(host.MessageOutbox.L2ToL1Root, host.MessageOutboxL2ToL1Root);
             var formattedStatus = await host.FormatOperatorStatusJsonAsync();
             StringAssert.Contains(formattedStatus, "\"isOfflinePassportComplete\"");
+            StringAssert.Contains(formattedStatus, "\"settlementRetryCount\":");
+            StringAssert.Contains(formattedStatus, "\"settlementConfirmationLagBatches\":");
             Assert.IsTrue(formattedStatus.EndsWith('\n') || formattedStatus.EndsWith(Environment.NewLine));
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             await host.WriteOperatorStatusAsync(statusPath);

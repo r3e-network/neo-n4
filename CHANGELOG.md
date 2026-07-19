@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost operator status settlement retry/lag + Optimistic/Zk deposit mint — 2026-07-19
+
+- `LocalHostOperatorStatus` / `LocalHostOperatorStatusDocument` / `/operatorstatus`
+  add top-level `SettlementRetryCount` and `SettlementConfirmationLagBatches`
+  (same values as `Recovery`; health-probe field parity for Multisig/Optimistic/Zk).
+- Unit coverage: Multisig status JSON keys; Optimistic + Zk offline `ProcessDeposit`
+  mint path (RegisterBridgeAsset → ProcessDeposit → HasConsumedDeposit) with status/probe
+  parity after deposit; ready-deposit drain remains empty without L1 scan.
+- Wireproduction notes + init-l2 host status tips. No wire/ABI change.
+- L1 scan / settle / prove-batch remain funded gates.
+
 ### Tested — Neo N3 testnet session14 reverify + SharedBridge deposit n15 — 2026-07-19
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

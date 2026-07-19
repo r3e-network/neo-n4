@@ -290,6 +290,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "StartMetricsHttp");
         StringAssert.Contains(output, "GatewayHost StartMetricsHttp");
         StringAssert.Contains(output, "MetricsConfiguredPort/BindAddress/MaxConcurrentConnections");
+        StringAssert.Contains(output, "SettlementRetryCount / SettlementConfirmationLagBatches");
         StringAssert.Contains(output, "HasMetricsPlugin");
         StringAssert.Contains(output, "IsOutboxIdle");
         StringAssert.Contains(output, "IsPublicationHealthy");

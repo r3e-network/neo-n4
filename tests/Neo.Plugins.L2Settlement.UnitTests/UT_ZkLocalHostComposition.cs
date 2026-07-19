@@ -1,8 +1,10 @@
 using System.Net;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using Neo.L2;
 using Neo.L2.Batch;
+using Neo.L2.Bridge;
 using Neo.L2.Executor;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.Persistence;
@@ -235,6 +237,44 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(host.MetricsMaxConcurrentConnections > 0);
             host.InvalidateForcedInclusionCache();
             Assert.AreEqual(0, host.BridgeAssetCount);
+            // Offline deposit mint path (no funded L1 scan / prove-batch).
+            var l1Asset = UInt160.Parse("0x" + new string('1', 40));
+            var l2Asset = UInt160.Parse("0x" + new string('2', 40));
+            host.RegisterBridgeAsset(new AssetMapping
+            {
+                L1Asset = l1Asset,
+                L2Asset = l2Asset,
+                L2ChainId = 20260716u,
+                L1Decimals = 8,
+                L2Decimals = 8,
+                AssetType = AssetType.Gas,
+                MintBurn = true,
+                LockMint = true,
+                Active = true,
+            });
+            Assert.AreEqual(1, host.BridgeAssetCount);
+            var depositPayload = new DepositPayload
+            {
+                L1Asset = l1Asset,
+                L2Recipient = Account(0x55),
+                Amount = new BigInteger(1_000),
+            };
+            var depositMsg = new CrossChainMessage
+            {
+                SourceChainId = 0,
+                TargetChainId = 20260716u,
+                Nonce = 1,
+                Sender = Account(0x66),
+                Receiver = Account(0x55),
+                MessageType = MessageType.Deposit,
+                Payload = depositPayload.Encode(),
+                MessageHash = UInt256.Zero,
+            };
+            var mint = host.ProcessDeposit(depositMsg);
+            Assert.AreEqual(l2Asset, mint.L2Asset);
+            Assert.IsTrue(host.HasConsumedDeposit(0, 1));
+            Assert.AreEqual(1, host.ConsumedDepositCount);
+            Assert.AreEqual(0, host.ProcessReadyDeposits().Count);
             Assert.IsFalse(string.IsNullOrWhiteSpace(host.ExportPrometheusMetrics()));
             Assert.AreEqual(0, host.StagedWithdrawalCount);
             Assert.IsNotNull(host.BatchProver);
@@ -246,7 +286,19 @@ public sealed class UT_ZkLocalHostComposition
             StringAssert.Contains(statusJson, "\"proofType\": \"Zk\"");
             StringAssert.Contains(statusJson, "\"hasBatchProver\": true");
             StringAssert.Contains(statusJson, "\"initialStateRoot\":");
+            StringAssert.Contains(statusJson, "\"settlementRetryCount\": 0");
+            StringAssert.Contains(statusJson, "\"settlementConfirmationLagBatches\":");
+            StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
             Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
+            var statusAfterDeposit = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(1, statusAfterDeposit.ConsumedDepositCount);
+            Assert.AreEqual(0, statusAfterDeposit.SettlementRetryCount);
+            Assert.AreEqual(
+                statusAfterDeposit.Recovery.ConfirmationLagBatches,
+                statusAfterDeposit.SettlementConfirmationLagBatches);
+            Assert.AreEqual(
+                statusAfterDeposit.Recovery.RetryCount,
+                statusAfterDeposit.SettlementRetryCount);
             var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(probe.IsOperatorReady);
             Assert.AreEqual(host.ChainId, probe.ChainId);
@@ -279,6 +331,10 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsFalse(probe.HasPendingSealedBatch);
             Assert.IsNull(probe.PendingSealedBatchLastBlock);
             Assert.AreEqual(0, probe.SettlementRetryCount);
+            Assert.AreEqual(statusAfterDeposit.SettlementRetryCount, probe.SettlementRetryCount);
+            Assert.AreEqual(
+                statusAfterDeposit.SettlementConfirmationLagBatches,
+                probe.SettlementConfirmationLagBatches);
             Assert.IsFalse(probe.HasOpenBatch);
             Assert.AreEqual(0, probe.InProgressTxCount);
             Assert.AreEqual(0, probe.OpenBatchBlockCount);
@@ -297,6 +353,7 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(0, probe.ReadyDepositCount);
             Assert.AreEqual(0, probe.L1InboxPendingCount);
             Assert.AreEqual(host.DepositSourceReservedCount, probe.DepositSourceReservedCount);
+            Assert.AreEqual(1, probe.ConsumedDepositCount);
             Assert.AreEqual(host.ConsumedDepositCount, probe.ConsumedDepositCount);
             Assert.AreEqual(host.L1InboxConsumedCount, probe.L1InboxConsumedCount);
             Assert.IsTrue(probe.HasMessageOutbox);

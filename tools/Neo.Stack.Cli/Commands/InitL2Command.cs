@@ -179,6 +179,7 @@ internal static class InitL2Command
         Console.WriteLine("               HasForcedInclusionFinalizer / HasSettlementClient / HasTransactionSender");
         Console.WriteLine("  host settle= LocalHost.GetLatestDurableCheckpointAsync / GetInitialStateRootAsync / LatestCheckpointBatchNumber / InitialStateRoot");
         Console.WriteLine("  host status= LocalHost.FormatOperatorStatusJsonAsync / WriteOperatorStatusAsync(path) / GET /operatorstatus");
+        Console.WriteLine("               (SettlementRetryCount / SettlementConfirmationLagBatches top-level probe parity + Recovery)");
         Console.WriteLine("               LocalHost.GetHealthProbeAsync / FormatHealthProbeJson / WriteHealthProbeAsync / GET /healthprobe");
         Console.WriteLine("               GatewayHost.FormatOperatorStatusJson / WriteOperatorStatusAsync (incl. MetricsConfiguredPort/BindAddress/MaxConcurrentConnections);");
         Console.WriteLine("               GatewayHost.GetHealthProbe / FormatHealthProbeJson / WriteHealthProbeAsync (same metrics soft config + chainDirectory)");

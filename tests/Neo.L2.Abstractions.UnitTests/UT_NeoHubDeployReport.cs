@@ -290,7 +290,8 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.FormatOperatorStatusJsonAsync() / WriteOperatorStatusAsync(path) / "
                 + "metrics HTTP GET /operatorstatus → "
-                + "LocalHostOperatorStatusDocument JSON",
+                + "LocalHostOperatorStatusDocument JSON "
+                + "(incl. SettlementRetryCount/SettlementConfirmationLagBatches probe parity)",
                 stores.GetProperty("localHostWriteOperatorStatus").GetString());
             Assert.AreEqual(
                 "LocalHost.GetHealthProbeAsync() / FormatHealthProbeJson() / "

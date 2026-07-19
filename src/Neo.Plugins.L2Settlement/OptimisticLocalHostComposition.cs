@@ -650,6 +650,8 @@ public sealed class OptimisticLocalHostComposition : IDisposable
             IsSettlementPoisoned = LocalHostOperatorStatus.IsSettlementPoisonedState(recovery),
             IsSettlementRetrying = LocalHostOperatorStatus.IsSettlementRetryingState(recovery),
             IsSettlementIdle = LocalHostOperatorStatus.IsSettlementRuntimeIdle(pending, recovery),
+            SettlementRetryCount = recovery.RetryCount,
+            SettlementConfirmationLagBatches = recovery.ConfirmationLagBatches,
             IsPipelineHealthy = pipelineHealthFailures.Count == 0,
             PipelineHealthFailures = pipelineHealthFailures,
             IsMetricsHttpHealthy = metricsHttpHealthFailures.Count == 0,

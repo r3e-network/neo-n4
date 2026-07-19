@@ -284,6 +284,12 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>No pending settlement work and recovery is idle.</summary>
     public required bool IsSettlementIdle { get; init; }
 
+    /// <summary>Local settlement recovery retry count (probe parity; no L1 claim).</summary>
+    public required int SettlementRetryCount { get; init; }
+
+    /// <summary>Local settlement confirmation lag in batches (probe parity; no L1 claim).</summary>
+    public required int SettlementConfirmationLagBatches { get; init; }
+
     /// <summary>Offline passport + pipeline enabled + no pending seal + settlement not poisoned + idle.</summary>
     public required bool IsPipelineHealthy { get; init; }
 
@@ -493,6 +499,8 @@ public sealed record LocalHostOperatorStatusDocument
             IsSettlementPoisoned = status.IsSettlementPoisoned,
             IsSettlementRetrying = status.IsSettlementRetrying,
             IsSettlementIdle = status.IsSettlementIdle,
+            SettlementRetryCount = status.SettlementRetryCount,
+            SettlementConfirmationLagBatches = status.SettlementConfirmationLagBatches,
             IsPipelineHealthy = status.IsPipelineHealthy,
             PipelineHealthFailures = status.PipelineHealthFailures,
             IsMetricsHttpHealthy = status.IsMetricsHttpHealthy,

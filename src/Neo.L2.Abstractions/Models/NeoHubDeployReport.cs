@@ -512,7 +512,8 @@ public sealed record NeoHubDeployReport(
                     ["localHostWriteOperatorStatus"] =
                         "LocalHost.FormatOperatorStatusJsonAsync() / WriteOperatorStatusAsync(path) / "
                         + "metrics HTTP GET /operatorstatus → "
-                        + "LocalHostOperatorStatusDocument JSON",
+                        + "LocalHostOperatorStatusDocument JSON "
+                        + "(incl. SettlementRetryCount/SettlementConfirmationLagBatches probe parity)",
                     ["localHostWriteHealthProbe"] =
                         "LocalHost.GetHealthProbeAsync() / FormatHealthProbeJson() / "
                         + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "

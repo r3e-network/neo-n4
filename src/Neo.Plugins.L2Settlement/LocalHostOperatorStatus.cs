@@ -362,6 +362,18 @@ public sealed record LocalHostOperatorStatus
     public required bool IsSettlementIdle { get; init; }
 
     /// <summary>
+    /// Local settlement recovery retry count (same value as <see cref="Recovery"/>; top-level for
+    /// health-probe field parity on <c>/operatorstatus</c>). Not an L1 claim.
+    /// </summary>
+    public required int SettlementRetryCount { get; init; }
+
+    /// <summary>
+    /// Local settlement confirmation lag in batches (same value as <see cref="Recovery"/>; top-level
+    /// for health-probe field parity on <c>/operatorstatus</c>). Not an L1 claim.
+    /// </summary>
+    public required int SettlementConfirmationLagBatches { get; init; }
+
+    /// <summary>
     /// Offline passport complete, pipeline enabled, no pending sealed batch, no open-batch age
     /// overdue, batcher/checkpoint aligned, no overdue forced inclusion, settlement not
     /// poisoned/retrying, and settlement idle. Distinct from L1 settle confirmation (funded gate).

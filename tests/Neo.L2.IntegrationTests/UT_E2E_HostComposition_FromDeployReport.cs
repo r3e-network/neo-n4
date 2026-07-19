@@ -430,7 +430,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 new StubSigner(Account(0x55)),
                 UInt256.Parse("0x" + new string('d', 64)),
                 UInt256.Parse("0x" + new string('e', 64)),
-                metrics: settlementHost.Metrics.Metrics);
+                metricsPlugin: settlementHost.Metrics);
 
             Assert.AreEqual(Path.GetFullPath(chainDir), settlementHost.ChainDirectory);
             Assert.AreEqual(ProofType.Multisig, settlementHost.Prover.Kind);
@@ -487,6 +487,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(0, gatewayHost.PublicationHealthFailures.Count);
             Assert.IsTrue(gatewayHost.IsGatewayHostHealthy);
             Assert.AreEqual(0, gatewayHost.GatewayHostHealthFailures.Count);
+            Assert.IsTrue(gatewayHost.HasMetricsPlugin);
+            Assert.AreSame(settlementHost.Metrics, gatewayHost.MetricsPlugin);
+            Assert.IsTrue(gatewayHost.IsMetricsHttpListening);
+            Assert.IsTrue(gatewayHost.IsMetricsHttpHealthy);
             Assert.IsNotNull(gatewayHost.OutboxStatus);
             Assert.AreSame(gatewayHost.Gateway.Aggregator, gatewayHost.Aggregator);
             var gwStatus = gatewayHost.GetOperatorStatus();
@@ -496,6 +500,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(gwStatus.IsPublicationConfigured);
             Assert.AreEqual(0, gwStatus.OutboxQueueDepth);
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
+            Assert.IsTrue(gwStatus.HasMetricsPlugin);
+            Assert.IsTrue(gwStatus.IsMetricsHttpHealthy);
             var gwStatusPath = Path.Combine(chainDir, "gateway-status.json");
             gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(gwStatusPath));
@@ -506,6 +512,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(gwProbe.HasDurableOutbox);
             Assert.IsTrue(gwProbe.IsPublicationProfileReady);
             Assert.IsTrue(gwProbe.HasMetrics);
+            Assert.IsTrue(gwProbe.HasMetricsPlugin);
+            Assert.IsTrue(gwProbe.IsMetricsHttpListening);
+            Assert.IsTrue(gwProbe.IsMetricsHttpHealthy);
+            Assert.AreEqual(gatewayHost.ProofSystem, gwProbe.ProofSystem);
+            Assert.AreEqual(gatewayHost.AggregationBackendId, gwProbe.AggregationBackendId);
+            Assert.AreEqual(gatewayHost.ReplayDomain.ToString(), gwProbe.ReplayDomain);
+            Assert.AreEqual(gatewayHost.VerificationKeyId.ToString(), gwProbe.VerificationKeyId);
+            Assert.AreEqual(gatewayHost.SettlementManagerHash.ToString(), gwProbe.SettlementManagerHash);
+            Assert.AreEqual(gatewayHost.MessageRouterHash.ToString(), gwProbe.MessageRouterHash);
             Assert.IsFalse(gwProbe.HasPendingPublication);
             Assert.IsNull(gwProbe.PendingPublicationEpoch);
             Assert.AreEqual(0, gwProbe.AggregatorPendingCount);
@@ -515,10 +530,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(gwProbe.IsPublicationHealthy);
             Assert.IsTrue(gwProbe.IsOutboxIdle);
             Assert.IsFalse(gwProbe.IsOutboxPoisoned);
+            var gwProbeJson = gatewayHost.FormatHealthProbeJson();
+            StringAssert.Contains(gwProbeJson, "\"proofSystem\":");
+            StringAssert.Contains(gwProbeJson, "\"settlementManagerHash\":");
+            StringAssert.Contains(gwProbeJson, "\"aggregationBackendId\":");
+            StringAssert.Contains(gwProbeJson, "\"hasMetricsPlugin\": true");
             var gwProbePath = Path.Combine(chainDir, "gateway-health-probe.json");
             gatewayHost.WriteHealthProbeAsync(gwProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(gwProbePath));
-            var gwProbeJson = File.ReadAllText(gwProbePath);
+            Assert.AreEqual(gwProbeJson, File.ReadAllText(gwProbePath));
             StringAssert.Contains(gwProbeJson, "\"isPublicationHealthy\": true");
             StringAssert.Contains(gwProbeJson, "\"outboxQueueDepth\": 0");
             StringAssert.Contains(gwProbeJson, "\"outboxRetryCount\": 0");

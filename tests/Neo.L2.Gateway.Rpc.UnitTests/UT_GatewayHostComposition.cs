@@ -152,6 +152,14 @@ public sealed class UT_GatewayHostComposition
             Assert.AreEqual(894710606u, probe.ExpectedNetwork);
             Assert.IsTrue(probe.IsPublicationProfileReady);
             Assert.IsTrue(probe.MaxAutomaticRetries >= 1);
+            Assert.AreEqual(1, probe.ProofSystem);
+            Assert.AreEqual(MerklePathRoundProver.ConstBackendId, probe.AggregationBackendId);
+            Assert.AreEqual(host.ReplayDomain.ToString(), probe.ReplayDomain);
+            Assert.AreEqual(host.VerificationKeyId.ToString(), probe.VerificationKeyId);
+            Assert.AreEqual(host.SettlementManagerHash.ToString(), probe.SettlementManagerHash);
+            Assert.AreEqual(host.MessageRouterHash.ToString(), probe.MessageRouterHash);
+            Assert.IsFalse(probe.OwnsProofProver);
+            Assert.IsTrue(probe.MetricsEntryCount >= 0);
             Assert.IsTrue(probe.HasMetrics);
             Assert.IsFalse(probe.HasPendingPublication);
             Assert.IsNull(probe.PendingPublicationEpoch);
@@ -172,6 +180,14 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(formatted, "\"isPublicationProfileReady\": true");
             StringAssert.Contains(formatted, "\"hasExpectedNetwork\": true");
             StringAssert.Contains(formatted, "\"hasMetrics\": true");
+            StringAssert.Contains(formatted, "\"proofSystem\": 1");
+            StringAssert.Contains(formatted, "\"aggregationBackendId\":");
+            StringAssert.Contains(formatted, "\"settlementManagerHash\":");
+            StringAssert.Contains(formatted, "\"messageRouterHash\":");
+            StringAssert.Contains(formatted, "\"replayDomain\":");
+            StringAssert.Contains(formatted, "\"verificationKeyId\":");
+            StringAssert.Contains(formatted, "\"ownsProofProver\": false");
+            StringAssert.Contains(formatted, "\"metricsEntryCount\":");
             Assert.IsTrue(formatted.EndsWith('\n') || formatted.EndsWith(Environment.NewLine));
             var probePath = Path.Combine(dir, "gateway-health-probe.json");
             host.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
@@ -182,13 +198,15 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(probeJson, "\"hasPendingPublication\": false");
             StringAssert.Contains(probeJson, "\"aggregatorPendingCount\": 0");
             StringAssert.Contains(probeJson, "\"outboxQueueDepth\": 0");
+            StringAssert.Contains(probeJson, "\"proofSystem\": 1");
+            StringAssert.Contains(probeJson, "\"settlementManagerHash\":");
             StringAssert.Contains(probeJson, "\"outboxRetryCount\": 0");
             StringAssert.Contains(probeJson, "\"isPublicationHealthy\": true");
             StringAssert.Contains(probeJson, "\"isOutboxIdle\": true");
             StringAssert.Contains(probeJson, "\"isOutboxPoisoned\": false");
-            // Compact probe still omits full status inventory (proof system / VK hex).
-            Assert.IsFalse(probeJson.Contains("\"proofSystem\"", StringComparison.Ordinal));
-            Assert.IsFalse(probeJson.Contains("\"verificationKeyId\"", StringComparison.Ordinal));
+            // Compact probe now includes binding identity for OfflinePassportFailures interpretability.
+            StringAssert.Contains(probeJson, "\"verificationKeyId\":");
+            StringAssert.Contains(probeJson, "\"messageRouterHash\":");
             StringAssert.Contains(statusJson, "\"hasPendingPublication\": false");
             StringAssert.Contains(statusJson, "\"aggregatorPendingCount\": 0");
             StringAssert.Contains(statusJson, "\"hasDurableOutbox\": true");

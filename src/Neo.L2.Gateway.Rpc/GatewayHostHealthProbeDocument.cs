@@ -61,6 +61,35 @@ public sealed record GatewayHostHealthProbeDocument
     /// <summary>Configured max automatic publication retries before poison.</summary>
     public required int MaxAutomaticRetries { get; init; }
 
+    /// <summary>
+    /// Terminal proof-system discriminator (helps interpret publication-profile readiness
+    /// without the full operator status dump).
+    /// </summary>
+    public required byte ProofSystem { get; init; }
+
+    /// <summary>Terminal aggregation backend id from the proof prover.</summary>
+    public required byte AggregationBackendId { get; init; }
+
+    /// <summary>Publication-profile replay domain as 0x-hex.</summary>
+    public required string ReplayDomain { get; init; }
+
+    /// <summary>Publication-profile verification key id as 0x-hex.</summary>
+    public required string VerificationKeyId { get; init; }
+
+    /// <summary>SettlementManager script hash as 0x-hex.</summary>
+    public required string SettlementManagerHash { get; init; }
+
+    /// <summary>MessageRouter script hash as 0x-hex.</summary>
+    public required string MessageRouterHash { get; init; }
+
+    /// <summary>True when this composition owns proof-prover disposal.</summary>
+    public required bool OwnsProofProver { get; init; }
+
+    /// <summary>
+    /// Metrics snapshot entry count when exportable; otherwise 0 (soft local only).
+    /// </summary>
+    public required int MetricsEntryCount { get; init; }
+
     /// <summary>Optional metrics sink was supplied at open.</summary>
     public required bool HasMetrics { get; init; }
 
@@ -127,9 +156,13 @@ public sealed record GatewayHostHealthProbeDocument
     /// <summary>Failed publication health checks (empty when healthy).</summary>
     public required IReadOnlyList<string> PublicationHealthFailures { get; init; }
 
-    /// <summary>Alias of <see cref="IsPublicationHealthy"/>.</summary>
+    /// <summary>
+    /// Combined Gateway host health (publication + metrics HTTP when plugin enabled).
+    /// </summary>
     public required bool IsGatewayHostHealthy { get; init; }
 
-    /// <summary>Alias of <see cref="PublicationHealthFailures"/>.</summary>
+    /// <summary>
+    /// Failed Gateway host health checks (publication + optional metrics HTTP).
+    /// </summary>
     public required IReadOnlyList<string> GatewayHostHealthFailures { get; init; }
 }

@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Gateway health probe adds publication binding identity — 2026-07-19
+
+- `GatewayHostHealthProbeDocument` (+ `GetHealthProbe` / `FormatHealthProbeJson` /
+  `/healthprobe`) adds `ProofSystem`, `AggregationBackendId`, `ReplayDomain`,
+  `VerificationKeyId`, `SettlementManagerHash`, `MessageRouterHash`,
+  `OwnsProofProver`, `MetricsEntryCount` so ops can interpret
+  `OfflinePassportFailures` without the full status dump.
+- E2E Multisig+Gateway co-location passes shared `metricsPlugin:` and asserts
+  metrics HTTP health + binding identity on the compact probe.
+- Wireproduction notes; unit/integration coverage. No wire/ABI change.
+- L1 publication confirmation remains a funded gate.
+
 ### Added — Gateway StartMetricsHttp with LocalHost probe parity — 2026-07-19
 
 - `GatewayHostComposition.OpenMerkle/Multisig/Sp1` accept optional `metricsPlugin:`

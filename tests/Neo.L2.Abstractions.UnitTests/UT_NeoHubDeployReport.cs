@@ -314,6 +314,7 @@ public class UT_NeoHubDeployReport
                 + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                 + "GatewayHostHealthProbeDocument JSON "
                 + "(passport + enabled/publication/outbox/rpc/network/profile flags + "
+                + "proofSystem/aggregationBackendId + replay/vk/settlement/message hashes + "
                 + "pending/queue/retry/lag runtime + metrics HTTP readiness/healthprobe/"
                 + "operatorstatus flags)",
                 stores.GetProperty("gatewayHostWriteHealthProbe").GetString());

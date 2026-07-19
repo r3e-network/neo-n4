@@ -820,6 +820,14 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(1UL, checkpoint!.BatchNumber);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, checkpoint.PostStateRoot);
 
+            AssertSoftSealLocalDaSurface(
+                req => host.PublishDaAsync(req).AsTask(),
+                receipt => host.IsDaAvailableAsync(receipt).AsTask(),
+                () => host.SupportsLocalDaReader,
+                () => host.CreateLocalDaReader(),
+                checkpoint.BatchNumber,
+                chainDir);
+
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1UL, status.LatestCheckpointBatchNumber);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, status.LatestCheckpointPostStateRoot);
@@ -975,6 +983,14 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(checkpoint);
             Assert.AreEqual(1UL, checkpoint!.BatchNumber);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, checkpoint.PostStateRoot);
+
+            AssertSoftSealLocalDaSurface(
+                req => host.PublishDaAsync(req).AsTask(),
+                receipt => host.IsDaAvailableAsync(receipt).AsTask(),
+                () => host.SupportsLocalDaReader,
+                () => host.CreateLocalDaReader(),
+                checkpoint.BatchNumber,
+                chainDir);
 
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1UL, status.LatestCheckpointBatchNumber);
@@ -1500,6 +1516,55 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             if (Directory.Exists(exeRoot))
                 Directory.Delete(exeRoot, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// Soft local DA after Multisig/Optimistic SoftSeal checkpoint: publish sealed batch
+    /// payload, pin availability + local reader round-trip, durable soft-seal-da-surface.json.
+    /// Production DA credentials / L1 DA remain funded gates (Zk SoftSeal still funded).
+    /// </summary>
+    private static void AssertSoftSealLocalDaSurface(
+        Func<DAPublishRequest, Task<DAReceipt>> publishDaAsync,
+        Func<DAReceipt, Task<bool>> isDaAvailableAsync,
+        Func<bool> supportsLocalDaReader,
+        Func<IDAReader> createLocalDaReader,
+        ulong batchNumber,
+        string chainDir)
+    {
+        Assert.IsTrue(supportsLocalDaReader());
+        var softDaPayload = new byte[] { 0xDA, 0x51, (byte)batchNumber };
+        var softDaReceipt = publishDaAsync(new DAPublishRequest
+        {
+            ChainId = 20260716u,
+            BatchNumber = batchNumber,
+            Payload = softDaPayload,
+        }).GetAwaiter().GetResult();
+        Assert.AreEqual(DAMode.Local, softDaReceipt.Layer);
+        Assert.AreEqual(DAReceiptKind.LocalPersistence, softDaReceipt.Kind);
+        Assert.IsFalse(softDaReceipt.Commitment.Equals(UInt256.Zero));
+        Assert.IsTrue(isDaAvailableAsync(softDaReceipt).GetAwaiter().GetResult());
+        var softDaReader = createLocalDaReader();
+        Assert.IsNotNull(softDaReader);
+        var softDaRead = softDaReader.ReadAsync(softDaReceipt).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(softDaRead is { Length: 3 });
+        CollectionAssert.AreEqual(softDaPayload, softDaRead!.Value.ToArray());
+
+        var softDaPath = Path.Combine(chainDir, "soft-seal-da-surface.json");
+        File.WriteAllText(softDaPath, $$"""
+            {
+              "batchNumber": {{batchNumber}},
+              "layer": "{{softDaReceipt.Layer}}",
+              "kind": "{{softDaReceipt.Kind}}",
+              "commitment": "{{softDaReceipt.Commitment}}",
+              "payloadBytes": {{softDaPayload.Length}},
+              "supportsLocalDaReader": true
+            }
+            """);
+        Assert.IsTrue(File.Exists(softDaPath));
+        var softDaFile = File.ReadAllText(softDaPath);
+        StringAssert.Contains(softDaFile, "\"supportsLocalDaReader\": true");
+        StringAssert.Contains(softDaFile, "\"batchNumber\": " + batchNumber);
+        StringAssert.Contains(softDaFile, "\"layer\": \"Local\"");
     }
 
     /// <summary>

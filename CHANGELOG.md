@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal local DA surface after checkpoint (Multisig/Opt) — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal after durable checkpoint pin local DA:
+  `PublishDaAsync` for sealed batch number, `DAMode.Local` /
+  `DAReceiptKind.LocalPersistence`, `IsDaAvailableAsync`, `CreateLocalDaReader`
+  payload round-trip, durable `soft-seal-da-surface.json`.
+- E2E shared `AssertSoftSealLocalDaSurface`. No wire/ABI change.
+- Production DA credentials / L1 DA / Zk SoftSeal remain funded gates.
+
 ### Changed — Soft inbound L1 message operator surface (Multisig/Opt/Zk) — 2026-07-20
 
 - E2E `AssertSoftInboundMessageOperatorSurface` after soft FI for Multisig/Optimistic/Zk:

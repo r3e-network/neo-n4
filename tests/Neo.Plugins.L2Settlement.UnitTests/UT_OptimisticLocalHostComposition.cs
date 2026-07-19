@@ -615,6 +615,37 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(1UL, checkpoint!.BatchNumber);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, checkpoint.PostStateRoot);
 
+            // Soft local DA after seal: publish sealed batch payload, availability + reader round-trip.
+            Assert.IsTrue(host.SupportsLocalDaReader);
+            var softDaPayload = new byte[] { 0xDA, 0x51, 0x01 };
+            var softDaReceipt = host.PublishDaAsync(new DAPublishRequest
+            {
+                ChainId = 20260716u,
+                BatchNumber = checkpoint.BatchNumber,
+                Payload = softDaPayload,
+            }).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(DAMode.Local, softDaReceipt.Layer);
+            Assert.AreEqual(DAReceiptKind.LocalPersistence, softDaReceipt.Kind);
+            Assert.IsTrue(host.IsDaAvailableAsync(softDaReceipt).AsTask().GetAwaiter().GetResult());
+            var softDaReader = host.CreateLocalDaReader();
+            Assert.IsNotNull(softDaReader);
+            var softDaRead = softDaReader.ReadAsync(softDaReceipt).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(softDaRead is { Length: 3 });
+            CollectionAssert.AreEqual(softDaPayload, softDaRead!.Value.ToArray());
+            var softDaPath = Path.Combine(chainDir, "soft-seal-da-surface.json");
+            File.WriteAllText(softDaPath, $$"""
+                {
+                  "batchNumber": {{checkpoint.BatchNumber}},
+                  "layer": "{{softDaReceipt.Layer}}",
+                  "kind": "{{softDaReceipt.Kind}}",
+                  "commitment": "{{softDaReceipt.Commitment}}",
+                  "payloadBytes": {{softDaPayload.Length}},
+                  "supportsLocalDaReader": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(softDaPath));
+            StringAssert.Contains(File.ReadAllText(softDaPath), "\"supportsLocalDaReader\": true");
+
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1UL, status.LatestCheckpointBatchNumber);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, status.LatestCheckpointPostStateRoot);

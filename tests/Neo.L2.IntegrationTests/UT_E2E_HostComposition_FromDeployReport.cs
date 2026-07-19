@@ -227,6 +227,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 () => settlementHost.HasPendingSealedBatch,
                 () => settlementHost.NextExpectedBlock,
                 () => settlementHost.NextBatchNumber);
+            AssertSoftOpenBatchOperatorSurface(
+                () => settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.FormatHealthProbeJson(),
+                path => settlementHost.WriteOperatorStatusAsync(path).AsTask(),
+                path => settlementHost.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                expectedOpenBatchBlockCount: settlementHost.MaxBlocksPerBatch > 2 ? 2 : 1);
             Assert.IsTrue(settlementHost.RegisterInboundMessageNonce(11));
             Assert.AreEqual(1, settlementHost.KnownInboundNonceCount);
             settlementHost.InvalidateInboundMessageCache();
@@ -1070,6 +1079,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 () => host.HasPendingSealedBatch,
                 () => host.NextExpectedBlock,
                 () => host.NextBatchNumber);
+            AssertSoftOpenBatchOperatorSurface(
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                expectedOpenBatchBlockCount: host.MaxBlocksPerBatch > 2 ? 2 : 1);
             var opStatus = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
@@ -1240,6 +1258,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 () => host.HasPendingSealedBatch,
                 () => host.NextExpectedBlock,
                 () => host.NextBatchNumber);
+            AssertSoftOpenBatchOperatorSurface(
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                expectedOpenBatchBlockCount: host.MaxBlocksPerBatch > 2 ? 2 : 1);
             Assert.AreEqual(host.ChainId, host.BatcherConfiguredChainId);
             Assert.AreEqual(host.ChainId, host.SettlementConfiguredChainId);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
@@ -1454,6 +1481,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
     /// <summary>
     /// Soft <c>ProcessCommittedBlock</c> open-batch when MaxBlocksPerBatch &gt; 1 (no seal / no
     /// PersistAsync). Shared by Multisig/Optimistic/Zk E2E host compositions.
+    /// When MaxBlocksPerBatch &gt; 2, also pins a second empty block still does not seal.
     /// </summary>
     private static void AssertSoftOpenBatchNoSeal(
         int maxBlocksPerBatch,
@@ -1474,6 +1502,93 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Assert.IsFalse(hasPendingSealedBatch());
         Assert.AreEqual(2UL, nextExpectedBlock());
         Assert.AreEqual(1UL, nextBatchNumber());
+        // Second empty block still under MaxBlocksPerBatch: open batch grows, no seal/PersistAsync.
+        if (maxBlocksPerBatch > 2)
+        {
+            processCommittedBlock(2, openBatchTimestampMs + 1, 894710606, Array.Empty<byte[]>());
+            Assert.IsTrue(hasOpenBatch());
+            Assert.AreEqual(2, openBatchBlockCount());
+            Assert.AreEqual(0, openBatchL1MessageCount());
+            Assert.IsFalse(hasPendingSealedBatch());
+            Assert.AreEqual(3UL, nextExpectedBlock());
+            Assert.AreEqual(1UL, nextBatchNumber());
+        }
+    }
+
+    /// <summary>
+    /// Soft open-batch operator surface: passport complete, settlement idle, pipeline healthy
+    /// (open batch under max age), durable status/probe files with <c>hasOpenBatch</c>.
+    /// Does not claim seal or L1 settle.
+    /// </summary>
+    private static void AssertSoftOpenBatchOperatorSurface(
+        Func<LocalHostOperatorStatus> getOperatorStatus,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> formatHealthProbeJson,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        string chainDir,
+        int expectedOpenBatchBlockCount)
+    {
+        var status = getOperatorStatus();
+        Assert.IsTrue(status.HasOpenBatch);
+        Assert.AreEqual(expectedOpenBatchBlockCount, status.OpenBatchBlockCount);
+        Assert.IsFalse(status.HasPendingSealedBatch);
+        Assert.IsTrue(status.IsSettlementIdle);
+        Assert.IsFalse(status.IsSettlementPoisoned);
+        Assert.IsFalse(status.IsSettlementRetrying);
+        Assert.IsFalse(status.IsOpenBatchPastMaxAge);
+        Assert.IsNotNull(status.OpenBatchAgeMillis);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        Assert.AreEqual(0, status.OfflinePassportFailures.Count);
+        Assert.IsTrue(status.IsPipelineHealthy);
+        Assert.AreEqual(0, status.PipelineHealthFailures.Count);
+        Assert.AreEqual(0, status.PendingSettlementCount);
+        Assert.IsTrue(status.IsOperatorReady);
+        Assert.IsTrue(status.IsBatcherCheckpointAligned);
+
+        var probe = getHealthProbe();
+        Assert.IsTrue(probe.HasOpenBatch);
+        Assert.AreEqual(expectedOpenBatchBlockCount, probe.OpenBatchBlockCount);
+        Assert.IsFalse(probe.HasPendingSealedBatch);
+        Assert.IsTrue(probe.IsSettlementIdle);
+        Assert.IsFalse(probe.IsOpenBatchPastMaxAge);
+        Assert.IsNotNull(probe.OpenBatchAgeMillis);
+        Assert.IsTrue(probe.IsOfflinePassportComplete);
+        Assert.IsTrue(probe.IsPipelineHealthy);
+        Assert.AreEqual(0, probe.PipelineHealthFailures.Count);
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"hasOpenBatch\": true");
+        StringAssert.Contains(statusJson, "\"isPipelineHealthy\": true");
+        StringAssert.Contains(statusJson, "\"isSettlementIdle\": true");
+        StringAssert.Contains(statusJson, "\"isOpenBatchPastMaxAge\": false");
+        StringAssert.Contains(statusJson, "\"isOfflinePassportComplete\": true");
+        StringAssert.Contains(statusJson, "\"pendingSettlementCount\": 0");
+        StringAssert.Contains(
+            statusJson,
+            "\"openBatchBlockCount\": " + expectedOpenBatchBlockCount);
+
+        var probeJson = formatHealthProbeJson();
+        StringAssert.Contains(probeJson, "\"hasOpenBatch\": true");
+        StringAssert.Contains(probeJson, "\"isPipelineHealthy\": true");
+        StringAssert.Contains(probeJson, "\"isSettlementIdle\": true");
+        StringAssert.Contains(probeJson, "\"isOpenBatchPastMaxAge\": false");
+
+        var statusPath = Path.Combine(chainDir, "soft-open-batch-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        var statusFile = File.ReadAllText(statusPath);
+        StringAssert.Contains(statusFile, "\"hasOpenBatch\": true");
+        StringAssert.Contains(statusFile, "\"isPipelineHealthy\": true");
+        StringAssert.Contains(statusFile, "\"isSettlementIdle\": true");
+
+        var probePath = Path.Combine(chainDir, "soft-open-batch-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        var probeFile = File.ReadAllText(probePath);
+        StringAssert.Contains(probeFile, "\"hasOpenBatch\": true");
+        StringAssert.Contains(probeFile, "\"isPipelineHealthy\": true");
     }
 
     /// <summary>

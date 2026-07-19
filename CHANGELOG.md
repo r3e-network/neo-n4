@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Soft open-batch multi-block + operator surface pins — 2026-07-20
+
+- E2E `AssertSoftOpenBatchNoSeal`: when `MaxBlocksPerBatch > 2`, second empty
+  `ProcessCommittedBlock` grows open batch to 2 without seal / pending sealed batch.
+- New `AssertSoftOpenBatchOperatorSurface` (Multisig/Opt/Zk E2E): open-batch ops
+  passport complete, settlement idle, pipeline healthy, not past max age,
+  `FormatOperatorStatusJson` / `FormatHealthProbeJson` + durable
+  `soft-open-batch-status.json` / `soft-open-batch-probe.json` with `hasOpenBatch`.
+- No wire/ABI change. Seal → PersistAsync / L1 settle remain separate SoftSeal + funded paths.
+
 ### Changed — SoftSeal recover fail-closed + passport/gateway independence — 2026-07-20
 
 - Multisig/Opt unit SoftSeal: wrong content hash or batch number on

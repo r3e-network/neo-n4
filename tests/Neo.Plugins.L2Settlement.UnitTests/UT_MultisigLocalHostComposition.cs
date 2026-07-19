@@ -931,10 +931,12 @@ public sealed class UT_MultisigLocalHostComposition
                 gatewayHost.GetOperatorStatus().AggregatorPendingCount);
 
             // SubmitNext/Reconcile against mock L1 cannot clear the L1 settle queue (funded gate).
-            // Best-effort path must not crash the host; pending remains ≥1.
+            // Best-effort path must not crash the host; pending remains ≥1; still Retrying.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
-            Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
+            var afterSubmit = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterSubmit.IsSettlementIdle);
+            Assert.IsTrue(afterSubmit.IsSettlementRetrying);
         }
         finally
         {

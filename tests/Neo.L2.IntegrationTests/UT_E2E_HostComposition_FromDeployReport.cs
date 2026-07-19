@@ -770,10 +770,20 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(1, status.PendingSettlementCount);
             Assert.IsFalse(status.IsSettlementIdle);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
+            // Mock L1 settle fails → durable recovery Retrying (preferred over generic idle miss).
+            Assert.IsTrue(status.IsOfflinePassportComplete);
+            Assert.IsFalse(status.IsPipelineHealthy);
+            Assert.IsTrue(status.IsSettlementRetrying);
+            Assert.IsFalse(status.IsSettlementPoisoned);
+            CollectionAssert.Contains(
+                status.PipelineHealthFailures.ToArray(),
+                nameof(status.IsSettlementRetrying));
 
             // Soft SubmitNext/Reconcile: may fire L1 client against mock; do not claim settle.
             // Pending count stays ≥1 without funded settle confirmation.
+            host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+            Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
 
             // Soft seal → gateway aggregator (no L1 PublishAggregate).
             AssertSoftSealFeedsGatewayReceiveBatch(
@@ -844,6 +854,17 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(1, status.PendingSettlementCount);
             Assert.IsFalse(status.IsSettlementIdle);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
+            Assert.IsTrue(status.IsOfflinePassportComplete);
+            Assert.IsFalse(status.IsPipelineHealthy);
+            Assert.IsTrue(status.IsSettlementRetrying);
+            Assert.IsFalse(status.IsSettlementPoisoned);
+            CollectionAssert.Contains(
+                status.PipelineHealthFailures.ToArray(),
+                nameof(status.IsSettlementRetrying));
+
+            host.SubmitNextAsync().GetAwaiter().GetResult();
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+            Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
 
             AssertSoftSealFeedsGatewayReceiveBatch(
                 host.AddRpcBatch,

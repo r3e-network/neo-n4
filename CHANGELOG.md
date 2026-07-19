@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Optimistic SoftSeal unit Gateway + E2E Retrying parity — 2026-07-19
+
+- Optimistic unit SoftSeal now matches Multisig: RPC finalize → dual-chain
+  `GatewayHostComposition.OpenMerkle` `ReceiveBatch` (aggregator pending ≥1) and
+  `SubmitNextAsync` leaves settle queue pending with `IsSettlementRetrying`.
+- Multisig unit SoftSeal `SubmitNext` also pins still-Retrying after best-effort submit.
+- E2E Multisig/Optimistic SoftSeal pins offline passport complete, pipeline unhealthy,
+  preferred `IsSettlementRetrying` failure label, then SubmitNext pending + Gateway path.
+- No wire/ABI change. L1 settle + gateway publish remain funded gates.
+  Zk soft seal still needs authenticated witness + production DA.
+
 ### Changed — Soft seal unit ops: Retrying pipeline label + Multisig→Gateway — 2026-07-19
 
 - Multisig/Optimistic unit SoftSeal pins offline passport still complete after local

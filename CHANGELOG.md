@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal E2E Opt recover parity + post-recover host health — 2026-07-20
+
+- E2E Optimistic SoftSeal pins Multisig-parity mock Reconcile→Poisoned→
+  `RecoverPoisonedBatchAsync` with durable after-recover status/probe files.
+- Multisig/Opt unit SoftSeal after recover pin rollup host health:
+  `IsLocalHostHealthy` false, `LocalHostHealthFailures` /
+  `GetLocalHostHealthFailuresAsync` contain `IsSettlementRetrying`,
+  `IsSettlementRuntimeIdleAsync` false, pipeline helpers still Retrying,
+  checkpoint + latest RPC tip retained in after-recover status JSON.
+- E2E Multisig SoftSeal after-recover also pins `IsLocalHostHealthy` + probe file.
+- No wire/ABI change. Funded L1 settle after recover remains operator-owned.
+
 ### Changed — SoftSeal RecoverPoisonedBatch local reset after mock poison — 2026-07-20
 
 - Multisig/Optimistic unit SoftSeal after Reconcile→Poisoned pins poison probe files

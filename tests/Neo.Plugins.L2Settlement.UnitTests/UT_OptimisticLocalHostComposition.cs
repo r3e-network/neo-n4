@@ -882,6 +882,25 @@ public sealed class UT_OptimisticLocalHostComposition
             host.WriteHealthProbeAsync(afterRecoverProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(afterRecoverProbePath));
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"isSettlementRetrying\": true");
+            Assert.IsFalse(afterRecover.IsLocalHostHealthy);
+            CollectionAssert.Contains(
+                afterRecover.LocalHostHealthFailures.ToArray(),
+                nameof(afterRecover.IsSettlementRetrying));
+            Assert.IsFalse(host.IsLocalHostHealthyAsync().AsTask().GetAwaiter().GetResult());
+            CollectionAssert.Contains(
+                host.GetLocalHostHealthFailuresAsync().AsTask().GetAwaiter().GetResult().ToArray(),
+                "IsSettlementRetrying");
+            Assert.IsFalse(host.IsSettlementRuntimeIdleAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsFalse(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
+            CollectionAssert.Contains(
+                host.GetPipelineHealthFailuresAsync().AsTask().GetAwaiter().GetResult().ToArray(),
+                "IsSettlementRetrying");
+            Assert.AreEqual(1UL, afterRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, afterRecover.LatestCheckpointPostStateRoot);
+            StringAssert.Contains(afterRecoverJson, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(
+                afterRecoverJson,
+                "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);

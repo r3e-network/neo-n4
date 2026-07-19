@@ -1140,6 +1140,26 @@ public sealed class UT_MultisigLocalHostComposition
             host.WriteHealthProbeAsync(afterRecoverProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(afterRecoverProbePath));
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"isSettlementRetrying\": true");
+            // Rollup host health still unhealthy while settle pending (retrying after recover).
+            Assert.IsFalse(afterRecover.IsLocalHostHealthy);
+            CollectionAssert.Contains(
+                afterRecover.LocalHostHealthFailures.ToArray(),
+                nameof(afterRecover.IsSettlementRetrying));
+            Assert.IsFalse(host.IsLocalHostHealthyAsync().AsTask().GetAwaiter().GetResult());
+            CollectionAssert.Contains(
+                host.GetLocalHostHealthFailuresAsync().AsTask().GetAwaiter().GetResult().ToArray(),
+                "IsSettlementRetrying");
+            Assert.IsFalse(host.IsSettlementRuntimeIdleAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsTrue(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult() == false);
+            CollectionAssert.Contains(
+                host.GetPipelineHealthFailuresAsync().AsTask().GetAwaiter().GetResult().ToArray(),
+                "IsSettlementRetrying");
+            Assert.AreEqual(1UL, afterRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, afterRecover.LatestCheckpointPostStateRoot);
+            StringAssert.Contains(afterRecoverJson, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(
+                afterRecoverJson,
+                "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
             // SubmitNext after recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);

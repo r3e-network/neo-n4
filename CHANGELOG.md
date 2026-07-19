@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Soft seal → Gateway ReceiveBatch after local checkpoint — 2026-07-19
+
+- E2E Multisig/Optimistic soft seal tests also pin soft gateway wiring:
+  build `L2BatchCommitment` from durable checkpoint post-state,
+  `AddRpcBatch(Finalized)`, dual-chain `GatewayHostComposition.OpenMerkle`
+  `ReceiveBatch` (aggregator pending ≥1). No `PublishAggregateAsync`.
+- Shared helper `AssertSoftSealFeedsGatewayReceiveBatch`. Completes local
+  batcher→settlement checkpoint→gateway aggregator hand-off without funded L1.
+- No wire/ABI change. L1 settle + gateway publish remain funded gates.
+
 ### Changed — E2E Multisig/Optimistic soft seal + SubmitNext pending-L1 pin — 2026-07-19
 
 - E2E tests `MultisigLocalHost_SoftSeal_EmptyBlock_PersistsLocalCheckpoint` and

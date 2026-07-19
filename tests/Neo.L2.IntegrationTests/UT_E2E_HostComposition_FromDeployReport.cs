@@ -30,8 +30,10 @@ namespace Neo.L2.IntegrationTests;
 /// <remarks>
 /// Pins the operator path documented in IMPLEMENTATION_STATUS (create-chain / init-l2
 /// artifacts + Multisig/Optimistic/Zk WireProduction / Gateway host roots), including the
-/// offline deposit mint → withdrawal seal → L2→L1 outbox path. Real RPC publication,
-/// prove-batch, production DA credentials, and gateway host daemons remain funded gates.
+/// offline deposit mint → withdrawal seal → L2→L1 outbox path and Multisig/Optimistic
+/// soft seal → local checkpoint → Gateway ReceiveBatch (no L1 settle/publish). Real RPC
+/// publication, prove-batch, production DA credentials, and gateway host daemons remain
+/// funded gates.
 /// </remarks>
 [TestClass]
 public sealed class UT_E2E_HostComposition_FromDeployReport
@@ -772,6 +774,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             // Soft SubmitNext/Reconcile: may fire L1 client against mock; do not claim settle.
             // Pending count stays ≥1 without funded settle confirmation.
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+
+            // Soft seal → gateway aggregator (no L1 PublishAggregate).
+            AssertSoftSealFeedsGatewayReceiveBatch(
+                host.AddRpcBatch,
+                host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult()!,
+                chainDir,
+                host.Metrics,
+                ProofType.Multisig,
+                Account(0x55));
         }
         finally
         {
@@ -833,6 +844,14 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(1, status.PendingSettlementCount);
             Assert.IsFalse(status.IsSettlementIdle);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
+
+            AssertSoftSealFeedsGatewayReceiveBatch(
+                host.AddRpcBatch,
+                checkpoint,
+                chainDir,
+                host.Metrics,
+                ProofType.Optimistic,
+                Account(0x57));
         }
         finally
         {
@@ -1139,6 +1158,71 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             if (Directory.Exists(exeRoot))
                 Directory.Delete(exeRoot, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// After soft seal checkpoint, pin RPC store + dual-chain Gateway ReceiveBatch
+    /// (no L1 PublishAggregate). Commitment roots follow soft seal executor post-state.
+    /// </summary>
+    private static void AssertSoftSealFeedsGatewayReceiveBatch(
+        Action<L2BatchCommitment, BatchStatus> addRpcBatch,
+        SealedBatchCheckpoint checkpoint,
+        string chainDir,
+        L2MetricsPlugin metricsPlugin,
+        ProofType proofType,
+        UInt160 gatewaySignerAccount)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+        var z = UInt256.Zero;
+        var genesisRoot = UInt256.Parse("0x" + new string('1', 64));
+        var commitment = new L2BatchCommitment
+        {
+            ChainId = 20260716u,
+            BatchNumber = checkpoint.BatchNumber,
+            FirstBlock = 1,
+            LastBlock = checkpoint.LastBlock,
+            PreStateRoot = genesisRoot,
+            PostStateRoot = checkpoint.PostStateRoot,
+            TxRoot = z,
+            ReceiptRoot = z,
+            WithdrawalRoot = z,
+            L2ToL1MessageRoot = z,
+            L2ToL2MessageRoot = z,
+            DACommitment = z,
+            PublicInputHash = z,
+            ProofType = proofType,
+            Proof = new byte[] { 0xB1 },
+        };
+        addRpcBatch(commitment, BatchStatus.Finalized);
+
+        var gatewayProof = new DelegatingGatewayProofProver(
+            proofSystem: 1,
+            aggregationBackendId: MerklePathRoundProver.ConstBackendId,
+            proofFactory: static (_, _, _) =>
+                ValueTask.FromResult<ReadOnlyMemory<byte>>(new byte[] { 0xC1 }));
+        using var gatewayHost = GatewayHostComposition.OpenMerkle(
+            chainDir,
+            gatewayProof,
+            new StubSigner(gatewaySignerAccount),
+            UInt256.Parse("0x" + new string('d', 64)),
+            UInt256.Parse("0x" + new string('e', 64)),
+            metricsPlugin: metricsPlugin);
+
+        Assert.IsTrue(gatewayHost.HasMetricsPlugin);
+        Assert.IsTrue(gatewayHost.IsOfflinePassportComplete);
+        // Dual-chain constituents so aggregator has multi-chain pending input.
+        gatewayHost.ReceiveBatch(commitment with
+        {
+            ChainId = 20260717u,
+            L2ToL2MessageRoot = Root(0xAC),
+            Proof = new byte[] { 0xB2 },
+        });
+        gatewayHost.ReceiveBatch(commitment with { Proof = new byte[] { 0xB3 } });
+        Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+        Assert.AreEqual(gatewayHost.Aggregator.PendingCount, gatewayHost.AggregatorPendingCount);
+        var gwStatus = gatewayHost.GetOperatorStatus();
+        Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwStatus.AggregatorPendingCount);
+        // PublishAggregateAsync remains a funded L1 publication gate.
     }
 
     /// <summary>

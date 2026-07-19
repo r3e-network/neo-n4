@@ -447,6 +447,11 @@ public sealed record LocalHostOperatorStatus
     public required bool HasMetricsHealthProbe { get; init; }
 
     /// <summary>
+    /// True when a <c>/operatorstatus</c> JSON body provider is installed on the metrics plugin.
+    /// </summary>
+    public required bool HasMetricsOperatorStatus { get; init; }
+
+    /// <summary>
     /// True when production deposit source and batcher deposit source are both wired.
     /// </summary>
     public required bool IsDepositPipelineWiringComplete { get; init; }
@@ -738,14 +743,15 @@ public sealed record LocalHostOperatorStatus
     /// <summary>
     /// Build metrics HTTP health failure names. When metrics are disabled, returns empty
     /// (not required). When enabled, requires wiring + listening + <c>/readyz</c> +
-    /// <c>/healthprobe</c> body provider.
+    /// <c>/healthprobe</c> + <c>/operatorstatus</c> body providers.
     /// </summary>
     public static IReadOnlyList<string> BuildMetricsHttpHealthFailures(
         bool metricsEnabled,
         bool metricsWiringComplete,
         bool metricsHttpListening,
         bool hasMetricsReadinessCheck,
-        bool hasMetricsHealthProbe)
+        bool hasMetricsHealthProbe,
+        bool hasMetricsOperatorStatus)
     {
         if (!metricsEnabled)
             return Array.Empty<string>();
@@ -759,6 +765,8 @@ public sealed record LocalHostOperatorStatus
             failures.Add(nameof(HasMetricsReadinessCheck));
         if (!hasMetricsHealthProbe)
             failures.Add(nameof(HasMetricsHealthProbe));
+        if (!hasMetricsOperatorStatus)
+            failures.Add(nameof(HasMetricsOperatorStatus));
         return failures;
     }
 

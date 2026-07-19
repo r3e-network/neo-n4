@@ -145,6 +145,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.IsMetricsWiringComplete);
             Assert.IsFalse(host.HasMetricsReadinessCheck);
             Assert.IsFalse(host.HasMetricsHealthProbe);
+            Assert.IsFalse(host.HasMetricsOperatorStatus);
             Assert.IsTrue(host.IsDepositPipelineWiringComplete);
             Assert.IsTrue(host.IsMessagePipelineWiringComplete);
             Assert.IsTrue(host.IsForcedInclusionPipelineWiringComplete);
@@ -179,6 +180,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.IsMetricsWiringComplete);
             Assert.IsFalse(status.HasMetricsReadinessCheck);
             Assert.IsFalse(status.HasMetricsHealthProbe);
+            Assert.IsFalse(status.HasMetricsOperatorStatus);
             Assert.IsTrue(status.IsDepositPipelineWiringComplete);
             Assert.IsTrue(status.IsMessagePipelineWiringComplete);
             Assert.IsTrue(status.IsForcedInclusionPipelineWiringComplete);
@@ -213,6 +215,9 @@ public sealed class UT_MultisigLocalHostComposition
             CollectionAssert.Contains(
                 status.MetricsHttpHealthFailures.ToArray(),
                 nameof(LocalHostOperatorStatus.HasMetricsHealthProbe));
+            CollectionAssert.Contains(
+                status.MetricsHttpHealthFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.HasMetricsOperatorStatus));
             CollectionAssert.AreEqual(
                 host.MetricsHttpHealthFailures.ToArray(),
                 status.MetricsHttpHealthFailures.ToArray());
@@ -687,12 +692,14 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(host.Metrics.BoundPort, host.MetricsBoundPort);
             Assert.IsTrue(host.HasMetricsReadinessCheck);
             Assert.IsTrue(host.HasMetricsHealthProbe);
+            Assert.IsTrue(host.HasMetricsOperatorStatus);
             Assert.IsTrue(host.IsOfflinePassportComplete);
             Assert.IsTrue(host.IsMetricsHttpHealthy);
             Assert.AreEqual(0, host.MetricsHttpHealthFailures.Count);
             var metricsStatus = await host.GetOperatorStatusAsync();
             Assert.IsTrue(metricsStatus.HasMetricsReadinessCheck);
             Assert.IsTrue(metricsStatus.HasMetricsHealthProbe);
+            Assert.IsTrue(metricsStatus.HasMetricsOperatorStatus);
             Assert.IsTrue(metricsStatus.IsMetricsHttpHealthy);
             Assert.AreEqual(0, metricsStatus.MetricsHttpHealthFailures.Count);
             Assert.IsTrue(metricsStatus.IsLocalHostHealthy);
@@ -722,10 +729,12 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeBody, "isLocalHostHealthy");
             StringAssert.Contains(probeBody, "isBatcherCheckpointAligned");
             StringAssert.Contains(probeBody, "hasMetricsHealthProbe");
+            StringAssert.Contains(probeBody, "hasMetricsOperatorStatus");
             StringAssert.Contains(probeBody, "hasMetricsReadinessCheck");
             var formatted = host.FormatHealthProbeJson();
             StringAssert.Contains(formatted, "isOfflinePassportComplete");
             StringAssert.Contains(formatted, "hasMetricsHealthProbe");
+            StringAssert.Contains(formatted, "hasMetricsOperatorStatus");
 
             var statusHttp = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/operatorstatus");
             Assert.AreEqual(System.Net.HttpStatusCode.OK, statusHttp.StatusCode);

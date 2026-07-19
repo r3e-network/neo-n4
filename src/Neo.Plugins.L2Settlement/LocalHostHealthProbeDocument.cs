@@ -203,6 +203,9 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Metrics <c>/healthprobe</c> JSON body provider is installed.</summary>
     public required bool HasMetricsHealthProbe { get; init; }
 
+    /// <summary>Metrics <c>/operatorstatus</c> JSON body provider is installed.</summary>
+    public required bool HasMetricsOperatorStatus { get; init; }
+
     /// <summary>Metrics HTTP health is clean (or metrics disabled).</summary>
     public required bool IsMetricsHttpHealthy { get; init; }
 

@@ -286,19 +286,21 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             metricsWiringComplete: false,
             metricsHttpListening: false,
             hasMetricsReadinessCheck: false,
-            hasMetricsHealthProbe: false);
+            hasMetricsHealthProbe: false,
+            hasMetricsOperatorStatus: false);
         Assert.AreEqual(0, failures.Count);
     }
 
     [TestMethod]
-    public void BuildMetricsHttpHealthFailures_NamesWiringListeningReadinessAndHealthProbeWhenEnabled()
+    public void BuildMetricsHttpHealthFailures_NamesWiringListeningReadinessHealthProbeAndOperatorStatusWhenEnabled()
     {
         var failures = LocalHostOperatorStatus.BuildMetricsHttpHealthFailures(
             metricsEnabled: true,
             metricsWiringComplete: false,
             metricsHttpListening: false,
             hasMetricsReadinessCheck: false,
-            hasMetricsHealthProbe: false);
+            hasMetricsHealthProbe: false,
+            hasMetricsOperatorStatus: false);
         CollectionAssert.AreEqual(
             new[]
             {
@@ -306,6 +308,7 @@ public sealed class UT_LocalHostOperatorStatusHelpers
                 nameof(LocalHostOperatorStatus.IsMetricsHttpListening),
                 nameof(LocalHostOperatorStatus.HasMetricsReadinessCheck),
                 nameof(LocalHostOperatorStatus.HasMetricsHealthProbe),
+                nameof(LocalHostOperatorStatus.HasMetricsOperatorStatus),
             },
             failures.ToArray());
 
@@ -314,7 +317,8 @@ public sealed class UT_LocalHostOperatorStatusHelpers
             metricsWiringComplete: true,
             metricsHttpListening: true,
             hasMetricsReadinessCheck: true,
-            hasMetricsHealthProbe: true);
+            hasMetricsHealthProbe: true,
+            hasMetricsOperatorStatus: true);
         Assert.AreEqual(0, ok.Count);
     }
 

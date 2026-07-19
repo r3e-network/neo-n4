@@ -153,7 +153,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsGatewayHostHealthy / GatewayHostHealthFailures (alias of publication health)");
         Console.WriteLine("               ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / IsMetricsEnabled / MetricsConfiguredPort / MetricsMaxConcurrentConnections / RegisterBridgeAsset");
-        Console.WriteLine("               IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / StartMetricsHttp / StopMetricsHttp");
+        Console.WriteLine("               IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / HasMetricsOperatorStatus / StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("  host pipe  = LocalHost.IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete");
         Console.WriteLine("               IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete");
         Console.WriteLine("               IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / IsSettlementRuntimeIdle / IsPipelineHealthy");

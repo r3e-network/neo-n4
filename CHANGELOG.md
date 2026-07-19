@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Metrics HTTP health requires `/operatorstatus` provider — 2026-07-19
+
+- Multisig/Optimistic/Zk expose `HasMetricsOperatorStatus`; operator status (+ JSON)
+  and compact health probe include the flag alongside readiness + healthprobe.
+- `BuildMetricsHttpHealthFailures` fails closed on missing `/operatorstatus` body
+  when metrics are enabled (with wiring / listening / `/readyz` / `/healthprobe`),
+  matching `StartMetricsHttp` which wires all three JSON endpoints.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 settle remains a funded gate; external scrapers remain out-of-band.
+
 ### Tested — Neo N3 testnet session13 reverify + SharedBridge deposit n14 — 2026-07-19
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

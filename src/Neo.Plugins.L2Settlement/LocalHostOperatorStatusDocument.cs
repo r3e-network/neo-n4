@@ -332,6 +332,9 @@ public sealed record LocalHostOperatorStatusDocument
     /// <summary>Metrics /healthprobe JSON body provider installed.</summary>
     public required bool HasMetricsHealthProbe { get; init; }
 
+    /// <summary>Metrics /operatorstatus JSON body provider installed.</summary>
+    public required bool HasMetricsOperatorStatus { get; init; }
+
     /// <summary>Production + batcher deposit sources both wired.</summary>
     public required bool IsDepositPipelineWiringComplete { get; init; }
 
@@ -506,6 +509,7 @@ public sealed record LocalHostOperatorStatusDocument
             IsMetricsWiringComplete = status.IsMetricsWiringComplete,
             HasMetricsReadinessCheck = status.HasMetricsReadinessCheck,
             HasMetricsHealthProbe = status.HasMetricsHealthProbe,
+            HasMetricsOperatorStatus = status.HasMetricsOperatorStatus,
             IsDepositPipelineWiringComplete = status.IsDepositPipelineWiringComplete,
             IsMessagePipelineWiringComplete = status.IsMessagePipelineWiringComplete,
             IsForcedInclusionPipelineWiringComplete = status.IsForcedInclusionPipelineWiringComplete,

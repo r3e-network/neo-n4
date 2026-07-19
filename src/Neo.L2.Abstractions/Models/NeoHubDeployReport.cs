@@ -443,6 +443,7 @@ public sealed record NeoHubDeployReport(
                         + "IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete / "
                         + "IsSecurityLevelProofTypeConsistent / IsSecurityLevelDaModeConsistent / "
                         + "IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / "
+                        + "HasMetricsOperatorStatus / "
                         + "IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete / "
                         + "IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete / "
                         + "IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / "
@@ -495,6 +496,7 @@ public sealed record NeoHubDeployReport(
                     ["localHostMetricsSettings"] =
                         "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
                         + "IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / "
+                        + "HasMetricsOperatorStatus / "
                         + "MetricsMaxConcurrentConnections / MetricsBoundPort / IsMetricsHttpListening",
                     ["localHostBridgeRegistry"] =
                         "LocalHost.BridgeAssetRegistry / RegisterBridgeAsset / "
@@ -518,7 +520,7 @@ public sealed record NeoHubDeployReport(
                         + "(passport wiring flags + pipeline/metrics/settlement + "
                         + "pending-seal/open-batch counts + batcher ack/next + durable checkpoint + "
                         + "settlement retry/lag + FI/inbox + deposit queues + message outbox + "
-                        + "HasMetricsReadinessCheck/HasMetricsHealthProbe flags)",
+                        + "HasMetricsReadinessCheck/HasMetricsHealthProbe/HasMetricsOperatorStatus flags)",
                     ["localHostWritePrometheusMetrics"] =
                         "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                     ["gatewayHostWriteOperatorStatus"] =

@@ -667,6 +667,7 @@ public sealed class MultisigLocalHostComposition : IDisposable
             IsMetricsWiringComplete = IsMetricsWiringComplete,
             HasMetricsReadinessCheck = HasMetricsReadinessCheck,
             HasMetricsHealthProbe = HasMetricsHealthProbe,
+            HasMetricsOperatorStatus = HasMetricsOperatorStatus,
             IsDepositPipelineWiringComplete = IsDepositPipelineWiringComplete,
             IsMessagePipelineWiringComplete = IsMessagePipelineWiringComplete,
             IsForcedInclusionPipelineWiringComplete = IsForcedInclusionPipelineWiringComplete,
@@ -1161,6 +1162,11 @@ public sealed class MultisigLocalHostComposition : IDisposable
     public bool HasMetricsHealthProbe => Metrics.HasHealthProbe;
 
     /// <summary>
+    /// True when a <c>/operatorstatus</c> JSON body provider is installed on the metrics plugin.
+    /// </summary>
+    public bool HasMetricsOperatorStatus => Metrics.HasOperatorStatus;
+
+    /// <summary>
     /// True when production deposit source and batcher deposit source are both wired.
     /// </summary>
     public bool IsDepositPipelineWiringComplete =>
@@ -1328,7 +1334,8 @@ public sealed class MultisigLocalHostComposition : IDisposable
             IsMetricsWiringComplete,
             IsMetricsHttpListening,
             HasMetricsReadinessCheck,
-            HasMetricsHealthProbe);
+            HasMetricsHealthProbe,
+            HasMetricsOperatorStatus);
 
     /// <summary>
     /// True when <see cref="MetricsHttpHealthFailures"/> is empty
@@ -1654,6 +1661,7 @@ public sealed class MultisigLocalHostComposition : IDisposable
             MetricsBoundPort = MetricsBoundPort,
             HasMetricsReadinessCheck = HasMetricsReadinessCheck,
             HasMetricsHealthProbe = HasMetricsHealthProbe,
+            HasMetricsOperatorStatus = HasMetricsOperatorStatus,
             IsMetricsHttpHealthy = metricsFailures.Count == 0,
             MetricsHttpHealthFailures = metricsFailures,
             IsLocalHostHealthy = localHostFailures.Count == 0,

@@ -247,6 +247,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsMetricsWiringComplete");
         StringAssert.Contains(output, "HasMetricsReadinessCheck");
         StringAssert.Contains(output, "HasMetricsHealthProbe");
+        StringAssert.Contains(output, "HasMetricsOperatorStatus");
         StringAssert.Contains(output, "IsDepositPipelineWiringComplete");
         StringAssert.Contains(output, "IsMessagePipelineWiringComplete");
         StringAssert.Contains(output, "IsForcedInclusionPipelineWiringComplete");

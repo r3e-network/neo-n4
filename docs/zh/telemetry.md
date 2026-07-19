@@ -51,8 +51,10 @@ HTTP handler 答应 5 条路径(其它都是 404):
 重启),`/readyz` 用作 readiness(失败则从负载均衡摘出)。LocalHost `StartMetricsHttp`
 把 `/readyz` 接到 offline passport,把 `/healthprobe` 接到 `FormatHealthProbeJson`
 (camelCase `LocalHostHealthProbeDocument`),把 `/operatorstatus` 接到
-`FormatOperatorStatusJsonAsync`(`LocalHostOperatorStatusDocument`)。body 带标志、
-HTTP 仍 200,便于 `curl | jq`;不声称 L1 settle / prove-batch(funded 门禁)。例如:
+`FormatOperatorStatusJsonAsync`(`LocalHostOperatorStatusDocument`)。Metrics HTTP
+健康(`BuildMetricsHttpHealthFailures` / `IsMetricsHttpHealthy`)在 metrics 启用时要求
+`HasMetricsReadinessCheck` + `HasMetricsHealthProbe` + `HasMetricsOperatorStatus`。
+body 带标志、HTTP 仍 200,便于 `curl | jq`;不声称 L1 settle / prove-batch(funded 门禁)。例如:
 
 ```csharp
 var handler = new MetricsRequestHandler(metrics, readinessCheck: () =>

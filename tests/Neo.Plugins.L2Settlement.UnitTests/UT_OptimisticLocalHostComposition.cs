@@ -302,9 +302,11 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);
             Assert.IsTrue(host.HasMetricsHealthProbe);
+            Assert.IsTrue(host.HasMetricsOperatorStatus);
             Assert.IsTrue(host.IsMetricsHttpHealthy);
             var probeAfterStart = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(probeAfterStart.HasMetricsHealthProbe);
+            Assert.IsTrue(probeAfterStart.HasMetricsOperatorStatus);
             Assert.IsTrue(probeAfterStart.HasMetricsReadinessCheck);
             Assert.IsTrue(probeAfterStart.IsMetricsHttpHealthy);
             var rpcPlugin = host.CreateRpcPlugin();

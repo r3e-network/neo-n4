@@ -211,6 +211,7 @@ public class UT_NeoHubDeployReport
                 + "IsNeoHubHashWiringComplete / IsBatcherInboxWiringComplete / "
                 + "IsSecurityLevelProofTypeConsistent / IsSecurityLevelDaModeConsistent / "
                 + "IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / "
+                + "HasMetricsOperatorStatus / "
                 + "IsDepositPipelineWiringComplete / IsMessagePipelineWiringComplete / "
                 + "IsForcedInclusionPipelineWiringComplete / IsSettlementClientWiringComplete / "
                 + "IsPipelineEnabled / IsSettlementPoisoned / IsSettlementRetrying / IsSettlementIdle / "
@@ -269,6 +270,7 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.IsMetricsEnabled / MetricsConfiguredPort / MetricsBindAddress / "
                 + "IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / "
+                + "HasMetricsOperatorStatus / "
                 + "MetricsMaxConcurrentConnections / MetricsBoundPort / IsMetricsHttpListening",
                 stores.GetProperty("localHostMetricsSettings").GetString());
             Assert.AreEqual(
@@ -297,7 +299,7 @@ public class UT_NeoHubDeployReport
                 + "(passport wiring flags + pipeline/metrics/settlement + "
                 + "pending-seal/open-batch counts + batcher ack/next + durable checkpoint + "
                 + "settlement retry/lag + FI/inbox + deposit queues + message outbox + "
-                + "HasMetricsReadinessCheck/HasMetricsHealthProbe flags)",
+                + "HasMetricsReadinessCheck/HasMetricsHealthProbe/HasMetricsOperatorStatus flags)",
                 stores.GetProperty("localHostWriteHealthProbe").GetString());
             Assert.AreEqual(
                 "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",

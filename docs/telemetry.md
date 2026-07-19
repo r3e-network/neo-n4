@@ -59,7 +59,10 @@ The HTTP handler answers five paths (everything else is 404):
 `/readyz` to offline passport completeness, `/healthprobe` to
 `FormatHealthProbeJson` (`LocalHostHealthProbeDocument` camelCase JSON),
 and `/operatorstatus` to `FormatOperatorStatusJsonAsync`
-(`LocalHostOperatorStatusDocument`).
+(`LocalHostOperatorStatusDocument`). Metrics HTTP health
+(`BuildMetricsHttpHealthFailures` / `IsMetricsHttpHealthy`) requires
+`HasMetricsReadinessCheck` + `HasMetricsHealthProbe` + `HasMetricsOperatorStatus`
+when metrics are enabled.
 `/healthprobe` and `/operatorstatus` stay HTTP 200 with flags in the body so
 ops can `curl | jq` without treating local runtime soft-fail as a scrape outage.
 They do **not** claim L1 settle or prove-batch (funded gates). For example:

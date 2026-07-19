@@ -327,8 +327,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(settlementHost.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
             var probe = settlementHost.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.IsTrue(probe.IsOperatorReady);
+            Assert.IsTrue(probe.HasBatchProver);
+            Assert.IsTrue(probe.IsDepositPipelineWiringComplete);
             Assert.IsTrue(probe.IsPipelineEnabled);
             Assert.IsFalse(probe.HasPendingSealedBatch);
+            Assert.AreEqual(0, probe.SettlementRetryCount);
             Assert.IsTrue(probe.IsBatcherCheckpointAligned);
             Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
@@ -346,7 +350,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(File.Exists(probePath));
             var probeJson = File.ReadAllText(probePath);
             StringAssert.Contains(probeJson, "\"isPipelineHealthy\": true");
+            StringAssert.Contains(probeJson, "\"isOperatorReady\": true");
             StringAssert.Contains(probeJson, "\"pendingSettlementCount\": 0");
+            StringAssert.Contains(probeJson, "\"settlementRetryCount\": 0");
             StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": true");
             StringAssert.Contains(probeJson, "\"hasMessageOutbox\": true");
             StringAssert.Contains(probeJson, $"\"consumedDepositCount\": {settlementHost.ConsumedDepositCount}");

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds passport wiring + settlement recovery — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe` JSON) adds offline passport wiring flags (`IsOperatorReady`,
+  pipeline/source wiring, config consistency) plus `PendingSealedBatchLastBlock`,
+  `SettlementRetryCount`, `SettlementConfirmationLagBatches` so ops can interpret
+  `OfflinePassportFailures` / settlement runtime without the full status dump.
+- Soft local recovery only; no L1 settle claim. Wireproduction notes; unit/integration
+  coverage. No wire/ABI change. L1 settle remains a funded gate.
+
 ### Changed — LocalHost health probe adds message/FI/deposit soft queues — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

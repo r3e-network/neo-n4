@@ -293,10 +293,9 @@ public class UT_NeoHubDeployReport
                 "LocalHost.GetHealthProbeAsync() / FormatHealthProbeJson() / "
                 + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                 + "LocalHostHealthProbeDocument JSON "
-                + "(passport/pipeline/metrics/settlement + pending-seal/open-batch counts + "
-                + "batcher ack/next + durable checkpoint numbers + "
-                + "FI/inbox + deposit ready/reserved/soft-consumed/hard-consumed + "
-                + "message outbox depths + known inbound/FI nonces + staged withdrawals + "
+                + "(passport wiring flags + pipeline/metrics/settlement + "
+                + "pending-seal/open-batch counts + batcher ack/next + durable checkpoint + "
+                + "settlement retry/lag + FI/inbox + deposit queues + message outbox + "
                 + "HasMetricsReadinessCheck/HasMetricsHealthProbe flags)",
                 stores.GetProperty("localHostWriteHealthProbe").GetString());
             Assert.AreEqual(

@@ -35,6 +35,75 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Failed offline passport checks (empty when complete).</summary>
     public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
 
+    /// <summary>Production wired and sealed-batch sink present (local operator ready).</summary>
+    public required bool IsOperatorReady { get; init; }
+
+    /// <summary>WireProduction installed the production composition (local).</summary>
+    public required bool IsProductionWired { get; init; }
+
+    /// <summary>Sealed-batch sink is installed on the batcher (local).</summary>
+    public required bool HasSealedBatchSink { get; init; }
+
+    /// <summary>Batch prover is wired on the batcher (local; not a prove-batch claim).</summary>
+    public required bool HasBatchProver { get; init; }
+
+    /// <summary>Settlement plugin enabled in settings.</summary>
+    public required bool IsSettlementEnabled { get; init; }
+
+    /// <summary>Batcher plugin enabled in settings.</summary>
+    public required bool IsBatcherEnabled { get; init; }
+
+    /// <summary>L1 JSON-RPC endpoint configured (offline; not a live RPC claim).</summary>
+    public required bool HasL1RpcEndpoint { get; init; }
+
+    /// <summary>Expected network magic configured (offline).</summary>
+    public required bool HasExpectedNetwork { get; init; }
+
+    /// <summary>Scanner deploy heights present for FI/bridge/router (offline).</summary>
+    public required bool HasScannerDeployHeights { get; init; }
+
+    /// <summary>Production deposit source wired (local).</summary>
+    public required bool HasDepositSource { get; init; }
+
+    /// <summary>Production MessageRouter wired (local).</summary>
+    public required bool HasMessageRouter { get; init; }
+
+    /// <summary>Forced-inclusion finalizer wired (local).</summary>
+    public required bool HasForcedInclusionFinalizer { get; init; }
+
+    /// <summary>Settlement client wired (local; not L1 settle claim).</summary>
+    public required bool HasSettlementClient { get; init; }
+
+    /// <summary>L1 transaction sender wired (local; not broadcast claim).</summary>
+    public required bool HasTransactionSender { get; init; }
+
+    /// <summary>Deposit pipeline wiring complete (local composition).</summary>
+    public required bool IsDepositPipelineWiringComplete { get; init; }
+
+    /// <summary>Message pipeline wiring complete (local composition).</summary>
+    public required bool IsMessagePipelineWiringComplete { get; init; }
+
+    /// <summary>Forced-inclusion pipeline wiring complete (local composition).</summary>
+    public required bool IsForcedInclusionPipelineWiringComplete { get; init; }
+
+    /// <summary>Settlement client pipeline wiring complete (local composition).</summary>
+    public required bool IsSettlementClientWiringComplete { get; init; }
+
+    /// <summary>Chain id config consistent across host/batcher/settlement/RPC (offline).</summary>
+    public required bool IsChainIdConfigConsistent { get; init; }
+
+    /// <summary>Proof type config consistent (offline).</summary>
+    public required bool IsProofTypeConfigConsistent { get; init; }
+
+    /// <summary>DA mode config consistent (offline).</summary>
+    public required bool IsDaModeConfigConsistent { get; init; }
+
+    /// <summary>NeoHub hash wiring complete (offline).</summary>
+    public required bool IsNeoHubHashWiringComplete { get; init; }
+
+    /// <summary>Batcher inbox wiring complete (offline).</summary>
+    public required bool IsBatcherInboxWiringComplete { get; init; }
+
     /// <summary>Batcher + settlement settings both enabled.</summary>
     public required bool IsPipelineEnabled { get; init; }
 
@@ -43,6 +112,9 @@ public sealed record LocalHostHealthProbeDocument
 
     /// <summary>Pending sealed batch number when present; otherwise null.</summary>
     public required ulong? PendingSealedBatchNumber { get; init; }
+
+    /// <summary>Last L2 block of the pending sealed batch when present; otherwise null.</summary>
+    public required ulong? PendingSealedBatchLastBlock { get; init; }
 
     /// <summary>A batch is currently being accumulated (local batcher).</summary>
     public required bool HasOpenBatch { get; init; }
@@ -151,6 +223,12 @@ public sealed record LocalHostHealthProbeDocument
 
     /// <summary>Durable recovery is retrying (no L1 settle claim).</summary>
     public required bool IsSettlementRetrying { get; init; }
+
+    /// <summary>Local settlement recovery retry count (no L1 claim).</summary>
+    public required int SettlementRetryCount { get; init; }
+
+    /// <summary>Local settlement confirmation lag in batches (no L1 claim).</summary>
+    public required int SettlementConfirmationLagBatches { get; init; }
 
     /// <summary>Local pending settlement artifact count (no L1 claim).</summary>
     public required int PendingSettlementCount { get; init; }

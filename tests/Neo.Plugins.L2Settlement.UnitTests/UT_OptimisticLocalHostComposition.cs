@@ -241,8 +241,13 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(formattedStatus, File.ReadAllText(statusPath));
             Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
             var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(probe.IsOperatorReady);
+            Assert.IsTrue(probe.HasBatchProver);
+            Assert.IsTrue(probe.IsDepositPipelineWiringComplete);
             Assert.IsTrue(probe.IsPipelineEnabled);
             Assert.IsFalse(probe.HasPendingSealedBatch);
+            Assert.IsNull(probe.PendingSealedBatchLastBlock);
+            Assert.AreEqual(0, probe.SettlementRetryCount);
             Assert.IsFalse(probe.HasOpenBatch);
             Assert.AreEqual(0, probe.InProgressTxCount);
             Assert.AreEqual(0, probe.OpenBatchBlockCount);
@@ -270,7 +275,9 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(File.Exists(probePath));
             var probeJson = File.ReadAllText(probePath);
             StringAssert.Contains(probeJson, "\"isSettlementRuntimeIdle\": true");
+            StringAssert.Contains(probeJson, "\"isOperatorReady\": true");
             StringAssert.Contains(probeJson, "\"isPipelineEnabled\": true");
+            StringAssert.Contains(probeJson, "\"settlementRetryCount\": 0");
             StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": true");
             StringAssert.Contains(probeJson, "\"nextBatchNumber\": 1");
             StringAssert.Contains(probeJson, "\"hasOpenBatch\": false");

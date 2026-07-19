@@ -1588,15 +1588,40 @@ public sealed class MultisigLocalHostComposition : IDisposable
         var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
         var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
             .ConfigureAwait(false);
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
         var now = nowUnixSeconds
             ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         return new LocalHostHealthProbeDocument
         {
             IsOfflinePassportComplete = IsOfflinePassportComplete,
             OfflinePassportFailures = OfflinePassportFailures,
+            IsOperatorReady = IsOperatorReady,
+            IsProductionWired = IsProductionWired,
+            HasSealedBatchSink = HasSealedBatchSink,
+            HasBatchProver = HasBatchProver,
+            IsSettlementEnabled = IsSettlementEnabled,
+            IsBatcherEnabled = IsBatcherEnabled,
+            HasL1RpcEndpoint = HasL1RpcEndpoint,
+            HasExpectedNetwork = HasExpectedNetwork,
+            HasScannerDeployHeights = HasScannerDeployHeights,
+            HasDepositSource = HasDepositSource,
+            HasMessageRouter = HasMessageRouter,
+            HasForcedInclusionFinalizer = HasForcedInclusionFinalizer,
+            HasSettlementClient = HasSettlementClient,
+            HasTransactionSender = HasTransactionSender,
+            IsDepositPipelineWiringComplete = IsDepositPipelineWiringComplete,
+            IsMessagePipelineWiringComplete = IsMessagePipelineWiringComplete,
+            IsForcedInclusionPipelineWiringComplete = IsForcedInclusionPipelineWiringComplete,
+            IsSettlementClientWiringComplete = IsSettlementClientWiringComplete,
+            IsChainIdConfigConsistent = IsChainIdConfigConsistent,
+            IsProofTypeConfigConsistent = IsProofTypeConfigConsistent,
+            IsDaModeConfigConsistent = IsDaModeConfigConsistent,
+            IsNeoHubHashWiringComplete = IsNeoHubHashWiringComplete,
+            IsBatcherInboxWiringComplete = IsBatcherInboxWiringComplete,
             IsPipelineEnabled = IsPipelineEnabled,
             HasPendingSealedBatch = HasPendingSealedBatch,
             PendingSealedBatchNumber = PendingSealedBatchNumber,
+            PendingSealedBatchLastBlock = PendingSealedBatchLastBlock,
             HasOpenBatch = HasOpenBatch,
             OpenBatchAgeMillis = OpenBatchAgeMillis,
             IsOpenBatchPastMaxAge = IsOpenBatchPastMaxAge,
@@ -1628,12 +1653,11 @@ public sealed class MultisigLocalHostComposition : IDisposable
             MetricsHttpHealthFailures = metricsFailures,
             IsLocalHostHealthy = localHostFailures.Count == 0,
             LocalHostHealthFailures = localHostFailures,
-            IsSettlementRuntimeIdle = await IsSettlementRuntimeIdleAsync(cancellationToken)
-                .ConfigureAwait(false),
-            IsSettlementPoisoned = await IsSettlementPoisonedAsync(cancellationToken)
-                .ConfigureAwait(false),
-            IsSettlementRetrying = await IsSettlementRetryingAsync(cancellationToken)
-                .ConfigureAwait(false),
+            IsSettlementRuntimeIdle = LocalHostOperatorStatus.IsSettlementRuntimeIdle(pending, recovery),
+            IsSettlementPoisoned = LocalHostOperatorStatus.IsSettlementPoisonedState(recovery),
+            IsSettlementRetrying = LocalHostOperatorStatus.IsSettlementRetryingState(recovery),
+            SettlementRetryCount = recovery.RetryCount,
+            SettlementConfirmationLagBatches = recovery.ConfirmationLagBatches,
             PendingSettlementCount = pending,
             DepositSourceReadyCount = DepositSourceReadyCount,
             DepositSourceReservedCount = DepositSourceReservedCount,

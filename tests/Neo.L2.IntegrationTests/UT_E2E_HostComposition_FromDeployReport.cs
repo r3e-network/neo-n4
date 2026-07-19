@@ -236,6 +236,21 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => settlementHost.WriteHealthProbeAsync(path).AsTask(),
                 chainDir,
                 expectedOpenBatchBlockCount: settlementHost.MaxBlocksPerBatch > 2 ? 2 : 1);
+            AssertSoftForcedInclusionOperatorSurface(
+                settlementHost.RegisterForcedInclusionNonce,
+                () => settlementHost.KnownForcedInclusionNonceCount,
+                () => settlementHost.HasBatchForcedInclusionSource,
+                () => settlementHost.HasOverdueForcedInclusionCached(),
+                settlementHost.InvalidateForcedInclusionCache,
+                () => settlementHost.OpenBatchForcedInclusionCount,
+                () => settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.FormatHealthProbeJson(),
+                path => settlementHost.WriteOperatorStatusAsync(path).AsTask(),
+                path => settlementHost.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                softNonce: 11);
             Assert.IsTrue(settlementHost.RegisterInboundMessageNonce(11));
             Assert.AreEqual(1, settlementHost.KnownInboundNonceCount);
             settlementHost.InvalidateInboundMessageCache();
@@ -328,7 +343,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(settlementHost.GetLatestRpcStateRoot(), opStatus.LatestRpcStateRoot);
             Assert.IsNotNull(settlementHost.ForcedInclusionFinalizer);
             Assert.IsNotNull(settlementHost.TransactionSender);
-            Assert.IsTrue(settlementHost.RegisterForcedInclusionNonce(11));
+            // Soft FI nonce 11 already registered in AssertSoftForcedInclusionOperatorSurface.
+            Assert.IsFalse(settlementHost.RegisterForcedInclusionNonce(11));
             Assert.AreEqual(1, settlementHost.KnownForcedInclusionNonceCount);
             Assert.IsTrue(settlementHost.HasBatchForcedInclusionSource);
             Assert.IsNotNull(settlementHost.MessageOutbox);
@@ -1106,6 +1122,21 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => host.WriteHealthProbeAsync(path).AsTask(),
                 chainDir,
                 expectedOpenBatchBlockCount: host.MaxBlocksPerBatch > 2 ? 2 : 1);
+            AssertSoftForcedInclusionOperatorSurface(
+                host.RegisterForcedInclusionNonce,
+                () => host.KnownForcedInclusionNonceCount,
+                () => host.HasBatchForcedInclusionSource,
+                () => host.HasOverdueForcedInclusionCached(),
+                host.InvalidateForcedInclusionCache,
+                () => host.OpenBatchForcedInclusionCount,
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                softNonce: 11);
             var opStatus = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
@@ -1307,6 +1338,21 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => host.WriteHealthProbeAsync(path).AsTask(),
                 chainDir,
                 expectedOpenBatchBlockCount: host.MaxBlocksPerBatch > 2 ? 2 : 1);
+            AssertSoftForcedInclusionOperatorSurface(
+                host.RegisterForcedInclusionNonce,
+                () => host.KnownForcedInclusionNonceCount,
+                () => host.HasBatchForcedInclusionSource,
+                () => host.HasOverdueForcedInclusionCached(),
+                host.InvalidateForcedInclusionCache,
+                () => host.OpenBatchForcedInclusionCount,
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                softNonce: 11);
             Assert.AreEqual(host.ChainId, host.BatcherConfiguredChainId);
             Assert.AreEqual(host.ChainId, host.SettlementConfiguredChainId);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
@@ -1651,6 +1697,90 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         var probeFile = File.ReadAllText(probePath);
         StringAssert.Contains(probeFile, "\"hasOpenBatch\": true");
         StringAssert.Contains(probeFile, "\"isPipelineHealthy\": true");
+    }
+
+    /// <summary>
+    /// Soft ForcedInclusion ops surface: register a known L1 nonce offline (no scan),
+    /// pin cache/status/probe, open-batch FI count stays 0 without L1 drain entries,
+    /// overdue remains false without cached getEntry deadlines. L1 FI drain/finalization
+    /// remain funded gates.
+    /// </summary>
+    private static void AssertSoftForcedInclusionOperatorSurface(
+        Func<ulong, bool> registerForcedInclusionNonce,
+        Func<int> knownForcedInclusionNonceCount,
+        Func<bool> hasBatchForcedInclusionSource,
+        Func<bool> hasOverdueForcedInclusionCached,
+        Action invalidateForcedInclusionCache,
+        Func<int> openBatchForcedInclusionCount,
+        Func<LocalHostOperatorStatus> getOperatorStatus,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> formatHealthProbeJson,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        string chainDir,
+        ulong softNonce)
+    {
+        Assert.IsTrue(hasBatchForcedInclusionSource());
+        Assert.IsTrue(registerForcedInclusionNonce(softNonce));
+        Assert.IsFalse(registerForcedInclusionNonce(softNonce));
+        Assert.AreEqual(1, knownForcedInclusionNonceCount());
+        // Soft nonce bookkeeping only — FI txs enter open batches via L1 drain, not Register alone.
+        Assert.AreEqual(0, openBatchForcedInclusionCount());
+        Assert.IsFalse(hasOverdueForcedInclusionCached());
+
+        invalidateForcedInclusionCache();
+        Assert.AreEqual(1, knownForcedInclusionNonceCount());
+        Assert.IsFalse(hasOverdueForcedInclusionCached());
+
+        var status = getOperatorStatus();
+        Assert.AreEqual(1, status.KnownForcedInclusionNonceCount);
+        Assert.IsTrue(status.HasBatchForcedInclusionSource);
+        Assert.IsTrue(status.IsForcedInclusionPipelineWiringComplete);
+        Assert.IsFalse(status.HasOverdueForcedInclusion);
+        Assert.AreEqual(0, status.OpenBatchForcedInclusionCount);
+        Assert.IsTrue(status.IsPipelineHealthy);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        Assert.IsTrue(status.IsOperatorReady);
+        CollectionAssert.DoesNotContain(
+            status.PipelineHealthFailures.ToArray(),
+            nameof(status.HasOverdueForcedInclusion));
+
+        var probe = getHealthProbe();
+        Assert.AreEqual(1, probe.KnownForcedInclusionNonceCount);
+        Assert.IsTrue(probe.HasBatchForcedInclusionSource);
+        Assert.IsTrue(probe.IsForcedInclusionPipelineWiringComplete);
+        Assert.IsFalse(probe.HasOverdueForcedInclusion);
+        Assert.AreEqual(0, probe.OpenBatchForcedInclusionCount);
+        Assert.IsTrue(probe.IsPipelineHealthy);
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(statusJson, "\"hasBatchForcedInclusionSource\": true");
+        StringAssert.Contains(statusJson, "\"isForcedInclusionPipelineWiringComplete\": true");
+        StringAssert.Contains(statusJson, "\"hasOverdueForcedInclusion\": false");
+        StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
+        StringAssert.Contains(statusJson, "\"isPipelineHealthy\": true");
+
+        var probeJson = formatHealthProbeJson();
+        StringAssert.Contains(probeJson, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(probeJson, "\"hasOverdueForcedInclusion\": false");
+        StringAssert.Contains(probeJson, "\"openBatchForcedInclusionCount\": 0");
+
+        var statusPath = Path.Combine(chainDir, "soft-fi-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        var statusFile = File.ReadAllText(statusPath);
+        StringAssert.Contains(statusFile, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(statusFile, "\"hasOverdueForcedInclusion\": false");
+        StringAssert.Contains(statusFile, "\"hasBatchForcedInclusionSource\": true");
+
+        var probePath = Path.Combine(chainDir, "soft-fi-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        var probeFile = File.ReadAllText(probePath);
+        StringAssert.Contains(probeFile, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(probeFile, "\"hasOverdueForcedInclusion\": false");
     }
 
     /// <summary>

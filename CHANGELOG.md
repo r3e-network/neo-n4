@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Soft ForcedInclusion operator surface (Multisig/Opt/Zk) — 2026-07-20
+
+- E2E `AssertSoftForcedInclusionOperatorSurface` after soft open-batch for
+  Multisig/Optimistic/Zk: offline `RegisterForcedInclusionNonce` (idempotent),
+  `KnownForcedInclusionNonceCount=1`, `OpenBatchForcedInclusionCount=0` without
+  L1 drain, `HasOverdueForcedInclusionCached` false after invalidate, pipeline
+  healthy (overdue not in failures), status/probe + durable
+  `soft-fi-status.json` / `soft-fi-probe.json`.
+- Multisig re-register of the same soft nonce fails closed (already known).
+- No wire/ABI change. L1 FI scan/finalization remain funded gates.
+
 ### Changed — Offline bridge → L2 RPC store proof hand-off — 2026-07-20
 
 - E2E Multisig/Optimistic/Zk after offline mint/withdrawal/outbox pins

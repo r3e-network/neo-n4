@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — E2E Multisig/Optimistic/Zk offline bridge mint→withdrawal→outbox — 2026-07-19
+
+- `UT_E2E_HostComposition_FromDeployReport` exercises the offline deposit mint →
+  `StageWithdrawal` / `SealWithdrawalBatch` → `EnqueueOutboundMessagesAsync` path on
+  Multisig, Optimistic, and Zk host compositions opened from the public testnet deploy
+  report (shared helper; no funded L1 scan/claim).
+- Complements unit coverage so WireProduction deposit/bridge/message pipelines are
+  integration-pinned end-to-end. No wire/ABI change.
+- L1 scan / settle / prove-batch / withdrawal claim remain funded gates.
+
 ### Changed — Optimistic/Zk offline withdrawal staging + L2→L1 outbox coverage — 2026-07-19
 
 - Unit coverage: Optimistic + Zk host compositions exercise offline

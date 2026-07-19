@@ -1,9 +1,11 @@
 using System.Net;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using Neo.Cryptography.ECC;
 using Neo.L2;
 using Neo.L2.Batch;
+using Neo.L2.Bridge;
 using Neo.L2.Executor;
 using Neo.L2.Executor.ProofWitness;
 using Neo.L2.Gateway.Rpc;
@@ -12,6 +14,7 @@ using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Proving.RiscVZk;
 using Neo.L2.Settlement.Rpc;
+using Neo.L2.State;
 using Neo.Network.P2P.Payloads;
 using Neo.Plugins.L2;
 using Neo.Plugins.L2Gateway;
@@ -26,9 +29,9 @@ namespace Neo.L2.IntegrationTests;
 /// </summary>
 /// <remarks>
 /// Pins the operator path documented in IMPLEMENTATION_STATUS (create-chain / init-l2
-/// artifacts + Multisig/Optimistic/Zk WireProduction / Gateway host roots). Real RPC
-/// publication, prove-batch, production DA credentials, and gateway host daemons remain
-/// funded gates.
+/// artifacts + Multisig/Optimistic/Zk WireProduction / Gateway host roots), including the
+/// offline deposit mint → withdrawal seal → L2→L1 outbox path. Real RPC publication,
+/// prove-batch, production DA credentials, and gateway host daemons remain funded gates.
 /// </remarks>
 [TestClass]
 public sealed class UT_E2E_HostComposition_FromDeployReport
@@ -431,6 +434,20 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 Assert.AreEqual(System.Net.HttpStatusCode.OK, ready.StatusCode);
             }
 
+            // Offline deposit → withdrawal → L2→L1 outbox (no funded L1 scan/claim).
+            AssertOfflineBridgeMintWithdrawalOutbox(
+                settlementHost.RegisterBridgeAsset,
+                settlementHost.ProcessDeposit,
+                settlementHost.HasConsumedDeposit,
+                () => settlementHost.ConsumedDepositCount,
+                settlementHost.ProcessReadyDeposits,
+                settlementHost.StageWithdrawal,
+                () => settlementHost.StagedWithdrawalCount,
+                settlementHost.SealWithdrawalBatch,
+                msgs => settlementHost.EnqueueOutboundMessagesAsync(msgs).AsTask(),
+                () => settlementHost.MessageOutbox!.L2ToL1Count,
+                () => settlementHost.MessageOutboxL2ToL1Root);
+
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
                 aggregationBackendId: MerklePathRoundProver.ConstBackendId,
@@ -756,6 +773,19 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(optStatusJson, "\"hasMessageOutbox\": true");
             StringAssert.Contains(optStatusJson, "\"batcherConfiguredChainId\":");
 
+            AssertOfflineBridgeMintWithdrawalOutbox(
+                host.RegisterBridgeAsset,
+                host.ProcessDeposit,
+                host.HasConsumedDeposit,
+                () => host.ConsumedDepositCount,
+                host.ProcessReadyDeposits,
+                host.StageWithdrawal,
+                () => host.StagedWithdrawalCount,
+                host.SealWithdrawalBatch,
+                msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
+                () => host.MessageOutbox!.L2ToL1Count,
+                () => host.MessageOutboxL2ToL1Root);
+
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
                 aggregationBackendId: MerklePathRoundProver.ConstBackendId,
@@ -869,6 +899,19 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(host.CreateRpcPlugin());
             Assert.AreEqual(0, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
 
+            AssertOfflineBridgeMintWithdrawalOutbox(
+                host.RegisterBridgeAsset,
+                host.ProcessDeposit,
+                host.HasConsumedDeposit,
+                () => host.ConsumedDepositCount,
+                host.ProcessReadyDeposits,
+                host.StageWithdrawal,
+                () => host.StagedWithdrawalCount,
+                host.SealWithdrawalBatch,
+                msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
+                () => host.MessageOutbox!.L2ToL1Count,
+                () => host.MessageOutboxL2ToL1Root);
+
             // Validity + Gateway SP1 one-shot share the chain directory (no funded daemon traffic).
             var gatewayVk = Hash(0x88);
             using var gatewayHost = GatewayHostComposition.OpenSp1(
@@ -899,6 +942,95 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             if (Directory.Exists(exeRoot))
                 Directory.Delete(exeRoot, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// Offline bridge pipeline shared by Multisig/Optimistic/Zk host compositions:
+    /// register asset → ProcessDeposit → StageWithdrawal/Seal → EnqueueOutbound (L2→L1).
+    /// Does not claim L1 scan, settle, prove-batch, or withdrawal claim (funded gates).
+    /// </summary>
+    private static void AssertOfflineBridgeMintWithdrawalOutbox(
+        Action<AssetMapping> registerBridgeAsset,
+        Func<CrossChainMessage, MintInstruction> processDeposit,
+        Func<uint, ulong, bool> hasConsumedDeposit,
+        Func<int> consumedDepositCount,
+        Func<int, IReadOnlyList<MintInstruction>> processReadyDeposits,
+        Func<WithdrawalRequest, UInt256> stageWithdrawal,
+        Func<int> stagedWithdrawalCount,
+        Func<(UInt256 Root, WithdrawalTree Tree)> sealWithdrawalBatch,
+        Func<IReadOnlyList<CrossChainMessage>, Task> enqueueOutbound,
+        Func<int> messageOutboxL2ToL1Count,
+        Func<UInt256> messageOutboxL2ToL1Root)
+    {
+        var l1Asset = UInt160.Parse("0x" + new string('1', 40));
+        var l2Asset = UInt160.Parse("0x" + new string('2', 40));
+        registerBridgeAsset(new AssetMapping
+        {
+            L1Asset = l1Asset,
+            L2Asset = l2Asset,
+            L2ChainId = 20260716u,
+            L1Decimals = 8,
+            L2Decimals = 8,
+            AssetType = AssetType.Gas,
+            MintBurn = true,
+            LockMint = true,
+            Active = true,
+        });
+        var depositPayload = new DepositPayload
+        {
+            L1Asset = l1Asset,
+            L2Recipient = Account(0x55),
+            Amount = new BigInteger(1_000),
+        };
+        var depositMsg = new CrossChainMessage
+        {
+            SourceChainId = 0,
+            TargetChainId = 20260716u,
+            Nonce = 1,
+            Sender = Account(0x66),
+            Receiver = Account(0x55),
+            MessageType = MessageType.Deposit,
+            Payload = depositPayload.Encode(),
+            MessageHash = UInt256.Zero,
+        };
+        var mint = processDeposit(depositMsg);
+        Assert.AreEqual(l2Asset, mint.L2Asset);
+        Assert.IsTrue(hasConsumedDeposit(0, 1));
+        Assert.AreEqual(1, consumedDepositCount());
+        Assert.AreEqual(0, processReadyDeposits(64).Count);
+
+        var sender = Account(0x77);
+        var wdLeaf = stageWithdrawal(new WithdrawalRequest
+        {
+            ChainId = 20260716u,
+            EmittingContract = sender,
+            L2Sender = sender,
+            L1Recipient = sender,
+            L2Asset = l2Asset,
+            Amount = new BigInteger(50),
+            Nonce = 1,
+        });
+        Assert.AreNotEqual(UInt256.Zero, wdLeaf);
+        Assert.AreEqual(1, stagedWithdrawalCount());
+        var sealedWd = sealWithdrawalBatch();
+        Assert.AreNotEqual(UInt256.Zero, sealedWd.Root);
+        Assert.AreEqual(0, stagedWithdrawalCount());
+
+        var outboundDraft = new CrossChainMessage
+        {
+            SourceChainId = 20260716u,
+            TargetChainId = 0,
+            Nonce = 9,
+            Sender = sender,
+            Receiver = sender,
+            MessageType = MessageType.Event,
+            Payload = new byte[] { 0x01 },
+            MessageHash = UInt256.Zero,
+        };
+        var outbound = outboundDraft with { MessageHash = MessageHasher.HashMessage(outboundDraft) };
+        enqueueOutbound([outbound]).GetAwaiter().GetResult();
+        Assert.AreEqual(1, messageOutboxL2ToL1Count());
+        Assert.AreNotEqual(UInt256.Zero, messageOutboxL2ToL1Root());
     }
 
     private static string ResolveDeployReportPath() =>

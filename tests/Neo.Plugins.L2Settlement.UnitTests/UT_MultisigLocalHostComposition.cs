@@ -6,11 +6,14 @@ using Neo.L2;
 using Neo.L2.Batch;
 using Neo.L2.Bridge;
 using Neo.L2.Executor.ProofWitness;
+using Neo.L2.Gateway.Rpc;
+using Neo.L2.Persistence;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.State;
 using Neo.Network.P2P.Payloads;
+using Neo.Plugins.L2Gateway;
 using Neo.Plugins.L2Rpc;
 using Neo.Wallets;
 
@@ -847,6 +850,25 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(status.HasOpenBatch);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
             Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
+            // Offline passport still complete; pipeline unhealthy from settlement Retrying
+            // after mock L1 settle fails (preferred recovery label over generic IsSettlementIdle).
+            Assert.IsTrue(status.IsOfflinePassportComplete);
+            Assert.AreEqual(0, status.OfflinePassportFailures.Count);
+            Assert.IsFalse(status.IsPipelineHealthy);
+            Assert.IsTrue(status.IsSettlementRetrying);
+            Assert.IsFalse(status.IsSettlementPoisoned);
+            CollectionAssert.Contains(
+                status.PipelineHealthFailures.ToArray(),
+                nameof(status.IsSettlementRetrying));
+            CollectionAssert.DoesNotContain(
+                status.PipelineHealthFailures.ToArray(),
+                nameof(status.IsSettlementIdle));
+            Assert.IsTrue(status.SettlementRetryCount >= 1);
+            var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(SettlementRecoveryState.Retrying, recovery.State);
+            Assert.AreEqual(1, recovery.PendingCount);
+            Assert.IsFalse(string.IsNullOrEmpty(recovery.LastError));
+            Assert.IsTrue(recovery.RetryCount >= 1);
 
             var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1UL, probe.LatestCheckpointBatchNumber);
@@ -855,6 +877,58 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(probe.IsSettlementIdle);
             Assert.IsFalse(probe.HasOpenBatch);
             Assert.IsFalse(probe.HasPendingSealedBatch);
+            Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.IsFalse(probe.IsPipelineHealthy);
+            Assert.IsTrue(probe.IsSettlementRetrying);
+            CollectionAssert.Contains(probe.PipelineHealthFailures.ToArray(), "IsSettlementRetrying");
+
+            // Soft seal → gateway aggregator (no L1 PublishAggregate).
+            var z = UInt256.Zero;
+            var genesisRoot = UInt256.Parse("0x" + new string('1', 64));
+            var commitment = new L2BatchCommitment
+            {
+                ChainId = 20260716u,
+                BatchNumber = checkpoint.BatchNumber,
+                FirstBlock = 1,
+                LastBlock = checkpoint.LastBlock,
+                PreStateRoot = genesisRoot,
+                PostStateRoot = checkpoint.PostStateRoot,
+                TxRoot = z,
+                ReceiptRoot = z,
+                WithdrawalRoot = z,
+                L2ToL1MessageRoot = z,
+                L2ToL2MessageRoot = z,
+                DACommitment = z,
+                PublicInputHash = z,
+                ProofType = ProofType.Multisig,
+                Proof = new byte[] { 0xB1 },
+            };
+            host.AddRpcBatch(commitment, BatchStatus.Finalized);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+
+            var gatewayProof = new DelegatingGatewayProofProver(
+                proofSystem: 1,
+                aggregationBackendId: MerklePathRoundProver.ConstBackendId,
+                proofFactory: static (_, _, _) =>
+                    ValueTask.FromResult<ReadOnlyMemory<byte>>(new byte[] { 0xC1 }));
+            using var gatewayHost = GatewayHostComposition.OpenMerkle(
+                chainDir,
+                gatewayProof,
+                new StubSigner(Account(0x55)),
+                UInt256.Parse("0x" + new string('d', 64)),
+                UInt256.Parse("0x" + new string('e', 64)),
+                metricsPlugin: host.Metrics);
+            gatewayHost.ReceiveBatch(commitment with
+            {
+                ChainId = 20260717u,
+                L2ToL2MessageRoot = Root(0xAC),
+                Proof = new byte[] { 0xB2 },
+            });
+            gatewayHost.ReceiveBatch(commitment with { Proof = new byte[] { 0xB3 } });
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+            Assert.AreEqual(
+                gatewayHost.AggregatorPendingCount,
+                gatewayHost.GetOperatorStatus().AggregatorPendingCount);
 
             // SubmitNext/Reconcile against mock L1 cannot clear the L1 settle queue (funded gate).
             // Best-effort path must not crash the host; pending remains ≥1.

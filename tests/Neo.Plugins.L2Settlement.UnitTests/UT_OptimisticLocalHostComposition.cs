@@ -6,6 +6,7 @@ using Neo.L2;
 using Neo.L2.Batch;
 using Neo.L2.Bridge;
 using Neo.L2.Executor.ProofWitness;
+using Neo.L2.Persistence;
 using Neo.L2.Proving;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.State;
@@ -610,6 +611,33 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(1, status.PendingSettlementCount);
             Assert.IsFalse(status.IsSettlementIdle);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
+            // Offline passport still complete; pipeline unhealthy from settlement Retrying
+            // after mock L1 settle fails (preferred recovery label over generic IsSettlementIdle).
+            Assert.IsTrue(status.IsOfflinePassportComplete);
+            Assert.AreEqual(0, status.OfflinePassportFailures.Count);
+            Assert.IsFalse(status.IsPipelineHealthy);
+            Assert.IsTrue(status.IsSettlementRetrying);
+            Assert.IsFalse(status.IsSettlementPoisoned);
+            CollectionAssert.Contains(
+                status.PipelineHealthFailures.ToArray(),
+                nameof(status.IsSettlementRetrying));
+            CollectionAssert.DoesNotContain(
+                status.PipelineHealthFailures.ToArray(),
+                nameof(status.IsSettlementIdle));
+            Assert.IsTrue(status.SettlementRetryCount >= 1);
+            var recovery = host.GetRecoveryStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(SettlementRecoveryState.Retrying, recovery.State);
+            Assert.AreEqual(1, recovery.PendingCount);
+            Assert.IsFalse(string.IsNullOrEmpty(recovery.LastError));
+            Assert.IsTrue(recovery.RetryCount >= 1);
+
+            var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(1, probe.PendingSettlementCount);
+            Assert.IsFalse(probe.IsSettlementIdle);
+            Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.IsFalse(probe.IsPipelineHealthy);
+            Assert.IsTrue(probe.IsSettlementRetrying);
+            CollectionAssert.Contains(probe.PipelineHealthFailures.ToArray(), "IsSettlementRetrying");
         }
         finally
         {

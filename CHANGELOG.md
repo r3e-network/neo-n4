@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Soft seal unit ops: Retrying pipeline label + Multisig→Gateway — 2026-07-19
+
+- Multisig/Optimistic unit SoftSeal pins offline passport still complete after local
+  checkpoint; pipeline unhealthy with preferred recovery label **`IsSettlementRetrying`**
+  (mock L1 settle fails → durable recovery `Retrying`, not generic `IsSettlementIdle`).
+- Recovery pins: `State=Retrying`, `PendingCount=1`, non-empty `LastError`,
+  `SettlementRetryCount` / `RetryCount` ≥1; probe parity for retrying failures.
+- Multisig SoftSeal also pins unit soft seal → RPC finalize → dual-chain
+  `GatewayHostComposition.OpenMerkle` `ReceiveBatch` (aggregator pending ≥1).
+  No `PublishAggregateAsync`. Complements E2E soft seal→Gateway coverage.
+- No wire/ABI change. L1 settle + gateway publish remain funded gates.
+
 ### Tested — Neo N3 testnet session15 reverify + SharedBridge deposit n16 — 2026-07-19
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

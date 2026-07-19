@@ -216,6 +216,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(UInt256.Zero, settlementHost.MessageOutboxL2ToL1Root);
             Assert.AreEqual(0, settlementHost.OpenBatchBlockCount);
             Assert.IsFalse(settlementHost.TryRetryPendingSealedBatch());
+            AssertSoftOpenBatchNoSeal(
+                settlementHost.MaxBlocksPerBatch,
+                (idx, ts, net, txs) => settlementHost.ProcessCommittedBlock(idx, ts, net, txs),
+                () => settlementHost.HasOpenBatch,
+                () => settlementHost.OpenBatchBlockCount,
+                () => settlementHost.OpenBatchL1MessageCount,
+                () => settlementHost.HasPendingSealedBatch,
+                () => settlementHost.NextExpectedBlock,
+                () => settlementHost.NextBatchNumber);
             Assert.IsTrue(settlementHost.RegisterInboundMessageNonce(11));
             Assert.AreEqual(1, settlementHost.KnownInboundNonceCount);
             settlementHost.InvalidateInboundMessageCache();
@@ -746,6 +755,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(host.HasSealedBatchSink);
             Assert.AreEqual(ProofType.Optimistic, host.ProofType);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
+            AssertSoftOpenBatchNoSeal(
+                host.MaxBlocksPerBatch,
+                (idx, ts, net, txs) => host.ProcessCommittedBlock(idx, ts, net, txs),
+                () => host.HasOpenBatch,
+                () => host.OpenBatchBlockCount,
+                () => host.OpenBatchL1MessageCount,
+                () => host.HasPendingSealedBatch,
+                () => host.NextExpectedBlock,
+                () => host.NextBatchNumber);
             var opStatus = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(opStatus.IsOperatorReady);
             Assert.AreEqual(0, opStatus.PendingSettlementCount);
@@ -907,6 +925,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(host.IsChainIdConfigConsistent);
             Assert.IsTrue(host.IsProofTypeConfigConsistent);
             Assert.AreEqual(DAMode.L1, host.DaMode);
+            AssertSoftOpenBatchNoSeal(
+                host.MaxBlocksPerBatch,
+                (idx, ts, net, txs) => host.ProcessCommittedBlock(idx, ts, net, txs),
+                () => host.HasOpenBatch,
+                () => host.OpenBatchBlockCount,
+                () => host.OpenBatchL1MessageCount,
+                () => host.HasPendingSealedBatch,
+                () => host.NextExpectedBlock,
+                () => host.NextBatchNumber);
             Assert.AreEqual(host.ChainId, host.BatcherConfiguredChainId);
             Assert.AreEqual(host.ChainId, host.SettlementConfiguredChainId);
             Assert.AreEqual(0, host.PeekSharedBridgeDeposits(8).Count);
@@ -985,6 +1012,31 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             if (Directory.Exists(exeRoot))
                 Directory.Delete(exeRoot, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// Soft <c>ProcessCommittedBlock</c> open-batch when MaxBlocksPerBatch &gt; 1 (no seal / no
+    /// PersistAsync). Shared by Multisig/Optimistic/Zk E2E host compositions.
+    /// </summary>
+    private static void AssertSoftOpenBatchNoSeal(
+        int maxBlocksPerBatch,
+        Action<uint, ulong, uint, IEnumerable<byte[]>> processCommittedBlock,
+        Func<bool> hasOpenBatch,
+        Func<int> openBatchBlockCount,
+        Func<int> openBatchL1MessageCount,
+        Func<bool> hasPendingSealedBatch,
+        Func<ulong?> nextExpectedBlock,
+        Func<ulong> nextBatchNumber)
+    {
+        Assert.IsTrue(maxBlocksPerBatch > 1);
+        var openBatchTimestampMs = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        processCommittedBlock(1, openBatchTimestampMs, 894710606, Array.Empty<byte[]>());
+        Assert.IsTrue(hasOpenBatch());
+        Assert.AreEqual(1, openBatchBlockCount());
+        Assert.AreEqual(0, openBatchL1MessageCount());
+        Assert.IsFalse(hasPendingSealedBatch());
+        Assert.AreEqual(2UL, nextExpectedBlock());
+        Assert.AreEqual(1UL, nextBatchNumber());
     }
 
     /// <summary>
@@ -1234,24 +1286,39 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         return new HttpClient(new MockHandler(async (request, _) =>
         {
             var body = await request.Content!.ReadAsStringAsync();
+            // Echo request id so concurrent deposit/FI/message drain scans match JSON-RPC ids.
+            var idToken = "1";
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("id", out var idEl))
+                    idToken = idEl.ValueKind == System.Text.Json.JsonValueKind.Number
+                        ? idEl.GetRawText()
+                        : System.Text.Json.JsonSerializer.Serialize(idEl.GetString());
+            }
+            catch
+            {
+                // keep default id
+            }
             if (body.Contains("getversion", StringComparison.Ordinal))
             {
                 return Json(
-                    """{"jsonrpc":"2.0","id":1,"result":{"protocol":{"network":894710606,"addressversion":53}}}""");
+                    $"{{\"jsonrpc\":\"2.0\",\"id\":{idToken},\"result\":{{\"protocol\":{{\"network\":894710606,\"addressversion\":53}}}}}}");
             }
             if (body.Contains("getblockcount", StringComparison.Ordinal))
             {
-                return Json("""{"jsonrpc":"2.0","id":1,"result":100}""");
+                return Json($"{{\"jsonrpc\":\"2.0\",\"id\":{idToken},\"result\":100}}");
             }
             if (body.Contains("invokefunction", StringComparison.Ordinal)
                 || body.Contains("invokescript", StringComparison.Ordinal))
             {
                 var b64 = Convert.ToBase64String(root.GetSpan().ToArray());
                 return Json(
-                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"state\":\"HALT\",\"gasconsumed\":\"0\","
+                    "{\"jsonrpc\":\"2.0\",\"id\":" + idToken
+                    + ",\"result\":{\"state\":\"HALT\",\"gasconsumed\":\"0\","
                     + "\"stack\":[{\"type\":\"ByteString\",\"value\":\"" + b64 + "\"}]}}");
             }
-            return Json("""{"jsonrpc":"2.0","id":1,"result":null}""");
+            return Json($"{{\"jsonrpc\":\"2.0\",\"id\":{idToken},\"result\":null}}");
         }));
     }
 

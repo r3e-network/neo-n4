@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — E2E soft ProcessCommittedBlock open-batch + mock JSON-RPC id echo — 2026-07-19
+
+- `UT_E2E_HostComposition_FromDeployReport` exercises soft
+  `ProcessCommittedBlock` open-batch (no seal) on Multisig, Optimistic, and Zk
+  hosts via shared `AssertSoftOpenBatchNoSeal` (parity with LocalHost unit tests).
+- E2E `MockL1HttpClient` echoes JSON-RPC request `id` so concurrent deposit/FI/
+  message drain scans match (same fix as unit mocks).
+- No wire/ABI change. Seal→settlement `PersistAsync` remains a funded gate.
+
 ### Changed — LocalHost soft ProcessCommittedBlock open-batch (no seal) — 2026-07-19
 
 - Multisig/Optimistic/Zk LocalHost unit tests call `ProcessCommittedBlock` with an

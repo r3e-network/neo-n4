@@ -249,8 +249,17 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
             var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(probe.IsOperatorReady);
+            Assert.AreEqual(host.ChainId, probe.ChainId);
+            Assert.AreEqual(host.ProofType.ToString(), probe.ProofType);
+            Assert.AreEqual(nameof(ProofType.Zk), probe.ProofType);
+            Assert.AreEqual(host.DaMode.ToString(), probe.DaMode);
+            Assert.AreEqual(host.RpcStore.SecurityLevel.ToString(), probe.SecurityLevel);
+            Assert.AreEqual(host.ExpectedNetwork, probe.ExpectedNetwork);
+            Assert.IsTrue(probe.IsMetricsWiringComplete);
             Assert.IsTrue(probe.HasBatchProver);
             Assert.IsTrue(probe.IsDepositPipelineWiringComplete);
+            Assert.IsTrue(probe.IsSecurityLevelProofTypeConsistent);
+            Assert.IsTrue(probe.IsSecurityLevelDaModeConsistent);
             Assert.IsTrue(probe.IsPipelineEnabled);
             Assert.IsFalse(probe.HasPendingSealedBatch);
             Assert.IsNull(probe.PendingSealedBatchLastBlock);

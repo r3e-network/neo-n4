@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds chain/config/metrics identity — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe`) adds chain/config identity: `ChainId` /
+  `BatcherConfiguredChainId` / `SettlementConfiguredChainId` / `RpcChainId`,
+  `ProofType` / `SettlementConfiguredProofType`, `DaMode` / `RpcDaMode`,
+  `SecurityLevel`, `ExpectedNetwork`, plus `IsMetricsEnabled` /
+  `IsMetricsWiringComplete` / `MetricsConfiguredPort` so ops can interpret
+  passport and metrics-HTTP failures without the full status dump.
+- Wireproduction notes; unit coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Changed — LocalHost health probe adds security-level passport flags — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

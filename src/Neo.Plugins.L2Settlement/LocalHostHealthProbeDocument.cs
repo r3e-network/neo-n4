@@ -35,6 +35,48 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Failed offline passport checks (empty when complete).</summary>
     public required IReadOnlyList<string> OfflinePassportFailures { get; init; }
 
+    /// <summary>
+    /// Host L2 chain id (bridge). Helps interpret <see cref="IsChainIdConfigConsistent"/>
+    /// without the full status dump.
+    /// </summary>
+    public required uint ChainId { get; init; }
+
+    /// <summary>Batcher configured chain id (offline).</summary>
+    public required uint BatcherConfiguredChainId { get; init; }
+
+    /// <summary>Settlement configured chain id (offline).</summary>
+    public required uint SettlementConfiguredChainId { get; init; }
+
+    /// <summary>RPC store chain id (offline).</summary>
+    public required uint RpcChainId { get; init; }
+
+    /// <summary>Host proof type name (prover kind).</summary>
+    public required string ProofType { get; init; }
+
+    /// <summary>Settlement configured proof type name (offline).</summary>
+    public required string SettlementConfiguredProofType { get; init; }
+
+    /// <summary>Host DA mode name (offline).</summary>
+    public required string DaMode { get; init; }
+
+    /// <summary>RPC store DA mode name (offline).</summary>
+    public required string RpcDaMode { get; init; }
+
+    /// <summary>RPC store security level name (offline).</summary>
+    public required string SecurityLevel { get; init; }
+
+    /// <summary>Expected L1 network magic when configured; otherwise null.</summary>
+    public required uint? ExpectedNetwork { get; init; }
+
+    /// <summary>Metrics plugin enabled in settings (offline).</summary>
+    public required bool IsMetricsEnabled { get; init; }
+
+    /// <summary>Metrics wiring complete for HTTP health when metrics are enabled.</summary>
+    public required bool IsMetricsWiringComplete { get; init; }
+
+    /// <summary>Configured metrics HTTP port from settings (0 when unset).</summary>
+    public required int MetricsConfiguredPort { get; init; }
+
     /// <summary>Production wired and sealed-batch sink present (local operator ready).</summary>
     public required bool IsOperatorReady { get; init; }
 

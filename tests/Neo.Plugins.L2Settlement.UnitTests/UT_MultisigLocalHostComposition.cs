@@ -489,6 +489,19 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(await host.IsBatcherCheckpointAlignedAsync());
             var probe = await host.GetHealthProbeAsync();
             Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.AreEqual(host.ChainId, probe.ChainId);
+            Assert.AreEqual(host.BatcherConfiguredChainId, probe.BatcherConfiguredChainId);
+            Assert.AreEqual(host.SettlementConfiguredChainId, probe.SettlementConfiguredChainId);
+            Assert.AreEqual(host.RpcChainId, probe.RpcChainId);
+            Assert.AreEqual(host.ProofType.ToString(), probe.ProofType);
+            Assert.AreEqual(host.SettlementConfiguredProofType.ToString(), probe.SettlementConfiguredProofType);
+            Assert.AreEqual(host.DaMode.ToString(), probe.DaMode);
+            Assert.AreEqual(host.RpcDaMode.ToString(), probe.RpcDaMode);
+            Assert.AreEqual(host.RpcStore.SecurityLevel.ToString(), probe.SecurityLevel);
+            Assert.AreEqual(host.ExpectedNetwork, probe.ExpectedNetwork);
+            Assert.AreEqual(host.IsMetricsEnabled, probe.IsMetricsEnabled);
+            Assert.AreEqual(host.IsMetricsWiringComplete, probe.IsMetricsWiringComplete);
+            Assert.AreEqual(host.MetricsConfiguredPort, probe.MetricsConfiguredPort);
             Assert.IsTrue(probe.IsOperatorReady);
             Assert.IsTrue(probe.IsProductionWired);
             Assert.IsTrue(probe.HasSealedBatchSink);
@@ -607,9 +620,14 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"stagedWithdrawalCount\":");
             StringAssert.Contains(probeJson, "\"nextExpectedBlock\": 1");
             StringAssert.Contains(probeJson, "\"latestCheckpointBatchNumber\": null");
-            // Compact probe still omits full inventory (e.g. proof-type / max-batch settings).
+            StringAssert.Contains(probeJson, "\"chainId\": 20260716");
+            StringAssert.Contains(probeJson, "\"proofType\": \"Multisig\"");
+            StringAssert.Contains(probeJson, "\"daMode\":");
+            StringAssert.Contains(probeJson, "\"securityLevel\":");
+            StringAssert.Contains(probeJson, "\"isMetricsWiringComplete\":");
+            StringAssert.Contains(probeJson, "\"metricsConfiguredPort\":");
+            // Compact probe still omits full inventory (e.g. max-batch settings).
             Assert.IsFalse(probeJson.Contains("\"maxBlocksPerBatch\"", StringComparison.Ordinal));
-            Assert.IsFalse(probeJson.Contains("\"proofType\"", StringComparison.Ordinal));
             StringAssert.Contains(statusJson, "\"chainId\": 20260716");
             StringAssert.Contains(statusJson, "\"batcherConfiguredChainId\": 20260716");
             StringAssert.Contains(statusJson, "\"settlementConfiguredChainId\": 20260716");
@@ -735,11 +753,19 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeBody, "hasMetricsReadinessCheck");
             StringAssert.Contains(probeBody, "isSecurityLevelProofTypeConsistent");
             StringAssert.Contains(probeBody, "isSecurityLevelDaModeConsistent");
+            StringAssert.Contains(probeBody, "\"chainId\":");
+            StringAssert.Contains(probeBody, "\"proofType\":");
+            StringAssert.Contains(probeBody, "\"daMode\":");
+            StringAssert.Contains(probeBody, "\"securityLevel\":");
+            StringAssert.Contains(probeBody, "isMetricsWiringComplete");
+            StringAssert.Contains(probeBody, "metricsConfiguredPort");
             var formatted = host.FormatHealthProbeJson();
             StringAssert.Contains(formatted, "isOfflinePassportComplete");
             StringAssert.Contains(formatted, "hasMetricsHealthProbe");
             StringAssert.Contains(formatted, "hasMetricsOperatorStatus");
             StringAssert.Contains(formatted, "isSecurityLevelProofTypeConsistent");
+            StringAssert.Contains(formatted, "\"chainId\":");
+            StringAssert.Contains(formatted, "isMetricsWiringComplete");
 
             var statusHttp = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/operatorstatus");
             Assert.AreEqual(System.Net.HttpStatusCode.OK, statusHttp.StatusCode);

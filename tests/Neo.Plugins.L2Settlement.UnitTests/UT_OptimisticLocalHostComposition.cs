@@ -246,7 +246,12 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(host.ProofType.ToString(), probe.ProofType);
             Assert.AreEqual(host.DaMode.ToString(), probe.DaMode);
             Assert.AreEqual(host.RpcStore.SecurityLevel.ToString(), probe.SecurityLevel);
+            Assert.AreEqual(host.RpcStore.Sequencer.ToString(), probe.Sequencer);
+            Assert.AreEqual(host.RpcStore.Exit.ToString(), probe.Exit);
             Assert.AreEqual(host.ExpectedNetwork, probe.ExpectedNetwork);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(probe.InitialStateRoot));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(probe.LatestRpcStateRoot));
+            Assert.AreEqual(0, probe.TrackedForcedInclusionNonceCount);
             Assert.IsTrue(probe.IsMetricsWiringComplete);
             Assert.AreEqual(host.MaxBlocksPerBatch, probe.MaxBlocksPerBatch);
             Assert.AreEqual(host.MaxBatchAgeMillis, probe.MaxBatchAgeMillis);

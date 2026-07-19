@@ -65,6 +65,12 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>RPC store security level name (offline).</summary>
     public required string SecurityLevel { get; init; }
 
+    /// <summary>Sequencer model name from durable L2 RPC store (offline).</summary>
+    public required string Sequencer { get; init; }
+
+    /// <summary>Exit model name from durable L2 RPC store (offline).</summary>
+    public required string Exit { get; init; }
+
     /// <summary>Expected L1 network magic when configured; otherwise null.</summary>
     public required uint? ExpectedNetwork { get; init; }
 
@@ -320,6 +326,22 @@ public sealed record LocalHostHealthProbeDocument
     public required ulong? LatestCheckpointLastBlock { get; init; }
 
     /// <summary>
+    /// Durable settlement checkpoint post-state root as 0x-hex when a checkpoint exists;
+    /// otherwise null (local store; not an L1 settle claim).
+    /// </summary>
+    public required string? LatestCheckpointPostStateRoot { get; init; }
+
+    /// <summary>
+    /// Genesis/initial state root as 0x-hex (local durable settlement store).
+    /// </summary>
+    public required string InitialStateRoot { get; init; }
+
+    /// <summary>
+    /// Latest RPC-store state root as 0x-hex (local proofs store; soft).
+    /// </summary>
+    public required string LatestRpcStateRoot { get; init; }
+
+    /// <summary>
     /// Soft forced-inclusion overdue from local cache only (no L1 scan).
     /// Live poll remains <c>HasOverdueForcedInclusionAsync</c>.
     /// </summary>
@@ -405,11 +427,27 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>L2→L2 message outbox depth when wired; otherwise 0 (local).</summary>
     public required int MessageOutboxL2ToL2Count { get; init; }
 
+    /// <summary>
+    /// L2→L1 message outbox root as 0x-hex when wired; otherwise zero root (local).
+    /// </summary>
+    public required string MessageOutboxL2ToL1Root { get; init; }
+
+    /// <summary>
+    /// L2→L2 message outbox root as 0x-hex when wired; otherwise zero root (local).
+    /// </summary>
+    public required string MessageOutboxL2ToL2Root { get; init; }
+
     /// <summary>Soft inbound message nonce cache size (no L1 scan claim).</summary>
     public required int KnownInboundNonceCount { get; init; }
 
     /// <summary>Soft forced-inclusion nonce cache size (local; no L1 drain claim).</summary>
     public required int KnownForcedInclusionNonceCount { get; init; }
+
+    /// <summary>
+    /// Durable tracked forced-inclusion nonces for this chain (local settlement store;
+    /// not an L1 drain claim). Distinct from soft <see cref="KnownForcedInclusionNonceCount"/>.
+    /// </summary>
+    public required int TrackedForcedInclusionNonceCount { get; init; }
 
     /// <summary>Staged L2 withdrawal count on the bridge processor (local; no L1 claim).</summary>
     public required int StagedWithdrawalCount { get; init; }

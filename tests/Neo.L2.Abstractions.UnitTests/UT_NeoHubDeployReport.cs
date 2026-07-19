@@ -299,6 +299,8 @@ public class UT_NeoHubDeployReport
                 + "(chain/proof/DA/security/expectedNetwork identity + "
                 + "NeoHub hash presence + scanner deploy heights + batcher inbox sources + "
                 + "batcher max limits + SupportsLocalDaReader/GatewayEnabled/BridgeAssetCount + "
+                + "Sequencer/Exit + InitialStateRoot/LatestRpcStateRoot/checkpoint post-root + "
+                + "message outbox roots + TrackedForcedInclusionNonceCount + "
                 + "passport wiring flags incl. security-level consistency + "
                 + "IsMetricsEnabled/IsMetricsWiringComplete/MetricsConfiguredPort/"
                 + "MetricsBindAddress/MetricsMaxConcurrentConnections/MetricsEntryCount + "

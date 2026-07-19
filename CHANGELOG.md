@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds durable roots and sequencer/exit identity — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe`) adds `Sequencer` / `Exit`, `InitialStateRoot` /
+  `LatestRpcStateRoot` / `LatestCheckpointPostStateRoot` (null when no
+  checkpoint), message-outbox roots, and `TrackedForcedInclusionNonceCount` so
+  ops can inspect durable state identity without the full status dump.
+- Wireproduction notes; unit coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Changed — LocalHost health probe adds batcher limits and DA/metrics soft config — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

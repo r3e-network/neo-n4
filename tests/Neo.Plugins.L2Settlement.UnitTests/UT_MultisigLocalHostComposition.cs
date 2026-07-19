@@ -498,7 +498,15 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(host.DaMode.ToString(), probe.DaMode);
             Assert.AreEqual(host.RpcDaMode.ToString(), probe.RpcDaMode);
             Assert.AreEqual(host.RpcStore.SecurityLevel.ToString(), probe.SecurityLevel);
+            Assert.AreEqual(host.RpcStore.Sequencer.ToString(), probe.Sequencer);
+            Assert.AreEqual(host.RpcStore.Exit.ToString(), probe.Exit);
             Assert.AreEqual(host.ExpectedNetwork, probe.ExpectedNetwork);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(probe.InitialStateRoot));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(probe.LatestRpcStateRoot));
+            Assert.IsNull(probe.LatestCheckpointPostStateRoot);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(probe.MessageOutboxL2ToL1Root));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(probe.MessageOutboxL2ToL2Root));
+            Assert.AreEqual(0, probe.TrackedForcedInclusionNonceCount);
             Assert.AreEqual(host.IsMetricsEnabled, probe.IsMetricsEnabled);
             Assert.AreEqual(host.IsMetricsWiringComplete, probe.IsMetricsWiringComplete);
             Assert.AreEqual(host.MetricsConfiguredPort, probe.MetricsConfiguredPort);
@@ -577,6 +585,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(1UL, probe.NextBatchNumber);
             Assert.IsNull(probe.LatestCheckpointBatchNumber);
             Assert.IsNull(probe.LatestCheckpointLastBlock);
+            Assert.IsNull(probe.LatestCheckpointPostStateRoot);
             Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
             Assert.AreEqual(0, probe.PipelineHealthFailures.Count);
@@ -599,6 +608,9 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(host.MessageOutbox?.L2ToL2Count ?? 0, probe.MessageOutboxL2ToL2Count);
             Assert.AreEqual(host.KnownInboundNonceCount, probe.KnownInboundNonceCount);
             Assert.AreEqual(host.KnownForcedInclusionNonceCount, probe.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(0, probe.TrackedForcedInclusionNonceCount);
+            Assert.AreEqual(host.MessageOutboxL2ToL1Root.ToString(), probe.MessageOutboxL2ToL1Root);
+            Assert.AreEqual(host.MessageOutboxL2ToL2Root.ToString(), probe.MessageOutboxL2ToL2Root);
             Assert.AreEqual(host.StagedWithdrawalCount, probe.StagedWithdrawalCount);
             var probePath = Path.Combine(chainDir, "health-probe.json");
             await host.WriteHealthProbeAsync(probePath);
@@ -673,8 +685,16 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"bridgeAssetCount\":");
             StringAssert.Contains(probeJson, "\"metricsEntryCount\":");
             StringAssert.Contains(probeJson, "\"gatewayEnabled\":");
-            // Compact probe still omits full inventory (e.g. recovery nested object, roots).
-            Assert.IsFalse(probeJson.Contains("\"latestCheckpointPostStateRoot\"", StringComparison.Ordinal));
+            StringAssert.Contains(probeJson, "\"sequencer\":");
+            StringAssert.Contains(probeJson, "\"exit\":");
+            StringAssert.Contains(probeJson, "\"initialStateRoot\":");
+            StringAssert.Contains(probeJson, "\"latestRpcStateRoot\":");
+            StringAssert.Contains(probeJson, "\"latestCheckpointPostStateRoot\": null");
+            StringAssert.Contains(probeJson, "\"messageOutboxL2ToL1Root\":");
+            StringAssert.Contains(probeJson, "\"messageOutboxL2ToL2Root\":");
+            StringAssert.Contains(probeJson, "\"trackedForcedInclusionNonceCount\": 0");
+            // Compact probe still omits full inventory (e.g. nested recovery object).
+            Assert.IsFalse(probeJson.Contains("\"recovery\"", StringComparison.Ordinal));
             StringAssert.Contains(statusJson, "\"chainId\": 20260716");
             StringAssert.Contains(statusJson, "\"batcherConfiguredChainId\": 20260716");
             StringAssert.Contains(statusJson, "\"settlementConfiguredChainId\": 20260716");

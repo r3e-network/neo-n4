@@ -1608,6 +1608,10 @@ public sealed class ZkLocalHostComposition : IDisposable
         var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
             .ConfigureAwait(false);
         var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        var initialStateRoot = await GetInitialStateRootAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var trackedForced = await GetTrackedForcedInclusionNoncesAsync(ChainId, cancellationToken)
+            .ConfigureAwait(false);
         var now = nowUnixSeconds
             ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         return new LocalHostHealthProbeDocument
@@ -1623,6 +1627,8 @@ public sealed class ZkLocalHostComposition : IDisposable
             DaMode = DaMode.ToString(),
             RpcDaMode = RpcDaMode.ToString(),
             SecurityLevel = RpcStore.SecurityLevel.ToString(),
+            Sequencer = RpcStore.Sequencer.ToString(),
+            Exit = RpcStore.Exit.ToString(),
             ExpectedNetwork = ExpectedNetwork,
             IsMetricsEnabled = IsMetricsEnabled,
             IsMetricsWiringComplete = IsMetricsWiringComplete,
@@ -1699,6 +1705,9 @@ public sealed class ZkLocalHostComposition : IDisposable
             NextBatchNumber = NextBatchNumber,
             LatestCheckpointBatchNumber = checkpoint?.BatchNumber,
             LatestCheckpointLastBlock = checkpoint?.LastBlock,
+            LatestCheckpointPostStateRoot = checkpoint?.PostStateRoot?.ToString(),
+            InitialStateRoot = initialStateRoot.ToString(),
+            LatestRpcStateRoot = GetLatestRpcStateRoot().ToString(),
             HasOverdueForcedInclusion = HasOverdueForcedInclusionCached(now),
             IsPipelineHealthy = pipelineFailures.Count == 0,
             PipelineHealthFailures = pipelineFailures,
@@ -1726,8 +1735,11 @@ public sealed class ZkLocalHostComposition : IDisposable
             HasMessageOutbox = HasMessageOutbox,
             MessageOutboxL2ToL1Count = MessageOutbox?.L2ToL1Count ?? 0,
             MessageOutboxL2ToL2Count = MessageOutbox?.L2ToL2Count ?? 0,
+            MessageOutboxL2ToL1Root = MessageOutboxL2ToL1Root.ToString(),
+            MessageOutboxL2ToL2Root = MessageOutboxL2ToL2Root.ToString(),
             KnownInboundNonceCount = KnownInboundNonceCount,
             KnownForcedInclusionNonceCount = KnownForcedInclusionNonceCount,
+            TrackedForcedInclusionNonceCount = trackedForced.Count,
             StagedWithdrawalCount = StagedWithdrawalCount,
         };
     }

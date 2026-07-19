@@ -98,6 +98,18 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>DA mode config consistent (offline).</summary>
     public required bool IsDaModeConfigConsistent { get; init; }
 
+    /// <summary>
+    /// Security level matches configured proof type (offline; helps interpret
+    /// <see cref="OfflinePassportFailures"/>).
+    /// </summary>
+    public required bool IsSecurityLevelProofTypeConsistent { get; init; }
+
+    /// <summary>
+    /// Security level matches configured DA mode (offline; helps interpret
+    /// <see cref="OfflinePassportFailures"/>).
+    /// </summary>
+    public required bool IsSecurityLevelDaModeConsistent { get; init; }
+
     /// <summary>NeoHub hash wiring complete (offline).</summary>
     public required bool IsNeoHubHashWiringComplete { get; init; }
 

@@ -593,6 +593,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 aggregationBackendId: MultisigRoundProver.ConstBackendId,
                 proofFactory: static (_, _, _) =>
                     ValueTask.FromResult<ReadOnlyMemory<byte>>(new byte[] { 0xC0 }));
+            settlementHost.StartMetricsHttp(portOverride: 0);
             using (var gatewayMultisig = GatewayHostComposition.OpenMultisig(
                 chainDir,
                 signers,
@@ -601,7 +602,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 new StubSigner(Account(0x55)),
                 UInt256.Parse("0x" + new string('d', 64)),
                 UInt256.Parse("0x" + new string('e', 64)),
-                metrics: settlementHost.Metrics.Metrics))
+                metricsPlugin: settlementHost.Metrics))
             {
                 Assert.AreEqual(
                     MultisigRoundProver.ConstBackendId,
@@ -611,6 +612,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                     ((MultisigRoundProver)((BinaryTreeAggregator)gatewayMultisig.Gateway.Aggregator)
                         .RoundProver).Threshold);
                 Assert.IsNotNull(gatewayMultisig.Publisher);
+                Assert.IsTrue(gatewayMultisig.HasMetricsPlugin);
+                Assert.IsTrue(gatewayMultisig.IsMetricsHttpHealthy);
+                var msigProbe = gatewayMultisig.GetHealthProbe();
+                Assert.AreEqual(gatewayMultisig.AggregationBackendId, msigProbe.AggregationBackendId);
+                Assert.AreEqual(gatewayMultisig.SettlementManagerHash.ToString(), msigProbe.SettlementManagerHash);
             }
 
             // Dispose Multisig gateway before Sp1 reuses durable outbox paths.
@@ -623,10 +629,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 vk,
                 resultTimeout: TimeSpan.FromSeconds(5),
                 pollInterval: TimeSpan.FromMilliseconds(10),
-                metrics: settlementHost.Metrics.Metrics);
+                metricsPlugin: settlementHost.Metrics);
             Assert.IsTrue(gatewaySp1.OwnsProofProver);
             Assert.IsInstanceOfType(gatewaySp1.ProofProver, typeof(Sp1GatewayProofProver));
             Assert.IsNotNull(gatewaySp1.Publisher);
+            Assert.IsTrue(gatewaySp1.HasMetricsPlugin);
+            Assert.IsTrue(gatewaySp1.IsMetricsHttpHealthy);
+            var sp1Probe = gatewaySp1.GetHealthProbe();
+            Assert.IsTrue(sp1Probe.OwnsProofProver);
+            Assert.AreEqual(gatewaySp1.VerificationKeyId.ToString(), sp1Probe.VerificationKeyId);
             Assert.IsTrue(Directory.Exists(Path.Combine(
                 chainDir, NeoHubDeployReport.RelativeGatewayProverQueueDir)));
         }
@@ -731,7 +742,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 new StubSigner(Account(0x47)),
                 UInt256.Parse("0x" + new string('d', 64)),
                 UInt256.Parse("0x" + new string('e', 64)),
-                metrics: host.Metrics.Metrics);
+                metricsPlugin: host.Metrics);
             Assert.IsNotNull(gatewayHost.Publisher);
             Assert.AreEqual(
                 MerklePathRoundProver.ConstBackendId,
@@ -739,12 +750,20 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gatewayHost.AggregationBackendId);
             Assert.AreNotEqual(UInt160.Zero, gatewayHost.SettlementManagerHash);
             Assert.AreNotEqual(UInt160.Zero, gatewayHost.MessageRouterHash);
+            Assert.IsTrue(gatewayHost.HasMetricsPlugin);
+            Assert.IsTrue(gatewayHost.IsMetricsHttpHealthy);
+            Assert.IsTrue(gatewayHost.IsGatewayHostHealthy);
+            var optGwProbe = gatewayHost.GetHealthProbe();
+            Assert.IsTrue(optGwProbe.HasMetricsPlugin);
+            Assert.AreEqual(gatewayHost.ProofSystem, optGwProbe.ProofSystem);
+            Assert.AreEqual(gatewayHost.SettlementManagerHash.ToString(), optGwProbe.SettlementManagerHash);
             var gwStatusPath = Path.Combine(chainDir, "gateway-status.json");
             gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(gwStatusPath));
             var gwJson = File.ReadAllText(gwStatusPath);
             StringAssert.Contains(gwJson, "\"settlementManagerHash\":");
             StringAssert.Contains(gwJson, "\"aggregationBackendId\":");
+            StringAssert.Contains(gwJson, "\"hasMetricsPlugin\": true");
         }
         finally
         {
@@ -835,8 +854,14 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 gatewayVk,
                 resultTimeout: TimeSpan.FromSeconds(5),
                 pollInterval: TimeSpan.FromMilliseconds(10),
-                metrics: host.Metrics.Metrics);
+                metricsPlugin: host.Metrics);
             Assert.IsTrue(gatewayHost.OwnsProofProver);
+            Assert.IsTrue(gatewayHost.HasMetricsPlugin);
+            Assert.IsTrue(gatewayHost.IsMetricsHttpHealthy);
+            var zkGwProbe = gatewayHost.GetHealthProbe();
+            Assert.IsTrue(zkGwProbe.OwnsProofProver);
+            Assert.AreEqual(gatewayHost.VerificationKeyId.ToString(), zkGwProbe.VerificationKeyId);
+            Assert.IsTrue(zkGwProbe.HasMetricsPlugin);
             Assert.IsInstanceOfType(gatewayHost.ProofProver, typeof(Sp1GatewayProofProver));
             Assert.IsNotNull(gatewayHost.Publisher);
             Assert.IsTrue(Directory.Exists(Path.Combine(

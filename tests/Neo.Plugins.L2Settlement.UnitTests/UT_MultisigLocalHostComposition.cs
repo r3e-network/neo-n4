@@ -510,6 +510,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(probe.IsChainIdConfigConsistent);
             Assert.IsTrue(probe.IsProofTypeConfigConsistent);
             Assert.IsTrue(probe.IsDaModeConfigConsistent);
+            Assert.IsTrue(probe.IsSecurityLevelProofTypeConsistent);
+            Assert.IsTrue(probe.IsSecurityLevelDaModeConsistent);
             Assert.IsTrue(probe.IsNeoHubHashWiringComplete);
             Assert.IsTrue(probe.IsBatcherInboxWiringComplete);
             Assert.IsTrue(probe.IsPipelineEnabled);
@@ -731,10 +733,13 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeBody, "hasMetricsHealthProbe");
             StringAssert.Contains(probeBody, "hasMetricsOperatorStatus");
             StringAssert.Contains(probeBody, "hasMetricsReadinessCheck");
+            StringAssert.Contains(probeBody, "isSecurityLevelProofTypeConsistent");
+            StringAssert.Contains(probeBody, "isSecurityLevelDaModeConsistent");
             var formatted = host.FormatHealthProbeJson();
             StringAssert.Contains(formatted, "isOfflinePassportComplete");
             StringAssert.Contains(formatted, "hasMetricsHealthProbe");
             StringAssert.Contains(formatted, "hasMetricsOperatorStatus");
+            StringAssert.Contains(formatted, "isSecurityLevelProofTypeConsistent");
 
             var statusHttp = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/operatorstatus");
             Assert.AreEqual(System.Net.HttpStatusCode.OK, statusHttp.StatusCode);

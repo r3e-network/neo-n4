@@ -244,6 +244,8 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(probe.IsOperatorReady);
             Assert.IsTrue(probe.HasBatchProver);
             Assert.IsTrue(probe.IsDepositPipelineWiringComplete);
+            Assert.IsTrue(probe.IsSecurityLevelProofTypeConsistent);
+            Assert.IsTrue(probe.IsSecurityLevelDaModeConsistent);
             Assert.IsTrue(probe.IsPipelineEnabled);
             Assert.IsFalse(probe.HasPendingSealedBatch);
             Assert.IsNull(probe.PendingSealedBatchLastBlock);

@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds security-level passport flags — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe`) adds `IsSecurityLevelProofTypeConsistent` and
+  `IsSecurityLevelDaModeConsistent` so ops can interpret `OfflinePassportFailures`
+  without the full status dump.
+- E2E Multisig/Optimistic/Zk + Gateway co-location paths share `metricsPlugin:` and
+  assert Gateway metrics HTTP health + binding identity on compact probes.
+- Wireproduction notes; unit/integration coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Changed — Gateway health probe adds publication binding identity — 2026-07-19
 
 - `GatewayHostHealthProbeDocument` (+ `GetHealthProbe` / `FormatHealthProbeJson` /

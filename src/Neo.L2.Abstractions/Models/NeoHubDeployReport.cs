@@ -517,7 +517,8 @@ public sealed record NeoHubDeployReport(
                         "LocalHost.GetHealthProbeAsync() / FormatHealthProbeJson() / "
                         + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                         + "LocalHostHealthProbeDocument JSON "
-                        + "(passport wiring flags + pipeline/metrics/settlement + "
+                        + "(passport wiring flags incl. security-level consistency + "
+                        + "pipeline/metrics/settlement + "
                         + "pending-seal/open-batch counts + batcher ack/next + durable checkpoint + "
                         + "settlement retry/lag + FI/inbox + deposit queues + message outbox + "
                         + "HasMetricsReadinessCheck/HasMetricsHealthProbe/HasMetricsOperatorStatus flags)",

@@ -1635,6 +1635,8 @@ public sealed class ZkLocalHostComposition : IDisposable
             IsChainIdConfigConsistent = IsChainIdConfigConsistent,
             IsProofTypeConfigConsistent = IsProofTypeConfigConsistent,
             IsDaModeConfigConsistent = IsDaModeConfigConsistent,
+            IsSecurityLevelProofTypeConsistent = IsSecurityLevelProofTypeConsistent,
+            IsSecurityLevelDaModeConsistent = IsSecurityLevelDaModeConsistent,
             IsNeoHubHashWiringComplete = IsNeoHubHashWiringComplete,
             IsBatcherInboxWiringComplete = IsBatcherInboxWiringComplete,
             IsPipelineEnabled = IsPipelineEnabled,

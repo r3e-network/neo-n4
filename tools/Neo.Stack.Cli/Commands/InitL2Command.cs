@@ -180,7 +180,8 @@ internal static class InitL2Command
         Console.WriteLine("  host settle= LocalHost.GetLatestDurableCheckpointAsync / GetInitialStateRootAsync / LatestCheckpointBatchNumber / InitialStateRoot");
         Console.WriteLine("  host status= LocalHost.FormatOperatorStatusJsonAsync / WriteOperatorStatusAsync(path) / GET /operatorstatus");
         Console.WriteLine("               LocalHost.GetHealthProbeAsync / FormatHealthProbeJson / WriteHealthProbeAsync / GET /healthprobe");
-        Console.WriteLine("               GatewayHost.FormatOperatorStatusJson / WriteOperatorStatusAsync; GetHealthProbe / FormatHealthProbeJson / WriteHealthProbeAsync");
+        Console.WriteLine("               GatewayHost.FormatOperatorStatusJson / WriteOperatorStatusAsync (incl. MetricsConfiguredPort/BindAddress/MaxConcurrentConnections);");
+        Console.WriteLine("               GatewayHost.GetHealthProbe / FormatHealthProbeJson / WriteHealthProbeAsync (same metrics soft config + chainDirectory)");
         Console.WriteLine("  host prom  = LocalHost/GatewayHost WritePrometheusMetricsAsync; GatewayHost.IsPublicationConfigured");
         Console.WriteLine("               (see l1.wireproduction-notes.json when --from-deploy-report was used)");
         return 0;

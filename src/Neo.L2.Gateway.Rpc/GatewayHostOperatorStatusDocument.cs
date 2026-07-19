@@ -139,6 +139,15 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>Metrics plugin enabled in settings.</summary>
     public required bool IsMetricsEnabled { get; init; }
 
+    /// <summary>Configured metrics HTTP port from plugin settings (0 when no plugin).</summary>
+    public required int MetricsConfiguredPort { get; init; }
+
+    /// <summary>Configured metrics bind address (empty when no plugin).</summary>
+    public required string MetricsBindAddress { get; init; }
+
+    /// <summary>Configured max concurrent metrics HTTP connections (0 when no plugin).</summary>
+    public required int MetricsMaxConcurrentConnections { get; init; }
+
     /// <summary>Metrics HTTP is listening.</summary>
     public required bool IsMetricsHttpListening { get; init; }
 
@@ -202,6 +211,9 @@ public sealed record GatewayHostOperatorStatusDocument
             MetricsEntryCount = status.MetricsEntryCount,
             HasMetricsPlugin = status.HasMetricsPlugin,
             IsMetricsEnabled = status.IsMetricsEnabled,
+            MetricsConfiguredPort = status.MetricsConfiguredPort,
+            MetricsBindAddress = status.MetricsBindAddress,
+            MetricsMaxConcurrentConnections = status.MetricsMaxConcurrentConnections,
             IsMetricsHttpListening = status.IsMetricsHttpListening,
             MetricsBoundPort = status.MetricsBoundPort,
             HasMetricsReadinessCheck = status.HasMetricsReadinessCheck,

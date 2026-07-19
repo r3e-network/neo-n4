@@ -317,7 +317,8 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "GatewayHostComposition.FormatOperatorStatusJson() / WriteOperatorStatusAsync(path) / "
                 + "metrics HTTP GET /operatorstatus → "
-                + "GatewayHostOperatorStatusDocument JSON",
+                + "GatewayHostOperatorStatusDocument JSON "
+                + "(incl. MetricsConfiguredPort/BindAddress/MaxConcurrentConnections)",
                 stores.GetProperty("gatewayHostWriteOperatorStatus").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.GetHealthProbe() / FormatHealthProbeJson() / "

@@ -131,6 +131,18 @@ public sealed record GatewayHostOperatorStatus
     /// <summary>Metrics plugin is enabled in settings (false when no plugin).</summary>
     public required bool IsMetricsEnabled { get; init; }
 
+    /// <summary>
+    /// Configured metrics HTTP port from plugin settings (0 when no plugin). Distinct from
+    /// <see cref="MetricsBoundPort"/> after start.
+    /// </summary>
+    public required int MetricsConfiguredPort { get; init; }
+
+    /// <summary>Configured metrics bind address (empty when no plugin).</summary>
+    public required string MetricsBindAddress { get; init; }
+
+    /// <summary>Configured max concurrent metrics HTTP connections (0 when no plugin).</summary>
+    public required int MetricsMaxConcurrentConnections { get; init; }
+
     /// <summary>Metrics HTTP server is listening (BoundPort &gt; 0).</summary>
     public required bool IsMetricsHttpListening { get; init; }
 

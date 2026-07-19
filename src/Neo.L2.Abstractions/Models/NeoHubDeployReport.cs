@@ -536,7 +536,8 @@ public sealed record NeoHubDeployReport(
                     ["gatewayHostWriteOperatorStatus"] =
                         "GatewayHostComposition.FormatOperatorStatusJson() / WriteOperatorStatusAsync(path) / "
                         + "metrics HTTP GET /operatorstatus → "
-                        + "GatewayHostOperatorStatusDocument JSON",
+                        + "GatewayHostOperatorStatusDocument JSON "
+                        + "(incl. MetricsConfiguredPort/BindAddress/MaxConcurrentConnections)",
                     ["gatewayHostWriteHealthProbe"] =
                         "GatewayHostComposition.GetHealthProbe() / FormatHealthProbeJson() / "
                         + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "

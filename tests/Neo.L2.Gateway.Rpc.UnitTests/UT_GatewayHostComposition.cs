@@ -132,10 +132,16 @@ public sealed class UT_GatewayHostComposition
             Assert.IsTrue(host.IsMetricsHttpHealthy);
             Assert.IsTrue(gwStatus.IsMetricsHttpHealthy);
             Assert.AreEqual(0, host.MetricsHttpHealthFailures.Count);
+            Assert.AreEqual(0, gwStatus.MetricsConfiguredPort);
+            Assert.AreEqual(string.Empty, gwStatus.MetricsBindAddress);
+            Assert.AreEqual(0, gwStatus.MetricsMaxConcurrentConnections);
             Assert.ThrowsExactly<InvalidOperationException>(() => host.StartMetricsHttp());
             var formattedStatus = host.FormatOperatorStatusJson();
             StringAssert.Contains(formattedStatus, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(formattedStatus, "\"hasPendingPublication\": false");
+            StringAssert.Contains(formattedStatus, "\"metricsConfiguredPort\": 0");
+            StringAssert.Contains(formattedStatus, "\"metricsBindAddress\":");
+            StringAssert.Contains(formattedStatus, "\"metricsMaxConcurrentConnections\": 0");
             Assert.IsTrue(formattedStatus.EndsWith('\n') || formattedStatus.EndsWith(Environment.NewLine));
             var statusPath = Path.Combine(dir, "gateway-status.json");
             host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
@@ -441,6 +447,16 @@ public sealed class UT_GatewayHostComposition
             Assert.IsTrue(status.IsMetricsHttpHealthy);
             Assert.IsTrue(status.IsGatewayHostHealthy);
             Assert.AreEqual(host.ChainDirectory, status.ChainDirectory);
+            Assert.AreEqual(host.MetricsConfiguredPort, status.MetricsConfiguredPort);
+            Assert.AreEqual(host.MetricsBindAddress, status.MetricsBindAddress);
+            Assert.AreEqual(host.MetricsMaxConcurrentConnections, status.MetricsMaxConcurrentConnections);
+            Assert.AreEqual(0, status.MetricsConfiguredPort);
+            Assert.AreEqual("127.0.0.1", status.MetricsBindAddress);
+            Assert.AreEqual(8, status.MetricsMaxConcurrentConnections);
+            var statusJsonAfterStart = host.FormatOperatorStatusJson();
+            StringAssert.Contains(statusJsonAfterStart, "\"metricsBindAddress\": \"127.0.0.1\"");
+            StringAssert.Contains(statusJsonAfterStart, "\"metricsMaxConcurrentConnections\": 8");
+            StringAssert.Contains(statusJsonAfterStart, "\"metricsConfiguredPort\": 0");
 
             var probe = host.GetHealthProbe();
             Assert.AreEqual(host.ChainDirectory, probe.ChainDirectory);

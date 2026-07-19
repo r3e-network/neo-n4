@@ -517,10 +517,17 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.AreEqual(MerklePathRoundProver.ConstBackendId, gwStatus.AggregationBackendId);
             Assert.IsTrue(gwStatus.HasMetricsPlugin);
             Assert.IsTrue(gwStatus.IsMetricsHttpHealthy);
+            Assert.AreEqual(gatewayHost.MetricsConfiguredPort, gwStatus.MetricsConfiguredPort);
+            Assert.AreEqual(gatewayHost.MetricsBindAddress, gwStatus.MetricsBindAddress);
+            Assert.AreEqual(gatewayHost.MetricsMaxConcurrentConnections, gwStatus.MetricsMaxConcurrentConnections);
             var gwStatusPath = Path.Combine(chainDir, "gateway-status.json");
             gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(gwStatusPath));
-            StringAssert.Contains(File.ReadAllText(gwStatusPath), "\"hasPendingPublication\": false");
+            var gwStatusJson = File.ReadAllText(gwStatusPath);
+            StringAssert.Contains(gwStatusJson, "\"hasPendingPublication\": false");
+            StringAssert.Contains(gwStatusJson, "\"metricsBindAddress\":");
+            StringAssert.Contains(gwStatusJson, "\"metricsMaxConcurrentConnections\":");
+            StringAssert.Contains(gwStatusJson, "\"metricsConfiguredPort\":");
             var gwProbe = gatewayHost.GetHealthProbe();
             Assert.IsTrue(gwProbe.IsOfflinePassportComplete);
             Assert.IsTrue(gwProbe.IsPublicationConfigured);
@@ -530,6 +537,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(gwProbe.HasMetricsPlugin);
             Assert.IsTrue(gwProbe.IsMetricsHttpListening);
             Assert.IsTrue(gwProbe.IsMetricsHttpHealthy);
+            Assert.AreEqual(gatewayHost.MetricsConfiguredPort, gwProbe.MetricsConfiguredPort);
+            Assert.AreEqual(gatewayHost.MetricsBindAddress, gwProbe.MetricsBindAddress);
+            Assert.AreEqual(gatewayHost.MetricsMaxConcurrentConnections, gwProbe.MetricsMaxConcurrentConnections);
             Assert.AreEqual(gatewayHost.ProofSystem, gwProbe.ProofSystem);
             Assert.AreEqual(gatewayHost.AggregationBackendId, gwProbe.AggregationBackendId);
             Assert.AreEqual(gatewayHost.ReplayDomain.ToString(), gwProbe.ReplayDomain);

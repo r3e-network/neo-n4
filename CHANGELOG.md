@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Offline bridge soft ops surface after mint/outbox — 2026-07-20
+
+- E2E Multisig/Optimistic/Zk `AssertOfflineBridgeMintWithdrawalOutbox` also pins
+  `AssertOfflineBridgeOperatorSurface`: after offline ProcessDeposit +
+  StageWithdrawal + EnqueueOutbound, L1 `ScanSharedBridgeDepositsAsync` /
+  `ScanAndProcessReadyDepositsAsync` stay empty (soft no-op without L1),
+  status/probe show `ConsumedDepositCount=1`, `MessageOutboxL2ToL1Count=1`,
+  `StagedWithdrawalCount=0`, settlement idle + offline passport complete.
+- Durable `soft-offline-bridge-status.json` / `soft-offline-bridge-probe.json`.
+- No wire/ABI change. L1 deposit scan / withdrawal claim remain funded gates.
+
 ### Tested — Neo N3 testnet session16 reverify + SharedBridge deposit n17 — 2026-07-20
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

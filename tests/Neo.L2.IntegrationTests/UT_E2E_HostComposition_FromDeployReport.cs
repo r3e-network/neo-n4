@@ -467,6 +467,16 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 msgs => settlementHost.EnqueueOutboundMessagesAsync(msgs).AsTask(),
                 () => settlementHost.MessageOutbox!.L2ToL1Count,
                 () => settlementHost.MessageOutboxL2ToL1Root);
+            AssertOfflineBridgeOperatorSurface(
+                () => settlementHost.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => settlementHost.FormatHealthProbeJson(),
+                path => settlementHost.WriteOperatorStatusAsync(path).AsTask(),
+                path => settlementHost.WriteHealthProbeAsync(path).AsTask(),
+                () => settlementHost.ScanSharedBridgeDepositsAsync().AsTask(),
+                () => settlementHost.ScanAndProcessReadyDepositsAsync().AsTask(),
+                chainDir);
 
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
@@ -1136,6 +1146,16 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
                 () => host.MessageOutbox!.L2ToL1Count,
                 () => host.MessageOutboxL2ToL1Root);
+            AssertOfflineBridgeOperatorSurface(
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                () => host.ScanSharedBridgeDepositsAsync().AsTask(),
+                () => host.ScanAndProcessReadyDepositsAsync().AsTask(),
+                chainDir);
 
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
@@ -1292,6 +1312,16 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
                 () => host.MessageOutbox!.L2ToL1Count,
                 () => host.MessageOutboxL2ToL1Root);
+            AssertOfflineBridgeOperatorSurface(
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                () => host.ScanSharedBridgeDepositsAsync().AsTask(),
+                () => host.ScanAndProcessReadyDepositsAsync().AsTask(),
+                chainDir);
 
             // Validity + Gateway SP1 one-shot share the chain directory (no funded daemon traffic).
             var gatewayVk = Hash(0x88);
@@ -1782,6 +1812,78 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         enqueueOutbound([outbound]).GetAwaiter().GetResult();
         Assert.AreEqual(1, messageOutboxL2ToL1Count());
         Assert.AreNotEqual(UInt256.Zero, messageOutboxL2ToL1Root());
+    }
+
+    /// <summary>
+    /// Soft ops surface after offline mint/withdrawal/outbox: L1 scan remains empty,
+    /// status/probe expose consumed deposit + L2→L1 outbox counts, durable files written.
+    /// Does not claim L1 deposit scan or withdrawal claim (funded gates).
+    /// </summary>
+    private static void AssertOfflineBridgeOperatorSurface(
+        Func<LocalHostOperatorStatus> getOperatorStatus,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> formatHealthProbeJson,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        Func<Task<int>> scanSharedBridgeDepositsAsync,
+        Func<Task<IReadOnlyList<MintInstruction>>> scanAndProcessReadyDepositsAsync,
+        string chainDir)
+    {
+        // Offline ProcessDeposit already consumed nonce 1; L1 scan has nothing new (mock height).
+        Assert.AreEqual(0, scanSharedBridgeDepositsAsync().GetAwaiter().GetResult());
+        Assert.AreEqual(0, scanAndProcessReadyDepositsAsync().GetAwaiter().GetResult().Count);
+
+        var status = getOperatorStatus();
+        Assert.AreEqual(1, status.ConsumedDepositCount);
+        Assert.AreEqual(1, status.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(0, status.StagedWithdrawalCount);
+        Assert.IsTrue(status.HasMessageOutbox);
+        Assert.AreNotEqual(UInt256.Zero, status.MessageOutboxL2ToL1Root);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        Assert.AreEqual(0, status.OfflinePassportFailures.Count);
+        Assert.IsTrue(status.IsSettlementIdle);
+        Assert.IsFalse(status.IsSettlementPoisoned);
+        Assert.IsFalse(status.IsSettlementRetrying);
+        Assert.AreEqual(0, status.PendingSettlementCount);
+        Assert.IsTrue(status.IsOperatorReady);
+
+        var probe = getHealthProbe();
+        Assert.AreEqual(1, probe.ConsumedDepositCount);
+        Assert.AreEqual(1, probe.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(0, probe.StagedWithdrawalCount);
+        Assert.AreEqual(status.MessageOutboxL2ToL1Root.ToString(), probe.MessageOutboxL2ToL1Root);
+        Assert.IsTrue(probe.IsOfflinePassportComplete);
+        Assert.IsTrue(probe.IsSettlementIdle);
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
+        StringAssert.Contains(statusJson, "\"stagedWithdrawalCount\": 0");
+        StringAssert.Contains(statusJson, "\"hasMessageOutbox\": true");
+        StringAssert.Contains(statusJson, "\"isSettlementIdle\": true");
+        StringAssert.Contains(statusJson, "\"pendingSettlementCount\": 0");
+
+        var probeJson = formatHealthProbeJson();
+        StringAssert.Contains(probeJson, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(probeJson, "\"messageOutboxL2ToL1Count\": 1");
+        StringAssert.Contains(probeJson, "\"stagedWithdrawalCount\": 0");
+        StringAssert.Contains(probeJson, "\"isSettlementIdle\": true");
+
+        var statusPath = Path.Combine(chainDir, "soft-offline-bridge-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        var statusFile = File.ReadAllText(statusPath);
+        StringAssert.Contains(statusFile, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(statusFile, "\"messageOutboxL2ToL1Count\": 1");
+        StringAssert.Contains(statusFile, "\"hasMessageOutbox\": true");
+
+        var probePath = Path.Combine(chainDir, "soft-offline-bridge-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        var probeFile = File.ReadAllText(probePath);
+        StringAssert.Contains(probeFile, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(probeFile, "\"messageOutboxL2ToL1Count\": 1");
     }
 
     private static string ResolveDeployReportPath() =>

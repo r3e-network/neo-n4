@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Multisig/Optimistic soft seal→local settlement PersistAsync — 2026-07-19
+
+- Unit tests `SoftSeal_EmptyBlock_PersistsLocalCheckpoint_{Multisig,Optimistic}`:
+  rewrite `MaxBlocksPerBatch=1`, soft pass-through executor (non-empty effects),
+  empty L2 block `ProcessCommittedBlock` → seal + local DA + durable checkpoint #1.
+- Asserts: no open/pending seal, batcher ack advanced, `LatestCheckpoint*`,
+  `PendingSettlementCount=1` (L1 settle still open — not settlement-idle).
+- Zk soft seal remains funded (authenticated witness + production DA).
+- No wire/ABI change. L1 settle broadcast remains a funded gate.
+
 ### Changed — E2E soft ProcessCommittedBlock open-batch + mock JSON-RPC id echo — 2026-07-19
 
 - `UT_E2E_HostComposition_FromDeployReport` exercises soft

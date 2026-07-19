@@ -640,6 +640,18 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsFalse(probe.IsPipelineHealthy);
             Assert.IsTrue(probe.IsSettlementRetrying);
             CollectionAssert.Contains(probe.PipelineHealthFailures.ToArray(), "IsSettlementRetrying");
+            CollectionAssert.Contains(
+                host.GetPipelineHealthFailuresAsync().AsTask().GetAwaiter().GetResult().ToArray(),
+                "IsSettlementRetrying");
+            Assert.IsFalse(status.IsLocalHostHealthy);
+            CollectionAssert.Contains(status.LocalHostHealthFailures.ToArray(), "IsSettlementRetrying");
+            Assert.IsFalse(host.IsLocalHostHealthyAsync().AsTask().GetAwaiter().GetResult());
+            var softSealStatusJson = host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult();
+            StringAssert.Contains(softSealStatusJson, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(softSealStatusJson, "\"isPipelineHealthy\": false");
+            StringAssert.Contains(softSealStatusJson, "\"isOfflinePassportComplete\": true");
+            StringAssert.Contains(softSealStatusJson, "IsSettlementRetrying");
+            StringAssert.Contains(softSealStatusJson, "\"pendingSettlementCount\": 1");
 
             // Soft seal → gateway aggregator (no L1 PublishAggregate). Multisig unit parity.
             var z = UInt256.Zero;
@@ -685,9 +697,37 @@ public sealed class UT_OptimisticLocalHostComposition
             });
             gatewayHost.ReceiveBatch(commitment with { Proof = new byte[] { 0xB3 } });
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
-            Assert.AreEqual(
-                gatewayHost.AggregatorPendingCount,
-                gatewayHost.GetOperatorStatus().AggregatorPendingCount);
+            var gwStatus = gatewayHost.GetOperatorStatus();
+            Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwStatus.AggregatorPendingCount);
+            Assert.IsTrue(gatewayHost.IsOfflinePassportComplete);
+            Assert.IsFalse(gatewayHost.HasPendingPublication);
+            Assert.IsFalse(gatewayHost.IsOutboxIdle);
+            Assert.IsFalse(gatewayHost.IsOutboxPoisoned);
+            Assert.IsFalse(gatewayHost.IsPublicationHealthy);
+            CollectionAssert.Contains(
+                gatewayHost.PublicationHealthFailures.ToArray(),
+                nameof(gatewayHost.AggregatorPendingCount));
+            Assert.IsFalse(gatewayHost.IsGatewayHostHealthy);
+            CollectionAssert.Contains(
+                gatewayHost.GatewayHostHealthFailures.ToArray(),
+                nameof(gatewayHost.AggregatorPendingCount));
+            Assert.IsFalse(gwStatus.HasPendingPublication);
+            Assert.IsFalse(gwStatus.IsOutboxIdle);
+            Assert.IsFalse(gwStatus.IsPublicationHealthy);
+            var gwProbe = gatewayHost.GetHealthProbe();
+            Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwProbe.AggregatorPendingCount);
+            Assert.IsFalse(gwProbe.HasPendingPublication);
+            Assert.IsFalse(gwProbe.IsPublicationHealthy);
+            Assert.IsFalse(gwProbe.IsOutboxIdle);
+            Assert.IsTrue(gwProbe.IsOfflinePassportComplete);
+            CollectionAssert.Contains(gwProbe.PublicationHealthFailures.ToArray(), "AggregatorPendingCount");
+            var gwJson = gatewayHost.FormatOperatorStatusJson();
+            StringAssert.Contains(gwJson, "\"aggregatorPendingCount\":");
+            StringAssert.Contains(gwJson, "\"hasPendingPublication\": false");
+            StringAssert.Contains(gwJson, "\"isPublicationHealthy\": false");
+            StringAssert.Contains(gwJson, "\"isOutboxIdle\": false");
+            StringAssert.Contains(gwJson, "\"isOfflinePassportComplete\": true");
+            StringAssert.Contains(gwJson, "AggregatorPendingCount");
 
             // SubmitNext/Reconcile against mock L1 cannot clear the L1 settle queue (funded gate).
             host.SubmitNextAsync().GetAwaiter().GetResult();

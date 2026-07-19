@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal ops JSON + Gateway aggregator-backlog health pins — 2026-07-19
+
+- Multisig/Optimistic unit SoftSeal pins host rollup health after mock L1 retry:
+  `GetPipelineHealthFailuresAsync`, `IsLocalHostHealthy` false with
+  `LocalHostHealthFailures` containing `IsSettlementRetrying`, and
+  `FormatOperatorStatusJson` keys (`isSettlementRetrying`, `isPipelineHealthy`,
+  `pendingSettlementCount`, offline passport).
+- Soft seal → Gateway ReceiveBatch unit+E2E pin: offline passport complete,
+  `HasPendingPublication` false (not L1 outbox epoch), but `IsOutboxIdle` /
+  `IsPublicationHealthy` / `IsGatewayHostHealthy` false with preferred failure
+  label **`AggregatorPendingCount`** until funded `PublishAggregateAsync`.
+- Probe + gateway status JSON parity for aggregator backlog. No wire/ABI change.
+- L1 settle + gateway publish remain funded gates.
+
 ### Changed — Optimistic SoftSeal unit Gateway + E2E Retrying parity — 2026-07-19
 
 - Optimistic unit SoftSeal now matches Multisig: RPC finalize → dual-chain

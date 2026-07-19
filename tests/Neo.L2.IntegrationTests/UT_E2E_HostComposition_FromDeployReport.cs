@@ -1243,6 +1243,37 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Assert.AreEqual(gatewayHost.Aggregator.PendingCount, gatewayHost.AggregatorPendingCount);
         var gwStatus = gatewayHost.GetOperatorStatus();
         Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwStatus.AggregatorPendingCount);
+        // Soft aggregate pending is not L1 outbox publication, but publication health flags the backlog.
+        Assert.IsTrue(gatewayHost.IsOfflinePassportComplete);
+        Assert.IsFalse(gatewayHost.HasPendingPublication);
+        Assert.IsFalse(gatewayHost.IsOutboxIdle);
+        Assert.IsFalse(gatewayHost.IsOutboxPoisoned);
+        Assert.IsFalse(gatewayHost.IsPublicationHealthy);
+        CollectionAssert.Contains(
+            gatewayHost.PublicationHealthFailures.ToArray(),
+            nameof(gatewayHost.AggregatorPendingCount));
+        Assert.IsFalse(gatewayHost.IsGatewayHostHealthy);
+        CollectionAssert.Contains(
+            gatewayHost.GatewayHostHealthFailures.ToArray(),
+            nameof(gatewayHost.AggregatorPendingCount));
+        Assert.IsFalse(gwStatus.HasPendingPublication);
+        Assert.IsFalse(gwStatus.IsOutboxIdle);
+        Assert.IsFalse(gwStatus.IsPublicationHealthy);
+        Assert.IsFalse(gwStatus.IsGatewayHostHealthy);
+        var gwProbe = gatewayHost.GetHealthProbe();
+        Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwProbe.AggregatorPendingCount);
+        Assert.IsFalse(gwProbe.HasPendingPublication);
+        Assert.IsFalse(gwProbe.IsPublicationHealthy);
+        Assert.IsFalse(gwProbe.IsOutboxIdle);
+        Assert.IsTrue(gwProbe.IsOfflinePassportComplete);
+        CollectionAssert.Contains(gwProbe.PublicationHealthFailures.ToArray(), "AggregatorPendingCount");
+        var gwJson = gatewayHost.FormatOperatorStatusJson();
+        StringAssert.Contains(gwJson, "\"aggregatorPendingCount\":");
+        StringAssert.Contains(gwJson, "\"hasPendingPublication\": false");
+        StringAssert.Contains(gwJson, "\"isPublicationHealthy\": false");
+        StringAssert.Contains(gwJson, "\"isOutboxIdle\": false");
+        StringAssert.Contains(gwJson, "\"isOfflinePassportComplete\": true");
+        StringAssert.Contains(gwJson, "AggregatorPendingCount");
         // PublishAggregateAsync remains a funded L1 publication gate.
     }
 

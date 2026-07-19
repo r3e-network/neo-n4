@@ -620,16 +620,10 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 settlementHost.GetLatestRpcStateRoot,
                 settlementHost.RecordRpcDeposit,
                 settlementHost.GetRpcL1DepositStatus,
-                gatewayHost.ReceiveBatch,
-                () => gatewayHost.AggregatorPendingCount,
-                () => gatewayHost.Aggregator.PendingCount,
-                () => gatewayHost.GetOperatorStatus().AggregatorPendingCount,
+                gatewayHost,
+                chainDir,
                 ProofType.Multisig,
                 softRoot: Root(0xAB));
-
-            var gwPromPath = Path.Combine(chainDir, "gateway-metrics.prom");
-            gatewayHost.WritePrometheusMetricsAsync(gwPromPath).AsTask().GetAwaiter().GetResult();
-            Assert.IsTrue(File.Exists(gwPromPath));
         }
         finally
         {
@@ -1184,10 +1178,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 host.GetLatestRpcStateRoot,
                 host.RecordRpcDeposit,
                 host.GetRpcL1DepositStatus,
-                gatewayHost.ReceiveBatch,
-                () => gatewayHost.AggregatorPendingCount,
-                () => gatewayHost.Aggregator.PendingCount,
-                () => gatewayHost.GetOperatorStatus().AggregatorPendingCount,
+                gatewayHost,
+                chainDir,
                 ProofType.Optimistic,
                 softRoot: Root(0xBB));
         }
@@ -1331,10 +1323,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 host.GetLatestRpcStateRoot,
                 host.RecordRpcDeposit,
                 host.GetRpcL1DepositStatus,
-                gatewayHost.ReceiveBatch,
-                () => gatewayHost.AggregatorPendingCount,
-                () => gatewayHost.Aggregator.PendingCount,
-                () => gatewayHost.GetOperatorStatus().AggregatorPendingCount,
+                gatewayHost,
+                chainDir,
                 ProofType.Zk,
                 softRoot: Root(0xCB));
         }
@@ -1593,7 +1583,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
 
     /// <summary>
     /// Soft LocalHost RPC store finalize + dual-chain Gateway ReceiveBatch (no L1 publish).
-    /// Shared by Multisig/Optimistic/Zk E2E host+gateway compositions.
+    /// Shared by Multisig/Optimistic/Zk E2E host+gateway compositions. Pins SoftSeal-parity
+    /// durable-outbox ops: PullAggregate fail-closed, AggregatorPendingCount publication backlog,
+    /// status/probe/prom durable files.
     /// </summary>
     private static void AssertSoftRpcStoreAndGatewayReceiveBatch(
         Action<L2BatchCommitment, BatchStatus> addRpcBatch,
@@ -1602,13 +1594,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Func<UInt256> getLatestRpcStateRoot,
         Action<DepositStatus> recordRpcDeposit,
         Func<uint, ulong, DepositStatus?> getRpcL1DepositStatus,
-        Action<L2BatchCommitment> receiveBatch,
-        Func<int> aggregatorPendingCount,
-        Func<int> aggregatorPendingFromAggregator,
-        Func<int> statusAggregatorPendingCount,
+        GatewayHostComposition gatewayHost,
+        string chainDir,
         ProofType proofType,
         UInt256 softRoot)
     {
+        ArgumentNullException.ThrowIfNull(gatewayHost);
         var softZ = UInt256.Zero;
         var softBatch = new L2BatchCommitment
         {
@@ -1635,19 +1626,72 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         recordRpcDeposit(new DepositStatus(20260716u, 1, ConsumedOnL2: false, IncludedInBatch: null));
         Assert.IsNotNull(getRpcL1DepositStatus(20260716u, 1));
         // Dual-chain constituents so aggregator has multi-chain pending input (soft local only).
-        receiveBatch(softBatch with
+        gatewayHost.ReceiveBatch(softBatch with
         {
             ChainId = 20260717u,
             L2ToL2MessageRoot = Root(0xAC),
             Proof = new byte[] { 0xA1 },
         });
-        receiveBatch(softBatch with
+        gatewayHost.ReceiveBatch(softBatch with
         {
             Proof = new byte[] { 0xA2 },
         });
-        Assert.IsTrue(aggregatorPendingCount() >= 1);
-        Assert.AreEqual(aggregatorPendingFromAggregator(), aggregatorPendingCount());
-        Assert.AreEqual(aggregatorPendingCount(), statusAggregatorPendingCount());
+        Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+        Assert.AreEqual(gatewayHost.Aggregator.PendingCount, gatewayHost.AggregatorPendingCount);
+        var gwStatus = gatewayHost.GetOperatorStatus();
+        Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwStatus.AggregatorPendingCount);
+        // Durable outbox path: direct PullAggregate bypasses publication outbox (fail-closed).
+        Assert.ThrowsExactly<InvalidOperationException>(() => gatewayHost.PullAggregate());
+        // Soft aggregate pending is not L1 outbox publication, but publication health flags the backlog.
+        Assert.IsTrue(gatewayHost.IsOfflinePassportComplete);
+        Assert.IsFalse(gatewayHost.HasPendingPublication);
+        Assert.IsFalse(gatewayHost.IsOutboxIdle);
+        Assert.IsFalse(gatewayHost.IsOutboxPoisoned);
+        Assert.IsFalse(gatewayHost.IsPublicationHealthy);
+        CollectionAssert.Contains(
+            gatewayHost.PublicationHealthFailures.ToArray(),
+            nameof(gatewayHost.AggregatorPendingCount));
+        Assert.IsFalse(gatewayHost.IsGatewayHostHealthy);
+        CollectionAssert.Contains(
+            gatewayHost.GatewayHostHealthFailures.ToArray(),
+            nameof(gatewayHost.AggregatorPendingCount));
+        Assert.IsFalse(gwStatus.HasPendingPublication);
+        Assert.IsFalse(gwStatus.IsOutboxIdle);
+        Assert.IsFalse(gwStatus.IsPublicationHealthy);
+        Assert.IsFalse(gwStatus.IsGatewayHostHealthy);
+        var gwProbe = gatewayHost.GetHealthProbe();
+        Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwProbe.AggregatorPendingCount);
+        Assert.IsFalse(gwProbe.HasPendingPublication);
+        Assert.IsFalse(gwProbe.IsPublicationHealthy);
+        Assert.IsFalse(gwProbe.IsOutboxIdle);
+        Assert.IsTrue(gwProbe.IsOfflinePassportComplete);
+        CollectionAssert.Contains(gwProbe.PublicationHealthFailures.ToArray(), "AggregatorPendingCount");
+        var gwJson = gatewayHost.FormatOperatorStatusJson();
+        StringAssert.Contains(gwJson, "\"aggregatorPendingCount\":");
+        StringAssert.Contains(gwJson, "\"hasPendingPublication\": false");
+        StringAssert.Contains(gwJson, "\"isPublicationHealthy\": false");
+        StringAssert.Contains(gwJson, "\"isOutboxIdle\": false");
+        StringAssert.Contains(gwJson, "\"isOfflinePassportComplete\": true");
+        StringAssert.Contains(gwJson, "AggregatorPendingCount");
+        var gwStatusPath = Path.Combine(chainDir, "soft-rpc-gateway-status.json");
+        gatewayHost.WriteOperatorStatusAsync(gwStatusPath).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(gwStatusPath));
+        Assert.AreEqual(gwJson, File.ReadAllText(gwStatusPath));
+        var gwProbeJson = gatewayHost.FormatHealthProbeJson();
+        StringAssert.Contains(gwProbeJson, "\"aggregatorPendingCount\":");
+        StringAssert.Contains(gwProbeJson, "\"isPublicationHealthy\": false");
+        StringAssert.Contains(gwProbeJson, "\"isOutboxIdle\": false");
+        StringAssert.Contains(gwProbeJson, "AggregatorPendingCount");
+        var gwProbePath = Path.Combine(chainDir, "soft-rpc-gateway-probe.json");
+        gatewayHost.WriteHealthProbeAsync(gwProbePath).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(gwProbePath));
+        Assert.AreEqual(gwProbeJson, File.ReadAllText(gwProbePath));
+        var gwProm = gatewayHost.ExportPrometheusMetrics();
+        Assert.IsFalse(string.IsNullOrWhiteSpace(gwProm));
+        var gwPromPath = Path.Combine(chainDir, "soft-rpc-gateway.prom");
+        gatewayHost.WritePrometheusMetricsAsync(gwPromPath).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(gwPromPath));
+        Assert.AreEqual(gwProm, File.ReadAllText(gwPromPath));
         // PublishAggregateAsync remains a funded L1 publication gate (not exercised here).
     }
 

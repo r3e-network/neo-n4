@@ -101,8 +101,16 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(0, host.OpenBatchL1MessageCount);
             Assert.IsFalse(host.HasPendingSealedBatch);
             Assert.AreEqual(2UL, host.NextExpectedBlock);
-            Assert.IsTrue(host.RegisterInboundMessageNonce(3));
-            Assert.AreEqual(1, host.KnownInboundNonceCount);
+            if (host.MaxBlocksPerBatch > 2)
+            {
+                host.ProcessCommittedBlock(2, openBatchTimestampMs + 1, 894710606, Array.Empty<byte[]>());
+                Assert.IsTrue(host.HasOpenBatch);
+                Assert.AreEqual(2, host.OpenBatchBlockCount);
+                Assert.IsFalse(host.HasPendingSealedBatch);
+                Assert.AreEqual(3UL, host.NextExpectedBlock);
+                Assert.AreEqual(1UL, host.NextBatchNumber);
+            }
+            Assert.IsTrue(host.RegisterInboundMessageNonce(3));            Assert.AreEqual(1, host.KnownInboundNonceCount);
             Assert.AreEqual(0, host.L1InboxPendingCount);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Settlement.ProductionTransactionSender);
@@ -419,11 +427,11 @@ public sealed class UT_OptimisticLocalHostComposition
                 probe.SettlementConfirmationLagBatches);
             Assert.IsTrue(probe.HasOpenBatch);
             Assert.AreEqual(0, probe.InProgressTxCount);
-            Assert.AreEqual(1, probe.OpenBatchBlockCount);
+            Assert.AreEqual(host.OpenBatchBlockCount, probe.OpenBatchBlockCount);
             Assert.IsTrue(probe.IsBatcherCheckpointAligned);
             Assert.AreEqual(0UL, probe.LastAcknowledgedBatchNumber);
             Assert.AreEqual(1UL, probe.NextBatchNumber);
-            Assert.AreEqual(2UL, probe.NextExpectedBlock);
+            Assert.AreEqual(host.NextExpectedBlock, probe.NextExpectedBlock);
             Assert.IsNull(probe.LatestCheckpointBatchNumber);
             Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
@@ -456,8 +464,8 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": true");
             StringAssert.Contains(probeJson, "\"nextBatchNumber\": 1");
             StringAssert.Contains(probeJson, "\"hasOpenBatch\": true");
-            StringAssert.Contains(probeJson, "\"openBatchBlockCount\": 1");
-            StringAssert.Contains(probeJson, "\"nextExpectedBlock\": 2");
+            StringAssert.Contains(probeJson, "\"openBatchBlockCount\": " + host.OpenBatchBlockCount);
+            StringAssert.Contains(probeJson, "\"nextExpectedBlock\": " + host.NextExpectedBlock);
             StringAssert.Contains(probeJson, "\"depositSourceReservedCount\":");
             StringAssert.Contains(probeJson, $"\"consumedDepositCount\": {host.ConsumedDepositCount}");
             StringAssert.Contains(probeJson, "\"l1InboxConsumedCount\":");

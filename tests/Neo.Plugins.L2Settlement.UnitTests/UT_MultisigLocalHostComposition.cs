@@ -133,8 +133,19 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(host.HasPendingSealedBatch);
             Assert.AreEqual(2UL, host.NextExpectedBlock);
             Assert.AreEqual(1UL, host.NextBatchNumber);
-            Assert.IsTrue(host.RegisterInboundMessageNonce(7));
-            Assert.AreEqual(1, host.KnownInboundNonceCount);
+            // Second empty block still under MaxBlocksPerBatch: open batch grows without seal.
+            if (host.MaxBlocksPerBatch > 2)
+            {
+                host.ProcessCommittedBlock(2, openBatchTimestampMs + 1, 894710606, Array.Empty<byte[]>());
+                Assert.IsTrue(host.HasOpenBatch);
+                Assert.AreEqual(1UL, host.OpenBatchFirstBlock);
+                Assert.AreEqual(2UL, host.OpenBatchLastBlock);
+                Assert.AreEqual(2, host.OpenBatchBlockCount);
+                Assert.IsFalse(host.HasPendingSealedBatch);
+                Assert.AreEqual(3UL, host.NextExpectedBlock);
+                Assert.AreEqual(1UL, host.NextBatchNumber);
+            }
+            Assert.IsTrue(host.RegisterInboundMessageNonce(7));            Assert.AreEqual(1, host.KnownInboundNonceCount);
             host.InvalidateInboundMessageCache();
             Assert.AreEqual(0, host.L1InboxPendingCount);
             Assert.AreEqual(0, host.L1InboxConsumedCount);
@@ -253,12 +264,13 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.IsOperatorReady);
             Assert.IsTrue(status.IsProductionWired);
             Assert.IsTrue(status.HasSealedBatchSink);
-            Assert.AreEqual(2UL, status.NextExpectedBlock);
+            Assert.AreEqual(host.NextExpectedBlock, status.NextExpectedBlock);
             Assert.IsFalse(status.HasPendingSealedBatch);
             Assert.IsTrue(status.HasOpenBatch);
             Assert.AreEqual(0, status.InProgressTxCount);
             Assert.AreEqual(1UL, status.OpenBatchFirstBlock);
-            Assert.AreEqual(1, status.OpenBatchBlockCount);
+            Assert.AreEqual(host.OpenBatchLastBlock, status.OpenBatchLastBlock);
+            Assert.AreEqual(host.OpenBatchBlockCount, status.OpenBatchBlockCount);
             Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, status.OpenBatchForcedInclusionCount);
             Assert.AreEqual(0, status.OpenBatchWithdrawalCount);
@@ -596,8 +608,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(probe.IsOpenBatchPastMaxAge);
             Assert.AreEqual(0, probe.InProgressTxCount);
             Assert.AreEqual(1UL, probe.OpenBatchFirstBlock);
-            Assert.AreEqual(1UL, probe.OpenBatchLastBlock);
-            Assert.AreEqual(1, probe.OpenBatchBlockCount);
+            Assert.AreEqual(host.OpenBatchLastBlock, probe.OpenBatchLastBlock);
+            Assert.AreEqual(host.OpenBatchBlockCount, probe.OpenBatchBlockCount);
             Assert.AreEqual(0, probe.OpenBatchL1MessageCount);
             Assert.AreEqual(0, probe.OpenBatchL2ToL1MessageCount);
             Assert.AreEqual(0, probe.OpenBatchL2ToL2MessageCount);
@@ -605,7 +617,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, probe.OpenBatchWithdrawalCount);
             Assert.IsTrue(probe.IsBatcherCheckpointAligned);
             // Soft ProcessCommittedBlock advanced expected block without sealing.
-            Assert.AreEqual(2UL, probe.NextExpectedBlock);
+            Assert.AreEqual(host.NextExpectedBlock, probe.NextExpectedBlock);
             Assert.AreEqual(0UL, probe.LastAcknowledgedBatchNumber);
             Assert.AreEqual(0UL, probe.LastAcknowledgedBlock);
             Assert.AreEqual(1UL, probe.NextBatchNumber);
@@ -664,7 +676,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"hasOpenBatch\": true");
             StringAssert.Contains(probeJson, "\"isOpenBatchPastMaxAge\": false");
             StringAssert.Contains(probeJson, "\"inProgressTxCount\": 0");
-            StringAssert.Contains(probeJson, "\"openBatchBlockCount\": 1");
+            StringAssert.Contains(probeJson, "\"openBatchBlockCount\": " + host.OpenBatchBlockCount);
             StringAssert.Contains(probeJson, "\"openBatchL1MessageCount\": 0");
             StringAssert.Contains(probeJson, "\"openBatchForcedInclusionCount\": 0");
             StringAssert.Contains(probeJson, "\"openBatchWithdrawalCount\": 0");
@@ -689,7 +701,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"knownInboundNonceCount\":");
             StringAssert.Contains(probeJson, "\"knownForcedInclusionNonceCount\":");
             StringAssert.Contains(probeJson, "\"stagedWithdrawalCount\":");
-            StringAssert.Contains(probeJson, "\"nextExpectedBlock\": 2");
+            StringAssert.Contains(probeJson, "\"nextExpectedBlock\": " + host.NextExpectedBlock);
             StringAssert.Contains(probeJson, "\"latestCheckpointBatchNumber\": null");
             StringAssert.Contains(probeJson, "\"chainId\": 20260716");
             StringAssert.Contains(probeJson, "\"proofType\": \"Multisig\"");
@@ -738,7 +750,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"settlementConfiguredChainId\": 20260716");
             StringAssert.Contains(statusJson, "\"settlementConfiguredProofType\": \"Multisig\"");
             StringAssert.Contains(statusJson, "\"isOperatorReady\": true");
-            StringAssert.Contains(statusJson, "\"nextExpectedBlock\": 2");
+            StringAssert.Contains(statusJson, "\"nextExpectedBlock\": " + host.NextExpectedBlock);
             StringAssert.Contains(statusJson, "\"hasPendingSealedBatch\": false");
             StringAssert.Contains(statusJson, "\"isBatcherEnabled\": true");
             StringAssert.Contains(statusJson, "\"maxBlocksPerBatch\":");
@@ -746,7 +758,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"maxBatchAgeMillis\":");
             StringAssert.Contains(statusJson, "\"hasOpenBatch\": true");
             StringAssert.Contains(statusJson, "\"inProgressTxCount\": 0");
-            StringAssert.Contains(statusJson, "\"openBatchBlockCount\": 1");
+            StringAssert.Contains(statusJson, "\"openBatchBlockCount\": " + host.OpenBatchBlockCount);
             StringAssert.Contains(statusJson, "\"openBatchL1MessageCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchL2ToL2MessageCount\": 0");

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Soft RPC→Gateway ReceiveBatch ops parity + unit multi-block open — 2026-07-20
+
+- E2E `AssertSoftRpcStoreAndGatewayReceiveBatch` (Multisig/Opt/Zk): after dual-chain
+  ReceiveBatch, pins SoftSeal-parity durable-outbox ops — `PullAggregate` fail-closed,
+  `AggregatorPendingCount` publication backlog (not `HasPendingPublication`),
+  `soft-rpc-gateway-status.json` / `soft-rpc-gateway-probe.json` / `.prom`.
+- Unit Multisig/Opt/Zk soft open-batch: second empty block when MaxBlocks>2 (no seal);
+  status/probe JSON open-batch counters track host state.
+- No wire/ABI change. Gateway `PublishAggregateAsync` remains a funded L1 gate.
+
 ### Changed — Soft open-batch multi-block + operator surface pins — 2026-07-20
 
 - E2E `AssertSoftOpenBatchNoSeal`: when `MaxBlocksPerBatch > 2`, second empty

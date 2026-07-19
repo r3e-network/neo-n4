@@ -106,10 +106,10 @@ public sealed record GatewayHostOperatorStatusDocument
     /// <summary>Failed publication health check names (empty when healthy).</summary>
     public required IReadOnlyList<string> PublicationHealthFailures { get; init; }
 
-    /// <summary>Combined Gateway host local health (same as IsPublicationHealthy).</summary>
+    /// <summary>Combined Gateway host local health (publication + metrics HTTP).</summary>
     public required bool IsGatewayHostHealthy { get; init; }
 
-    /// <summary>Failed Gateway host health checks (same as PublicationHealthFailures).</summary>
+    /// <summary>Failed Gateway host health checks (publication + metrics HTTP).</summary>
     public required IReadOnlyList<string> GatewayHostHealthFailures { get; init; }
 
     /// <summary>Publication-profile replay domain as 0x-hex.</summary>
@@ -132,6 +132,33 @@ public sealed record GatewayHostOperatorStatusDocument
 
     /// <summary>Metrics snapshot entry count when exportable; otherwise 0.</summary>
     public required int MetricsEntryCount { get; init; }
+
+    /// <summary>L2MetricsPlugin attached for metrics HTTP control.</summary>
+    public required bool HasMetricsPlugin { get; init; }
+
+    /// <summary>Metrics plugin enabled in settings.</summary>
+    public required bool IsMetricsEnabled { get; init; }
+
+    /// <summary>Metrics HTTP is listening.</summary>
+    public required bool IsMetricsHttpListening { get; init; }
+
+    /// <summary>Metrics HTTP bound port (0 when not listening).</summary>
+    public required int MetricsBoundPort { get; init; }
+
+    /// <summary>Metrics /readyz predicate installed.</summary>
+    public required bool HasMetricsReadinessCheck { get; init; }
+
+    /// <summary>Metrics /healthprobe body installed.</summary>
+    public required bool HasMetricsHealthProbe { get; init; }
+
+    /// <summary>Metrics /operatorstatus body installed.</summary>
+    public required bool HasMetricsOperatorStatus { get; init; }
+
+    /// <summary>Metrics HTTP health failure names.</summary>
+    public required IReadOnlyList<string> MetricsHttpHealthFailures { get; init; }
+
+    /// <summary>Metrics HTTP health is clean (or not required).</summary>
+    public required bool IsMetricsHttpHealthy { get; init; }
 
     /// <summary>Map a live status snapshot into a JSON document.</summary>
     public static GatewayHostOperatorStatusDocument From(GatewayHostOperatorStatus status)
@@ -173,6 +200,15 @@ public sealed record GatewayHostOperatorStatusDocument
             OwnsProofProver = status.OwnsProofProver,
             HasMetrics = status.HasMetrics,
             MetricsEntryCount = status.MetricsEntryCount,
+            HasMetricsPlugin = status.HasMetricsPlugin,
+            IsMetricsEnabled = status.IsMetricsEnabled,
+            IsMetricsHttpListening = status.IsMetricsHttpListening,
+            MetricsBoundPort = status.MetricsBoundPort,
+            HasMetricsReadinessCheck = status.HasMetricsReadinessCheck,
+            HasMetricsHealthProbe = status.HasMetricsHealthProbe,
+            HasMetricsOperatorStatus = status.HasMetricsOperatorStatus,
+            MetricsHttpHealthFailures = status.MetricsHttpHealthFailures,
+            IsMetricsHttpHealthy = status.IsMetricsHttpHealthy,
         };
     }
 }

@@ -113,15 +113,46 @@ public sealed record GatewayHostOperatorStatus
     public required IReadOnlyList<string> PublicationHealthFailures { get; init; }
 
     /// <summary>
-    /// Combined Gateway host local health (same as <see cref="IsPublicationHealthy"/>).
-    /// Naming parity with LocalHost <c>IsLocalHostHealthy</c>.
+    /// Combined Gateway host local health: publication health + metrics HTTP health
+    /// (when a metrics plugin is enabled). Naming parity with LocalHost
+    /// <c>IsLocalHostHealthy</c>. Not an L1 confirmation claim.
     /// </summary>
     public required bool IsGatewayHostHealthy { get; init; }
 
     /// <summary>
-    /// Failed Gateway host health checks (same as <see cref="PublicationHealthFailures"/>).
+    /// Failed Gateway host health checks (publication + optional metrics HTTP).
+    /// Empty when <see cref="IsGatewayHostHealthy"/>.
     /// </summary>
     public required IReadOnlyList<string> GatewayHostHealthFailures { get; init; }
+
+    /// <summary>True when an <c>L2MetricsPlugin</c> was supplied for metrics HTTP control.</summary>
+    public required bool HasMetricsPlugin { get; init; }
+
+    /// <summary>Metrics plugin is enabled in settings (false when no plugin).</summary>
+    public required bool IsMetricsEnabled { get; init; }
+
+    /// <summary>Metrics HTTP server is listening (BoundPort &gt; 0).</summary>
+    public required bool IsMetricsHttpListening { get; init; }
+
+    /// <summary>Metrics HTTP bound port (0 when not listening).</summary>
+    public required int MetricsBoundPort { get; init; }
+
+    /// <summary>Metrics plugin has a <c>/readyz</c> readiness predicate installed.</summary>
+    public required bool HasMetricsReadinessCheck { get; init; }
+
+    /// <summary>Metrics plugin has a <c>/healthprobe</c> body provider installed.</summary>
+    public required bool HasMetricsHealthProbe { get; init; }
+
+    /// <summary>Metrics plugin has a <c>/operatorstatus</c> body provider installed.</summary>
+    public required bool HasMetricsOperatorStatus { get; init; }
+
+    /// <summary>
+    /// Metrics HTTP health failure names (empty when metrics disabled / no plugin, or healthy).
+    /// </summary>
+    public required IReadOnlyList<string> MetricsHttpHealthFailures { get; init; }
+
+    /// <summary>True when <see cref="MetricsHttpHealthFailures"/> is empty.</summary>
+    public required bool IsMetricsHttpHealthy { get; init; }
 
     /// <summary>Publication-profile replay domain bound at open.</summary>
     public required UInt256 ReplayDomain { get; init; }
@@ -195,8 +226,7 @@ public sealed record GatewayHostOperatorStatus
 
     /// <summary>
     /// Build publication health failure names from offline passport + outbox/queue runtime state.
-    /// Empty list means <see cref="IsPublicationHealthy"/> / <see cref="IsGatewayHostHealthy"/>.
-    /// Not an L1 confirmation claim.
+    /// Empty list means <see cref="IsPublicationHealthy"/>. Not an L1 confirmation claim.
     /// </summary>
     public static IReadOnlyList<string> BuildPublicationHealthFailures(
         bool offlinePassportComplete,
@@ -220,5 +250,58 @@ public sealed record GatewayHostOperatorStatus
         if (!string.IsNullOrEmpty(outboxLastError))
             failures.Add(nameof(OutboxLastError));
         return failures;
+    }
+
+    /// <summary>
+    /// Build metrics HTTP health failure names. When metrics are disabled or no plugin is
+    /// attached, returns empty (not required). When enabled, requires wiring + listening +
+    /// <c>/readyz</c> + <c>/healthprobe</c> + <c>/operatorstatus</c> body providers
+    /// (LocalHost metrics HTTP parity).
+    /// </summary>
+    public static IReadOnlyList<string> BuildMetricsHttpHealthFailures(
+        bool metricsEnabled,
+        bool metricsWiringComplete,
+        bool metricsHttpListening,
+        bool hasMetricsReadinessCheck,
+        bool hasMetricsHealthProbe,
+        bool hasMetricsOperatorStatus)
+    {
+        if (!metricsEnabled)
+            return Array.Empty<string>();
+
+        var failures = new List<string>();
+        if (!metricsWiringComplete)
+            failures.Add(nameof(HasMetricsPlugin));
+        if (!metricsHttpListening)
+            failures.Add(nameof(IsMetricsHttpListening));
+        if (!hasMetricsReadinessCheck)
+            failures.Add(nameof(HasMetricsReadinessCheck));
+        if (!hasMetricsHealthProbe)
+            failures.Add(nameof(HasMetricsHealthProbe));
+        if (!hasMetricsOperatorStatus)
+            failures.Add(nameof(HasMetricsOperatorStatus));
+        return failures;
+    }
+
+    /// <summary>
+    /// Union of publication and metrics HTTP health failure names for combined Gateway host
+    /// health. Empty means <see cref="IsGatewayHostHealthy"/>.
+    /// </summary>
+    public static IReadOnlyList<string> BuildGatewayHostHealthFailures(
+        IReadOnlyList<string> publicationHealthFailures,
+        IReadOnlyList<string> metricsHttpHealthFailures)
+    {
+        ArgumentNullException.ThrowIfNull(publicationHealthFailures);
+        ArgumentNullException.ThrowIfNull(metricsHttpHealthFailures);
+        if (publicationHealthFailures.Count == 0 && metricsHttpHealthFailures.Count == 0)
+            return Array.Empty<string>();
+        if (metricsHttpHealthFailures.Count == 0)
+            return publicationHealthFailures;
+        if (publicationHealthFailures.Count == 0)
+            return metricsHttpHealthFailures;
+        var merged = new List<string>(publicationHealthFailures.Count + metricsHttpHealthFailures.Count);
+        merged.AddRange(publicationHealthFailures);
+        merged.AddRange(metricsHttpHealthFailures);
+        return merged;
     }
 }

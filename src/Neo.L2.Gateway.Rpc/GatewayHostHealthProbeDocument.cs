@@ -64,6 +64,33 @@ public sealed record GatewayHostHealthProbeDocument
     /// <summary>Optional metrics sink was supplied at open.</summary>
     public required bool HasMetrics { get; init; }
 
+    /// <summary>L2MetricsPlugin attached for metrics HTTP control.</summary>
+    public required bool HasMetricsPlugin { get; init; }
+
+    /// <summary>Metrics plugin enabled in settings.</summary>
+    public required bool IsMetricsEnabled { get; init; }
+
+    /// <summary>Metrics HTTP is listening.</summary>
+    public required bool IsMetricsHttpListening { get; init; }
+
+    /// <summary>Metrics HTTP bound port (0 when not listening).</summary>
+    public required int MetricsBoundPort { get; init; }
+
+    /// <summary>Metrics /readyz predicate installed.</summary>
+    public required bool HasMetricsReadinessCheck { get; init; }
+
+    /// <summary>Metrics /healthprobe body installed.</summary>
+    public required bool HasMetricsHealthProbe { get; init; }
+
+    /// <summary>Metrics /operatorstatus body installed.</summary>
+    public required bool HasMetricsOperatorStatus { get; init; }
+
+    /// <summary>Metrics HTTP health is clean (or not required).</summary>
+    public required bool IsMetricsHttpHealthy { get; init; }
+
+    /// <summary>Metrics HTTP health failure names (empty when healthy / N/A).</summary>
+    public required IReadOnlyList<string> MetricsHttpHealthFailures { get; init; }
+
     /// <summary>Unconfirmed publication remains retryable or poisoned.</summary>
     public required bool HasPendingPublication { get; init; }
 

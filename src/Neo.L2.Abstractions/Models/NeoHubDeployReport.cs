@@ -524,17 +524,22 @@ public sealed record NeoHubDeployReport(
                     ["localHostWritePrometheusMetrics"] =
                         "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                     ["gatewayHostWriteOperatorStatus"] =
-                        "GatewayHostComposition.FormatOperatorStatusJson() / WriteOperatorStatusAsync(path) → "
+                        "GatewayHostComposition.FormatOperatorStatusJson() / WriteOperatorStatusAsync(path) / "
+                        + "metrics HTTP GET /operatorstatus → "
                         + "GatewayHostOperatorStatusDocument JSON",
                     ["gatewayHostWriteHealthProbe"] =
                         "GatewayHostComposition.GetHealthProbe() / FormatHealthProbeJson() / "
-                        + "WriteHealthProbeAsync(path) → "
+                        + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                         + "GatewayHostHealthProbeDocument JSON "
                         + "(passport + enabled/publication/outbox/rpc/network/profile flags + "
-                        + "pending/queue/retry/lag runtime)",
+                        + "pending/queue/retry/lag runtime + metrics HTTP readiness/healthprobe/"
+                        + "operatorstatus flags)",
                     ["gatewayHostWritePrometheusMetrics"] =
                         "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "
                         + "(when Metrics is IMetricsSource)",
+                    ["gatewayHostStartMetricsHttp"] =
+                        "GatewayHostComposition.StartMetricsHttp(portOverride?, readiness?) / StopMetricsHttp "
+                        + "(requires Open* metricsPlugin:; wires /readyz + /healthprobe + /operatorstatus)",
                     ["localHostSettleHelpers"] =
                         "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                         + "PersistAsync / EnqueueAsync",
@@ -554,13 +559,15 @@ public sealed record NeoHubDeployReport(
                         "LocalHost StartMetricsHttp → WithReadinessCheck(IsOfflinePassportComplete) + "
                         + "WithHealthProbe(FormatHealthProbeJson) + "
                         + "WithOperatorStatus(FormatOperatorStatusJsonAsync) → "
-                        + "/readyz + /healthprobe + /operatorstatus",
+                        + "/readyz + /healthprobe + /operatorstatus; "
+                        + "GatewayHost StartMetricsHttp (metricsPlugin) → same three endpoints "
+                        + "with FormatOperatorStatusJson",
                     ["gatewayHostCompositionMerkle"] =
-                        "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",
+                        "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?, metricsPlugin?)",
                     ["gatewayHostCompositionMultisig"] =
-                        "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk, metrics?)",
+                        "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk, metrics?, metricsPlugin?)",
                     ["gatewayHostCompositionSp1"] =
-                        "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?)",
+                        "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?, metricsPlugin?)",
                     ["gatewayHostOpsHelpers"] =
                         "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
                         + "AggregatorPendingCount / HasDurableOutbox / IsPublicationConfigured / "
@@ -570,14 +577,18 @@ public sealed record NeoHubDeployReport(
                         + "BuildOfflinePassportFailures / "
                         + "IsOutboxPoisoned / IsOutboxIdle / IsOutboxRuntimeIdle / IsPublicationHealthy / "
                         + "PublicationHealthFailures / BuildPublicationHealthFailures / "
-                        + "IsGatewayHostHealthy / GatewayHostHealthFailures / "
+                        + "IsGatewayHostHealthy / GatewayHostHealthFailures / BuildGatewayHostHealthFailures / "
+                        + "HasMetricsPlugin / IsMetricsEnabled / IsMetricsHttpListening / MetricsBoundPort / "
+                        + "HasMetricsReadinessCheck / HasMetricsHealthProbe / HasMetricsOperatorStatus / "
+                        + "IsMetricsHttpHealthy / MetricsHttpHealthFailures / BuildMetricsHttpHealthFailures / "
+                        + "StartMetricsHttp / StopMetricsHttp / "
                         + "ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash / "
                         + "OutboxStatus / Aggregator / ReceiveBatch / "
                         + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                         + "RecoverPoisonedPublication / GetOperatorStatus / FormatOperatorStatusJson / "
                         + "WriteOperatorStatusAsync / "
                         + "GetHealthProbe / FormatHealthProbeJson / WriteHealthProbeAsync / "
-                        + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
+                        + "Metrics / MetricsPlugin / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                         + "WritePrometheusMetricsAsync",
                     ["localDaOpenHelper"] = "PersistentDAWriter.OpenLocalFromChainDirectory(chainDirectory)",
                     ["daMetricsWrap"] =

@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Neo.Plugins.L2Gateway\Neo.Plugins.L2Gateway.csproj" />
+    <ProjectReference Include="..\Neo.Plugins.L2Metrics\Neo.Plugins.L2Metrics.csproj" />
     <ProjectReference Include="..\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />
   </ItemGroup>
 

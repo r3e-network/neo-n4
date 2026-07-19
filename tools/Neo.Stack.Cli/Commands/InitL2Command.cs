@@ -150,7 +150,8 @@ internal static class InitL2Command
         Console.WriteLine("               OfflinePassportFailures / BuildOfflinePassportFailures (empty when complete)");
         Console.WriteLine("               IsOutboxIdle / IsOutboxRuntimeIdle / IsOutboxPoisoned / IsPublicationHealthy");
         Console.WriteLine("               PublicationHealthFailures / BuildPublicationHealthFailures (empty when publication healthy)");
-        Console.WriteLine("               IsGatewayHostHealthy / GatewayHostHealthFailures (alias of publication health)");
+        Console.WriteLine("               IsGatewayHostHealthy / GatewayHostHealthFailures (publication + metrics HTTP when plugin enabled)");
+        Console.WriteLine("               HasMetricsPlugin / IsMetricsHttpHealthy / MetricsHttpHealthFailures / StartMetricsHttp / StopMetricsHttp");
         Console.WriteLine("               ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash");
         Console.WriteLine("  host ops   = LocalHost.ExportPrometheusMetrics / IsMetricsEnabled / MetricsConfiguredPort / MetricsMaxConcurrentConnections / RegisterBridgeAsset");
         Console.WriteLine("               IsMetricsWiringComplete / HasMetricsReadinessCheck / HasMetricsHealthProbe / HasMetricsOperatorStatus / StartMetricsHttp / StopMetricsHttp");
@@ -167,6 +168,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsBatcherCheckpointAligned (batcher last-ack vs durable settlement checkpoint)");
         Console.WriteLine("               OpenBatchAgeMillis / IsOpenBatchPastMaxAge (seal-by-age overdue when true)");
         Console.WriteLine("               StartMetricsHttp /readyz defaults to IsOfflinePassportComplete; /healthprobe → FormatHealthProbeJson; /operatorstatus → FormatOperatorStatusJsonAsync");
+        Console.WriteLine("               GatewayHost StartMetricsHttp (Open* metricsPlugin:) wires /readyz + /healthprobe + /operatorstatus (FormatOperatorStatusJson)");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");
         Console.WriteLine("               ConsumedDepositCount / DepositSourceReadyCount / DepositSourceReservedCount / DepositSourceSoftConsumedCount");
         Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork");

@@ -2,6 +2,7 @@ using Neo.L2;
 using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.Telemetry;
+using Neo.Plugins.L2;
 using Neo.Plugins.L2Gateway;
 
 namespace Neo.L2.Gateway.Rpc;
@@ -29,6 +30,7 @@ public sealed class GatewayHostComposition : IDisposable
         IGatewayProofProver proofProver,
         bool ownsProofProver,
         IL2Metrics? metrics,
+        L2MetricsPlugin? metricsPlugin,
         uint? expectedNetwork,
         bool hasL1RpcEndpoint,
         UInt256 replayDomain,
@@ -40,6 +42,7 @@ public sealed class GatewayHostComposition : IDisposable
         ProofProver = proofProver;
         OwnsProofProver = ownsProofProver;
         Metrics = metrics;
+        MetricsPlugin = metricsPlugin;
         ExpectedNetwork = expectedNetwork;
         HasL1RpcEndpoint = hasL1RpcEndpoint;
         ReplayDomain = replayDomain;
@@ -62,10 +65,55 @@ public sealed class GatewayHostComposition : IDisposable
     public bool OwnsProofProver { get; }
 
     /// <summary>
-    /// Optional metrics sink passed at open (e.g. Multisig LocalHost <c>Metrics.Metrics</c>).
-    /// Null when no sink was supplied; export helpers then return empty snapshots.
+    /// Optional metrics sink passed at open (e.g. Multisig LocalHost <c>Metrics.Metrics</c>
+    /// or <see cref="MetricsPlugin"/>.Metrics). Null when no sink was supplied; export helpers
+    /// then return empty snapshots.
     /// </summary>
     public IL2Metrics? Metrics { get; }
+
+    /// <summary>
+    /// Optional metrics plugin for <see cref="StartMetricsHttp"/> control. Distinct from a bare
+    /// <see cref="IL2Metrics"/> sink: only a plugin can host <c>/metrics</c> + probes.
+    /// Composition does not dispose the plugin (caller owns lifecycle).
+    /// </summary>
+    public L2MetricsPlugin? MetricsPlugin { get; }
+
+    /// <summary>True when <see cref="MetricsPlugin"/> was supplied at open.</summary>
+    public bool HasMetricsPlugin => MetricsPlugin is not null;
+
+    /// <summary>Metrics plugin is enabled in settings (false when no plugin).</summary>
+    public bool IsMetricsEnabled => MetricsPlugin?.IsEnabled == true;
+
+    /// <summary>Metrics HTTP bound port (0 when not listening / no plugin).</summary>
+    public int MetricsBoundPort => MetricsPlugin?.BoundPort ?? 0;
+
+    /// <summary>True when metrics HTTP is listening (BoundPort &gt; 0).</summary>
+    public bool IsMetricsHttpListening => MetricsBoundPort > 0;
+
+    /// <summary>True when a <c>/readyz</c> readiness predicate is installed on the metrics plugin.</summary>
+    public bool HasMetricsReadinessCheck => MetricsPlugin?.HasReadinessCheck == true;
+
+    /// <summary>True when a <c>/healthprobe</c> JSON body provider is installed.</summary>
+    public bool HasMetricsHealthProbe => MetricsPlugin?.HasHealthProbe == true;
+
+    /// <summary>True when a <c>/operatorstatus</c> JSON body provider is installed.</summary>
+    public bool HasMetricsOperatorStatus => MetricsPlugin?.HasOperatorStatus == true;
+
+    /// <summary>
+    /// Metrics HTTP health failure names. Empty when no plugin / metrics disabled, or when
+    /// listening with readiness + healthprobe + operatorstatus providers wired.
+    /// </summary>
+    public IReadOnlyList<string> MetricsHttpHealthFailures =>
+        GatewayHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            IsMetricsEnabled,
+            HasMetricsPlugin,
+            IsMetricsHttpListening,
+            HasMetricsReadinessCheck,
+            HasMetricsHealthProbe,
+            HasMetricsOperatorStatus);
+
+    /// <summary>True when <see cref="MetricsHttpHealthFailures"/> is empty.</summary>
+    public bool IsMetricsHttpHealthy => MetricsHttpHealthFailures.Count == 0;
 
     /// <summary>
     /// Active aggregator installed on the gateway plugin
@@ -226,16 +274,20 @@ public sealed class GatewayHostComposition : IDisposable
     }
 
     /// <summary>
-    /// Gateway host combined local health (publication profile + outbox idle).
-    /// Alias of <see cref="IsPublicationHealthy"/> for parity with LocalHost
-    /// <c>IsLocalHostHealthy</c>. Does not claim L1 confirmation.
+    /// Gateway host combined local health: publication health + metrics HTTP health
+    /// (when a metrics plugin is enabled). Parity with LocalHost <c>IsLocalHostHealthy</c>.
+    /// Does not claim L1 confirmation.
     /// </summary>
-    public bool IsGatewayHostHealthy => IsPublicationHealthy;
+    public bool IsGatewayHostHealthy => GatewayHostHealthFailures.Count == 0;
 
     /// <summary>
-    /// Failed Gateway host health checks (same as <see cref="PublicationHealthFailures"/>).
+    /// Failed Gateway host health checks (publication + optional metrics HTTP).
+    /// Empty when <see cref="IsGatewayHostHealthy"/>.
     /// </summary>
-    public IReadOnlyList<string> GatewayHostHealthFailures => PublicationHealthFailures;
+    public IReadOnlyList<string> GatewayHostHealthFailures =>
+        GatewayHostOperatorStatus.BuildGatewayHostHealthFailures(
+            PublicationHealthFailures,
+            MetricsHttpHealthFailures);
 
     /// <summary>
     /// Terminal proof-system discriminator from <see cref="ProofProver"/>
@@ -318,6 +370,8 @@ public sealed class GatewayHostComposition : IDisposable
     public GatewayHostOperatorStatus GetOperatorStatus()
     {
         var outbox = OutboxStatus;
+        var metricsFailures = MetricsHttpHealthFailures;
+        var hostFailures = GatewayHostHealthFailures;
         return new GatewayHostOperatorStatus
         {
             ChainDirectory = ChainDirectory,
@@ -345,8 +399,8 @@ public sealed class GatewayHostComposition : IDisposable
             IsOutboxIdle = IsOutboxIdle,
             IsPublicationHealthy = IsPublicationHealthy,
             PublicationHealthFailures = PublicationHealthFailures,
-            IsGatewayHostHealthy = IsGatewayHostHealthy,
-            GatewayHostHealthFailures = GatewayHostHealthFailures,
+            IsGatewayHostHealthy = hostFailures.Count == 0,
+            GatewayHostHealthFailures = hostFailures,
             ReplayDomain = ReplayDomain,
             VerificationKeyId = VerificationKeyId,
             SettlementManagerHash = SettlementManagerHash,
@@ -354,8 +408,48 @@ public sealed class GatewayHostComposition : IDisposable
             OwnsProofProver = OwnsProofProver,
             HasMetrics = Metrics is not null,
             MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,
+            HasMetricsPlugin = HasMetricsPlugin,
+            IsMetricsEnabled = IsMetricsEnabled,
+            IsMetricsHttpListening = IsMetricsHttpListening,
+            MetricsBoundPort = MetricsBoundPort,
+            HasMetricsReadinessCheck = HasMetricsReadinessCheck,
+            HasMetricsHealthProbe = HasMetricsHealthProbe,
+            HasMetricsOperatorStatus = HasMetricsOperatorStatus,
+            MetricsHttpHealthFailures = metricsFailures,
+            IsMetricsHttpHealthy = metricsFailures.Count == 0,
         };
     }
+
+    /// <summary>
+    /// Start (or re-enter) the metrics HTTP server when <see cref="MetricsPlugin"/> was
+    /// supplied at open. Idempotent. Wires <c>/readyz</c> to
+    /// <see cref="IsOfflinePassportComplete"/>, <c>/healthprobe</c> to
+    /// <see cref="FormatHealthProbeJson"/>, and <c>/operatorstatus</c> to
+    /// <see cref="FormatOperatorStatusJson"/> (LocalHost StartMetricsHttp parity).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when no <see cref="MetricsPlugin"/> was supplied at open.
+    /// </exception>
+    public void StartMetricsHttp(int? portOverride = null, Func<bool>? readinessCheck = null)
+    {
+        if (MetricsPlugin is null)
+        {
+            throw new InvalidOperationException(
+                "GatewayHostComposition.StartMetricsHttp requires Open* with metricsPlugin: "
+                + "(L2MetricsPlugin). A bare IL2Metrics sink cannot host HTTP probes.");
+        }
+
+        MetricsPlugin.WithReadinessCheck(readinessCheck ?? (() => IsOfflinePassportComplete));
+        MetricsPlugin.WithHealthProbe(FormatHealthProbeJson);
+        MetricsPlugin.WithOperatorStatus(FormatOperatorStatusJson);
+        MetricsPlugin.Start(portOverride);
+    }
+
+    /// <summary>
+    /// Stop the metrics HTTP server without disposing <see cref="MetricsPlugin"/>
+    /// (<see cref="L2MetricsPlugin.Stop"/>). Idempotent no-op when no plugin is attached.
+    /// </summary>
+    public void StopMetricsHttp() => MetricsPlugin?.Stop();
 
     /// <summary>
     /// Serialize <see cref="GetOperatorStatus"/> as indented camelCase JSON for ops scripts
@@ -389,6 +483,8 @@ public sealed class GatewayHostComposition : IDisposable
     public GatewayHostHealthProbeDocument GetHealthProbe()
     {
         var publicationFailures = PublicationHealthFailures;
+        var metricsFailures = MetricsHttpHealthFailures;
+        var hostFailures = GatewayHostHealthFailures;
         var outbox = OutboxStatus;
         return new GatewayHostHealthProbeDocument
         {
@@ -403,6 +499,15 @@ public sealed class GatewayHostComposition : IDisposable
             IsPublicationProfileReady = IsPublicationProfileReady,
             MaxAutomaticRetries = MaxAutomaticRetries,
             HasMetrics = Metrics is not null,
+            HasMetricsPlugin = HasMetricsPlugin,
+            IsMetricsEnabled = IsMetricsEnabled,
+            IsMetricsHttpListening = IsMetricsHttpListening,
+            MetricsBoundPort = MetricsBoundPort,
+            HasMetricsReadinessCheck = HasMetricsReadinessCheck,
+            HasMetricsHealthProbe = HasMetricsHealthProbe,
+            HasMetricsOperatorStatus = HasMetricsOperatorStatus,
+            IsMetricsHttpHealthy = metricsFailures.Count == 0,
+            MetricsHttpHealthFailures = metricsFailures,
             HasPendingPublication = HasPendingPublication,
             PendingPublicationEpoch = PendingPublicationEpoch,
             AggregatorPendingCount = AggregatorPendingCount,
@@ -415,8 +520,8 @@ public sealed class GatewayHostComposition : IDisposable
             IsOutboxIdle = IsOutboxIdle,
             IsPublicationHealthy = publicationFailures.Count == 0,
             PublicationHealthFailures = publicationFailures,
-            IsGatewayHostHealthy = publicationFailures.Count == 0,
-            GatewayHostHealthFailures = publicationFailures,
+            IsGatewayHostHealthy = hostFailures.Count == 0,
+            GatewayHostHealthFailures = hostFailures,
         };
     }
 
@@ -489,6 +594,10 @@ public sealed class GatewayHostComposition : IDisposable
     /// <param name="verificationKeyId">Non-zero verification key id bound on L1.</param>
     /// <param name="options">Optional RPC sender options (network defaults from deployed layout).</param>
     /// <param name="metrics">Optional metrics sink (e.g. Multisig LocalHost <c>Metrics.Metrics</c>).</param>
+    /// <param name="metricsPlugin">
+    /// Optional metrics plugin for <see cref="StartMetricsHttp"/>. When set, its
+    /// <see cref="L2MetricsPlugin.Metrics"/> sink is used (overrides <paramref name="metrics"/>).
+    /// </param>
     public static GatewayHostComposition OpenMerkle(
         string chainDirectory,
         IGatewayProofProver proofProver,
@@ -496,7 +605,8 @@ public sealed class GatewayHostComposition : IDisposable
         UInt256 replayDomain,
         UInt256 verificationKeyId,
         RpcTransactionSenderOptions? options = null,
-        IL2Metrics? metrics = null)
+        IL2Metrics? metrics = null,
+        L2MetricsPlugin? metricsPlugin = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentNullException.ThrowIfNull(proofProver);
@@ -520,7 +630,8 @@ public sealed class GatewayHostComposition : IDisposable
             replayDomain,
             verificationKeyId,
             options,
-            metrics);
+            metrics,
+            metricsPlugin);
     }
 
     /// <summary>
@@ -537,6 +648,7 @@ public sealed class GatewayHostComposition : IDisposable
     /// <param name="verificationKeyId">Non-zero verification key id bound on L1.</param>
     /// <param name="options">Optional RPC sender options.</param>
     /// <param name="metrics">Optional metrics sink for outbox/aggregator telemetry.</param>
+    /// <param name="metricsPlugin">Optional metrics plugin for <see cref="StartMetricsHttp"/>.</param>
     public static GatewayHostComposition OpenMultisig(
         string chainDirectory,
         ISignerSet signers,
@@ -546,7 +658,8 @@ public sealed class GatewayHostComposition : IDisposable
         UInt256 replayDomain,
         UInt256 verificationKeyId,
         RpcTransactionSenderOptions? options = null,
-        IL2Metrics? metrics = null)
+        IL2Metrics? metrics = null,
+        L2MetricsPlugin? metricsPlugin = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentNullException.ThrowIfNull(signers);
@@ -572,7 +685,8 @@ public sealed class GatewayHostComposition : IDisposable
             replayDomain,
             verificationKeyId,
             options,
-            metrics);
+            metrics,
+            metricsPlugin);
     }
 
     /// <summary>
@@ -592,6 +706,7 @@ public sealed class GatewayHostComposition : IDisposable
     /// <param name="resultTimeout">Optional SP1 result wait timeout.</param>
     /// <param name="pollInterval">Optional SP1 result poll interval.</param>
     /// <param name="metrics">Optional metrics sink for outbox/aggregator telemetry.</param>
+    /// <param name="metricsPlugin">Optional metrics plugin for <see cref="StartMetricsHttp"/>.</param>
     public static GatewayHostComposition OpenSp1(
         string chainDirectory,
         UInt256 gatewayVerificationKey,
@@ -601,7 +716,8 @@ public sealed class GatewayHostComposition : IDisposable
         RpcTransactionSenderOptions? options = null,
         TimeSpan? resultTimeout = null,
         TimeSpan? pollInterval = null,
-        IL2Metrics? metrics = null)
+        IL2Metrics? metrics = null,
+        L2MetricsPlugin? metricsPlugin = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chainDirectory);
         ArgumentNullException.ThrowIfNull(gatewayVerificationKey);
@@ -623,7 +739,8 @@ public sealed class GatewayHostComposition : IDisposable
             replayDomain,
             verificationKeyId,
             options,
-            metrics);
+            metrics,
+            metricsPlugin);
     }
 
     private static GatewayHostComposition Open(
@@ -635,13 +752,15 @@ public sealed class GatewayHostComposition : IDisposable
         UInt256 replayDomain,
         UInt256 verificationKeyId,
         RpcTransactionSenderOptions? options,
-        IL2Metrics? metrics)
+        IL2Metrics? metrics,
+        L2MetricsPlugin? metricsPlugin)
     {
         ProofBoundRpcGlobalRootPublisher? publisher = null;
         try
         {
-            if (metrics is not null)
-                gateway.WithMetrics(metrics);
+            var resolvedMetrics = metricsPlugin?.Metrics ?? metrics;
+            if (resolvedMetrics is not null)
+                gateway.WithMetrics(resolvedMetrics);
 
             var endpoints = L1DeployedEndpoints.FromChainDirectory(chainDirectory);
             publisher = ProofBoundRpcGlobalRootPublisher.OpenFromChainDirectory(
@@ -660,7 +779,8 @@ public sealed class GatewayHostComposition : IDisposable
                 publisher,
                 proofProver,
                 ownsProofProver,
-                metrics,
+                resolvedMetrics,
+                metricsPlugin,
                 endpoints.ExpectedNetwork,
                 hasL1RpcEndpoint: true,
                 new UInt256(replayDomain.GetSpan()),

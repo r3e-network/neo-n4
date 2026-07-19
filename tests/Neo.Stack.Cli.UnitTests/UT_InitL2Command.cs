@@ -288,6 +288,8 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "IsOfflinePassportComplete");
         StringAssert.Contains(output, "BuildOfflinePassportFailures");
         StringAssert.Contains(output, "StartMetricsHttp");
+        StringAssert.Contains(output, "GatewayHost StartMetricsHttp");
+        StringAssert.Contains(output, "HasMetricsPlugin");
         StringAssert.Contains(output, "IsOutboxIdle");
         StringAssert.Contains(output, "IsPublicationHealthy");
         StringAssert.Contains(output, "PublicationHealthFailures");

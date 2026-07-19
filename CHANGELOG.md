@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway StartMetricsHttp with LocalHost probe parity — 2026-07-19
+
+- `GatewayHostComposition.OpenMerkle/Multisig/Sp1` accept optional `metricsPlugin:`
+  (`L2MetricsPlugin`); `StartMetricsHttp` / `StopMetricsHttp` wire `/readyz` →
+  offline passport, `/healthprobe` → `FormatHealthProbeJson`, `/operatorstatus` →
+  `FormatOperatorStatusJson` (LocalHost parity for gateway-only hosts).
+- Status/probe expose `HasMetricsPlugin`, metrics HTTP listening/providers, and
+  `BuildMetricsHttpHealthFailures`; `IsGatewayHostHealthy` unions publication +
+  metrics HTTP when the plugin is enabled.
+- Wireproduction notes + init-l2 tips; unit coverage. No wire/ABI change.
+- L1 publication confirmation remains a funded gate.
+
 ### Added — Metrics HTTP health requires `/operatorstatus` provider — 2026-07-19
 
 - Multisig/Optimistic/Zk expose `HasMetricsOperatorStatus`; operator status (+ JSON)

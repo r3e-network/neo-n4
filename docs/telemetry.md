@@ -59,7 +59,10 @@ The HTTP handler answers five paths (everything else is 404):
 `/readyz` to offline passport completeness, `/healthprobe` to
 `FormatHealthProbeJson` (`LocalHostHealthProbeDocument` camelCase JSON),
 and `/operatorstatus` to `FormatOperatorStatusJsonAsync`
-(`LocalHostOperatorStatusDocument`). Metrics HTTP health
+(`LocalHostOperatorStatusDocument`). Gateway hosts opened with
+`metricsPlugin:` support the same three endpoints via
+`GatewayHostComposition.StartMetricsHttp` (`FormatOperatorStatusJson` for the
+full status body). Metrics HTTP health
 (`BuildMetricsHttpHealthFailures` / `IsMetricsHttpHealthy`) requires
 `HasMetricsReadinessCheck` + `HasMetricsHealthProbe` + `HasMetricsOperatorStatus`
 when metrics are enabled.

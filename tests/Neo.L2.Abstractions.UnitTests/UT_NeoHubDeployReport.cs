@@ -305,20 +305,26 @@ public class UT_NeoHubDeployReport
                 "LocalHost.WritePrometheusMetricsAsync(path) → Prometheus text file",
                 stores.GetProperty("localHostWritePrometheusMetrics").GetString());
             Assert.AreEqual(
-                "GatewayHostComposition.FormatOperatorStatusJson() / WriteOperatorStatusAsync(path) → "
+                "GatewayHostComposition.FormatOperatorStatusJson() / WriteOperatorStatusAsync(path) / "
+                + "metrics HTTP GET /operatorstatus → "
                 + "GatewayHostOperatorStatusDocument JSON",
                 stores.GetProperty("gatewayHostWriteOperatorStatus").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.GetHealthProbe() / FormatHealthProbeJson() / "
-                + "WriteHealthProbeAsync(path) → "
+                + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                 + "GatewayHostHealthProbeDocument JSON "
                 + "(passport + enabled/publication/outbox/rpc/network/profile flags + "
-                + "pending/queue/retry/lag runtime)",
+                + "pending/queue/retry/lag runtime + metrics HTTP readiness/healthprobe/"
+                + "operatorstatus flags)",
                 stores.GetProperty("gatewayHostWriteHealthProbe").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.WritePrometheusMetricsAsync(path) / ExportPrometheusMetrics "
                 + "(when Metrics is IMetricsSource)",
                 stores.GetProperty("gatewayHostWritePrometheusMetrics").GetString());
+            Assert.AreEqual(
+                "GatewayHostComposition.StartMetricsHttp(portOverride?, readiness?) / StopMetricsHttp "
+                + "(requires Open* metricsPlugin:; wires /readyz + /healthprobe + /operatorstatus)",
+                stores.GetProperty("gatewayHostStartMetricsHttp").GetString());
             Assert.AreEqual(
                 "LocalHost.ReconcileAsync / SubmitNextAsync / GetPendingCountAsync / "
                 + "PersistAsync / EnqueueAsync",
@@ -342,16 +348,18 @@ public class UT_NeoHubDeployReport
                 "LocalHost StartMetricsHttp → WithReadinessCheck(IsOfflinePassportComplete) + "
                 + "WithHealthProbe(FormatHealthProbeJson) + "
                 + "WithOperatorStatus(FormatOperatorStatusJsonAsync) → "
-                + "/readyz + /healthprobe + /operatorstatus",
+                + "/readyz + /healthprobe + /operatorstatus; "
+                + "GatewayHost StartMetricsHttp (metricsPlugin) → same three endpoints "
+                + "with FormatOperatorStatusJson",
                 stores.GetProperty("metricsReadiness").GetString());
             Assert.AreEqual(
-                "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",
+                "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?, metricsPlugin?)",
                 stores.GetProperty("gatewayHostCompositionMerkle").GetString());
             Assert.AreEqual(
-                "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk, metrics?)",
+                "GatewayHostComposition.OpenMultisig(chainDir, signers, threshold, proofProver, signer, replayDomain, vk, metrics?, metricsPlugin?)",
                 stores.GetProperty("gatewayHostCompositionMultisig").GetString());
             Assert.AreEqual(
-                "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?)",
+                "GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, metrics?, metricsPlugin?)",
                 stores.GetProperty("gatewayHostCompositionSp1").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.HasPendingPublication / PendingPublicationEpoch / "
@@ -362,14 +370,18 @@ public class UT_NeoHubDeployReport
                 + "BuildOfflinePassportFailures / "
                 + "IsOutboxPoisoned / IsOutboxIdle / IsOutboxRuntimeIdle / IsPublicationHealthy / "
                 + "PublicationHealthFailures / BuildPublicationHealthFailures / "
-                + "IsGatewayHostHealthy / GatewayHostHealthFailures / "
+                + "IsGatewayHostHealthy / GatewayHostHealthFailures / BuildGatewayHostHealthFailures / "
+                + "HasMetricsPlugin / IsMetricsEnabled / IsMetricsHttpListening / MetricsBoundPort / "
+                + "HasMetricsReadinessCheck / HasMetricsHealthProbe / HasMetricsOperatorStatus / "
+                + "IsMetricsHttpHealthy / MetricsHttpHealthFailures / BuildMetricsHttpHealthFailures / "
+                + "StartMetricsHttp / StopMetricsHttp / "
                 + "ReplayDomain / VerificationKeyId / SettlementManagerHash / MessageRouterHash / "
                 + "OutboxStatus / Aggregator / ReceiveBatch / "
                 + "PullAggregate (fails closed with durable outbox) / PublishAggregateAsync / "
                 + "RecoverPoisonedPublication / GetOperatorStatus / FormatOperatorStatusJson / "
                 + "WriteOperatorStatusAsync / "
                 + "GetHealthProbe / FormatHealthProbeJson / WriteHealthProbeAsync / "
-                + "Metrics / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
+                + "Metrics / MetricsPlugin / CaptureMetricsSnapshot / ExportPrometheusMetrics / "
                 + "WritePrometheusMetricsAsync",
                 stores.GetProperty("gatewayHostOpsHelpers").GetString());
             Assert.AreEqual(

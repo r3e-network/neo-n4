@@ -5,6 +5,7 @@ using Neo.L2.Proving.Attestation;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.Telemetry;
 using Neo.Network.P2P.Payloads;
+using Neo.Plugins.L2;
 using Neo.Plugins.L2Gateway;
 
 namespace Neo.L2.Gateway.Rpc.UnitTests;
@@ -126,6 +127,12 @@ public sealed class UT_GatewayHostComposition
             Assert.IsFalse(gwStatus.OwnsProofProver);
             Assert.IsTrue(gwStatus.HasMetrics);
             Assert.IsTrue(gwStatus.MetricsEntryCount >= 0);
+            Assert.IsFalse(host.HasMetricsPlugin);
+            Assert.IsFalse(gwStatus.HasMetricsPlugin);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+            Assert.IsTrue(gwStatus.IsMetricsHttpHealthy);
+            Assert.AreEqual(0, host.MetricsHttpHealthFailures.Count);
+            Assert.ThrowsExactly<InvalidOperationException>(() => host.StartMetricsHttp());
             var formattedStatus = host.FormatOperatorStatusJson();
             StringAssert.Contains(formattedStatus, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(formattedStatus, "\"hasPendingPublication\": false");
@@ -319,6 +326,117 @@ public sealed class UT_GatewayHostComposition
                 ((BinaryTreeAggregator)host.Gateway.Aggregator).RoundProver.BackendId);
             Assert.AreEqual(2, ((MultisigRoundProver)((BinaryTreeAggregator)host.Gateway.Aggregator).RoundProver).Threshold);
             Assert.IsFalse(host.Gateway.HasPendingPublication);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task OpenMerkle_StartMetricsHttp_WiresReadyzHealthprobeAndOperatorStatus()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-host-metrics-" + Guid.NewGuid().ToString("N"));
+        var gwConfigDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        var metricsConfigDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Metrics");
+        Directory.CreateDirectory(gwConfigDir);
+        Directory.CreateDirectory(metricsConfigDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(gwConfigDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            File.WriteAllText(Path.Combine(metricsConfigDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "BindAddress": "127.0.0.1",
+                    "Port": 0,
+                    "MaxConcurrentConnections": 8
+                  }
+                }
+                """);
+            File.WriteAllText(Path.Combine(dir, "l1.deployed.json"), $$"""
+                {
+                  "rpc": "https://l1.example/",
+                  "network": 894710606,
+                  "settlementManager": "{{SettlementManager}}",
+                  "messageRouter": "{{MessageRouter}}"
+                }
+                """);
+
+            var prover = new DelegatingGatewayProofProver(
+                proofSystem: 1,
+                aggregationBackendId: MerklePathRoundProver.ConstBackendId,
+                proofFactory: static (_, _, _) => ValueTask.FromResult<ReadOnlyMemory<byte>>(
+                    new byte[] { 0x01 }));
+            using var metricsPlugin = L2MetricsPlugin.CreateFromChainDirectory(dir);
+            using var host = GatewayHostComposition.OpenMerkle(
+                dir,
+                prover,
+                new StubSigner(),
+                UInt256.Parse("0x" + new string('d', 64)),
+                UInt256.Parse("0x" + new string('e', 64)),
+                metricsPlugin: metricsPlugin);
+
+            Assert.IsTrue(host.HasMetricsPlugin);
+            Assert.IsTrue(host.IsMetricsEnabled);
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.IsFalse(host.IsMetricsHttpHealthy);
+            CollectionAssert.Contains(
+                host.MetricsHttpHealthFailures.ToArray(),
+                nameof(GatewayHostOperatorStatus.IsMetricsHttpListening));
+            Assert.IsFalse(host.IsGatewayHostHealthy);
+
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.IsTrue(host.HasMetricsReadinessCheck);
+            Assert.IsTrue(host.HasMetricsHealthProbe);
+            Assert.IsTrue(host.HasMetricsOperatorStatus);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+            Assert.AreEqual(0, host.MetricsHttpHealthFailures.Count);
+            Assert.IsTrue(host.IsGatewayHostHealthy);
+            Assert.AreEqual(0, host.GatewayHostHealthFailures.Count);
+
+            var status = host.GetOperatorStatus();
+            Assert.IsTrue(status.HasMetricsPlugin);
+            Assert.IsTrue(status.IsMetricsHttpListening);
+            Assert.IsTrue(status.HasMetricsOperatorStatus);
+            Assert.IsTrue(status.IsMetricsHttpHealthy);
+            Assert.IsTrue(status.IsGatewayHostHealthy);
+
+            var probe = host.GetHealthProbe();
+            Assert.IsTrue(probe.HasMetricsPlugin);
+            Assert.IsTrue(probe.IsMetricsHttpListening);
+            Assert.IsTrue(probe.HasMetricsHealthProbe);
+            Assert.IsTrue(probe.HasMetricsOperatorStatus);
+            Assert.IsTrue(probe.IsMetricsHttpHealthy);
+
+            using var client = new HttpClient();
+            var ready = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/readyz");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, ready.StatusCode);
+            var healthprobe = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/healthprobe");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, healthprobe.StatusCode);
+            var probeBody = await healthprobe.Content.ReadAsStringAsync();
+            StringAssert.Contains(probeBody, "isOfflinePassportComplete");
+            StringAssert.Contains(probeBody, "hasMetricsOperatorStatus");
+            var operatorstatus = await client.GetAsync(
+                $"http://127.0.0.1:{host.MetricsBoundPort}/operatorstatus");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, operatorstatus.StatusCode);
+            var statusBody = await operatorstatus.Content.ReadAsStringAsync();
+            StringAssert.Contains(statusBody, "isPublicationHealthy");
+            StringAssert.Contains(statusBody, "hasMetricsPlugin");
+
+            host.StopMetricsHttp();
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.AreEqual(0, host.MetricsBoundPort);
         }
         finally
         {

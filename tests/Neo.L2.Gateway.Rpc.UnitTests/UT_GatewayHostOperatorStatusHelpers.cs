@@ -159,4 +159,74 @@ public sealed class UT_GatewayHostOperatorStatusHelpers
             new[] { nameof(GatewayHostOperatorStatus.OutboxLastError) },
             failures.ToArray());
     }
+
+    [TestMethod]
+    public void BuildMetricsHttpHealthFailures_EmptyWhenMetricsDisabled()
+    {
+        var failures = GatewayHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            metricsEnabled: false,
+            metricsWiringComplete: false,
+            metricsHttpListening: false,
+            hasMetricsReadinessCheck: false,
+            hasMetricsHealthProbe: false,
+            hasMetricsOperatorStatus: false);
+        Assert.AreEqual(0, failures.Count);
+    }
+
+    [TestMethod]
+    public void BuildMetricsHttpHealthFailures_NamesWiringListeningAndProvidersWhenEnabled()
+    {
+        var failures = GatewayHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            metricsEnabled: true,
+            metricsWiringComplete: false,
+            metricsHttpListening: false,
+            hasMetricsReadinessCheck: false,
+            hasMetricsHealthProbe: false,
+            hasMetricsOperatorStatus: false);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                nameof(GatewayHostOperatorStatus.HasMetricsPlugin),
+                nameof(GatewayHostOperatorStatus.IsMetricsHttpListening),
+                nameof(GatewayHostOperatorStatus.HasMetricsReadinessCheck),
+                nameof(GatewayHostOperatorStatus.HasMetricsHealthProbe),
+                nameof(GatewayHostOperatorStatus.HasMetricsOperatorStatus),
+            },
+            failures.ToArray());
+
+        var ok = GatewayHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            metricsEnabled: true,
+            metricsWiringComplete: true,
+            metricsHttpListening: true,
+            hasMetricsReadinessCheck: true,
+            hasMetricsHealthProbe: true,
+            hasMetricsOperatorStatus: true);
+        Assert.AreEqual(0, ok.Count);
+    }
+
+    [TestMethod]
+    public void BuildGatewayHostHealthFailures_UnionsPublicationAndMetrics()
+    {
+        var empty = GatewayHostOperatorStatus.BuildGatewayHostHealthFailures(
+            Array.Empty<string>(), Array.Empty<string>());
+        Assert.AreEqual(0, empty.Count);
+
+        var pubOnly = GatewayHostOperatorStatus.BuildGatewayHostHealthFailures(
+            new[] { nameof(GatewayHostOperatorStatus.IsOutboxPoisoned) },
+            Array.Empty<string>());
+        CollectionAssert.AreEqual(
+            new[] { nameof(GatewayHostOperatorStatus.IsOutboxPoisoned) },
+            pubOnly.ToArray());
+
+        var merged = GatewayHostOperatorStatus.BuildGatewayHostHealthFailures(
+            new[] { nameof(GatewayHostOperatorStatus.IsOfflinePassportComplete) },
+            new[] { nameof(GatewayHostOperatorStatus.IsMetricsHttpListening) });
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                nameof(GatewayHostOperatorStatus.IsOfflinePassportComplete),
+                nameof(GatewayHostOperatorStatus.IsMetricsHttpListening),
+            },
+            merged.ToArray());
+    }
 }

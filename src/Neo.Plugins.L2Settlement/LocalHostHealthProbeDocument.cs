@@ -104,6 +104,39 @@ public sealed record LocalHostHealthProbeDocument
     /// <summary>Scanner deploy heights present for FI/bridge/router (offline).</summary>
     public required bool HasScannerDeployHeights { get; init; }
 
+    /// <summary>
+    /// ForcedInclusion scanner deployment height (0 when unset). Helps interpret
+    /// <see cref="HasScannerDeployHeights"/>.
+    /// </summary>
+    public required uint ForcedInclusionDeploymentHeight { get; init; }
+
+    /// <summary>SharedBridge scanner deployment height (0 when unset).</summary>
+    public required uint SharedBridgeDeploymentHeight { get; init; }
+
+    /// <summary>MessageRouter scanner deployment height (0 when unset).</summary>
+    public required uint MessageRouterDeploymentHeight { get; init; }
+
+    /// <summary>
+    /// SettlementManager hash present in settings (offline; not on-chain verified).
+    /// Helps interpret <see cref="IsNeoHubHashWiringComplete"/>.
+    /// </summary>
+    public required bool HasSettlementManagerHash { get; init; }
+
+    /// <summary>ForcedInclusion contract hash present in settings (offline).</summary>
+    public required bool HasForcedInclusionHash { get; init; }
+
+    /// <summary>SharedBridge contract hash present in settings (offline).</summary>
+    public required bool HasSharedBridgeHash { get; init; }
+
+    /// <summary>MessageRouter contract hash present in settings (offline).</summary>
+    public required bool HasMessageRouterHash { get; init; }
+
+    /// <summary>L2 bridge hash present in settings (offline; optional for some profiles).</summary>
+    public required bool HasL2BridgeHash { get; init; }
+
+    /// <summary>L1 finality depth from settlement settings (offline).</summary>
+    public required uint L1FinalityDepth { get; init; }
+
     /// <summary>Production deposit source wired (local).</summary>
     public required bool HasDepositSource { get; init; }
 
@@ -118,6 +151,18 @@ public sealed record LocalHostHealthProbeDocument
 
     /// <summary>L1 transaction sender wired (local; not broadcast claim).</summary>
     public required bool HasTransactionSender { get; init; }
+
+    /// <summary>
+    /// Batcher has a deposit source installed (helps interpret
+    /// <see cref="IsBatcherInboxWiringComplete"/>).
+    /// </summary>
+    public required bool HasBatchDepositSource { get; init; }
+
+    /// <summary>Batcher has MessageRouter installed (local).</summary>
+    public required bool HasBatchMessageRouter { get; init; }
+
+    /// <summary>Batcher has forced-inclusion source installed (local).</summary>
+    public required bool HasBatchForcedInclusionSource { get; init; }
 
     /// <summary>Deposit pipeline wiring complete (local composition).</summary>
     public required bool IsDepositPipelineWiringComplete { get; init; }

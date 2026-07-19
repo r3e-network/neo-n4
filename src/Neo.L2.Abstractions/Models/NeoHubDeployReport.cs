@@ -518,6 +518,7 @@ public sealed record NeoHubDeployReport(
                         + "WriteHealthProbeAsync(path) / metrics HTTP GET /healthprobe → "
                         + "LocalHostHealthProbeDocument JSON "
                         + "(chain/proof/DA/security/expectedNetwork identity + "
+                        + "NeoHub hash presence + scanner deploy heights + batcher inbox sources + "
                         + "passport wiring flags incl. security-level consistency + "
                         + "IsMetricsEnabled/IsMetricsWiringComplete/MetricsConfiguredPort + "
                         + "pipeline/metrics/settlement + "

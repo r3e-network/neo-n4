@@ -249,6 +249,12 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(host.ExpectedNetwork, probe.ExpectedNetwork);
             Assert.IsTrue(probe.IsMetricsWiringComplete);
             Assert.IsTrue(probe.HasBatchProver);
+            Assert.IsTrue(probe.HasSettlementManagerHash);
+            Assert.IsTrue(probe.HasBatchDepositSource);
+            Assert.IsTrue(probe.HasBatchMessageRouter);
+            Assert.IsTrue(probe.HasBatchForcedInclusionSource);
+            Assert.IsTrue(probe.HasScannerDeployHeights);
+            Assert.AreEqual(host.ForcedInclusionDeploymentHeight, probe.ForcedInclusionDeploymentHeight);
             Assert.IsTrue(probe.IsDepositPipelineWiringComplete);
             Assert.IsTrue(probe.IsSecurityLevelProofTypeConsistent);
             Assert.IsTrue(probe.IsSecurityLevelDaModeConsistent);

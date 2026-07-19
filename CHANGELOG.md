@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost health probe adds NeoHub hash and scanner/inbox flags — 2026-07-19
+
+- `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /
+  `/healthprobe`) adds NeoHub hash presence (`HasSettlementManagerHash` /
+  `HasForcedInclusionHash` / `HasSharedBridgeHash` / `HasMessageRouterHash` /
+  `HasL2BridgeHash`), scanner deploy heights
+  (`ForcedInclusion`/`SharedBridge`/`MessageRouter`DeploymentHeight),
+  `L1FinalityDepth`, and batcher inbox sources (`HasBatchDepositSource` /
+  `HasBatchMessageRouter` / `HasBatchForcedInclusionSource`) so ops can interpret
+  `IsNeoHubHashWiringComplete` / `HasScannerDeployHeights` /
+  `IsBatcherInboxWiringComplete` without the full status dump.
+- Wireproduction notes; unit coverage. No wire/ABI change.
+- L1 settle remains a funded gate.
+
 ### Changed — LocalHost health probe adds chain/config/metrics identity — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

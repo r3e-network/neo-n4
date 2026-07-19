@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Gateway health probe adds chainDirectory and metrics soft config — 2026-07-19
+
+- `GatewayHostHealthProbeDocument` (+ `GetHealthProbe` / `/healthprobe`) adds
+  `ChainDirectory` (status parity) and metrics soft config
+  (`MetricsConfiguredPort` / `MetricsBindAddress` /
+  `MetricsMaxConcurrentConnections`) when a metrics plugin is attached.
+- E2E Multisig LocalHost probe asserts recovery / `IsSettlementIdle` /
+  `ReadyDepositCount` / chain identity on compact `/healthprobe`.
+- Wireproduction notes; unit/integration coverage. No wire/ABI change.
+- L1 publication confirmation remains a funded gate.
+
 ### Changed — LocalHost health probe adds recovery document and idle-name parity — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

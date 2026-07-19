@@ -84,6 +84,18 @@ public sealed class GatewayHostComposition : IDisposable
     /// <summary>Metrics plugin is enabled in settings (false when no plugin).</summary>
     public bool IsMetricsEnabled => MetricsPlugin?.IsEnabled == true;
 
+    /// <summary>
+    /// Configured metrics HTTP port from plugin settings (0 when no plugin). Distinct from
+    /// <see cref="MetricsBoundPort"/> after start.
+    /// </summary>
+    public int MetricsConfiguredPort => MetricsPlugin?.ConfiguredPort ?? 0;
+
+    /// <summary>Configured metrics bind address (empty when no plugin).</summary>
+    public string MetricsBindAddress => MetricsPlugin?.BindAddress ?? string.Empty;
+
+    /// <summary>Configured max concurrent metrics HTTP connections (0 when no plugin).</summary>
+    public int MetricsMaxConcurrentConnections => MetricsPlugin?.MaxConcurrentConnections ?? 0;
+
     /// <summary>Metrics HTTP bound port (0 when not listening / no plugin).</summary>
     public int MetricsBoundPort => MetricsPlugin?.BoundPort ?? 0;
 
@@ -488,6 +500,7 @@ public sealed class GatewayHostComposition : IDisposable
         var outbox = OutboxStatus;
         return new GatewayHostHealthProbeDocument
         {
+            ChainDirectory = ChainDirectory,
             IsOfflinePassportComplete = IsOfflinePassportComplete,
             OfflinePassportFailures = OfflinePassportFailures,
             IsEnabled = IsEnabled,
@@ -509,6 +522,9 @@ public sealed class GatewayHostComposition : IDisposable
             HasMetrics = Metrics is not null,
             HasMetricsPlugin = HasMetricsPlugin,
             IsMetricsEnabled = IsMetricsEnabled,
+            MetricsConfiguredPort = MetricsConfiguredPort,
+            MetricsBindAddress = MetricsBindAddress,
+            MetricsMaxConcurrentConnections = MetricsMaxConcurrentConnections,
             IsMetricsHttpListening = IsMetricsHttpListening,
             MetricsBoundPort = MetricsBoundPort,
             HasMetricsReadinessCheck = HasMetricsReadinessCheck,

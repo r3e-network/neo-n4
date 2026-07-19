@@ -31,6 +31,9 @@ public sealed record GatewayHostHealthProbeDocument
         return JsonSerializer.Serialize(document, JsonOptions) + Environment.NewLine;
     }
 
+    /// <summary>Absolute chain working directory (ops identity for multi-host layouts).</summary>
+    public required string ChainDirectory { get; init; }
+
     /// <summary>Offline publication-profile passport is complete.</summary>
     public required bool IsOfflinePassportComplete { get; init; }
 
@@ -98,6 +101,18 @@ public sealed record GatewayHostHealthProbeDocument
 
     /// <summary>Metrics plugin enabled in settings.</summary>
     public required bool IsMetricsEnabled { get; init; }
+
+    /// <summary>
+    /// Configured metrics HTTP port from plugin settings (0 when no plugin). Distinct from
+    /// bound port after <c>StartMetricsHttp</c>.
+    /// </summary>
+    public required int MetricsConfiguredPort { get; init; }
+
+    /// <summary>Configured metrics bind address (empty when no plugin).</summary>
+    public required string MetricsBindAddress { get; init; }
+
+    /// <summary>Configured max concurrent metrics HTTP connections (0 when no plugin).</summary>
+    public required int MetricsMaxConcurrentConnections { get; init; }
 
     /// <summary>Metrics HTTP is listening.</summary>
     public required bool IsMetricsHttpListening { get; init; }

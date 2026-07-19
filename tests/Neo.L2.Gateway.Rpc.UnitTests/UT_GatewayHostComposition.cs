@@ -144,6 +144,7 @@ public sealed class UT_GatewayHostComposition
             Assert.AreEqual(formattedStatus, statusJson);
             var probe = host.GetHealthProbe();
             Assert.IsTrue(probe.IsOfflinePassportComplete);
+            Assert.AreEqual(host.ChainDirectory, probe.ChainDirectory);
             Assert.IsTrue(probe.IsEnabled);
             Assert.IsTrue(probe.IsPublicationConfigured);
             Assert.IsTrue(probe.HasDurableOutbox);
@@ -161,6 +162,10 @@ public sealed class UT_GatewayHostComposition
             Assert.IsFalse(probe.OwnsProofProver);
             Assert.IsTrue(probe.MetricsEntryCount >= 0);
             Assert.IsTrue(probe.HasMetrics);
+            Assert.IsFalse(probe.HasMetricsPlugin);
+            Assert.AreEqual(0, probe.MetricsConfiguredPort);
+            Assert.AreEqual(string.Empty, probe.MetricsBindAddress);
+            Assert.AreEqual(0, probe.MetricsMaxConcurrentConnections);
             Assert.IsFalse(probe.HasPendingPublication);
             Assert.IsNull(probe.PendingPublicationEpoch);
             Assert.AreEqual(0, probe.AggregatorPendingCount);
@@ -180,6 +185,7 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(formatted, "\"isPublicationProfileReady\": true");
             StringAssert.Contains(formatted, "\"hasExpectedNetwork\": true");
             StringAssert.Contains(formatted, "\"hasMetrics\": true");
+            StringAssert.Contains(formatted, "\"chainDirectory\":");
             StringAssert.Contains(formatted, "\"proofSystem\": 1");
             StringAssert.Contains(formatted, "\"aggregationBackendId\":");
             StringAssert.Contains(formatted, "\"settlementManagerHash\":");
@@ -188,6 +194,8 @@ public sealed class UT_GatewayHostComposition
             StringAssert.Contains(formatted, "\"verificationKeyId\":");
             StringAssert.Contains(formatted, "\"ownsProofProver\": false");
             StringAssert.Contains(formatted, "\"metricsEntryCount\":");
+            StringAssert.Contains(formatted, "\"metricsConfiguredPort\": 0");
+            StringAssert.Contains(formatted, "\"metricsBindAddress\":");
             Assert.IsTrue(formatted.EndsWith('\n') || formatted.EndsWith(Environment.NewLine));
             var probePath = Path.Combine(dir, "gateway-health-probe.json");
             host.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
@@ -407,6 +415,9 @@ public sealed class UT_GatewayHostComposition
             Assert.IsTrue(host.IsMetricsEnabled);
             Assert.IsFalse(host.IsMetricsHttpListening);
             Assert.IsFalse(host.IsMetricsHttpHealthy);
+            Assert.AreEqual(0, host.MetricsConfiguredPort); // config Port: 0
+            Assert.AreEqual("127.0.0.1", host.MetricsBindAddress);
+            Assert.AreEqual(8, host.MetricsMaxConcurrentConnections);
             CollectionAssert.Contains(
                 host.MetricsHttpHealthFailures.ToArray(),
                 nameof(GatewayHostOperatorStatus.IsMetricsHttpListening));
@@ -429,13 +440,18 @@ public sealed class UT_GatewayHostComposition
             Assert.IsTrue(status.HasMetricsOperatorStatus);
             Assert.IsTrue(status.IsMetricsHttpHealthy);
             Assert.IsTrue(status.IsGatewayHostHealthy);
+            Assert.AreEqual(host.ChainDirectory, status.ChainDirectory);
 
             var probe = host.GetHealthProbe();
+            Assert.AreEqual(host.ChainDirectory, probe.ChainDirectory);
             Assert.IsTrue(probe.HasMetricsPlugin);
             Assert.IsTrue(probe.IsMetricsHttpListening);
             Assert.IsTrue(probe.HasMetricsHealthProbe);
             Assert.IsTrue(probe.HasMetricsOperatorStatus);
             Assert.IsTrue(probe.IsMetricsHttpHealthy);
+            Assert.AreEqual(host.MetricsConfiguredPort, probe.MetricsConfiguredPort);
+            Assert.AreEqual(host.MetricsBindAddress, probe.MetricsBindAddress);
+            Assert.AreEqual(host.MetricsMaxConcurrentConnections, probe.MetricsMaxConcurrentConnections);
 
             using var client = new HttpClient();
             var ready = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/readyz");
@@ -445,6 +461,8 @@ public sealed class UT_GatewayHostComposition
             var probeBody = await healthprobe.Content.ReadAsStringAsync();
             StringAssert.Contains(probeBody, "isOfflinePassportComplete");
             StringAssert.Contains(probeBody, "hasMetricsOperatorStatus");
+            StringAssert.Contains(probeBody, "chainDirectory");
+            StringAssert.Contains(probeBody, "metricsBindAddress");
             var operatorstatus = await client.GetAsync(
                 $"http://127.0.0.1:{host.MetricsBoundPort}/operatorstatus");
             Assert.AreEqual(System.Net.HttpStatusCode.OK, operatorstatus.StatusCode);

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Opt/Zk RPC proofs + E2E soft RPC/ReceiveBatch on all hosts — 2026-07-19
+
+- Optimistic + Zk LocalHost unit tests cover offline RPC
+  `RecordRpcWithdrawalProof` / `RecordRpcMessageProof` /
+  `RecordMessageRouterFinalizedProof` (parity with Multisig).
+- E2E Multisig/Optimistic/Zk share `AssertSoftRpcStoreAndGatewayReceiveBatch`
+  (AddRpcBatch/FinalizeRpcBatch/RecordRpcDeposit + dual-chain Gateway ReceiveBatch;
+  no L1 `PublishAggregateAsync`).
+- No wire/ABI change. L1 publish / settle / prove-batch remain funded gates.
+
 ### Changed — Opt/Zk RPC store + Gateway ReceiveBatch soft path coverage — 2026-07-19
 
 - Optimistic + Zk LocalHost unit tests cover offline RPC store

@@ -256,6 +256,15 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(rpcRoot, host.GetRpcStateRootAtBatch(1));
             host.RecordRpcDeposit(new DepositStatus(20260716u, 1, ConsumedOnL2: false, IncludedInBatch: null));
             Assert.IsNotNull(host.GetRpcL1DepositStatus(20260716u, 1));
+            var leaf = new UInt256(Enumerable.Repeat((byte)0xCD, 32).ToArray());
+            host.RecordRpcWithdrawalProof(leaf, [0x01, 0x02]);
+            Assert.IsTrue(host.GetRpcWithdrawalProof(leaf) is { Length: 2 });
+            var msgHash = new UInt256(Enumerable.Repeat((byte)0xEF, 32).ToArray());
+            host.RecordRpcMessageProof(msgHash, [0x03]);
+            Assert.IsTrue(host.GetRpcMessageProof(msgHash) is { Length: 1 });
+            host.RecordMessageRouterFinalizedProof(msgHash, new byte[] { 0x04 });
+            Assert.IsTrue(
+                host.GetMessageRouterProofAsync(msgHash).AsTask().GetAwaiter().GetResult() is { Length: 1 });
             Assert.IsNotNull(host.MessageOutbox);
             Assert.IsNull(
                 host.GetMessageRouterProofAsync(new UInt256(new byte[32])).AsTask().GetAwaiter().GetResult());

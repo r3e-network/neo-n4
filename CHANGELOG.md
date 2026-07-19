@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tested — Neo N3 testnet session16 reverify + SharedBridge deposit n17 — 2026-07-20
+
+- Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,
+  **29/29 postdeploy reused**, **42/42 smoke ok** against magic `894710606`
+  (`https://n3seed1.ngd.network:20332/`).
+- CLI `--fraud-replay-domain` must be on-chain **raw wire** bytes
+  (`0xf1e2d3c4…1100`); report `ToString` may display the reversed form.
+- Live SharedBridge Deposit **nonce 17** HALT (`0x1e0f3566…a914`, 0.001 GAS,
+  `WitnessScope.Global`, Transfer + DepositEnqueued); `getDeposit` confirmed.
+- Chain `20260716` still active (securityLevel=3, daMode=0); TokenRegistry GAS/NEO
+  active; ForcedInclusion production-ready; fixed bridge still independent of legacy
+  registry pointer.
+- Evidence: `docs/audit/testnet-deployment-20260720-session16-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-20-session16.json`.
+- WIF only via process env `NEO_N4_TESTNET_WIF` (not committed). Funded gates still open:
+  L1 settle, Zk prove-batch, production DA, 2-of-2 bridge retarget, full Neo.CLI stack.
+
 ### Changed — Soft RPC→Gateway ReceiveBatch ops parity + unit multi-block open — 2026-07-20
 
 - E2E `AssertSoftRpcStoreAndGatewayReceiveBatch` (Multisig/Opt/Zk): after dual-chain

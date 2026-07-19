@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal RecoverPoisonedBatch local reset after mock poison — 2026-07-20
+
+- Multisig/Optimistic unit SoftSeal after Reconcile→Poisoned pins poison probe files
+  (`FormatHealthProbeJson` / `WriteHealthProbeAsync`) and async
+  `IsSettlementPoisonedAsync` / `IsSettlementRetryingAsync`.
+- Local `RecoverPoisonedBatchAsync(blockedBatch, artifactContentHash)` resets durable
+  recovery to **Retrying** with `RetryCount=0`; pipeline failures prefer
+  `IsSettlementRetrying` again; pending settle + latest RPC tip retained.
+- After-recover status/probe durable writers; post-recover `SubmitNext` still does not
+  clear the queue without funded L1.
+- E2E Multisig SoftSeal pins the same poison → recover operator path.
+- No wire/ABI change. Funded L1 settle after recover remains operator-owned.
+
 ### Changed — SoftSeal LatestRpc tip, Prometheus scrapes, Reconcile→Poisoned — 2026-07-19
 
 - After soft-seal `FinalizeRpcBatch`, Multisig/Opt unit pin `LatestRpcStateRoot` on

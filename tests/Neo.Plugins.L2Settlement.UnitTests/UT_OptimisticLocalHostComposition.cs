@@ -836,6 +836,55 @@ public sealed class UT_OptimisticLocalHostComposition
             host.WriteOperatorStatusAsync(afterSubmitStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(afterSubmitStatusPath));
             StringAssert.Contains(File.ReadAllText(afterSubmitStatusPath), "\"isSettlementPoisoned\": true");
+            Assert.IsTrue(host.IsSettlementPoisonedAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsFalse(host.IsSettlementRetryingAsync().AsTask().GetAwaiter().GetResult());
+            var afterPoisonProbeJson = host.FormatHealthProbeJson();
+            StringAssert.Contains(afterPoisonProbeJson, "\"isSettlementPoisoned\": true");
+            StringAssert.Contains(afterPoisonProbeJson, "IsSettlementPoisoned");
+            var afterPoisonProbePath = Path.Combine(chainDir, "soft-seal-after-poison-probe.json");
+            host.WriteHealthProbeAsync(afterPoisonProbePath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(afterPoisonProbePath));
+            StringAssert.Contains(File.ReadAllText(afterPoisonProbePath), "\"isSettlementPoisoned\": true");
+
+            Assert.IsNotNull(afterSubmit.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterSubmit.Recovery.ArtifactContentHash);
+            host.RecoverPoisonedBatchAsync(
+                    afterSubmit.Recovery.BlockedBatchNumber!.Value,
+                    afterSubmit.Recovery.ArtifactContentHash!)
+                .GetAwaiter().GetResult();
+            Assert.IsFalse(host.IsSettlementPoisonedAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsTrue(host.IsSettlementRetryingAsync().AsTask().GetAwaiter().GetResult());
+            var afterRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterRecover.IsSettlementRetrying);
+            Assert.IsFalse(afterRecover.IsSettlementIdle);
+            Assert.IsFalse(afterRecover.IsPipelineHealthy);
+            CollectionAssert.Contains(
+                afterRecover.PipelineHealthFailures.ToArray(),
+                nameof(afterRecover.IsSettlementRetrying));
+            CollectionAssert.DoesNotContain(
+                afterRecover.PipelineHealthFailures.ToArray(),
+                nameof(afterRecover.IsSettlementPoisoned));
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterRecover.Recovery.State);
+            Assert.AreEqual(0, afterRecover.Recovery.RetryCount);
+            Assert.AreEqual(0, afterRecover.SettlementRetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, afterRecover.LatestRpcStateRoot);
+            var afterRecoverJson = host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult();
+            StringAssert.Contains(afterRecoverJson, "\"isSettlementPoisoned\": false");
+            StringAssert.Contains(afterRecoverJson, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(afterRecoverJson, "IsSettlementRetrying");
+            var afterRecoverStatusPath = Path.Combine(chainDir, "soft-seal-after-recover-status.json");
+            host.WriteOperatorStatusAsync(afterRecoverStatusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(afterRecoverStatusPath));
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isSettlementRetrying\": true");
+            var afterRecoverProbePath = Path.Combine(chainDir, "soft-seal-after-recover-probe.json");
+            host.WriteHealthProbeAsync(afterRecoverProbePath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(afterRecoverProbePath));
+            StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"isSettlementRetrying\": true");
+            host.SubmitNextAsync().GetAwaiter().GetResult();
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+            Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
         }
         finally
         {

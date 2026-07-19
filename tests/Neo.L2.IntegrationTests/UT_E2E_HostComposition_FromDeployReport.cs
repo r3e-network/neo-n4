@@ -822,6 +822,33 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             host.WritePrometheusMetricsAsync(hostPromPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(hostPromPath));
             Assert.AreEqual(hostProm, File.ReadAllText(hostPromPath));
+
+            // Mock reconcile fails closed → SubmitNext escalates to Poisoned; local recover resets Retrying.
+            Assert.ThrowsExactly<OverflowException>(
+                () => host.ReconcileAsync().GetAwaiter().GetResult());
+            host.SubmitNextAsync().GetAwaiter().GetResult();
+            var afterPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(afterPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterPoison.IsSettlementRetrying);
+            CollectionAssert.Contains(
+                afterPoison.PipelineHealthFailures.ToArray(),
+                nameof(afterPoison.IsSettlementPoisoned));
+            Assert.IsNotNull(afterPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterPoison.Recovery.ArtifactContentHash);
+            host.RecoverPoisonedBatchAsync(
+                    afterPoison.Recovery.BlockedBatchNumber!.Value,
+                    afterPoison.Recovery.ArtifactContentHash!)
+                .GetAwaiter().GetResult();
+            var afterRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterRecover.Recovery.State);
+            Assert.AreEqual(0, afterRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, afterRecover.LatestRpcStateRoot);
+            var afterRecoverStatusPath = Path.Combine(chainDir, "soft-seal-after-recover-status.json");
+            host.WriteOperatorStatusAsync(afterRecoverStatusPath).AsTask().GetAwaiter().GetResult();
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isSettlementRetrying\": true");
         }
         finally
         {

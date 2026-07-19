@@ -1159,6 +1159,49 @@ public sealed class UT_MultisigLocalHostComposition
             });
             gatewayHost.ReceiveBatch(commitment with { Proof = new byte[] { 0xB3 } });
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+            var pendingAfterBatch1 = gatewayHost.AggregatorPendingCount;
+            // Multi-batch soft RPC + gateway: batch 2 while host settle still pending ≥2.
+            Assert.AreEqual(2UL, host.LastAcknowledgedBatchNumber);
+            var commitment2 = commitment with
+            {
+                BatchNumber = 2,
+                FirstBlock = 2,
+                LastBlock = 2,
+                PreStateRoot = SoftPassThroughExecutor.PostStateRoot,
+                PostStateRoot = SoftPassThroughExecutor.PostStateRoot,
+                Proof = new byte[] { 0xB4 },
+            };
+            host.AddRpcBatch(commitment2, BatchStatus.Finalized);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsNotNull(host.GetRpcBatch(2));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(2));
+            host.FinalizeRpcBatch(2);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
+            gatewayHost.ReceiveBatch(commitment2 with
+            {
+                ChainId = 20260717u,
+                L2ToL2MessageRoot = Root(0xAD),
+                Proof = new byte[] { 0xB5 },
+            });
+            gatewayHost.ReceiveBatch(commitment2 with { Proof = new byte[] { 0xB6 } });
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount > pendingAfterBatch1);
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.IsTrue(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementRetrying);
+            var multiPath = Path.Combine(chainDir, "soft-seal-multi-batch-rpc-gateway.json");
+            File.WriteAllText(multiPath, $$"""
+                {
+                  "batch1": 1,
+                  "batch2": 2,
+                  "latestRpcStateRoot": "{{host.GetLatestRpcStateRoot()}}",
+                  "aggregatorPendingCount": {{gatewayHost.AggregatorPendingCount}},
+                  "hasPendingPublication": false,
+                  "hostPendingSettlementCount": {{host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult()}}
+                }
+                """);
+            Assert.IsTrue(File.Exists(multiPath));
+            StringAssert.Contains(File.ReadAllText(multiPath), "\"batch2\": 2");
+            StringAssert.Contains(File.ReadAllText(multiPath), "\"aggregatorPendingCount\": " + gatewayHost.AggregatorPendingCount);
             // Durable outbox path: direct PullAggregate bypasses publication outbox (fail-closed).
             Assert.ThrowsExactly<InvalidOperationException>(() => gatewayHost.PullAggregate());
             var gwStatus = gatewayHost.GetOperatorStatus();

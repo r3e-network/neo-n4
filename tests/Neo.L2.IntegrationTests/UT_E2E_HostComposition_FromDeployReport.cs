@@ -957,8 +957,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
             Assert.IsTrue(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementRetrying);
 
-            // Soft seal → gateway aggregator (no L1 PublishAggregate). Use batch-1 checkpoint
-            // for gateway ReceiveBatch parity with unit SoftSeal (latest tip is batch 2).
+            // Soft seal → gateway: RPC finalize batch 1+2, dual-chain ReceiveBatch both
+            // (no L1 PublishAggregate). Host settle still pending ≥2.
+            var checkpoint2 = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsNotNull(checkpoint2);
+            Assert.AreEqual(2UL, checkpoint2!.BatchNumber);
             AssertSoftSealFeedsGatewayReceiveBatch(
                 host.AddRpcBatch,
                 host.FinalizeRpcBatch,
@@ -968,14 +971,20 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 chainDir,
                 host.Metrics,
                 ProofType.Multisig,
-                Account(0x55));
+                Account(0x55),
+                secondCheckpoint: checkpoint2,
+                getRpcStateRootAtBatch: host.GetRpcStateRootAtBatch);
             // After Finalize inside gateway helper, tip + host scrape remain operator-readable.
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(1));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(2));
+            Assert.IsNotNull(host.GetRpcBatch(2));
             var statusAfterGw = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, statusAfterGw.LatestRpcStateRoot);
             Assert.IsTrue(statusAfterGw.IsSettlementRetrying);
             Assert.IsFalse(statusAfterGw.IsSettlementIdle);
             Assert.IsTrue(statusAfterGw.PendingSettlementCount >= 2);
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-multi-batch-rpc-gateway.json")));
             var hostProm = host.ExportPrometheusMetrics();
             Assert.IsFalse(string.IsNullOrWhiteSpace(hostProm));
             var hostPromPath = Path.Combine(chainDir, "soft-seal-host.prom");
@@ -1227,6 +1236,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
             Assert.IsTrue(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementRetrying);
 
+            var checkpoint2 = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsNotNull(checkpoint2);
+            Assert.AreEqual(2UL, checkpoint2!.BatchNumber);
             AssertSoftSealFeedsGatewayReceiveBatch(
                 host.AddRpcBatch,
                 host.FinalizeRpcBatch,
@@ -1236,13 +1248,19 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 chainDir,
                 host.Metrics,
                 ProofType.Optimistic,
-                Account(0x57));
+                Account(0x57),
+                secondCheckpoint: checkpoint2,
+                getRpcStateRootAtBatch: host.GetRpcStateRootAtBatch);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(1));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(2));
+            Assert.IsNotNull(host.GetRpcBatch(2));
             var statusAfterGw = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, statusAfterGw.LatestRpcStateRoot);
             Assert.IsTrue(statusAfterGw.IsSettlementRetrying);
             Assert.IsFalse(statusAfterGw.IsSettlementIdle);
             Assert.IsTrue(statusAfterGw.PendingSettlementCount >= 2);
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-multi-batch-rpc-gateway.json")));
             var hostProm = host.ExportPrometheusMetrics();
             Assert.IsFalse(string.IsNullOrWhiteSpace(hostProm));
             var hostPromPath = Path.Combine(chainDir, "soft-seal-host.prom");
@@ -2257,6 +2275,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
     /// <summary>
     /// After soft seal checkpoint, pin RPC store + dual-chain Gateway ReceiveBatch
     /// (no L1 PublishAggregate). Commitment roots follow soft seal executor post-state.
+    /// When <paramref name="secondCheckpoint"/> is set (SoftSeal multi-batch pending path),
+    /// also RPC-finalize batch 2 and ReceiveBatch it so aggregator backlog covers both
+    /// sealed batches while host settle remains unsettled.
     /// </summary>
     private static void AssertSoftSealFeedsGatewayReceiveBatch(
         Action<L2BatchCommitment, BatchStatus> addRpcBatch,
@@ -2267,7 +2288,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         string chainDir,
         L2MetricsPlugin metricsPlugin,
         ProofType proofType,
-        UInt160 gatewaySignerAccount)
+        UInt160 gatewaySignerAccount,
+        SealedBatchCheckpoint? secondCheckpoint = null,
+        Func<ulong, UInt256>? getRpcStateRootAtBatch = null)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
         ArgumentNullException.ThrowIfNull(finalizeRpcBatch);
@@ -2300,6 +2323,45 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         // Latest tip advances only via Finalize (status Finalized alone is not enough).
         finalizeRpcBatch(checkpoint.BatchNumber);
         Assert.AreEqual(checkpoint.PostStateRoot, getLatestRpcStateRoot());
+        if (getRpcStateRootAtBatch is not null)
+            Assert.AreEqual(checkpoint.PostStateRoot, getRpcStateRootAtBatch(checkpoint.BatchNumber));
+
+        L2BatchCommitment? commitment2 = null;
+        if (secondCheckpoint is not null)
+        {
+            Assert.AreEqual(2UL, secondCheckpoint.BatchNumber);
+            Assert.AreEqual(checkpoint.PostStateRoot, secondCheckpoint.PostStateRoot);
+            commitment2 = new L2BatchCommitment
+            {
+                ChainId = 20260716u,
+                BatchNumber = secondCheckpoint.BatchNumber,
+                FirstBlock = 2,
+                LastBlock = secondCheckpoint.LastBlock,
+                PreStateRoot = checkpoint.PostStateRoot,
+                PostStateRoot = secondCheckpoint.PostStateRoot,
+                TxRoot = z,
+                ReceiptRoot = z,
+                WithdrawalRoot = z,
+                L2ToL1MessageRoot = z,
+                L2ToL2MessageRoot = z,
+                DACommitment = z,
+                PublicInputHash = z,
+                ProofType = proofType,
+                Proof = new byte[] { 0xB4 },
+            };
+            addRpcBatch(commitment2, BatchStatus.Finalized);
+            var rpcBatch2 = getRpcBatch(2);
+            Assert.IsNotNull(rpcBatch2);
+            Assert.AreEqual(2UL, rpcBatch2!.BatchNumber);
+            Assert.AreEqual(secondCheckpoint.PostStateRoot, rpcBatch2.PostStateRoot);
+            finalizeRpcBatch(2);
+            Assert.AreEqual(secondCheckpoint.PostStateRoot, getLatestRpcStateRoot());
+            if (getRpcStateRootAtBatch is not null)
+            {
+                Assert.AreEqual(checkpoint.PostStateRoot, getRpcStateRootAtBatch(1));
+                Assert.AreEqual(secondCheckpoint.PostStateRoot, getRpcStateRootAtBatch(2));
+            }
+        }
 
         var gatewayProof = new DelegatingGatewayProofProver(
             proofSystem: 1,
@@ -2325,7 +2387,24 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         });
         gatewayHost.ReceiveBatch(commitment with { Proof = new byte[] { 0xB3 } });
         Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+        var pendingAfterBatch1 = gatewayHost.AggregatorPendingCount;
         Assert.AreEqual(gatewayHost.Aggregator.PendingCount, gatewayHost.AggregatorPendingCount);
+
+        if (commitment2 is not null)
+        {
+            // Multi-batch soft path: feed sealed batch 2 into the same aggregator (no L1 publish).
+            gatewayHost.ReceiveBatch(commitment2 with
+            {
+                ChainId = 20260717u,
+                L2ToL2MessageRoot = Root(0xAD),
+                Proof = new byte[] { 0xB5 },
+            });
+            gatewayHost.ReceiveBatch(commitment2 with { Proof = new byte[] { 0xB6 } });
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount > pendingAfterBatch1);
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
+            Assert.AreEqual(gatewayHost.Aggregator.PendingCount, gatewayHost.AggregatorPendingCount);
+        }
+
         // Durable outbox path: direct PullAggregate bypasses publication outbox (fail-closed).
         Assert.ThrowsExactly<InvalidOperationException>(() => gatewayHost.PullAggregate());
         var gwStatus = gatewayHost.GetOperatorStatus();
@@ -2382,6 +2461,28 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         gatewayHost.WritePrometheusMetricsAsync(gwPromPath).AsTask().GetAwaiter().GetResult();
         Assert.IsTrue(File.Exists(gwPromPath));
         Assert.AreEqual(gwProm, File.ReadAllText(gwPromPath));
+
+        if (secondCheckpoint is not null)
+        {
+            // Durable multi-batch soft surface (operator scripts without metrics HTTP).
+            var multiPath = Path.Combine(chainDir, "soft-seal-multi-batch-rpc-gateway.json");
+            File.WriteAllText(multiPath, $$"""
+                {
+                  "batch1": {{checkpoint.BatchNumber}},
+                  "batch2": {{secondCheckpoint.BatchNumber}},
+                  "latestRpcStateRoot": "{{getLatestRpcStateRoot()}}",
+                  "aggregatorPendingCount": {{gatewayHost.AggregatorPendingCount}},
+                  "hasPendingPublication": false,
+                  "pullAggregateFailClosed": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(multiPath));
+            var multiFile = File.ReadAllText(multiPath);
+            StringAssert.Contains(multiFile, "\"batch1\": 1");
+            StringAssert.Contains(multiFile, "\"batch2\": 2");
+            StringAssert.Contains(multiFile, "\"aggregatorPendingCount\": " + gatewayHost.AggregatorPendingCount);
+            StringAssert.Contains(multiFile, "\"hasPendingPublication\": false");
+        }
         // PublishAggregateAsync remains a funded L1 publication gate.
     }
 

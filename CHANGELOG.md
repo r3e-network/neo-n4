@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal multi-batch RPC + Gateway ReceiveBatch surface — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after multi-batch pending queue, RPC
+  `AddRpcBatch`/`FinalizeRpcBatch` for batch 1 and 2, pin per-batch roots + latest
+  tip; Gateway dual-chain `ReceiveBatch` for both sealed batches grows
+  `AggregatorPendingCount` (≥4) while host settle remains `Retrying` with
+  `PendingSettlementCount≥2`.
+- Durable `soft-seal-multi-batch-rpc-gateway.json`; E2E extends
+  `AssertSoftSealFeedsGatewayReceiveBatch` with optional `secondCheckpoint`.
+- PullAggregate still fail-closed on durable outbox. No wire/ABI change.
+- `PublishAggregateAsync` / L1 settle remain funded gates.
+
 ### Changed — SoftSeal multi-batch pending queue while L1 unsettled — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal: after batch-1 local DA, seal block 2

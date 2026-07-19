@@ -28,6 +28,7 @@ public sealed class L2MetricsPlugin : Plugin
     private MetricsHttpServer? _server;
     private Func<bool>? _readinessCheck;
     private Func<string>? _healthProbeBody;
+    private Func<string>? _operatorStatusBody;
     private readonly Lock _startGate = new();
 
     /// <summary>Construct with default settings (port 9090, loopback).</summary>
@@ -83,7 +84,7 @@ public sealed class L2MetricsPlugin : Plugin
 
     /// <inheritdoc />
     public override string Description =>
-        "Hosts the shared L2 metrics sink and the /metrics + /healthz + /readyz + /healthprobe HTTP server.";
+        "Hosts the shared L2 metrics sink and the /metrics + /healthz + /readyz + /healthprobe + /operatorstatus HTTP server.";
 
     /// <summary>
     /// True when a <c>/readyz</c> predicate has been installed via
@@ -96,6 +97,12 @@ public sealed class L2MetricsPlugin : Plugin
     /// <see cref="WithHealthProbe"/>. When false, <c>/healthprobe</c> fails closed with 503.
     /// </summary>
     public bool HasHealthProbe => _healthProbeBody is not null;
+
+    /// <summary>
+    /// True when a <c>/operatorstatus</c> JSON body provider has been installed via
+    /// <see cref="WithOperatorStatus"/>. When false, <c>/operatorstatus</c> fails closed with 503.
+    /// </summary>
+    public bool HasOperatorStatus => _operatorStatusBody is not null;
 
     /// <summary>
     /// Wire a readiness predicate. <c>/readyz</c> evaluates this on every request;
@@ -122,6 +129,19 @@ public sealed class L2MetricsPlugin : Plugin
         _healthProbeBody = body;
     }
 
+    /// <summary>
+    /// Wire a full operator-status JSON body for <c>/operatorstatus</c>.
+    /// Evaluated on every request; returns 200 + <c>application/json</c> with the body.
+    /// When unwired, <c>/operatorstatus</c> fails closed with 503.
+    /// Must be installed before <see cref="Start"/> (handler is built once at start).
+    /// LocalHost compositions supply camelCase <c>LocalHostOperatorStatusDocument</c> JSON.
+    /// </summary>
+    public void WithOperatorStatus(Func<string> body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        _operatorStatusBody = body;
+    }
+
     /// <inheritdoc />
     protected override void Configure()
     {
@@ -144,7 +164,8 @@ public sealed class L2MetricsPlugin : Plugin
                 _metrics,
                 _readinessCheck,
                 livenessCheck: null,
-                healthProbeBody: _healthProbeBody);
+                healthProbeBody: _healthProbeBody,
+                operatorStatusBody: _operatorStatusBody);
             var port = portOverride ?? _settings.Port;
             var server = new MetricsHttpServer(
                 address,

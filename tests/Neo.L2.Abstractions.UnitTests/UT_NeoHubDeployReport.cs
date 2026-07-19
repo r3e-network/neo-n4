@@ -223,7 +223,7 @@ public class UT_NeoHubDeployReport
                 + "IsMetricsHttpHealthy / MetricsHttpHealthFailures / "
                 + "IsLocalHostHealthy / LocalHostHealthFailures / IsLocalHostHealthyAsync / "
                 + "IsPipelineHealthyAsync / GetPipelineHealthFailuresAsync / "
-                + "StartMetricsHttp(/readyz defaults to IsOfflinePassportComplete; /healthprobe → FormatHealthProbeJson) / "
+                + "StartMetricsHttp(/readyz defaults to IsOfflinePassportComplete; /healthprobe → FormatHealthProbeJson; /operatorstatus → FormatOperatorStatusJsonAsync) / "
                 + "HasExpectedNetwork / HasScannerDeployHeights / IsOfflinePassportComplete / "
                 + "OfflinePassportFailures / BuildOfflinePassportFailures / "
                 + "HasSealedBatchSink / NextExpectedBlock / ProcessCommittedBlock / IsOperatorReady / "
@@ -286,7 +286,8 @@ public class UT_NeoHubDeployReport
                 "LocalHost.HasOverdueForcedInclusionAsync(nowUnixSeconds)",
                 stores.GetProperty("localHostForcedInclusionOverdue").GetString());
             Assert.AreEqual(
-                "LocalHost.FormatOperatorStatusJsonAsync() / WriteOperatorStatusAsync(path) → "
+                "LocalHost.FormatOperatorStatusJsonAsync() / WriteOperatorStatusAsync(path) / "
+                + "metrics HTTP GET /operatorstatus → "
                 + "LocalHostOperatorStatusDocument JSON",
                 stores.GetProperty("localHostWriteOperatorStatus").GetString());
             Assert.AreEqual(
@@ -330,14 +331,16 @@ public class UT_NeoHubDeployReport
             Assert.AreEqual(
                 "LocalHost.StartMetricsHttp(portOverride?, readiness?) / StopMetricsHttp / "
                 + "Open startMetricsHttp "
-                + "(wires /readyz + /healthprobe before Metrics.Start)",
+                + "(wires /readyz + /healthprobe + /operatorstatus before Metrics.Start)",
                 stores.GetProperty("localHostStartMetricsHttp").GetString());
             Assert.AreEqual(
                 "LocalHost.CreateRpcPlugin() then NeoSystem.AddService(RpcStore)",
                 stores.GetProperty("localHostCreateRpcPlugin").GetString());
             Assert.AreEqual(
                 "LocalHost StartMetricsHttp → WithReadinessCheck(IsOfflinePassportComplete) + "
-                + "WithHealthProbe(FormatHealthProbeJson) → /readyz + /healthprobe",
+                + "WithHealthProbe(FormatHealthProbeJson) + "
+                + "WithOperatorStatus(FormatOperatorStatusJsonAsync) → "
+                + "/readyz + /healthprobe + /operatorstatus",
                 stores.GetProperty("metricsReadiness").GetString());
             Assert.AreEqual(
                 "GatewayHostComposition.OpenMerkle(chainDir, proofProver, signer, replayDomain, vk, metrics?)",

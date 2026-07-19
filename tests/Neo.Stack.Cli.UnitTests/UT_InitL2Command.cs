@@ -276,6 +276,7 @@ public class UT_InitL2Command
         StringAssert.Contains(output, "FormatOperatorStatusJson");
         StringAssert.Contains(output, "FormatHealthProbeJson");
         StringAssert.Contains(output, "/healthprobe");
+        StringAssert.Contains(output, "/operatorstatus");
         StringAssert.Contains(output, "GetHealthProbe");
         // LocalHost and GatewayHost tips both name FormatHealthProbeJson.
         Assert.IsTrue(

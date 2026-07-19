@@ -713,6 +713,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(System.Net.HttpStatusCode.OK, health.StatusCode);
 
             Assert.IsTrue(host.Metrics.HasHealthProbe);
+            Assert.IsTrue(host.Metrics.HasOperatorStatus);
             var probeHttp = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/healthprobe");
             Assert.AreEqual(System.Net.HttpStatusCode.OK, probeHttp.StatusCode);
             Assert.IsTrue(probeHttp.Content.Headers.ContentType?.MediaType is "application/json");
@@ -725,6 +726,15 @@ public sealed class UT_MultisigLocalHostComposition
             var formatted = host.FormatHealthProbeJson();
             StringAssert.Contains(formatted, "isOfflinePassportComplete");
             StringAssert.Contains(formatted, "hasMetricsHealthProbe");
+
+            var statusHttp = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/operatorstatus");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, statusHttp.StatusCode);
+            Assert.IsTrue(statusHttp.Content.Headers.ContentType?.MediaType is "application/json");
+            var statusBody = await statusHttp.Content.ReadAsStringAsync();
+            StringAssert.Contains(statusBody, "isOperatorReady");
+            StringAssert.Contains(statusBody, "chainId");
+            var formattedStatus = await host.FormatOperatorStatusJsonAsync();
+            StringAssert.Contains(formattedStatus, "isOperatorReady");
 
             Assert.AreEqual(0, await host.GetPendingCountAsync());
             await host.ReconcileAsync();
@@ -752,9 +762,13 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.IsMetricsHttpListening);
             Assert.IsTrue(host.MetricsBoundPort > 0);
             Assert.IsTrue(host.Metrics.HasHealthProbe);
+            Assert.IsTrue(host.Metrics.HasOperatorStatus);
             var probeAfterRestart = await client.GetAsync(
                 $"http://127.0.0.1:{host.MetricsBoundPort}/healthprobe");
             Assert.AreEqual(System.Net.HttpStatusCode.OK, probeAfterRestart.StatusCode);
+            var statusAfterRestart = await client.GetAsync(
+                $"http://127.0.0.1:{host.MetricsBoundPort}/operatorstatus");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, statusAfterRestart.StatusCode);
         }
         finally
         {

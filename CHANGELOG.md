@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Metrics HTTP `/operatorstatus` for full LocalHost status JSON — 2026-07-19
+
+- `MetricsRequestHandler` serves optional `GET /operatorstatus` (application/json);
+  unwired fails closed 503; provider errors → 500.
+- `L2MetricsPlugin.WithOperatorStatus` / `HasOperatorStatus`; Multisig/Optimistic/Zk
+  `StartMetricsHttp` wires `/operatorstatus` to `FormatOperatorStatusJsonAsync`.
+- Complements compact `/healthprobe` with the full operator status dump without writing
+  a file. Wireproduction notes + init-l2 tips + telemetry docs; unit coverage.
+  No wire/ABI change. L1 settle remains a funded gate.
+
 ### Changed — LocalHost health probe adds passport wiring + settlement recovery — 2026-07-19
 
 - `LocalHostHealthProbeDocument` (+ Multisig/Optimistic/Zk `GetHealthProbeAsync` /

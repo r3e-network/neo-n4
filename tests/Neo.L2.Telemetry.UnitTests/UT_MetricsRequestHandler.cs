@@ -263,4 +263,54 @@ public class UT_MetricsRequestHandler
         Assert.AreEqual(500, response.StatusCode);
         StringAssert.Contains(response.Body, "health probe failed");
     }
+
+    [TestMethod]
+    public void OperatorStatus_NoProvider_FailsClosedWith503()
+    {
+        var handler = new MetricsRequestHandler(new InMemoryMetrics());
+
+        var response = handler.Handle("/operatorstatus");
+
+        Assert.AreEqual(503, response.StatusCode);
+        StringAssert.Contains(response.Body, "not configured");
+    }
+
+    [TestMethod]
+    public void OperatorStatus_ProviderReturnsJson_Returns200ApplicationJson()
+    {
+        var handler = new MetricsRequestHandler(
+            new InMemoryMetrics(),
+            operatorStatusBody: static () => """{"isOperatorReady":true}""");
+
+        var response = handler.Handle("/operatorstatus");
+
+        Assert.AreEqual(200, response.StatusCode);
+        Assert.AreEqual("application/json; charset=utf-8", response.ContentType);
+        StringAssert.Contains(response.Body, "isOperatorReady");
+        Assert.IsTrue(response.Body.EndsWith('\n'));
+    }
+
+    [TestMethod]
+    public void OperatorStatus_TolerantOf_TrailingSlashAndQuery()
+    {
+        var handler = new MetricsRequestHandler(
+            new InMemoryMetrics(),
+            operatorStatusBody: static () => "{}");
+
+        Assert.AreEqual(200, handler.Handle("/operatorstatus/").StatusCode);
+        Assert.AreEqual(200, handler.Handle("/operatorstatus?pretty=1").StatusCode);
+    }
+
+    [TestMethod]
+    public void OperatorStatus_ProviderThrows_Returns500()
+    {
+        var handler = new MetricsRequestHandler(
+            new InMemoryMetrics(),
+            operatorStatusBody: static () => throw new InvalidOperationException("status down"));
+
+        var response = handler.Handle("/operatorstatus");
+
+        Assert.AreEqual(500, response.StatusCode);
+        StringAssert.Contains(response.Body, "operator status failed");
+    }
 }

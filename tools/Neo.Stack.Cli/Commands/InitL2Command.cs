@@ -166,7 +166,7 @@ internal static class InitL2Command
         Console.WriteLine("               IsBatcherCheckpointAlignedAsync (batcher last-ack vs durable checkpoint)");
         Console.WriteLine("               IsBatcherCheckpointAligned (batcher last-ack vs durable settlement checkpoint)");
         Console.WriteLine("               OpenBatchAgeMillis / IsOpenBatchPastMaxAge (seal-by-age overdue when true)");
-        Console.WriteLine("               StartMetricsHttp /readyz defaults to IsOfflinePassportComplete; /healthprobe → FormatHealthProbeJson");
+        Console.WriteLine("               StartMetricsHttp /readyz defaults to IsOfflinePassportComplete; /healthprobe → FormatHealthProbeJson; /operatorstatus → FormatOperatorStatusJsonAsync");
         Console.WriteLine("  host bridge= LocalHost.ProcessDeposit / ProcessReadyDeposits / ScanAndProcessReadyDepositsAsync");
         Console.WriteLine("               ConsumedDepositCount / DepositSourceReadyCount / DepositSourceReservedCount / DepositSourceSoftConsumedCount");
         Console.WriteLine("               IsSettlementEnabled / L1FinalityDepth / HasL1RpcEndpoint / ExpectedNetwork");
@@ -176,7 +176,7 @@ internal static class InitL2Command
         Console.WriteLine("               StageWithdrawal / ProveAsync / HasOverdueForcedInclusionAsync / L1InboxPendingCount");
         Console.WriteLine("               HasForcedInclusionFinalizer / HasSettlementClient / HasTransactionSender");
         Console.WriteLine("  host settle= LocalHost.GetLatestDurableCheckpointAsync / GetInitialStateRootAsync / LatestCheckpointBatchNumber / InitialStateRoot");
-        Console.WriteLine("  host status= LocalHost.FormatOperatorStatusJsonAsync / WriteOperatorStatusAsync(path) (full JSON health dump)");
+        Console.WriteLine("  host status= LocalHost.FormatOperatorStatusJsonAsync / WriteOperatorStatusAsync(path) / GET /operatorstatus");
         Console.WriteLine("               LocalHost.GetHealthProbeAsync / FormatHealthProbeJson / WriteHealthProbeAsync / GET /healthprobe");
         Console.WriteLine("               GatewayHost.FormatOperatorStatusJson / WriteOperatorStatusAsync; GetHealthProbe / FormatHealthProbeJson / WriteHealthProbeAsync");
         Console.WriteLine("  host prom  = LocalHost/GatewayHost WritePrometheusMetricsAsync; GatewayHost.IsPublicationConfigured");

@@ -1341,13 +1341,18 @@ public sealed class MultisigLocalHostComposition : IDisposable
     /// When <paramref name="readinessCheck"/> is null, uses
     /// <see cref="IsOfflinePassportComplete"/> so <c>/readyz</c> tracks the offline operator
     /// passport (not only sealed-batch sink presence).
-    /// Also wires <c>/healthprobe</c> to <see cref="FormatHealthProbeJson"/> so ops can
-    /// <c>curl</c> compact health JSON without writing a status file.
+    /// Also wires <c>/healthprobe</c> to <see cref="FormatHealthProbeJson"/> and
+    /// <c>/operatorstatus</c> to <see cref="FormatOperatorStatusJsonAsync"/> so ops can
+    /// <c>curl</c> compact or full status JSON without writing a status file.
     /// </summary>
     public void StartMetricsHttp(int? portOverride = null, Func<bool>? readinessCheck = null)
     {
         Metrics.WithReadinessCheck(readinessCheck ?? (() => IsOfflinePassportComplete));
         Metrics.WithHealthProbe(() => FormatHealthProbeJson());
+        Metrics.WithOperatorStatus(() => FormatOperatorStatusJsonAsync()
+            .AsTask()
+            .GetAwaiter()
+            .GetResult());
         Metrics.Start(portOverride);
     }
 

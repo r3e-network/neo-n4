@@ -2,7 +2,8 @@ namespace Neo.L2.Telemetry;
 
 /// <summary>
 /// Pure HTTP request handler for the operator-facing endpoints (<c>/metrics</c>,
-/// <c>/healthz</c>, <c>/readyz</c>, <c>/healthprobe</c>). Framework-agnostic — plug it into
+/// <c>/healthz</c>, <c>/readyz</c>, <c>/healthprobe</c>, <c>/operatorstatus</c>).
+/// Framework-agnostic — plug it into
 /// <see cref="MetricsHttpServer"/>, ASP.NET, Kestrel, or an existing RpcServer plugin
 /// endpoint by routing GET requests through <see cref="Handle"/>.
 /// </summary>
@@ -22,6 +23,12 @@ namespace Neo.L2.Telemetry;
 /// 200 so ops scripts can <c>curl | jq</c> without treating partial local runtime as a scrape outage.
 /// Does not claim L1 settle or prove-batch (funded gates).
 /// </para>
+/// <para>
+/// <c>/operatorstatus</c> returns full operator status JSON when wired
+/// (LocalHost supplies <c>LocalHostOperatorStatusDocument</c> via
+/// <c>FormatOperatorStatusJsonAsync</c>); when unwired it fails closed with 503.
+/// Larger than <c>/healthprobe</c>; still not an L1 settle claim.
+/// </para>
 /// </remarks>
 public sealed class MetricsRequestHandler
 {
@@ -32,6 +39,7 @@ public sealed class MetricsRequestHandler
     private readonly Func<bool>? _readinessCheck;
     private readonly Func<bool>? _livenessCheck;
     private readonly Func<string>? _healthProbeBody;
+    private readonly Func<string>? _operatorStatusBody;
 
     /// <summary>Construct a handler reading from <paramref name="source"/>.</summary>
     /// <param name="source">Metrics snapshot source.</param>
@@ -50,17 +58,24 @@ public sealed class MetricsRequestHandler
     /// <c>/healthprobe</c> fails closed with 503. Prefer compact camelCase JSON
     /// (e.g. serialized <c>LocalHostHealthProbeDocument</c>).
     /// </param>
+    /// <param name="operatorStatusBody">
+    /// Optional provider for <c>/operatorstatus</c> JSON body. When <c>null</c>,
+    /// <c>/operatorstatus</c> fails closed with 503. Prefer full camelCase status
+    /// (e.g. serialized <c>LocalHostOperatorStatusDocument</c>).
+    /// </param>
     public MetricsRequestHandler(
         IMetricsSource source,
         Func<bool>? readinessCheck = null,
         Func<bool>? livenessCheck = null,
-        Func<string>? healthProbeBody = null)
+        Func<string>? healthProbeBody = null,
+        Func<string>? operatorStatusBody = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         _source = source;
         _readinessCheck = readinessCheck;
         _livenessCheck = livenessCheck;
         _healthProbeBody = healthProbeBody;
+        _operatorStatusBody = operatorStatusBody;
     }
 
     /// <summary>Handle a request. <paramref name="path"/> is the URL path component (e.g. <c>"/metrics"</c>).</summary>
@@ -74,6 +89,7 @@ public sealed class MetricsRequestHandler
             "/healthz" => HandleLiveness(),
             "/readyz" => HandleReady(),
             "/healthprobe" => HandleHealthProbe(),
+            "/operatorstatus" => HandleOperatorStatus(),
             _ => new MetricsHttpResponse(404, PlainText, "Not Found\n"),
         };
     }
@@ -133,23 +149,44 @@ public sealed class MetricsRequestHandler
     }
 
     private MetricsHttpResponse HandleHealthProbe()
+        => HandleJsonBody(
+            _healthProbeBody,
+            notConfiguredBody: "health probe not configured\n",
+            failedBody: "health probe failed\n",
+            nullProviderMessage: "health probe body provider returned null",
+            emptyProviderMessage: "health probe body provider returned empty body");
+
+    private MetricsHttpResponse HandleOperatorStatus()
+        => HandleJsonBody(
+            _operatorStatusBody,
+            notConfiguredBody: "operator status not configured\n",
+            failedBody: "operator status failed\n",
+            nullProviderMessage: "operator status body provider returned null",
+            emptyProviderMessage: "operator status body provider returned empty body");
+
+    private static MetricsHttpResponse HandleJsonBody(
+        Func<string>? provider,
+        string notConfiguredBody,
+        string failedBody,
+        string nullProviderMessage,
+        string emptyProviderMessage)
     {
-        if (_healthProbeBody is null)
-            return new MetricsHttpResponse(503, PlainText, "health probe not configured\n");
+        if (provider is null)
+            return new MetricsHttpResponse(503, PlainText, notConfiguredBody);
 
         try
         {
-            var body = _healthProbeBody()
-                ?? throw new InvalidOperationException("health probe body provider returned null");
+            var body = provider()
+                ?? throw new InvalidOperationException(nullProviderMessage);
             if (string.IsNullOrWhiteSpace(body))
-                throw new InvalidOperationException("health probe body provider returned empty body");
+                throw new InvalidOperationException(emptyProviderMessage);
             if (!body.EndsWith('\n'))
                 body += "\n";
             return new MetricsHttpResponse(200, ApplicationJson, body);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            return new MetricsHttpResponse(500, PlainText, "health probe failed\n");
+            return new MetricsHttpResponse(500, PlainText, failedBody);
         }
     }
 

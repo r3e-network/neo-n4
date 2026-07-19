@@ -211,6 +211,54 @@ public class UT_L2MetricsPlugin
     }
 
     [TestMethod]
+    public void HasOperatorStatus_FalseUntilInstalled()
+    {
+        using var plugin = new L2MetricsPlugin();
+        Assert.IsFalse(plugin.HasOperatorStatus);
+        plugin.WithOperatorStatus(static () => "{}");
+        Assert.IsTrue(plugin.HasOperatorStatus);
+    }
+
+    [TestMethod]
+    public void WithOperatorStatus_RejectsNull()
+    {
+        using var plugin = new L2MetricsPlugin();
+        Assert.ThrowsExactly<ArgumentNullException>(() => plugin.WithOperatorStatus(null!));
+    }
+
+    [TestMethod]
+    public async Task OperatorStatus_ServesJsonWhenWired()
+    {
+        using var plugin = new L2MetricsPlugin();
+        plugin.WithOperatorStatus(static () => """{"isOperatorReady":true}""");
+        plugin.Start(portOverride: 0);
+
+        using var client = new HttpClient(new HttpClientHandler { UseProxy = false })
+        {
+            Timeout = TimeSpan.FromSeconds(5),
+        };
+        var resp = await client.GetAsync($"http://127.0.0.1:{plugin.BoundPort}/operatorstatus");
+        Assert.AreEqual(200, (int)resp.StatusCode);
+        Assert.IsTrue(resp.Content.Headers.ContentType?.MediaType is "application/json");
+        var body = await resp.Content.ReadAsStringAsync();
+        StringAssert.Contains(body, "isOperatorReady");
+    }
+
+    [TestMethod]
+    public async Task OperatorStatus_Unwired_FailsClosedWith503()
+    {
+        using var plugin = new L2MetricsPlugin();
+        plugin.Start(portOverride: 0);
+
+        using var client = new HttpClient(new HttpClientHandler { UseProxy = false })
+        {
+            Timeout = TimeSpan.FromSeconds(5),
+        };
+        var resp = await client.GetAsync($"http://127.0.0.1:{plugin.BoundPort}/operatorstatus");
+        Assert.AreEqual(503, (int)resp.StatusCode);
+    }
+
+    [TestMethod]
     public void Settings_DefaultValues()
     {
         var s = new L2MetricsSettings();

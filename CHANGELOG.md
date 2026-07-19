@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after-recover soft-state retention — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal after `RecoverPoisonedBatch` pin offline
+  deposit/FI/inbound/outbox bookkeeping survives poison→recover while still
+  Retrying: `ConsumedDepositCount=1`, `MessageOutboxL2ToL1Count=1`,
+  `KnownForcedInclusionNonceCount=1`, `KnownInboundNonceCount=1`, RPC deposit
+  `IncludedInBatch=1`, checkpoint tip retained.
+- E2E `AssertSoftSealAfterRecoverSoftStateRetention` + durable
+  `soft-seal-after-recover-retention-status.json` / probe; after-recover status
+  files also pin deposit/FI/inbound counts.
+- No wire/ABI change. L1 settle remains a funded gate.
+
 ### Changed — SoftSeal FI + inbound while settlement Retrying — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal after offline bridge pin FI/inbound

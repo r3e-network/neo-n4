@@ -987,13 +987,29 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(afterRecover.IsOfflinePassportComplete);
             Assert.IsTrue(afterRecover.IsBatcherCheckpointAligned);
             Assert.IsTrue(afterRecover.IsOperatorReady);
+            AssertSoftSealAfterRecoverSoftStateRetention(
+                afterRecover,
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                host.HasConsumedDeposit,
+                host.GetRpcL1DepositStatus,
+                chainDir);
             var afterRecoverStatusPath = Path.Combine(chainDir, "soft-seal-after-recover-status.json");
             host.WriteOperatorStatusAsync(afterRecoverStatusPath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isSettlementRetrying\": true");
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isOfflinePassportComplete\": true");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"consumedDepositCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"knownForcedInclusionNonceCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"knownInboundNonceCount\": 1");
             var afterRecoverProbePath = Path.Combine(chainDir, "soft-seal-after-recover-probe.json");
             host.WriteHealthProbeAsync(afterRecoverProbePath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"isSettlementRetrying\": true");
+            StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"consumedDepositCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownForcedInclusionNonceCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownInboundNonceCount\": 1");
         }
         finally
         {
@@ -1208,13 +1224,29 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsTrue(afterRecover.IsOfflinePassportComplete);
             Assert.IsTrue(afterRecover.IsBatcherCheckpointAligned);
             Assert.IsTrue(afterRecover.IsOperatorReady);
+            AssertSoftSealAfterRecoverSoftStateRetention(
+                afterRecover,
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                host.HasConsumedDeposit,
+                host.GetRpcL1DepositStatus,
+                chainDir);
             var afterRecoverStatusPath = Path.Combine(chainDir, "soft-seal-after-recover-status.json");
             host.WriteOperatorStatusAsync(afterRecoverStatusPath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isSettlementRetrying\": true");
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isOfflinePassportComplete\": true");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"consumedDepositCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"knownForcedInclusionNonceCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"knownInboundNonceCount\": 1");
             var afterRecoverProbePath = Path.Combine(chainDir, "soft-seal-after-recover-probe.json");
             host.WriteHealthProbeAsync(afterRecoverProbePath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"isSettlementRetrying\": true");
+            StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"consumedDepositCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownForcedInclusionNonceCount\": 1");
+            StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownInboundNonceCount\": 1");
         }
         finally
         {
@@ -1647,6 +1679,91 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             if (Directory.Exists(exeRoot))
                 Directory.Delete(exeRoot, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// SoftSeal poison→recover: offline deposit/FI/inbound/outbox bookkeeping survives
+    /// RecoverPoisonedBatch and remains visible while settlement is still Retrying.
+    /// Does not claim L1 settle.
+    /// </summary>
+    private static void AssertSoftSealAfterRecoverSoftStateRetention(
+        LocalHostOperatorStatus afterRecover,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> formatHealthProbeJson,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        Func<uint, ulong, bool> hasConsumedDeposit,
+        Func<uint, ulong, DepositStatus?> getRpcL1DepositStatus,
+        string chainDir)
+    {
+        // Soft offline bridge + FI/inbound bookkeeping established before poison must remain.
+        Assert.IsTrue(hasConsumedDeposit(0, 1));
+        Assert.AreEqual(1, afterRecover.ConsumedDepositCount);
+        Assert.AreEqual(1, afterRecover.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(0, afterRecover.StagedWithdrawalCount);
+        Assert.IsTrue(afterRecover.HasMessageOutbox);
+        Assert.AreNotEqual(UInt256.Zero, afterRecover.MessageOutboxL2ToL1Root);
+        Assert.AreEqual(1, afterRecover.KnownForcedInclusionNonceCount);
+        Assert.AreEqual(1, afterRecover.KnownInboundNonceCount);
+        Assert.IsFalse(afterRecover.HasOverdueForcedInclusion);
+        Assert.AreEqual(0, afterRecover.OpenBatchForcedInclusionCount);
+        Assert.AreEqual(0, afterRecover.OpenBatchL1MessageCount);
+        Assert.AreEqual(0, afterRecover.L1InboxPendingCount);
+        Assert.IsFalse(afterRecover.HasOpenBatch);
+        Assert.AreEqual(1UL, afterRecover.LatestCheckpointBatchNumber);
+        Assert.IsTrue(afterRecover.IsSettlementRetrying);
+        Assert.IsFalse(afterRecover.IsSettlementPoisoned);
+        Assert.IsFalse(afterRecover.IsSettlementIdle);
+        Assert.IsTrue(afterRecover.PendingSettlementCount >= 1);
+        Assert.IsTrue(afterRecover.IsOfflinePassportComplete);
+        Assert.IsTrue(afterRecover.IsOperatorReady);
+
+        var depositStatus = getRpcL1DepositStatus(0, 1);
+        Assert.IsNotNull(depositStatus);
+        Assert.IsTrue(depositStatus!.Value.ConsumedOnL2);
+        Assert.AreEqual(1UL, depositStatus.Value.IncludedInBatch);
+
+        var probe = getHealthProbe();
+        Assert.AreEqual(1, probe.ConsumedDepositCount);
+        Assert.AreEqual(1, probe.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(1, probe.KnownForcedInclusionNonceCount);
+        Assert.AreEqual(1, probe.KnownInboundNonceCount);
+        Assert.IsTrue(probe.IsSettlementRetrying);
+        Assert.IsFalse(probe.IsSettlementPoisoned);
+        Assert.AreEqual(1UL, probe.LatestCheckpointBatchNumber);
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
+        StringAssert.Contains(statusJson, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(statusJson, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(statusJson, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(statusJson, "\"isSettlementPoisoned\": false");
+        StringAssert.Contains(statusJson, "\"latestCheckpointBatchNumber\": 1");
+
+        var probeJson = formatHealthProbeJson();
+        StringAssert.Contains(probeJson, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(probeJson, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(probeJson, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(probeJson, "\"isSettlementRetrying\": true");
+
+        var statusPath = Path.Combine(chainDir, "soft-seal-after-recover-retention-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        var statusFile = File.ReadAllText(statusPath);
+        StringAssert.Contains(statusFile, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(statusFile, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(statusFile, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(statusFile, "\"isSettlementRetrying\": true");
+
+        var probePath = Path.Combine(chainDir, "soft-seal-after-recover-retention-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        var probeFile = File.ReadAllText(probePath);
+        StringAssert.Contains(probeFile, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(probeFile, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(probeFile, "\"knownInboundNonceCount\": 1");
     }
 
     /// <summary>

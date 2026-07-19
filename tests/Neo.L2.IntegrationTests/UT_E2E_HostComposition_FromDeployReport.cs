@@ -878,6 +878,30 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 checkpoint.BatchNumber,
                 chainDir);
 
+            AssertSoftSealFiInboundWhileRetrying(
+                host.RegisterForcedInclusionNonce,
+                () => host.KnownForcedInclusionNonceCount,
+                () => host.HasBatchForcedInclusionSource,
+                () => host.HasOverdueForcedInclusionCached(),
+                host.InvalidateForcedInclusionCache,
+                () => host.OpenBatchForcedInclusionCount,
+                host.RegisterInboundMessageNonce,
+                () => host.KnownInboundNonceCount,
+                () => host.HasBatchMessageRouter,
+                () => host.HasMessageRouter,
+                () => host.IsMessagePipelineWiringComplete,
+                host.InvalidateInboundMessageCache,
+                () => host.OpenBatchL1MessageCount,
+                () => host.L1InboxPendingCount,
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                softNonce: 11);
+
             // Durable host ops files on soft-seal retry (parity with unit SoftSeal writers).
             var softSealStatusPath = Path.Combine(chainDir, "soft-seal-operator-status.json");
             host.WriteOperatorStatusAsync(softSealStatusPath).AsTask().GetAwaiter().GetResult();
@@ -887,6 +911,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
             StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
             StringAssert.Contains(softSealStatusFile, "\"consumedDepositCount\": 1");
+            StringAssert.Contains(softSealStatusFile, "\"knownForcedInclusionNonceCount\": 1");
+            StringAssert.Contains(softSealStatusFile, "\"knownInboundNonceCount\": 1");
             var softSealProbePath = Path.Combine(chainDir, "soft-seal-health-probe.json");
             host.WriteHealthProbeAsync(softSealProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(softSealProbePath));
@@ -895,6 +921,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
             StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
             StringAssert.Contains(softSealProbeFile, "\"consumedDepositCount\": 1");
+            StringAssert.Contains(softSealProbeFile, "\"knownForcedInclusionNonceCount\": 1");
+            StringAssert.Contains(softSealProbeFile, "\"knownInboundNonceCount\": 1");
 
             // Soft SubmitNext/Reconcile: may fire L1 client against mock; do not claim settle.
             // Pending count stays ≥1 without funded settle confirmation.
@@ -1077,6 +1105,30 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 checkpoint.BatchNumber,
                 chainDir);
 
+            AssertSoftSealFiInboundWhileRetrying(
+                host.RegisterForcedInclusionNonce,
+                () => host.KnownForcedInclusionNonceCount,
+                () => host.HasBatchForcedInclusionSource,
+                () => host.HasOverdueForcedInclusionCached(),
+                host.InvalidateForcedInclusionCache,
+                () => host.OpenBatchForcedInclusionCount,
+                host.RegisterInboundMessageNonce,
+                () => host.KnownInboundNonceCount,
+                () => host.HasBatchMessageRouter,
+                () => host.HasMessageRouter,
+                () => host.IsMessagePipelineWiringComplete,
+                host.InvalidateInboundMessageCache,
+                () => host.OpenBatchL1MessageCount,
+                () => host.L1InboxPendingCount,
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir,
+                softNonce: 11);
+
             var softSealStatusPath = Path.Combine(chainDir, "soft-seal-operator-status.json");
             host.WriteOperatorStatusAsync(softSealStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(softSealStatusPath));
@@ -1085,6 +1137,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
             StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
             StringAssert.Contains(softSealStatusFile, "\"consumedDepositCount\": 1");
+            StringAssert.Contains(softSealStatusFile, "\"knownForcedInclusionNonceCount\": 1");
+            StringAssert.Contains(softSealStatusFile, "\"knownInboundNonceCount\": 1");
             var softSealProbePath = Path.Combine(chainDir, "soft-seal-health-probe.json");
             host.WriteHealthProbeAsync(softSealProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(softSealProbePath));
@@ -1093,6 +1147,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
             StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
             StringAssert.Contains(softSealProbeFile, "\"consumedDepositCount\": 1");
+            StringAssert.Contains(softSealProbeFile, "\"knownForcedInclusionNonceCount\": 1");
+            StringAssert.Contains(softSealProbeFile, "\"knownInboundNonceCount\": 1");
 
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
@@ -1591,6 +1647,122 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             if (Directory.Exists(exeRoot))
                 Directory.Delete(exeRoot, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// SoftSeal path: FI + inbound nonce bookkeeping while settlement is still Retrying.
+    /// Open-batch counts stay 0 (sealed), overdue remains false, pipeline unhealthy from
+    /// IsSettlementRetrying (not FI/inbound). L1 FI/message drain remain funded gates.
+    /// </summary>
+    private static void AssertSoftSealFiInboundWhileRetrying(
+        Func<ulong, bool> registerForcedInclusionNonce,
+        Func<int> knownForcedInclusionNonceCount,
+        Func<bool> hasBatchForcedInclusionSource,
+        Func<bool> hasOverdueForcedInclusionCached,
+        Action invalidateForcedInclusionCache,
+        Func<int> openBatchForcedInclusionCount,
+        Func<ulong, bool> registerInboundMessageNonce,
+        Func<int> knownInboundNonceCount,
+        Func<bool> hasBatchMessageRouter,
+        Func<bool> hasMessageRouter,
+        Func<bool> isMessagePipelineWiringComplete,
+        Action invalidateInboundMessageCache,
+        Func<int> openBatchL1MessageCount,
+        Func<int> l1InboxPendingCount,
+        Func<LocalHostOperatorStatus> getOperatorStatus,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> formatHealthProbeJson,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        string chainDir,
+        ulong softNonce)
+    {
+        Assert.IsTrue(hasBatchForcedInclusionSource());
+        Assert.IsTrue(registerForcedInclusionNonce(softNonce));
+        Assert.IsFalse(registerForcedInclusionNonce(softNonce));
+        Assert.AreEqual(1, knownForcedInclusionNonceCount());
+        Assert.AreEqual(0, openBatchForcedInclusionCount());
+        Assert.IsFalse(hasOverdueForcedInclusionCached());
+        invalidateForcedInclusionCache();
+        Assert.AreEqual(1, knownForcedInclusionNonceCount());
+        Assert.IsFalse(hasOverdueForcedInclusionCached());
+
+        Assert.IsTrue(hasBatchMessageRouter());
+        Assert.IsTrue(hasMessageRouter());
+        Assert.IsTrue(isMessagePipelineWiringComplete());
+        Assert.IsTrue(registerInboundMessageNonce(softNonce));
+        Assert.IsFalse(registerInboundMessageNonce(softNonce));
+        Assert.AreEqual(1, knownInboundNonceCount());
+        Assert.AreEqual(0, openBatchL1MessageCount());
+        Assert.AreEqual(0, l1InboxPendingCount());
+        invalidateInboundMessageCache();
+        Assert.AreEqual(1, knownInboundNonceCount());
+        Assert.AreEqual(0, l1InboxPendingCount());
+
+        var status = getOperatorStatus();
+        Assert.AreEqual(1, status.KnownForcedInclusionNonceCount);
+        Assert.AreEqual(1, status.KnownInboundNonceCount);
+        Assert.IsTrue(status.HasBatchForcedInclusionSource);
+        Assert.IsTrue(status.HasBatchMessageRouter);
+        Assert.IsTrue(status.IsForcedInclusionPipelineWiringComplete);
+        Assert.IsTrue(status.IsMessagePipelineWiringComplete);
+        Assert.IsFalse(status.HasOverdueForcedInclusion);
+        Assert.AreEqual(0, status.OpenBatchForcedInclusionCount);
+        Assert.AreEqual(0, status.OpenBatchL1MessageCount);
+        Assert.AreEqual(0, status.L1InboxPendingCount);
+        Assert.IsFalse(status.HasOpenBatch);
+        Assert.IsTrue(status.IsSettlementRetrying);
+        Assert.IsFalse(status.IsSettlementIdle);
+        Assert.IsFalse(status.IsPipelineHealthy);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        Assert.IsTrue(status.IsOperatorReady);
+        CollectionAssert.Contains(
+            status.PipelineHealthFailures.ToArray(),
+            nameof(status.IsSettlementRetrying));
+        CollectionAssert.DoesNotContain(
+            status.PipelineHealthFailures.ToArray(),
+            nameof(status.HasOverdueForcedInclusion));
+
+        var probe = getHealthProbe();
+        Assert.AreEqual(1, probe.KnownForcedInclusionNonceCount);
+        Assert.AreEqual(1, probe.KnownInboundNonceCount);
+        Assert.IsFalse(probe.HasOverdueForcedInclusion);
+        Assert.AreEqual(0, probe.OpenBatchForcedInclusionCount);
+        Assert.AreEqual(0, probe.OpenBatchL1MessageCount);
+        Assert.IsTrue(probe.IsSettlementRetrying);
+        Assert.IsFalse(probe.IsPipelineHealthy);
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(statusJson, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(statusJson, "\"hasOverdueForcedInclusion\": false");
+        StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
+        StringAssert.Contains(statusJson, "\"openBatchL1MessageCount\": 0");
+        StringAssert.Contains(statusJson, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(statusJson, "\"isPipelineHealthy\": false");
+        StringAssert.Contains(statusJson, "IsSettlementRetrying");
+
+        var probeJson = formatHealthProbeJson();
+        StringAssert.Contains(probeJson, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(probeJson, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(probeJson, "\"isSettlementRetrying\": true");
+
+        var statusPath = Path.Combine(chainDir, "soft-seal-fi-inbound-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        var statusFile = File.ReadAllText(statusPath);
+        StringAssert.Contains(statusFile, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(statusFile, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(statusFile, "\"isSettlementRetrying\": true");
+
+        var probePath = Path.Combine(chainDir, "soft-seal-fi-inbound-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        var probeFile = File.ReadAllText(probePath);
+        StringAssert.Contains(probeFile, "\"knownForcedInclusionNonceCount\": 1");
+        StringAssert.Contains(probeFile, "\"knownInboundNonceCount\": 1");
+        StringAssert.Contains(probeFile, "\"isSettlementRetrying\": true");
     }
 
     /// <summary>

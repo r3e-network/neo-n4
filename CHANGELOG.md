@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal FI + inbound while settlement Retrying — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal after offline bridge pin FI/inbound
+  bookkeeping while still Retrying: `RegisterForcedInclusionNonce` /
+  `RegisterInboundMessageNonce` (idempotent), open-batch FI/L1 counts stay 0
+  (sealed), overdue false, pipeline unhealthy from `IsSettlementRetrying` only.
+- E2E `AssertSoftSealFiInboundWhileRetrying` + durable
+  `soft-seal-fi-inbound-status.json` / `soft-seal-fi-inbound-probe.json`.
+- No wire/ABI change. L1 FI/message drain remain funded gates.
+
 ### Changed — SoftSeal offline bridge while settlement Retrying — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal after local DA pin offline bridge while

@@ -714,6 +714,22 @@ public sealed class UT_OptimisticLocalHostComposition
             host.EnqueueOutboundMessagesAsync([softOutbound]).AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1, host.MessageOutbox!.L2ToL1Count);
 
+            // Soft FI + inbound bookkeeping while settlement still Retrying (no L1 drain).
+            Assert.IsTrue(host.RegisterForcedInclusionNonce(11));
+            Assert.IsFalse(host.RegisterForcedInclusionNonce(11));
+            Assert.AreEqual(1, host.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(0, host.OpenBatchForcedInclusionCount);
+            Assert.IsFalse(host.HasOverdueForcedInclusionCached());
+            host.InvalidateForcedInclusionCache();
+            Assert.AreEqual(1, host.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(host.RegisterInboundMessageNonce(11));
+            Assert.IsFalse(host.RegisterInboundMessageNonce(11));
+            Assert.AreEqual(1, host.KnownInboundNonceCount);
+            Assert.AreEqual(0, host.OpenBatchL1MessageCount);
+            Assert.AreEqual(0, host.L1InboxPendingCount);
+            host.InvalidateInboundMessageCache();
+            Assert.AreEqual(1, host.KnownInboundNonceCount);
+
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1UL, status.LatestCheckpointBatchNumber);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, status.LatestCheckpointPostStateRoot);
@@ -728,6 +744,12 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(status.IsSettlementRetrying);
             Assert.AreEqual(1, status.ConsumedDepositCount);
             Assert.AreEqual(1, status.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(1, status.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(1, status.KnownInboundNonceCount);
+            Assert.IsFalse(status.HasOverdueForcedInclusion);
+            CollectionAssert.DoesNotContain(
+                status.PipelineHealthFailures.ToArray(),
+                nameof(status.HasOverdueForcedInclusion));
             Assert.IsFalse(status.IsSettlementPoisoned);
             CollectionAssert.Contains(
                 status.PipelineHealthFailures.ToArray(),

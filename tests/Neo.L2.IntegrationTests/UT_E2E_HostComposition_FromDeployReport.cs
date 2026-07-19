@@ -842,6 +842,42 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             CollectionAssert.Contains(
                 status.PipelineHealthFailures.ToArray(),
                 nameof(status.IsSettlementRetrying));
+
+            // Offline bridge while settlement still Retrying (no L1 settle required).
+            AssertSoftSealOfflineBridgeWhileRetrying(
+                host.RegisterBridgeAsset,
+                host.ProcessDeposit,
+                host.HasConsumedDeposit,
+                () => host.ConsumedDepositCount,
+                host.ProcessReadyDeposits,
+                host.StageWithdrawal,
+                () => host.StagedWithdrawalCount,
+                host.SealWithdrawalBatch,
+                msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
+                () => host.MessageOutbox!.L2ToL1Count,
+                () => host.MessageOutboxL2ToL1Root,
+                host.RecordRpcDeposit,
+                host.GetRpcL1DepositStatus,
+                host.RegisterRpcAsset,
+                host.GetRpcBridgedAsset,
+                host.GetRpcCanonicalAsset,
+                host.RecordRpcWithdrawalProof,
+                host.GetRpcWithdrawalProof,
+                host.RecordRpcMessageProof,
+                host.GetRpcMessageProof,
+                host.RecordMessageRouterFinalizedProof,
+                msgHash => host.GetMessageRouterProofAsync(msgHash).AsTask(),
+                () => host.ScanSharedBridgeDepositsAsync().AsTask(),
+                () => host.ScanAndProcessReadyDepositsAsync().AsTask(),
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                checkpoint.BatchNumber,
+                chainDir);
+
             // Durable host ops files on soft-seal retry (parity with unit SoftSeal writers).
             var softSealStatusPath = Path.Combine(chainDir, "soft-seal-operator-status.json");
             host.WriteOperatorStatusAsync(softSealStatusPath).AsTask().GetAwaiter().GetResult();
@@ -850,6 +886,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(softSealStatusFile, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
             StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
+            StringAssert.Contains(softSealStatusFile, "\"consumedDepositCount\": 1");
             var softSealProbePath = Path.Combine(chainDir, "soft-seal-health-probe.json");
             host.WriteHealthProbeAsync(softSealProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(softSealProbePath));
@@ -857,6 +894,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(softSealProbeFile, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
             StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
+            StringAssert.Contains(softSealProbeFile, "\"consumedDepositCount\": 1");
 
             // Soft SubmitNext/Reconcile: may fire L1 client against mock; do not claim settle.
             // Pending count stays ≥1 without funded settle confirmation.
@@ -1004,6 +1042,41 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             CollectionAssert.Contains(
                 status.PipelineHealthFailures.ToArray(),
                 nameof(status.IsSettlementRetrying));
+
+            AssertSoftSealOfflineBridgeWhileRetrying(
+                host.RegisterBridgeAsset,
+                host.ProcessDeposit,
+                host.HasConsumedDeposit,
+                () => host.ConsumedDepositCount,
+                host.ProcessReadyDeposits,
+                host.StageWithdrawal,
+                () => host.StagedWithdrawalCount,
+                host.SealWithdrawalBatch,
+                msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
+                () => host.MessageOutbox!.L2ToL1Count,
+                () => host.MessageOutboxL2ToL1Root,
+                host.RecordRpcDeposit,
+                host.GetRpcL1DepositStatus,
+                host.RegisterRpcAsset,
+                host.GetRpcBridgedAsset,
+                host.GetRpcCanonicalAsset,
+                host.RecordRpcWithdrawalProof,
+                host.GetRpcWithdrawalProof,
+                host.RecordRpcMessageProof,
+                host.GetRpcMessageProof,
+                host.RecordMessageRouterFinalizedProof,
+                msgHash => host.GetMessageRouterProofAsync(msgHash).AsTask(),
+                () => host.ScanSharedBridgeDepositsAsync().AsTask(),
+                () => host.ScanAndProcessReadyDepositsAsync().AsTask(),
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                checkpoint.BatchNumber,
+                chainDir);
+
             var softSealStatusPath = Path.Combine(chainDir, "soft-seal-operator-status.json");
             host.WriteOperatorStatusAsync(softSealStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(softSealStatusPath));
@@ -1011,6 +1084,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(softSealStatusFile, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
             StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
+            StringAssert.Contains(softSealStatusFile, "\"consumedDepositCount\": 1");
             var softSealProbePath = Path.Combine(chainDir, "soft-seal-health-probe.json");
             host.WriteHealthProbeAsync(softSealProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(softSealProbePath));
@@ -1018,6 +1092,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(softSealProbeFile, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
             StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
+            StringAssert.Contains(softSealProbeFile, "\"consumedDepositCount\": 1");
 
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
@@ -1516,6 +1591,132 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             if (Directory.Exists(exeRoot))
                 Directory.Delete(exeRoot, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// SoftSeal path: offline mint/withdrawal/outbox + RPC store while settlement is still
+    /// Retrying after mock L1 fail. Pins deposit/outbox counts without requiring settlement
+    /// idle. L1 deposit scan / claim / settle remain funded gates.
+    /// </summary>
+    private static void AssertSoftSealOfflineBridgeWhileRetrying(
+        Action<AssetMapping> registerBridgeAsset,
+        Func<CrossChainMessage, MintInstruction> processDeposit,
+        Func<uint, ulong, bool> hasConsumedDeposit,
+        Func<int> consumedDepositCount,
+        Func<int, IReadOnlyList<MintInstruction>> processReadyDeposits,
+        Func<WithdrawalRequest, UInt256> stageWithdrawal,
+        Func<int> stagedWithdrawalCount,
+        Func<(UInt256 Root, WithdrawalTree Tree)> sealWithdrawalBatch,
+        Func<IReadOnlyList<CrossChainMessage>, Task> enqueueOutbound,
+        Func<int> messageOutboxL2ToL1Count,
+        Func<UInt256> messageOutboxL2ToL1Root,
+        Action<DepositStatus> recordRpcDeposit,
+        Func<uint, ulong, DepositStatus?> getRpcL1DepositStatus,
+        Action<UInt160, UInt160> registerRpcAsset,
+        Func<UInt160, UInt160?> getRpcBridgedAsset,
+        Func<UInt160, UInt160?> getRpcCanonicalAsset,
+        Action<UInt256, byte[]> recordRpcWithdrawalProof,
+        Func<UInt256, ReadOnlyMemory<byte>?> getRpcWithdrawalProof,
+        Action<UInt256, byte[]> recordRpcMessageProof,
+        Func<UInt256, ReadOnlyMemory<byte>?> getRpcMessageProof,
+        Action<UInt256, ReadOnlyMemory<byte>> recordMessageRouterFinalizedProof,
+        Func<UInt256, Task<ReadOnlyMemory<byte>?>> getMessageRouterProofAsync,
+        Func<Task<int>> scanSharedBridgeDepositsAsync,
+        Func<Task<IReadOnlyList<MintInstruction>>> scanAndProcessReadyDepositsAsync,
+        Func<LocalHostOperatorStatus> getOperatorStatus,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> formatHealthProbeJson,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        ulong sealedBatchNumber,
+        string chainDir)
+    {
+        var offlineBridge = AssertOfflineBridgeMintWithdrawalOutbox(
+            registerBridgeAsset,
+            processDeposit,
+            hasConsumedDeposit,
+            consumedDepositCount,
+            processReadyDeposits,
+            stageWithdrawal,
+            stagedWithdrawalCount,
+            sealWithdrawalBatch,
+            enqueueOutbound,
+            messageOutboxL2ToL1Count,
+            messageOutboxL2ToL1Root);
+        AssertOfflineBridgeRpcStoreSurface(
+            offlineBridge,
+            recordRpcDeposit,
+            getRpcL1DepositStatus,
+            registerRpcAsset,
+            getRpcBridgedAsset,
+            getRpcCanonicalAsset,
+            recordRpcWithdrawalProof,
+            getRpcWithdrawalProof,
+            recordRpcMessageProof,
+            getRpcMessageProof,
+            recordMessageRouterFinalizedProof,
+            getMessageRouterProofAsync,
+            chainDir,
+            includedInBatch: sealedBatchNumber);
+
+        // Soft scan remains empty without L1 deposit discovery.
+        Assert.AreEqual(0, scanSharedBridgeDepositsAsync().GetAwaiter().GetResult());
+        Assert.AreEqual(0, scanAndProcessReadyDepositsAsync().GetAwaiter().GetResult().Count);
+
+        var status = getOperatorStatus();
+        Assert.AreEqual(1, status.ConsumedDepositCount);
+        Assert.AreEqual(1, status.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(0, status.StagedWithdrawalCount);
+        Assert.IsTrue(status.HasMessageOutbox);
+        Assert.AreNotEqual(UInt256.Zero, status.MessageOutboxL2ToL1Root);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        Assert.AreEqual(0, status.OfflinePassportFailures.Count);
+        // SoftSeal path: still waiting on funded L1 settle.
+        Assert.IsTrue(status.IsSettlementRetrying);
+        Assert.IsFalse(status.IsSettlementIdle);
+        Assert.IsFalse(status.IsSettlementPoisoned);
+        Assert.IsTrue(status.PendingSettlementCount >= 1);
+        Assert.IsTrue(status.IsOperatorReady);
+        Assert.IsFalse(status.IsPipelineHealthy);
+        CollectionAssert.Contains(
+            status.PipelineHealthFailures.ToArray(),
+            nameof(status.IsSettlementRetrying));
+
+        var probe = getHealthProbe();
+        Assert.AreEqual(1, probe.ConsumedDepositCount);
+        Assert.AreEqual(1, probe.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(0, probe.StagedWithdrawalCount);
+        Assert.IsTrue(probe.IsSettlementRetrying);
+        Assert.IsFalse(probe.IsSettlementIdle);
+        Assert.IsTrue(probe.IsOfflinePassportComplete);
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
+        StringAssert.Contains(statusJson, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(statusJson, "\"isSettlementIdle\": false");
+        StringAssert.Contains(statusJson, "IsSettlementRetrying");
+
+        var probeJson = formatHealthProbeJson();
+        StringAssert.Contains(probeJson, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(probeJson, "\"messageOutboxL2ToL1Count\": 1");
+        StringAssert.Contains(probeJson, "\"isSettlementRetrying\": true");
+
+        var statusPath = Path.Combine(chainDir, "soft-seal-offline-bridge-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        var statusFile = File.ReadAllText(statusPath);
+        StringAssert.Contains(statusFile, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(statusFile, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(statusFile, "\"messageOutboxL2ToL1Count\": 1");
+
+        var probePath = Path.Combine(chainDir, "soft-seal-offline-bridge-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        var probeFile = File.ReadAllText(probePath);
+        StringAssert.Contains(probeFile, "\"consumedDepositCount\": 1");
+        StringAssert.Contains(probeFile, "\"isSettlementRetrying\": true");
     }
 
     /// <summary>
@@ -2222,17 +2423,19 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Func<UInt256, ReadOnlyMemory<byte>?> getRpcMessageProof,
         Action<UInt256, ReadOnlyMemory<byte>> recordMessageRouterFinalizedProof,
         Func<UInt256, Task<ReadOnlyMemory<byte>?>> getMessageRouterProofAsync,
-        string chainDir)
+        string chainDir,
+        ulong? includedInBatch = null)
     {
         recordRpcDeposit(new DepositStatus(
             SourceChainId: 0,
             Nonce: soft.DepositNonce,
             ConsumedOnL2: true,
-            IncludedInBatch: null));
+            IncludedInBatch: includedInBatch));
         var depositStatus = getRpcL1DepositStatus(0, soft.DepositNonce);
         Assert.IsNotNull(depositStatus);
         Assert.IsTrue(depositStatus!.Value.ConsumedOnL2);
         Assert.AreEqual(soft.DepositNonce, depositStatus.Value.Nonce);
+        Assert.AreEqual(includedInBatch, depositStatus.Value.IncludedInBatch);
 
         registerRpcAsset(soft.L1Asset, soft.L2Asset);
         Assert.AreEqual(soft.L2Asset, getRpcBridgedAsset(soft.L1Asset));

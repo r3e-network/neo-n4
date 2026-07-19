@@ -646,6 +646,74 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(File.Exists(softDaPath));
             StringAssert.Contains(File.ReadAllText(softDaPath), "\"supportsLocalDaReader\": true");
 
+            // Offline bridge while settlement still Retrying (no L1 settle required).
+            var softL1Asset = UInt160.Parse("0x" + new string('1', 40));
+            var softL2Asset = UInt160.Parse("0x" + new string('2', 40));
+            host.RegisterBridgeAsset(new AssetMapping
+            {
+                L1Asset = softL1Asset,
+                L2Asset = softL2Asset,
+                L2ChainId = 20260716u,
+                L1Decimals = 8,
+                L2Decimals = 8,
+                AssetType = AssetType.Gas,
+                MintBurn = true,
+                LockMint = true,
+                Active = true,
+            });
+            var softDepositPayload = new DepositPayload
+            {
+                L1Asset = softL1Asset,
+                L2Recipient = Account(0x55),
+                Amount = new BigInteger(1_000),
+            };
+            var softDepositMsg = new CrossChainMessage
+            {
+                SourceChainId = 0,
+                TargetChainId = 20260716u,
+                Nonce = 1,
+                Sender = Account(0x66),
+                Receiver = Account(0x55),
+                MessageType = MessageType.Deposit,
+                Payload = softDepositPayload.Encode(),
+                MessageHash = UInt256.Zero,
+            };
+            var softMint = host.ProcessDeposit(softDepositMsg);
+            Assert.AreEqual(softL2Asset, softMint.L2Asset);
+            Assert.IsTrue(host.HasConsumedDeposit(0, 1));
+            Assert.AreEqual(1, host.ConsumedDepositCount);
+            host.RecordRpcDeposit(new DepositStatus(0, 1, ConsumedOnL2: true, IncludedInBatch: checkpoint.BatchNumber));
+            Assert.IsTrue(host.GetRpcL1DepositStatus(0, 1) is { ConsumedOnL2: true, IncludedInBatch: 1UL });
+            var softSender = Account(0x77);
+            var softWdLeaf = host.StageWithdrawal(new WithdrawalRequest
+            {
+                ChainId = 20260716u,
+                EmittingContract = softSender,
+                L2Sender = softSender,
+                L1Recipient = softSender,
+                L2Asset = softL2Asset,
+                Amount = new BigInteger(50),
+                Nonce = 1,
+            });
+            Assert.AreNotEqual(UInt256.Zero, softWdLeaf);
+            var softSealedWd = host.SealWithdrawalBatch();
+            Assert.AreNotEqual(UInt256.Zero, softSealedWd.Root);
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            var softOutboundDraft = new CrossChainMessage
+            {
+                SourceChainId = 20260716u,
+                TargetChainId = 0,
+                Nonce = 9,
+                Sender = softSender,
+                Receiver = softSender,
+                MessageType = MessageType.Event,
+                Payload = new byte[] { 0x01 },
+                MessageHash = UInt256.Zero,
+            };
+            var softOutbound = softOutboundDraft with { MessageHash = MessageHasher.HashMessage(softOutboundDraft) };
+            host.EnqueueOutboundMessagesAsync([softOutbound]).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(1, host.MessageOutbox!.L2ToL1Count);
+
             var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(1UL, status.LatestCheckpointBatchNumber);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, status.LatestCheckpointPostStateRoot);
@@ -658,6 +726,8 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(0, status.OfflinePassportFailures.Count);
             Assert.IsFalse(status.IsPipelineHealthy);
             Assert.IsTrue(status.IsSettlementRetrying);
+            Assert.AreEqual(1, status.ConsumedDepositCount);
+            Assert.AreEqual(1, status.MessageOutboxL2ToL1Count);
             Assert.IsFalse(status.IsSettlementPoisoned);
             CollectionAssert.Contains(
                 status.PipelineHealthFailures.ToArray(),

@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal offline bridge while settlement Retrying — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal after local DA pin offline bridge while
+  settlement is still Retrying: ProcessDeposit + StageWithdrawal + EnqueueOutbound,
+  RPC store deposit with `IncludedInBatch` = sealed batch, withdrawal/message proofs.
+- E2E `AssertSoftSealOfflineBridgeWhileRetrying`: L1 scan still empty, status/probe
+  show `ConsumedDepositCount=1` / `MessageOutboxL2ToL1Count=1` with
+  `IsSettlementRetrying` (not idle), durable `soft-seal-offline-bridge-status.json`
+  / `soft-seal-offline-bridge-probe.json`.
+- No wire/ABI change. L1 settle / deposit claim remain funded gates.
+
 ### Changed — SoftSeal local DA surface after checkpoint (Multisig/Opt) — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal after durable checkpoint pin local DA:

@@ -114,13 +114,27 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(host.HasMessageOutbox);
             Assert.AreEqual(0, host.ConsumedDepositCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
+            // Soft open-batch (no seal): MaxBlocksPerBatch > 1 so one empty block only drains
+            // empty L1 inboxes (deploy height >> mock getblockcount → scan no-ops; no known FI
+            // nonces yet). Seal + sink PersistAsync remain L2BatchPlugin unit / funded paths.
+            Assert.IsTrue(host.MaxBlocksPerBatch > 1);
+            var openBatchTimestampMs = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            host.ProcessCommittedBlock(1, openBatchTimestampMs, 894710606, Array.Empty<byte[]>());
+            Assert.IsTrue(host.HasOpenBatch);
+            Assert.AreEqual(1UL, host.OpenBatchFirstBlock);
+            Assert.AreEqual(1UL, host.OpenBatchLastBlock);
+            Assert.AreEqual(1, host.OpenBatchBlockCount);
+            Assert.AreEqual(0, host.OpenBatchL1MessageCount);
+            Assert.AreEqual(0, host.OpenBatchForcedInclusionCount);
+            Assert.AreEqual(0, host.InProgressTxCount);
+            Assert.IsFalse(host.HasPendingSealedBatch);
+            Assert.AreEqual(2UL, host.NextExpectedBlock);
+            Assert.AreEqual(1UL, host.NextBatchNumber);
             Assert.IsTrue(host.RegisterInboundMessageNonce(7));
             Assert.AreEqual(1, host.KnownInboundNonceCount);
             host.InvalidateInboundMessageCache();
             Assert.AreEqual(0, host.L1InboxPendingCount);
             Assert.AreEqual(0, host.L1InboxConsumedCount);
-            // ProcessCommittedBlock is public on L2BatchPlugin/LocalHost; first-block drain hits
-            // L1 FI/deposit scanners (funded). Full hand-off covered by L2BatchPlugin unit tests.
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsTrue(host.IsProductionWired);
             Assert.IsTrue(host.IsOperatorReady);
@@ -198,7 +212,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(status.IsSettlementRetrying);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
             Assert.IsFalse(status.IsOpenBatchPastMaxAge);
-            Assert.IsNull(status.OpenBatchAgeMillis);
+            Assert.IsNotNull(status.OpenBatchAgeMillis);
             Assert.IsTrue(status.IsPipelineHealthy);
             Assert.AreEqual(0, status.PipelineHealthFailures.Count);
             Assert.IsTrue(await host.IsPipelineHealthyAsync());
@@ -236,12 +250,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(status.IsOperatorReady);
             Assert.IsTrue(status.IsProductionWired);
             Assert.IsTrue(status.HasSealedBatchSink);
-            Assert.AreEqual(1UL, status.NextExpectedBlock);
+            Assert.AreEqual(2UL, status.NextExpectedBlock);
             Assert.IsFalse(status.HasPendingSealedBatch);
-            Assert.IsFalse(status.HasOpenBatch);
+            Assert.IsTrue(status.HasOpenBatch);
             Assert.AreEqual(0, status.InProgressTxCount);
-            Assert.IsNull(status.OpenBatchFirstBlock);
-            Assert.AreEqual(0, status.OpenBatchBlockCount);
+            Assert.AreEqual(1UL, status.OpenBatchFirstBlock);
+            Assert.AreEqual(1, status.OpenBatchBlockCount);
             Assert.AreEqual(0, status.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, status.OpenBatchForcedInclusionCount);
             Assert.AreEqual(0, status.OpenBatchWithdrawalCount);
@@ -418,11 +432,11 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(0, host.ProcessReadyDeposits(0).Count);
             Assert.IsNotNull(host.DepositSource);
             Assert.IsNotNull(host.ForcedInclusion);
-            // Scan / overdue check hit L1 applicationlog scanners (funded RPC gate);
-            // weak mock only covers settle-style getblockcount probes.
-            await Assert.ThrowsExactlyAsync<Neo.L2.Settlement.Rpc.JsonRpcException>(
-                async () => await host.ScanSharedBridgeDepositsAsync());
-            await Assert.ThrowsExactlyAsync<Neo.L2.Settlement.Rpc.JsonRpcException>(
+            // Soft mock: deploy height >> getblockcount so deposit ScanAsync no-ops (0 blocks).
+            Assert.AreEqual(0, await host.ScanSharedBridgeDepositsAsync());
+            // After RegisterForcedInclusionNonce, overdue check fans out getEntry/isConsumed —
+            // mock returns ByteString roots (committee path), so parse fails closed (funded L1 gate).
+            await Assert.ThrowsExactlyAsync<OverflowException>(
                 async () => await host.HasOverdueForcedInclusionAsync(0));
             Assert.AreEqual(0, host.StagedWithdrawalCount);
             var proof = host.ProveAsync(new ProofRequest
@@ -483,18 +497,18 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreNotEqual(UInt256.Zero, outbound.MessageHash);
             Assert.AreNotEqual(UInt256.Zero, host.MessageOutboxL2ToL1Root);
             Assert.AreEqual(host.MessageOutbox.L2ToL1Root, host.MessageOutboxL2ToL1Root);
-            var formattedStatus = await host.FormatOperatorStatusJsonAsync();
-            StringAssert.Contains(formattedStatus, "\"isOfflinePassportComplete\"");
-            StringAssert.Contains(formattedStatus, "\"settlementRetryCount\":");
-            StringAssert.Contains(formattedStatus, "\"settlementConfirmationLagBatches\":");
-            StringAssert.Contains(formattedStatus, "\"isSettlementIdle\": true");
-            StringAssert.Contains(formattedStatus, "\"messageOutboxL2ToL1Count\": 1");
-            Assert.IsTrue(formattedStatus.EndsWith('\n') || formattedStatus.EndsWith(Environment.NewLine));
             var statusPath = Path.Combine(chainDir, "operator-status.json");
             await host.WriteOperatorStatusAsync(statusPath);
             Assert.IsTrue(File.Exists(statusPath));
+            // OpenBatchAgeMillis is wall-clock; pin a single write snapshot.
             var statusJson = await File.ReadAllTextAsync(statusPath);
-            Assert.AreEqual(formattedStatus, statusJson);
+            StringAssert.Contains(statusJson, "\"isOfflinePassportComplete\"");
+            StringAssert.Contains(statusJson, "\"settlementRetryCount\":");
+            StringAssert.Contains(statusJson, "\"settlementConfirmationLagBatches\":");
+            StringAssert.Contains(statusJson, "\"isSettlementIdle\": true");
+            StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 1");
+            StringAssert.Contains(statusJson, "\"hasOpenBatch\": true");
+            Assert.IsTrue(statusJson.EndsWith('\n') || statusJson.EndsWith(Environment.NewLine));
             Assert.IsTrue(await host.IsBatcherCheckpointAlignedAsync());
             var probe = await host.GetHealthProbeAsync();
             Assert.IsTrue(probe.IsOfflinePassportComplete);
@@ -567,7 +581,7 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(probe.HasPendingSealedBatch);
             Assert.IsNull(probe.PendingSealedBatchNumber);
             Assert.IsNull(probe.PendingSealedBatchLastBlock);
-            Assert.IsFalse(probe.HasOpenBatch);
+            Assert.IsTrue(probe.HasOpenBatch);
             Assert.AreEqual(host.MaxBlocksPerBatch, probe.MaxBlocksPerBatch);
             Assert.AreEqual(host.MaxTransactionsPerBatch, probe.MaxTransactionsPerBatch);
             Assert.AreEqual(host.MaxBatchAgeMillis, probe.MaxBatchAgeMillis);
@@ -575,20 +589,20 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(host.MaxL1MessagesPerBatch, probe.MaxL1MessagesPerBatch);
             Assert.IsTrue(probe.MaxBlocksPerBatch > 0);
             Assert.IsTrue(probe.MaxBatchAgeMillis > 0);
-            Assert.IsNull(probe.OpenBatchAgeMillis);
+            Assert.IsNotNull(probe.OpenBatchAgeMillis);
             Assert.IsFalse(probe.IsOpenBatchPastMaxAge);
             Assert.AreEqual(0, probe.InProgressTxCount);
-            Assert.IsNull(probe.OpenBatchFirstBlock);
-            Assert.IsNull(probe.OpenBatchLastBlock);
-            Assert.AreEqual(0, probe.OpenBatchBlockCount);
+            Assert.AreEqual(1UL, probe.OpenBatchFirstBlock);
+            Assert.AreEqual(1UL, probe.OpenBatchLastBlock);
+            Assert.AreEqual(1, probe.OpenBatchBlockCount);
             Assert.AreEqual(0, probe.OpenBatchL1MessageCount);
             Assert.AreEqual(0, probe.OpenBatchL2ToL1MessageCount);
             Assert.AreEqual(0, probe.OpenBatchL2ToL2MessageCount);
             Assert.AreEqual(0, probe.OpenBatchForcedInclusionCount);
             Assert.AreEqual(0, probe.OpenBatchWithdrawalCount);
             Assert.IsTrue(probe.IsBatcherCheckpointAligned);
-            // Fresh chain after empty checkpoint restore expects block 1.
-            Assert.AreEqual(1UL, probe.NextExpectedBlock);
+            // Soft ProcessCommittedBlock advanced expected block without sealing.
+            Assert.AreEqual(2UL, probe.NextExpectedBlock);
             Assert.AreEqual(0UL, probe.LastAcknowledgedBatchNumber);
             Assert.AreEqual(0UL, probe.LastAcknowledgedBlock);
             Assert.AreEqual(1UL, probe.NextBatchNumber);
@@ -644,10 +658,10 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"hasPendingSealedBatch\": false");
             StringAssert.Contains(probeJson, "\"settlementRetryCount\": 0");
             StringAssert.Contains(probeJson, "\"settlementConfirmationLagBatches\": 0");
-            StringAssert.Contains(probeJson, "\"hasOpenBatch\": false");
+            StringAssert.Contains(probeJson, "\"hasOpenBatch\": true");
             StringAssert.Contains(probeJson, "\"isOpenBatchPastMaxAge\": false");
             StringAssert.Contains(probeJson, "\"inProgressTxCount\": 0");
-            StringAssert.Contains(probeJson, "\"openBatchBlockCount\": 0");
+            StringAssert.Contains(probeJson, "\"openBatchBlockCount\": 1");
             StringAssert.Contains(probeJson, "\"openBatchL1MessageCount\": 0");
             StringAssert.Contains(probeJson, "\"openBatchForcedInclusionCount\": 0");
             StringAssert.Contains(probeJson, "\"openBatchWithdrawalCount\": 0");
@@ -672,7 +686,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(probeJson, "\"knownInboundNonceCount\":");
             StringAssert.Contains(probeJson, "\"knownForcedInclusionNonceCount\":");
             StringAssert.Contains(probeJson, "\"stagedWithdrawalCount\":");
-            StringAssert.Contains(probeJson, "\"nextExpectedBlock\": 1");
+            StringAssert.Contains(probeJson, "\"nextExpectedBlock\": 2");
             StringAssert.Contains(probeJson, "\"latestCheckpointBatchNumber\": null");
             StringAssert.Contains(probeJson, "\"chainId\": 20260716");
             StringAssert.Contains(probeJson, "\"proofType\": \"Multisig\"");
@@ -721,15 +735,15 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(statusJson, "\"settlementConfiguredChainId\": 20260716");
             StringAssert.Contains(statusJson, "\"settlementConfiguredProofType\": \"Multisig\"");
             StringAssert.Contains(statusJson, "\"isOperatorReady\": true");
-            StringAssert.Contains(statusJson, "\"nextExpectedBlock\": 1");
+            StringAssert.Contains(statusJson, "\"nextExpectedBlock\": 2");
             StringAssert.Contains(statusJson, "\"hasPendingSealedBatch\": false");
             StringAssert.Contains(statusJson, "\"isBatcherEnabled\": true");
             StringAssert.Contains(statusJson, "\"maxBlocksPerBatch\":");
             StringAssert.Contains(statusJson, "\"maxTransactionsPerBatch\":");
             StringAssert.Contains(statusJson, "\"maxBatchAgeMillis\":");
-            StringAssert.Contains(statusJson, "\"hasOpenBatch\": false");
+            StringAssert.Contains(statusJson, "\"hasOpenBatch\": true");
             StringAssert.Contains(statusJson, "\"inProgressTxCount\": 0");
-            StringAssert.Contains(statusJson, "\"openBatchBlockCount\": 0");
+            StringAssert.Contains(statusJson, "\"openBatchBlockCount\": 1");
             StringAssert.Contains(statusJson, "\"openBatchL1MessageCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchForcedInclusionCount\": 0");
             StringAssert.Contains(statusJson, "\"openBatchL2ToL2MessageCount\": 0");
@@ -1060,14 +1074,28 @@ public sealed class UT_MultisigLocalHostComposition
         return new HttpClient(new MockHandler(async (request, _) =>
         {
             var body = await request.Content!.ReadAsStringAsync();
+            // Echo request id so concurrent L1 scans (deposit/FI/message) match JSON-RPC ids.
+            var idToken = "1";
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("id", out var idEl))
+                    idToken = idEl.ValueKind == System.Text.Json.JsonValueKind.Number
+                        ? idEl.GetRawText()
+                        : System.Text.Json.JsonSerializer.Serialize(idEl.GetString());
+            }
+            catch
+            {
+                // keep default id
+            }
             if (body.Contains("getversion", StringComparison.Ordinal))
             {
                 return Json(
-                    """{"jsonrpc":"2.0","id":1,"result":{"protocol":{"network":894710606,"addressversion":53}}}""");
+                    $"{{\"jsonrpc\":\"2.0\",\"id\":{idToken},\"result\":{{\"protocol\":{{\"network\":894710606,\"addressversion\":53}}}}}}");
             }
             if (body.Contains("getblockcount", StringComparison.Ordinal))
             {
-                return Json("""{"jsonrpc":"2.0","id":1,"result":100}""");
+                return Json($"{{\"jsonrpc\":\"2.0\",\"id\":{idToken},\"result\":100}}");
             }
             // Canonical state root for committee / profile paths.
             if (body.Contains("invokefunction", StringComparison.Ordinal)
@@ -1075,10 +1103,11 @@ public sealed class UT_MultisigLocalHostComposition
             {
                 var root = Convert.ToBase64String(Root(0x11).GetSpan().ToArray());
                 return Json(
-                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"state\":\"HALT\",\"gasconsumed\":\"0\","
+                    "{\"jsonrpc\":\"2.0\",\"id\":" + idToken
+                    + ",\"result\":{\"state\":\"HALT\",\"gasconsumed\":\"0\","
                     + "\"stack\":[{\"type\":\"ByteString\",\"value\":\"" + root + "\"}]}}");
             }
-            return Json("""{"jsonrpc":"2.0","id":1,"result":null}""");
+            return Json($"{{\"jsonrpc\":\"2.0\",\"id\":{idToken},\"result\":null}}");
         }));
     }
 

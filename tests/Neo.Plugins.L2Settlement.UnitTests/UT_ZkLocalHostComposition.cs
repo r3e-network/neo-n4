@@ -101,6 +101,15 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsFalse(host.HasOpenBatch);
             Assert.AreEqual(0, host.OpenBatchBlockCount);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
+            // Soft open-batch (no seal): empty L1 drain + MaxBlocksPerBatch > 1.
+            Assert.IsTrue(host.MaxBlocksPerBatch > 1);
+            var openBatchTimestampMs = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            host.ProcessCommittedBlock(1, openBatchTimestampMs, 894710606, Array.Empty<byte[]>());
+            Assert.IsTrue(host.HasOpenBatch);
+            Assert.AreEqual(1, host.OpenBatchBlockCount);
+            Assert.AreEqual(0, host.OpenBatchL1MessageCount);
+            Assert.IsFalse(host.HasPendingSealedBatch);
+            Assert.AreEqual(2UL, host.NextExpectedBlock);
             Assert.IsTrue(host.RegisterInboundMessageNonce(3));
             Assert.AreEqual(1, host.KnownInboundNonceCount);
             Assert.AreEqual(0, host.L1InboxPendingCount);
@@ -183,7 +192,7 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsFalse(status.IsSettlementRetrying);
             Assert.IsTrue(status.IsBatcherCheckpointAligned);
             Assert.IsFalse(status.IsOpenBatchPastMaxAge);
-            Assert.IsNull(status.OpenBatchAgeMillis);
+            Assert.IsNotNull(status.OpenBatchAgeMillis);
             Assert.IsTrue(status.IsPipelineHealthy);
             Assert.AreEqual(0, status.PipelineHealthFailures.Count);
             Assert.IsTrue(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
@@ -411,12 +420,13 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(
                 statusAfterDeposit.SettlementConfirmationLagBatches,
                 probe.SettlementConfirmationLagBatches);
-            Assert.IsFalse(probe.HasOpenBatch);
+            Assert.IsTrue(probe.HasOpenBatch);
             Assert.AreEqual(0, probe.InProgressTxCount);
-            Assert.AreEqual(0, probe.OpenBatchBlockCount);
+            Assert.AreEqual(1, probe.OpenBatchBlockCount);
             Assert.IsTrue(probe.IsBatcherCheckpointAligned);
             Assert.AreEqual(0UL, probe.LastAcknowledgedBatchNumber);
             Assert.AreEqual(1UL, probe.NextBatchNumber);
+            Assert.AreEqual(2UL, probe.NextExpectedBlock);
             Assert.IsNull(probe.LatestCheckpointBatchNumber);
             Assert.IsFalse(probe.HasOverdueForcedInclusion);
             Assert.IsTrue(probe.IsPipelineHealthy);
@@ -446,8 +456,9 @@ public sealed class UT_ZkLocalHostComposition
             StringAssert.Contains(probeJson, "\"settlementRetryCount\": 0");
             StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": true");
             StringAssert.Contains(probeJson, "\"nextBatchNumber\": 1");
-            StringAssert.Contains(probeJson, "\"hasOpenBatch\": false");
-            StringAssert.Contains(probeJson, "\"openBatchBlockCount\": 0");
+            StringAssert.Contains(probeJson, "\"hasOpenBatch\": true");
+            StringAssert.Contains(probeJson, "\"openBatchBlockCount\": 1");
+            StringAssert.Contains(probeJson, "\"nextExpectedBlock\": 2");
             StringAssert.Contains(probeJson, "\"depositSourceReservedCount\":");
             StringAssert.Contains(probeJson, $"\"consumedDepositCount\": {host.ConsumedDepositCount}");
             StringAssert.Contains(probeJson, "\"hasMessageOutbox\": true");
@@ -689,24 +700,38 @@ public sealed class UT_ZkLocalHostComposition
         return new HttpClient(new MockHandler(async (request, _) =>
         {
             var body = await request.Content!.ReadAsStringAsync();
+            var idToken = "1";
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("id", out var idEl))
+                    idToken = idEl.ValueKind == System.Text.Json.JsonValueKind.Number
+                        ? idEl.GetRawText()
+                        : System.Text.Json.JsonSerializer.Serialize(idEl.GetString());
+            }
+            catch
+            {
+                // keep default id
+            }
             if (body.Contains("getversion", StringComparison.Ordinal))
             {
                 return Json(
-                    """{"jsonrpc":"2.0","id":1,"result":{"protocol":{"network":894710606,"addressversion":53}}}""");
+                    $"{{\"jsonrpc\":\"2.0\",\"id\":{idToken},\"result\":{{\"protocol\":{{\"network\":894710606,\"addressversion\":53}}}}}}");
             }
             if (body.Contains("getblockcount", StringComparison.Ordinal))
             {
-                return Json("""{"jsonrpc":"2.0","id":1,"result":100}""");
+                return Json($"{{\"jsonrpc\":\"2.0\",\"id\":{idToken},\"result\":100}}");
             }
             if (body.Contains("invokefunction", StringComparison.Ordinal)
                 || body.Contains("invokescript", StringComparison.Ordinal))
             {
                 var root = Convert.ToBase64String(genesisRoot.GetSpan().ToArray());
                 return Json(
-                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"state\":\"HALT\",\"gasconsumed\":\"0\","
+                    "{\"jsonrpc\":\"2.0\",\"id\":" + idToken
+                    + ",\"result\":{\"state\":\"HALT\",\"gasconsumed\":\"0\","
                     + "\"stack\":[{\"type\":\"ByteString\",\"value\":\"" + root + "\"}]}}");
             }
-            return Json("""{"jsonrpc":"2.0","id":1,"result":null}""");
+            return Json($"{{\"jsonrpc\":\"2.0\",\"id\":{idToken},\"result\":null}}");
         }));
     }
 

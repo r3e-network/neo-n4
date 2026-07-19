@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost soft ProcessCommittedBlock open-batch (no seal) — 2026-07-19
+
+- Multisig/Optimistic/Zk LocalHost unit tests call `ProcessCommittedBlock` with an
+  empty L2 block while `MaxBlocksPerBatch > 1`: opens a batch, advances
+  `NextExpectedBlock`, leaves zero L1-message/FI counts, does **not** seal or
+  `PersistAsync` (no real executor / L1 claim).
+- Test L1 mocks echo JSON-RPC request `id` so concurrent deposit/FI/message
+  drain scans match (previously failed closed on id mismatch).
+- Soft deposit `ScanSharedBridgeDepositsAsync` no-ops when deploy height ≫ mock
+  `getblockcount`. FI overdue fanout after known nonces remains fail-closed.
+- No wire/ABI change. Seal→settlement hand-off and L1 publish remain funded gates.
+
 ### Changed — Opt/Zk RPC proofs + E2E soft RPC/ReceiveBatch on all hosts — 2026-07-19
 
 - Optimistic + Zk LocalHost unit tests cover offline RPC

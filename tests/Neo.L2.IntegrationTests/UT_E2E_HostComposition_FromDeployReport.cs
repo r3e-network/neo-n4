@@ -778,6 +778,21 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             CollectionAssert.Contains(
                 status.PipelineHealthFailures.ToArray(),
                 nameof(status.IsSettlementRetrying));
+            // Durable host ops files on soft-seal retry (parity with unit SoftSeal writers).
+            var softSealStatusPath = Path.Combine(chainDir, "soft-seal-operator-status.json");
+            host.WriteOperatorStatusAsync(softSealStatusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(softSealStatusPath));
+            var softSealStatusFile = File.ReadAllText(softSealStatusPath);
+            StringAssert.Contains(softSealStatusFile, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
+            var softSealProbePath = Path.Combine(chainDir, "soft-seal-health-probe.json");
+            host.WriteHealthProbeAsync(softSealProbePath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(softSealProbePath));
+            var softSealProbeFile = File.ReadAllText(softSealProbePath);
+            StringAssert.Contains(softSealProbeFile, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
 
             // Soft SubmitNext/Reconcile: may fire L1 client against mock; do not claim settle.
             // Pending count stays ≥1 without funded settle confirmation.
@@ -788,6 +803,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             // Soft seal → gateway aggregator (no L1 PublishAggregate).
             AssertSoftSealFeedsGatewayReceiveBatch(
                 host.AddRpcBatch,
+                host.FinalizeRpcBatch,
+                host.GetRpcBatch,
+                host.GetLatestRpcStateRoot,
                 host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult()!,
                 chainDir,
                 host.Metrics,
@@ -861,6 +879,20 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             CollectionAssert.Contains(
                 status.PipelineHealthFailures.ToArray(),
                 nameof(status.IsSettlementRetrying));
+            var softSealStatusPath = Path.Combine(chainDir, "soft-seal-operator-status.json");
+            host.WriteOperatorStatusAsync(softSealStatusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(softSealStatusPath));
+            var softSealStatusFile = File.ReadAllText(softSealStatusPath);
+            StringAssert.Contains(softSealStatusFile, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
+            var softSealProbePath = Path.Combine(chainDir, "soft-seal-health-probe.json");
+            host.WriteHealthProbeAsync(softSealProbePath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(softSealProbePath));
+            var softSealProbeFile = File.ReadAllText(softSealProbePath);
+            StringAssert.Contains(softSealProbeFile, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
 
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
@@ -868,6 +900,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
 
             AssertSoftSealFeedsGatewayReceiveBatch(
                 host.AddRpcBatch,
+                host.FinalizeRpcBatch,
+                host.GetRpcBatch,
+                host.GetLatestRpcStateRoot,
                 checkpoint,
                 chainDir,
                 host.Metrics,
@@ -1187,6 +1222,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
     /// </summary>
     private static void AssertSoftSealFeedsGatewayReceiveBatch(
         Action<L2BatchCommitment, BatchStatus> addRpcBatch,
+        Action<ulong> finalizeRpcBatch,
+        Func<ulong, L2BatchCommitment?> getRpcBatch,
+        Func<UInt256> getLatestRpcStateRoot,
         SealedBatchCheckpoint checkpoint,
         string chainDir,
         L2MetricsPlugin metricsPlugin,
@@ -1194,6 +1232,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         UInt160 gatewaySignerAccount)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
+        ArgumentNullException.ThrowIfNull(finalizeRpcBatch);
+        ArgumentNullException.ThrowIfNull(getRpcBatch);
+        ArgumentNullException.ThrowIfNull(getLatestRpcStateRoot);
         var z = UInt256.Zero;
         var genesisRoot = UInt256.Parse("0x" + new string('1', 64));
         var commitment = new L2BatchCommitment
@@ -1215,6 +1256,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Proof = new byte[] { 0xB1 },
         };
         addRpcBatch(commitment, BatchStatus.Finalized);
+        var rpcBatch = getRpcBatch(checkpoint.BatchNumber);
+        Assert.IsNotNull(rpcBatch);
+        Assert.AreEqual(checkpoint.PostStateRoot, rpcBatch!.PostStateRoot);
+        // Latest tip advances only via Finalize (status Finalized alone is not enough).
+        finalizeRpcBatch(checkpoint.BatchNumber);
+        Assert.AreEqual(checkpoint.PostStateRoot, getLatestRpcStateRoot());
 
         var gatewayProof = new DelegatingGatewayProofProver(
             proofSystem: 1,
@@ -1241,6 +1288,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         gatewayHost.ReceiveBatch(commitment with { Proof = new byte[] { 0xB3 } });
         Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
         Assert.AreEqual(gatewayHost.Aggregator.PendingCount, gatewayHost.AggregatorPendingCount);
+        // Durable outbox path: direct PullAggregate bypasses publication outbox (fail-closed).
+        Assert.ThrowsExactly<InvalidOperationException>(() => gatewayHost.PullAggregate());
         var gwStatus = gatewayHost.GetOperatorStatus();
         Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwStatus.AggregatorPendingCount);
         // Soft aggregate pending is not L1 outbox publication, but publication health flags the backlog.

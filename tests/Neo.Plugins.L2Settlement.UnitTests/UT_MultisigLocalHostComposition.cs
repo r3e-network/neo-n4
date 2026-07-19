@@ -894,6 +894,10 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(softSealStatusJson, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(softSealStatusJson, "IsSettlementRetrying");
             StringAssert.Contains(softSealStatusJson, "\"pendingSettlementCount\": 1");
+            StringAssert.Contains(softSealStatusJson, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(
+                softSealStatusJson,
+                "\"latestCheckpointPostStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
             // Durable ops files for soft-seal retry surface (operator scripts without metrics HTTP).
             var softSealStatusPath = Path.Combine(chainDir, "soft-seal-operator-status.json");
             host.WriteOperatorStatusAsync(softSealStatusPath).AsTask().GetAwaiter().GetResult();
@@ -902,11 +906,16 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(softSealStatusFile, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealStatusFile, "\"isPipelineHealthy\": false");
             StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
+            StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
             var softSealProbeJson = host.FormatHealthProbeJson();
             StringAssert.Contains(softSealProbeJson, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealProbeJson, "\"isPipelineHealthy\": false");
             StringAssert.Contains(softSealProbeJson, "\"pendingSettlementCount\": 1");
             StringAssert.Contains(softSealProbeJson, "IsSettlementRetrying");
+            StringAssert.Contains(softSealProbeJson, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(
+                softSealProbeJson,
+                "\"latestCheckpointPostStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
             var softSealProbePath = Path.Combine(chainDir, "soft-seal-health-probe.json");
             host.WriteHealthProbeAsync(softSealProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(softSealProbePath));
@@ -914,6 +923,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(softSealProbeFile, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealProbeFile, "\"isPipelineHealthy\": false");
             StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
+            StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
 
             // Soft seal → gateway aggregator (no L1 PublishAggregate).
             var z = UInt256.Zero;
@@ -938,6 +948,13 @@ public sealed class UT_MultisigLocalHostComposition
             };
             host.AddRpcBatch(commitment, BatchStatus.Finalized);
             Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            var rpcBatch = host.GetRpcBatch(1);
+            Assert.IsNotNull(rpcBatch);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, rpcBatch!.PostStateRoot);
+            // Per-batch root is recorded on Add; latest tip advances only via Finalize.
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(1));
+            host.FinalizeRpcBatch(1);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
 
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
@@ -959,6 +976,8 @@ public sealed class UT_MultisigLocalHostComposition
             });
             gatewayHost.ReceiveBatch(commitment with { Proof = new byte[] { 0xB3 } });
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+            // Durable outbox path: direct PullAggregate bypasses publication outbox (fail-closed).
+            Assert.ThrowsExactly<InvalidOperationException>(() => gatewayHost.PullAggregate());
             var gwStatus = gatewayHost.GetOperatorStatus();
             Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwStatus.AggregatorPendingCount);
             // Soft aggregate pending is not L1 publication: HasPendingPublication stays false,

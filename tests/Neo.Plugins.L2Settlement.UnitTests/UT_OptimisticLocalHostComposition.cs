@@ -652,6 +652,10 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(softSealStatusJson, "\"isOfflinePassportComplete\": true");
             StringAssert.Contains(softSealStatusJson, "IsSettlementRetrying");
             StringAssert.Contains(softSealStatusJson, "\"pendingSettlementCount\": 1");
+            StringAssert.Contains(softSealStatusJson, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(
+                softSealStatusJson,
+                "\"latestCheckpointPostStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
             var softSealStatusPath = Path.Combine(chainDir, "soft-seal-operator-status.json");
             host.WriteOperatorStatusAsync(softSealStatusPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(softSealStatusPath));
@@ -659,17 +663,23 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(softSealStatusFile, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealStatusFile, "\"isPipelineHealthy\": false");
             StringAssert.Contains(softSealStatusFile, "IsSettlementRetrying");
+            StringAssert.Contains(softSealStatusFile, "\"latestCheckpointBatchNumber\": 1");
             var softSealProbeJson = host.FormatHealthProbeJson();
             StringAssert.Contains(softSealProbeJson, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealProbeJson, "\"isPipelineHealthy\": false");
             StringAssert.Contains(softSealProbeJson, "\"pendingSettlementCount\": 1");
             StringAssert.Contains(softSealProbeJson, "IsSettlementRetrying");
+            StringAssert.Contains(softSealProbeJson, "\"latestCheckpointBatchNumber\": 1");
+            StringAssert.Contains(
+                softSealProbeJson,
+                "\"latestCheckpointPostStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
             var softSealProbePath = Path.Combine(chainDir, "soft-seal-health-probe.json");
             host.WriteHealthProbeAsync(softSealProbePath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(softSealProbePath));
             var softSealProbeFile = File.ReadAllText(softSealProbePath);
             StringAssert.Contains(softSealProbeFile, "\"isSettlementRetrying\": true");
             StringAssert.Contains(softSealProbeFile, "IsSettlementRetrying");
+            StringAssert.Contains(softSealProbeFile, "\"latestCheckpointBatchNumber\": 1");
 
             // Soft seal → gateway aggregator (no L1 PublishAggregate). Multisig unit parity.
             var z = UInt256.Zero;
@@ -694,6 +704,12 @@ public sealed class UT_OptimisticLocalHostComposition
             };
             host.AddRpcBatch(commitment, BatchStatus.Finalized);
             Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            var rpcBatch = host.GetRpcBatch(1);
+            Assert.IsNotNull(rpcBatch);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, rpcBatch!.PostStateRoot);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(1));
+            host.FinalizeRpcBatch(1);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
 
             var gatewayProof = new DelegatingGatewayProofProver(
                 proofSystem: 1,
@@ -715,6 +731,7 @@ public sealed class UT_OptimisticLocalHostComposition
             });
             gatewayHost.ReceiveBatch(commitment with { Proof = new byte[] { 0xB3 } });
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+            Assert.ThrowsExactly<InvalidOperationException>(() => gatewayHost.PullAggregate());
             var gwStatus = gatewayHost.GetOperatorStatus();
             Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwStatus.AggregatorPendingCount);
             Assert.IsTrue(gatewayHost.IsOfflinePassportComplete);

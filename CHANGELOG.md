@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal checkpoint JSON, RPC Finalize tip, PullAggregate fail-closed — 2026-07-19
+
+- Multisig/Optimistic unit SoftSeal status/probe JSON pin `latestCheckpointBatchNumber=1`
+  and `latestCheckpointPostStateRoot` after local checkpoint.
+- Soft seal RPC handoff: `AddRpcBatch(Finalized)` records per-batch root; **latest tip**
+  advances only via `FinalizeRpcBatch` (unit + E2E). Pins `GetRpcBatch` /
+  `GetRpcStateRootAtBatch` / `GetLatestRpcStateRoot` after finalize.
+- Soft seal Gateway OpenMerkle path pins `PullAggregate` **fail-closed** when durable
+  outbox is attached (must use funded `PublishAggregateAsync`).
+- E2E Multisig/Opt SoftSeal also pin durable host status/probe files on Retrying surface.
+- No wire/ABI change. L1 settle + gateway publish remain funded gates.
+
 ### Changed — SoftSeal durable ops file writers (status/probe) — 2026-07-19
 
 - Multisig/Optimistic unit SoftSeal after mock L1 retry pins durable host writers:

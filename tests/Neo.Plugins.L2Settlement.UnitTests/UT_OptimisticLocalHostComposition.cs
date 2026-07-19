@@ -10,6 +10,7 @@ using Neo.L2.Proving;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.State;
 using Neo.Network.P2P.Payloads;
+using Neo.Plugins.L2Rpc;
 using Neo.Wallets;
 
 namespace Neo.Plugins.L2Settlement.UnitTests;
@@ -208,6 +209,36 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(host.RpcStore.GatewayEnabled, status.GatewayEnabled);
             Assert.AreEqual(host.RpcStore.Sequencer, status.Sequencer);
             Assert.AreEqual(host.RpcStore.Exit, status.Exit);
+            // Host RPC store helpers (no Neo.CLI / funded L1).
+            var rpcRoot = new UInt256(Enumerable.Repeat((byte)0xAB, 32).ToArray());
+            var z = UInt256.Zero;
+            var rpcBatch = new L2BatchCommitment
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                FirstBlock = 1,
+                LastBlock = 1,
+                PreStateRoot = z,
+                PostStateRoot = rpcRoot,
+                TxRoot = z,
+                ReceiptRoot = z,
+                WithdrawalRoot = z,
+                L2ToL1MessageRoot = z,
+                L2ToL2MessageRoot = z,
+                DACommitment = z,
+                PublicInputHash = z,
+                ProofType = ProofType.Optimistic,
+                Proof = ReadOnlyMemory<byte>.Empty,
+            };
+            host.AddRpcBatch(rpcBatch, BatchStatus.Pending);
+            Assert.AreEqual(BatchStatus.Pending, host.GetRpcBatchStatus(1));
+            Assert.IsNotNull(host.GetRpcBatch(1));
+            host.FinalizeRpcBatch(1);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(rpcRoot, host.GetLatestRpcStateRoot());
+            Assert.AreEqual(rpcRoot, host.GetRpcStateRootAtBatch(1));
+            host.RecordRpcDeposit(new DepositStatus(20260716u, 1, ConsumedOnL2: false, IncludedInBatch: null));
+            Assert.IsNotNull(host.GetRpcL1DepositStatus(20260716u, 1));
             var l1 = UInt160.Parse("0x" + new string('1', 40));
             var l2 = UInt160.Parse("0x" + new string('2', 40));
             host.RegisterRpcAsset(l1, l2);

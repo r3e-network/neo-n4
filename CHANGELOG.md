@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Opt/Zk RPC store + Gateway ReceiveBatch soft path coverage — 2026-07-19
+
+- Optimistic + Zk LocalHost unit tests cover offline RPC store
+  `AddRpcBatch` / `FinalizeRpcBatch` / `RecordRpcDeposit` (parity with Multisig).
+- E2E Multisig+Gateway from deploy report: soft RPC finalize + dual-chain
+  `GatewayHostComposition.ReceiveBatch` (aggregator pending; no L1
+  `PublishAggregateAsync`).
+- Gateway unit `OpenMerkle` ReceiveBatch soft feed. No wire/ABI change.
+- L1 gateway publication / settle / prove-batch remain funded gates.
+
 ### Changed — E2E Multisig/Optimistic/Zk offline bridge mint→withdrawal→outbox — 2026-07-19
 
 - `UT_E2E_HostComposition_FromDeployReport` exercises the offline deposit mint →

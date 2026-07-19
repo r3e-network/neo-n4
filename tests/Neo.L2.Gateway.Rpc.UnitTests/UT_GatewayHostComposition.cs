@@ -244,6 +244,38 @@ public sealed class UT_GatewayHostComposition
             Assert.IsNotNull(host.Publisher);
             // Durable outbox host compositions fail closed on direct PullAggregate.
             Assert.ThrowsExactly<InvalidOperationException>(() => host.PullAggregate());
+            // Soft ReceiveBatch into durable aggregator (no L1 PublishAggregate).
+            var softZ = UInt256.Zero;
+            var softRoot = new UInt256(Enumerable.Repeat((byte)0xAB, 32).ToArray());
+            var softBatch = new L2BatchCommitment
+            {
+                ChainId = 1001,
+                BatchNumber = 1,
+                FirstBlock = 1,
+                LastBlock = 1,
+                PreStateRoot = softZ,
+                PostStateRoot = softRoot,
+                TxRoot = softZ,
+                ReceiptRoot = softZ,
+                WithdrawalRoot = softZ,
+                L2ToL1MessageRoot = softZ,
+                L2ToL2MessageRoot = softRoot,
+                DACommitment = softZ,
+                PublicInputHash = softZ,
+                ProofType = ProofType.Multisig,
+                Proof = new byte[] { 0x11 },
+            };
+            host.ReceiveBatch(softBatch);
+            host.ReceiveBatch(softBatch with
+            {
+                ChainId = 1002,
+                L2ToL2MessageRoot = new UInt256(Enumerable.Repeat((byte)0xAC, 32).ToArray()),
+                Proof = new byte[] { 0x22 },
+            });
+            Assert.IsTrue(host.AggregatorPendingCount >= 1);
+            Assert.AreEqual(host.Aggregator.PendingCount, host.AggregatorPendingCount);
+            var statusAfterReceive = host.GetOperatorStatus();
+            Assert.AreEqual(host.AggregatorPendingCount, statusAfterReceive.AggregatorPendingCount);
             // Metrics sink is retained for outbox/aggregator emission + export.
             Assert.AreSame(metrics, host.Metrics);
             Assert.IsTrue(host.CaptureMetricsSnapshot().TotalEntries >= 0);

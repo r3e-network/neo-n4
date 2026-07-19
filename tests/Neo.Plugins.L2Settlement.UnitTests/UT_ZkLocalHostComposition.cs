@@ -13,6 +13,7 @@ using Neo.L2.Proving.RiscVZk;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.State;
 using Neo.Network.P2P.Payloads;
+using Neo.Plugins.L2Rpc;
 using Neo.Wallets;
 
 namespace Neo.Plugins.L2Settlement.UnitTests;
@@ -226,6 +227,35 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(0, status.L1InboxPendingCount);
             Assert.AreEqual(host.GetLatestRpcStateRoot(), status.LatestRpcStateRoot);
             Assert.AreEqual(host.RpcStore.GatewayEnabled, status.GatewayEnabled);
+            // Host RPC store helpers (no Neo.CLI / funded prove-batch).
+            var rpcRoot = new UInt256(Enumerable.Repeat((byte)0xCD, 32).ToArray());
+            var z = UInt256.Zero;
+            var rpcBatch = new L2BatchCommitment
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                FirstBlock = 1,
+                LastBlock = 1,
+                PreStateRoot = z,
+                PostStateRoot = rpcRoot,
+                TxRoot = z,
+                ReceiptRoot = z,
+                WithdrawalRoot = z,
+                L2ToL1MessageRoot = z,
+                L2ToL2MessageRoot = z,
+                DACommitment = z,
+                PublicInputHash = z,
+                ProofType = ProofType.Zk,
+                Proof = ReadOnlyMemory<byte>.Empty,
+            };
+            host.AddRpcBatch(rpcBatch, BatchStatus.Pending);
+            Assert.AreEqual(BatchStatus.Pending, host.GetRpcBatchStatus(1));
+            host.FinalizeRpcBatch(1);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(rpcRoot, host.GetLatestRpcStateRoot());
+            Assert.AreEqual(rpcRoot, host.GetRpcStateRootAtBatch(1));
+            host.RecordRpcDeposit(new DepositStatus(20260716u, 1, ConsumedOnL2: false, IncludedInBatch: null));
+            Assert.IsNotNull(host.GetRpcL1DepositStatus(20260716u, 1));
             Assert.IsNotNull(host.MessageOutbox);
             Assert.IsNull(
                 host.GetMessageRouterProofAsync(new UInt256(new byte[32])).AsTask().GetAwaiter().GetResult());

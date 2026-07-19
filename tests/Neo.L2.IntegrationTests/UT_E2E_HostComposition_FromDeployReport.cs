@@ -592,6 +592,52 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             Assert.IsNotNull(settlementHost.DepositSource);
             Assert.IsNotNull(settlementHost.ForcedInclusion);
             Assert.IsTrue(gwStatus.HasMetrics);
+
+            // Soft LocalHost RPC store + Gateway ReceiveBatch (no funded L1 publish).
+            var softRoot = Root(0xAB);
+            var softZ = UInt256.Zero;
+            var softBatch = new L2BatchCommitment
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                FirstBlock = 1,
+                LastBlock = 1,
+                PreStateRoot = softZ,
+                PostStateRoot = softRoot,
+                TxRoot = softZ,
+                ReceiptRoot = softZ,
+                WithdrawalRoot = softZ,
+                L2ToL1MessageRoot = softZ,
+                L2ToL2MessageRoot = softZ,
+                DACommitment = softZ,
+                PublicInputHash = softZ,
+                ProofType = ProofType.Multisig,
+                Proof = ReadOnlyMemory<byte>.Empty,
+            };
+            settlementHost.AddRpcBatch(softBatch, BatchStatus.Pending);
+            settlementHost.FinalizeRpcBatch(1);
+            Assert.AreEqual(BatchStatus.Finalized, settlementHost.GetRpcBatchStatus(1));
+            Assert.AreEqual(softRoot, settlementHost.GetLatestRpcStateRoot());
+            settlementHost.RecordRpcDeposit(
+                new DepositStatus(20260716u, 1, ConsumedOnL2: false, IncludedInBatch: null));
+            Assert.IsNotNull(settlementHost.GetRpcL1DepositStatus(20260716u, 1));
+            // Second chain constituent so aggregator has multi-chain pending input (soft local only).
+            gatewayHost.ReceiveBatch(softBatch with
+            {
+                ChainId = 20260717u,
+                L2ToL2MessageRoot = Root(0xAC),
+                Proof = new byte[] { 0xA1 },
+            });
+            gatewayHost.ReceiveBatch(softBatch with
+            {
+                Proof = new byte[] { 0xA2 },
+            });
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+            Assert.AreEqual(gatewayHost.Aggregator.PendingCount, gatewayHost.AggregatorPendingCount);
+            var gwStatusAfterReceive = gatewayHost.GetOperatorStatus();
+            Assert.AreEqual(gatewayHost.AggregatorPendingCount, gwStatusAfterReceive.AggregatorPendingCount);
+            // PublishAggregateAsync remains a funded L1 publication gate (not exercised here).
+
             var gwPromPath = Path.Combine(chainDir, "gateway-metrics.prom");
             gatewayHost.WritePrometheusMetricsAsync(gwPromPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(gwPromPath));

@@ -714,6 +714,133 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         }
     }
 
+    /// <summary>
+    /// Soft seal→local PersistAsync on Multisig host from deploy report (no L1 settle claim).
+    /// </summary>
+    [TestMethod]
+    public void MultisigLocalHost_SoftSeal_EmptyBlock_PersistsLocalCheckpoint()
+    {
+        var reportPath = ResolveDeployReportPath();
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-host-msig-soft-seal-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Optimistic");
+            RewriteMaxBlocksPerBatch(chainDir, 1);
+            using var http = MockL1HttpClient(Root(0x11));
+            var signers = new InMemorySignerSet([GenKey(0x10), GenKey(0x20)]);
+            using var host = MultisigLocalHostComposition.Open(
+                chainDir,
+                new SoftPassThroughExecutor(),
+                signers,
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http);
+
+            Assert.AreEqual(1, host.MaxBlocksPerBatch);
+            Assert.IsTrue(host.IsOperatorReady);
+            Assert.IsNull(host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult());
+
+            var ts = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            host.ProcessCommittedBlock(1, ts, 894710606, Array.Empty<byte[]>());
+
+            Assert.IsFalse(host.HasOpenBatch);
+            Assert.IsFalse(host.HasPendingSealedBatch);
+            Assert.AreEqual(2UL, host.NextExpectedBlock);
+            Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
+            Assert.AreEqual(1UL, host.LastAcknowledgedBlock);
+            Assert.AreEqual(2UL, host.NextBatchNumber);
+            // Durable artifact awaits L1 settle (funded); local queue not idle.
+            Assert.AreEqual(1, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
+
+            var checkpoint = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsNotNull(checkpoint);
+            Assert.AreEqual(1UL, checkpoint!.BatchNumber);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, checkpoint.PostStateRoot);
+
+            var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(1UL, status.LatestCheckpointBatchNumber);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, status.LatestCheckpointPostStateRoot);
+            Assert.AreEqual(1, status.PendingSettlementCount);
+            Assert.IsFalse(status.IsSettlementIdle);
+            Assert.IsTrue(status.IsBatcherCheckpointAligned);
+
+            // Soft SubmitNext/Reconcile: may fire L1 client against mock; do not claim settle.
+            // Pending count stays ≥1 without funded settle confirmation.
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Soft seal→local PersistAsync on Optimistic host from deploy report (no L1 settle claim).
+    /// </summary>
+    [TestMethod]
+    public void OptimisticLocalHost_SoftSeal_EmptyBlock_PersistsLocalCheckpoint()
+    {
+        var reportPath = ResolveDeployReportPath();
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-host-opt-soft-seal-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeChain(chainDir, reportPath, ProofType.Optimistic, DAMode.Local, "Optimistic");
+            RewriteMaxBlocksPerBatch(chainDir, 1);
+            using var http = MockL1HttpClient(Root(0x11));
+            var sequencer = new KeyPair(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray());
+            using var host = OptimisticLocalHostComposition.Open(
+                chainDir,
+                new SoftPassThroughExecutor(),
+                sequencer,
+                UInt160.Parse("0x" + new string('b', 40)),
+                UInt256.Parse("0x" + new string('c', 64)),
+                new StubSigner(Account(0x46)),
+                rpcHttpClient: http,
+                submittedAtUnixMs: static () => 1_700_000_000_000UL);
+
+            Assert.AreEqual(1, host.MaxBlocksPerBatch);
+            Assert.IsTrue(host.IsOperatorReady);
+            Assert.IsNull(host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult());
+
+            var ts = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            host.ProcessCommittedBlock(1, ts, 894710606, Array.Empty<byte[]>());
+
+            Assert.IsFalse(host.HasOpenBatch);
+            Assert.IsFalse(host.HasPendingSealedBatch);
+            Assert.AreEqual(2UL, host.NextExpectedBlock);
+            Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
+            Assert.AreEqual(1, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
+
+            var checkpoint = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsNotNull(checkpoint);
+            Assert.AreEqual(1UL, checkpoint!.BatchNumber);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, checkpoint.PostStateRoot);
+
+            var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(1UL, status.LatestCheckpointBatchNumber);
+            Assert.AreEqual(1, status.PendingSettlementCount);
+            Assert.IsFalse(status.IsSettlementIdle);
+            Assert.IsTrue(status.IsBatcherCheckpointAligned);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
     [TestMethod]
     public void OptimisticLocalHost_And_GatewayHost_OpenTogether_FromDeployReport()
     {
@@ -1261,6 +1388,19 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         File.WriteAllText(path, rewritten);
     }
 
+    private static void RewriteMaxBlocksPerBatch(string chainDir, int maxBlocks)
+    {
+        var path = Path.Combine(chainDir, "Plugins", "Neo.Plugins.L2Batch", "config.json");
+        if (!File.Exists(path))
+            Assert.Fail($"expected materialised batch plugin config at {path}");
+        var text = File.ReadAllText(path);
+        var rewritten = System.Text.RegularExpressions.Regex.Replace(
+            text,
+            "\"MaxBlocksPerBatch\"\\s*:\\s*\\d+",
+            $"\"MaxBlocksPerBatch\": {maxBlocks}");
+        File.WriteAllText(path, rewritten);
+    }
+
     private static (Neo.Cryptography.ECC.ECPoint Pub, byte[] Priv) GenKey(byte seed)
     {
         var priv = new byte[32];
@@ -1349,6 +1489,46 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             SealedBatch batch,
             CancellationToken cancellationToken = default)
             => throw new NotSupportedException("stub executor does not execute batches");
+    }
+
+    /// <summary>
+    /// Local Multisig/Optimistic soft seal executor (non-ZK). L1 settle remains funded.
+    /// </summary>
+    private sealed class SoftPassThroughExecutor : IProofWitnessBatchExecutor
+    {
+        public static UInt256 PostStateRoot { get; } =
+            new(Enumerable.Repeat((byte)0x44, 32).ToArray());
+
+        public ValueTask<BatchExecutionResult> ApplyBatchAsync(
+            BatchExecutionRequest request,
+            CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(BuildResult());
+
+        public ValueTask<ProofWitnessExecutionResult> ApplyBatchWithWitnessAsync(
+            SealedBatch batch,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(batch);
+            return ValueTask.FromResult(new ProofWitnessExecutionResult
+            {
+                ExecutionResult = BuildResult(),
+                ExecutionSemanticId = ExecutionSemanticIds.ReferenceNoOpV1,
+                WitnessAuthenticated = false,
+                StateWitness = ReadOnlyMemory<byte>.Empty,
+                Effects = new byte[] { 0x01 },
+            });
+        }
+
+        private static BatchExecutionResult BuildResult() => new()
+        {
+            PostStateRoot = PostStateRoot,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            GasConsumed = 0,
+        };
     }
 
     private sealed class StubSigner(UInt160 account) : INeoTransactionSigner

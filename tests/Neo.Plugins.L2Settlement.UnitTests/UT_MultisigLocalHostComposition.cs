@@ -855,6 +855,12 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsFalse(probe.IsSettlementIdle);
             Assert.IsFalse(probe.HasOpenBatch);
             Assert.IsFalse(probe.HasPendingSealedBatch);
+
+            // SubmitNext/Reconcile against mock L1 cannot clear the L1 settle queue (funded gate).
+            // Best-effort path must not crash the host; pending remains ≥1.
+            host.SubmitNextAsync().GetAwaiter().GetResult();
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 1);
+            Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
         }
         finally
         {

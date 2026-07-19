@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — E2E Multisig/Optimistic soft seal + SubmitNext pending-L1 pin — 2026-07-19
+
+- E2E tests `MultisigLocalHost_SoftSeal_EmptyBlock_PersistsLocalCheckpoint` and
+  `OptimisticLocalHost_SoftSeal_EmptyBlock_PersistsLocalCheckpoint` (deploy report +
+  `MaxBlocksPerBatch=1` + soft pass-through executor): seal empty block → local DA
+  PersistAsync → durable checkpoint #1 with `PendingSettlementCount=1`.
+- Multisig unit soft seal also pins `SubmitNextAsync` does not clear the L1 settle
+  queue (pending remains ≥1; not settlement-idle).
+- No wire/ABI change. L1 settle broadcast remains a funded gate; Zk soft seal still
+  needs authenticated witness + production DA.
+
 ### Changed — Multisig/Optimistic soft seal→local settlement PersistAsync — 2026-07-19
 
 - Unit tests `SoftSeal_EmptyBlock_PersistsLocalCheckpoint_{Multisig,Optimistic}`:

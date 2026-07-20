@@ -1352,6 +1352,83 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(File.Exists(afterSecondOutboundRpcPath));
             StringAssert.Contains(File.ReadAllText(afterSecondOutboundRpcPath), "\"outboundMessageHash\": \"" + recoverOutbound.MessageHash + "\"");
 
+            // Second poison→recover after full soft multi-batch path retains soft state.
+            // RetryCount was reset by first recover — escalate until Poisoned again.
+            LocalHostOperatorStatus afterSecondPoison = afterSecondOutbound;
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                try
+                {
+                    host.ReconcileAsync().GetAwaiter().GetResult();
+                }
+                catch (OverflowException)
+                {
+                }
+                catch (Exception)
+                {
+                }
+
+                host.SubmitNextAsync().GetAwaiter().GetResult();
+                afterSecondPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+                if (afterSecondPoison.IsSettlementPoisoned)
+                    break;
+            }
+
+            Assert.IsTrue(afterSecondPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterSecondPoison.IsSettlementRetrying);
+            Assert.IsTrue(afterSecondPoison.PendingSettlementCount >= 2);
+            Assert.AreEqual(2, afterSecondPoison.ConsumedDepositCount);
+            Assert.AreEqual(2, afterSecondPoison.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(2, afterSecondPoison.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(2, afterSecondPoison.KnownInboundNonceCount);
+            Assert.IsNotNull(afterSecondPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterSecondPoison.Recovery.ArtifactContentHash);
+            var secondBlocked = afterSecondPoison.Recovery.BlockedBatchNumber!.Value;
+            var secondHash = afterSecondPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(secondBlocked, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(secondBlocked, secondHash).GetAwaiter().GetResult();
+            var afterSecondRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterSecondRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterSecondRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterSecondRecover.Recovery.State);
+            Assert.AreEqual(0, afterSecondRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.AreEqual(2UL, afterSecondRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(2, afterSecondRecover.ConsumedDepositCount);
+            Assert.AreEqual(2, afterSecondRecover.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(2, afterSecondRecover.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(2, afterSecondRecover.KnownInboundNonceCount);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsTrue(host.GetRpcWithdrawalProof(recoverWdLeaf) is { Length: > 0 });
+            Assert.IsTrue(host.GetRpcMessageProof(recoverOutbound.MessageHash) is { Length: > 0 });
+            Assert.IsTrue(afterSecondRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterSecondRecover.IsOperatorReady);
+            var secondPoisonPath = Path.Combine(chainDir, "soft-seal-second-poison-recover.json");
+            File.WriteAllText(secondPoisonPath, $$"""
+                {
+                  "secondPoisonBlockedBatch": {{secondBlocked}},
+                  "pendingSettlementCount": {{afterSecondRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterSecondRecover.LatestCheckpointBatchNumber}},
+                  "consumedDepositCount": {{afterSecondRecover.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterSecondRecover.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterSecondRecover.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterSecondRecover.KnownInboundNonceCount}},
+                  "rpcBatch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "rpcBatch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "secondWithdrawalProofPresent": true,
+                  "secondMessageProofPresent": true,
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(secondPoisonPath));
+            StringAssert.Contains(File.ReadAllText(secondPoisonPath), "\"rpcBatch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(secondPoisonPath), "\"consumedDepositCount\": 2");
+            StringAssert.Contains(File.ReadAllText(secondPoisonPath), "\"isSettlementRetrying\": true");
+
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);

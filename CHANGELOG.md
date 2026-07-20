@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal second poison→recover multi-state retention — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after full soft multi-batch path (dual
+  deposit/outbox/FI-inbound + RPC proofs), re-escalate fail-closed settle until
+  Poisoned again, then RecoverPoisonedBatch; pins pending≥2, tip=2, dual deposits,
+  dual outbox, dual FI/inbound known, Finalized RPC batch 1+2, and second
+  withdrawal/message proofs still present.
+- After first recover, RetryCount resets — tests loop Reconcile/SubmitNext until
+  Poisoned. Durable `soft-seal-second-poison-recover.json` + status/probe.
+  E2E helper `AssertSoftSealSecondPoisonRecoverRetention`.
+- No wire/ABI change. L1 settle remains a funded gate.
+
 ### Changed — SoftSeal after-recover second outbound RPC proofs — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal: after recover second withdrawal/outbox,

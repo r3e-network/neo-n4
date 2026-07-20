@@ -1693,11 +1693,93 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(File.ReadAllText(secondPoisonPath), "\"consumedDepositCount\": 2");
             StringAssert.Contains(File.ReadAllText(secondPoisonPath), "\"isSettlementRetrying\": true");
 
+            // After second recover: multi-batch local DA + third offline deposit (no L1).
+            Assert.IsTrue(host.SupportsLocalDaReader);
+            var postDa1Payload = new byte[] { 0xDA, 0xB1, 0x01 };
+            var postDa1 = host.PublishDaAsync(new DAPublishRequest
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                Payload = postDa1Payload,
+            }).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(DAMode.Local, postDa1.Layer);
+            Assert.IsTrue(host.IsDaAvailableAsync(postDa1).AsTask().GetAwaiter().GetResult());
+            var postDa1Read = host.CreateLocalDaReader().ReadAsync(postDa1).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(postDa1Read is { Length: 3 });
+            CollectionAssert.AreEqual(postDa1Payload, postDa1Read!.Value.ToArray());
+            var postDa2Payload = new byte[] { 0xDA, 0xB2, 0x02 };
+            var postDa2 = host.PublishDaAsync(new DAPublishRequest
+            {
+                ChainId = 20260716u,
+                BatchNumber = 2,
+                Payload = postDa2Payload,
+            }).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(host.IsDaAvailableAsync(postDa2).AsTask().GetAwaiter().GetResult());
+            var postDa2Read = host.CreateLocalDaReader().ReadAsync(postDa2).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(postDa2Read is { Length: 3 });
+            CollectionAssert.AreEqual(postDa2Payload, postDa2Read!.Value.ToArray());
+            var postL1Asset = UInt160.Parse("0x" + new string('1', 40));
+            var postL2Asset = UInt160.Parse("0x" + new string('2', 40));
+            var deposit3 = new CrossChainMessage
+            {
+                SourceChainId = 0,
+                TargetChainId = 20260716u,
+                Nonce = 3,
+                Sender = Account(0x66),
+                Receiver = Account(0x55),
+                MessageType = MessageType.Deposit,
+                Payload = new DepositPayload
+                {
+                    L1Asset = postL1Asset,
+                    L2Recipient = Account(0x55),
+                    Amount = new BigInteger(3_000),
+                }.Encode(),
+                MessageHash = UInt256.Zero,
+            };
+            var mint3 = host.ProcessDeposit(deposit3);
+            Assert.AreEqual(postL2Asset, mint3.L2Asset);
+            Assert.IsTrue(host.HasConsumedDeposit(0, 1));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 2));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 3));
+            Assert.AreEqual(3, host.ConsumedDepositCount);
+            host.RecordRpcDeposit(new DepositStatus(0, 3, ConsumedOnL2: true, IncludedInBatch: 2));
+            Assert.IsTrue(host.GetRpcL1DepositStatus(0, 3) is { ConsumedOnL2: true, IncludedInBatch: 2UL });
+            var afterThirdDeposit = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(3, afterThirdDeposit.ConsumedDepositCount);
+            Assert.AreEqual(2, afterThirdDeposit.MessageOutboxL2ToL1Count);
+            Assert.IsTrue(afterThirdDeposit.IsSettlementRetrying);
+            Assert.IsTrue(afterThirdDeposit.PendingSettlementCount >= 2);
+            Assert.AreEqual(2UL, afterThirdDeposit.LatestCheckpointBatchNumber);
+            Assert.IsTrue(afterThirdDeposit.IsOfflinePassportComplete);
+            var afterSecondRecoverDaPath = Path.Combine(chainDir, "soft-seal-after-second-recover-da-deposit.json");
+            File.WriteAllText(afterSecondRecoverDaPath, $$"""
+                {
+                  "daBatch1Layer": "{{postDa1.Layer}}",
+                  "daBatch2Layer": "{{postDa2.Layer}}",
+                  "consumedDepositCount": {{afterThirdDeposit.ConsumedDepositCount}},
+                  "deposit3IncludedInBatch": 2,
+                  "messageOutboxL2ToL1Count": {{afterThirdDeposit.MessageOutboxL2ToL1Count}},
+                  "latestCheckpointBatchNumber": {{afterThirdDeposit.LatestCheckpointBatchNumber}},
+                  "pendingSettlementCount": {{afterThirdDeposit.PendingSettlementCount}},
+                  "isSettlementRetrying": true,
+                  "isOfflinePassportComplete": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(afterSecondRecoverDaPath));
+            StringAssert.Contains(File.ReadAllText(afterSecondRecoverDaPath), "\"consumedDepositCount\": 3");
+            StringAssert.Contains(File.ReadAllText(afterSecondRecoverDaPath), "\"daBatch2Layer\": \"Local\"");
+            var afterSecondRecoverProm = host.ExportPrometheusMetrics();
+            Assert.IsFalse(string.IsNullOrWhiteSpace(afterSecondRecoverProm));
+            var afterSecondRecoverPromPath = Path.Combine(chainDir, "soft-seal-after-second-recover-host.prom");
+            host.WritePrometheusMetricsAsync(afterSecondRecoverPromPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(afterSecondRecoverPromPath));
+            Assert.AreEqual(afterSecondRecoverProm, File.ReadAllText(afterSecondRecoverPromPath));
+
             // SubmitNext after second recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
-            // Gateway multi-batch backlog still independent after second recover / SubmitNext.
+            // Gateway multi-batch backlog still independent after second recover / third deposit / SubmitNext.
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
         }
         finally

@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after tenth-recover eleventh outbound + FI/RPC — 2026-07-21
+
+- Multisig/Optimistic unit + E2E SoftSeal: after tenth recover + eleventh deposit,
+  pin eleventh withdrawal seal + L2→L1 outbox enqueue (`MessageOutboxL2ToL1Count=11`),
+  eleventh FI/inbound nonces (known=11), and RPC withdrawal/message/router proofs
+  while settle remains `Retrying` with multi-batch pending≥2 and tip=2.
+- Durable `soft-seal-after-tenth-recover-eleventh-outbound.json` +
+  `-rpc.json` + status/probe. E2E helper
+  `AssertSoftSealAfterTenthRecoverEleventhOutboundAndFi`.
+- No wire/ABI change. L1 claim / FI drain / settle remain funded.
+
 ### Changed — SoftSeal after tenth-recover DA + eleventh offline deposit — 2026-07-21
 
 - Multisig/Optimistic unit + E2E SoftSeal: after tenth poison→recover, re-publish

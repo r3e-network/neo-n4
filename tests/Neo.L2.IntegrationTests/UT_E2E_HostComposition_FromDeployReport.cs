@@ -1288,6 +1288,26 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 fourthOutbound.OutboundMessageHash,
                 chainDir);
             Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-fourth-poison-recover.json")));
+            AssertSoftSealAfterFourthRecoverDaAndFifthDeposit(
+                req => host.PublishDaAsync(req).AsTask(),
+                receipt => host.IsDaAvailableAsync(receipt).AsTask(),
+                () => host.SupportsLocalDaReader,
+                () => host.CreateLocalDaReader(),
+                host.ProcessDeposit,
+                host.HasConsumedDeposit,
+                () => host.ConsumedDepositCount,
+                host.RecordRpcDeposit,
+                host.GetRpcL1DepositStatus,
+                () => host.ScanSharedBridgeDepositsAsync().AsTask(),
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.ExportPrometheusMetrics(),
+                path => host.WritePrometheusMetricsAsync(path).AsTask(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir);
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-fourth-recover-da-deposit.json")));
         }
         finally
         {
@@ -1800,6 +1820,26 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 fourthOutbound.OutboundMessageHash,
                 chainDir);
             Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-fourth-poison-recover.json")));
+            AssertSoftSealAfterFourthRecoverDaAndFifthDeposit(
+                req => host.PublishDaAsync(req).AsTask(),
+                receipt => host.IsDaAvailableAsync(receipt).AsTask(),
+                () => host.SupportsLocalDaReader,
+                () => host.CreateLocalDaReader(),
+                host.ProcessDeposit,
+                host.HasConsumedDeposit,
+                () => host.ConsumedDepositCount,
+                host.RecordRpcDeposit,
+                host.GetRpcL1DepositStatus,
+                () => host.ScanSharedBridgeDepositsAsync().AsTask(),
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.ExportPrometheusMetrics(),
+                path => host.WritePrometheusMetricsAsync(path).AsTask(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir);
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-fourth-recover-da-deposit.json")));
         }
         finally
         {
@@ -3839,6 +3879,177 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(durableFile, "\"knownForcedInclusionNonceCount\": 4");
         StringAssert.Contains(durableFile, "\"isSettlementRetrying\": true");
         StringAssert.Contains(durableFile, "\"isSettlementPoisoned\": false");
+    }
+
+    /// <summary>
+    /// SoftSeal after fourth poison→recover: re-publish local DA for sealed batches 1+2
+    /// and process a fifth offline deposit (nonce 5, IncludedInBatch=2) while settle
+    /// remains Retrying with multi-batch pending and quadruple outbox/FI known retained.
+    /// Does not claim L1 deposit scan / production DA / settle.
+    /// </summary>
+    private static void AssertSoftSealAfterFourthRecoverDaAndFifthDeposit(
+        Func<DAPublishRequest, Task<DAReceipt>> publishDaAsync,
+        Func<DAReceipt, Task<bool>> isDaAvailableAsync,
+        Func<bool> supportsLocalDaReader,
+        Func<IDAReader> createLocalDaReader,
+        Func<CrossChainMessage, MintInstruction> processDeposit,
+        Func<uint, ulong, bool> hasConsumedDeposit,
+        Func<int> consumedDepositCount,
+        Action<DepositStatus> recordRpcDeposit,
+        Func<uint, ulong, DepositStatus?> getRpcL1DepositStatus,
+        Func<Task<int>> scanSharedBridgeDepositsAsync,
+        Func<LocalHostOperatorStatus> getOperatorStatus,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> exportPrometheusMetrics,
+        Func<string, Task> writePrometheusMetricsAsync,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        string chainDir)
+    {
+        Assert.IsTrue(supportsLocalDaReader());
+        var da1Payload = new byte[] { 0xDA, 0xD1, 0x01 };
+        var da1 = publishDaAsync(new DAPublishRequest
+        {
+            ChainId = 20260716u,
+            BatchNumber = 1,
+            Payload = da1Payload,
+        }).GetAwaiter().GetResult();
+        Assert.AreEqual(DAMode.Local, da1.Layer);
+        Assert.AreEqual(DAReceiptKind.LocalPersistence, da1.Kind);
+        Assert.IsTrue(isDaAvailableAsync(da1).GetAwaiter().GetResult());
+        var da1Read = createLocalDaReader().ReadAsync(da1).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(da1Read is { Length: 3 });
+        CollectionAssert.AreEqual(da1Payload, da1Read!.Value.ToArray());
+
+        var da2Payload = new byte[] { 0xDA, 0xD2, 0x02 };
+        var da2 = publishDaAsync(new DAPublishRequest
+        {
+            ChainId = 20260716u,
+            BatchNumber = 2,
+            Payload = da2Payload,
+        }).GetAwaiter().GetResult();
+        Assert.AreEqual(DAMode.Local, da2.Layer);
+        Assert.IsTrue(isDaAvailableAsync(da2).GetAwaiter().GetResult());
+        var da2Read = createLocalDaReader().ReadAsync(da2).AsTask().GetAwaiter().GetResult();
+        Assert.IsTrue(da2Read is { Length: 3 });
+        CollectionAssert.AreEqual(da2Payload, da2Read!.Value.ToArray());
+
+        // Fifth offline mint while still Retrying after fourth recover.
+        var softL1Asset = UInt160.Parse("0x" + new string('1', 40));
+        var softL2Asset = UInt160.Parse("0x" + new string('2', 40));
+        var softDepositPayload = new DepositPayload
+        {
+            L1Asset = softL1Asset,
+            L2Recipient = Account(0x55),
+            Amount = new BigInteger(5_000),
+        };
+        var softDepositMsg = new CrossChainMessage
+        {
+            SourceChainId = 0,
+            TargetChainId = 20260716u,
+            Nonce = 5,
+            Sender = Account(0x66),
+            Receiver = Account(0x55),
+            MessageType = MessageType.Deposit,
+            Payload = softDepositPayload.Encode(),
+            MessageHash = UInt256.Zero,
+        };
+        var softMint = processDeposit(softDepositMsg);
+        Assert.AreEqual(softL2Asset, softMint.L2Asset);
+        Assert.IsTrue(hasConsumedDeposit(0, 1));
+        Assert.IsTrue(hasConsumedDeposit(0, 2));
+        Assert.IsTrue(hasConsumedDeposit(0, 3));
+        Assert.IsTrue(hasConsumedDeposit(0, 4));
+        Assert.IsTrue(hasConsumedDeposit(0, 5));
+        Assert.AreEqual(5, consumedDepositCount());
+        recordRpcDeposit(new DepositStatus(0, 5, ConsumedOnL2: true, IncludedInBatch: 2));
+        Assert.IsTrue(getRpcL1DepositStatus(0, 1) is { ConsumedOnL2: true, IncludedInBatch: 1UL });
+        Assert.IsTrue(getRpcL1DepositStatus(0, 2) is { ConsumedOnL2: true, IncludedInBatch: 2UL });
+        Assert.IsTrue(getRpcL1DepositStatus(0, 3) is { ConsumedOnL2: true, IncludedInBatch: 2UL });
+        Assert.IsTrue(getRpcL1DepositStatus(0, 4) is { ConsumedOnL2: true, IncludedInBatch: 2UL });
+        Assert.IsTrue(getRpcL1DepositStatus(0, 5) is { ConsumedOnL2: true, IncludedInBatch: 2UL });
+        Assert.AreEqual(0, scanSharedBridgeDepositsAsync().GetAwaiter().GetResult());
+
+        var status = getOperatorStatus();
+        Assert.AreEqual(5, status.ConsumedDepositCount);
+        Assert.AreEqual(4, status.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(4, status.KnownForcedInclusionNonceCount);
+        Assert.AreEqual(4, status.KnownInboundNonceCount);
+        Assert.AreEqual(2UL, status.LatestCheckpointBatchNumber);
+        Assert.IsTrue(status.PendingSettlementCount >= 2);
+        Assert.IsTrue(status.IsSettlementRetrying);
+        Assert.IsFalse(status.IsSettlementPoisoned);
+        Assert.IsFalse(status.IsSettlementIdle);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        Assert.IsTrue(status.IsOperatorReady);
+        Assert.IsTrue(status.IsBatcherCheckpointAligned);
+        Assert.IsFalse(status.IsPipelineHealthy);
+        CollectionAssert.Contains(
+            status.PipelineHealthFailures.ToArray(),
+            nameof(status.IsSettlementRetrying));
+
+        var probe = getHealthProbe();
+        Assert.AreEqual(5, probe.ConsumedDepositCount);
+        Assert.AreEqual(4, probe.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(2UL, probe.LatestCheckpointBatchNumber);
+        Assert.IsTrue(probe.PendingSettlementCount >= 2);
+        Assert.IsTrue(probe.IsSettlementRetrying);
+        Assert.IsFalse(probe.IsSettlementPoisoned);
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"consumedDepositCount\": 5");
+        StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 4");
+        StringAssert.Contains(statusJson, "\"latestCheckpointBatchNumber\": 2");
+        StringAssert.Contains(statusJson, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(statusJson, "\"isSettlementPoisoned\": false");
+
+        var hostProm = exportPrometheusMetrics();
+        Assert.IsFalse(string.IsNullOrWhiteSpace(hostProm));
+        var hostPromPath = Path.Combine(chainDir, "soft-seal-after-fourth-recover-host.prom");
+        writePrometheusMetricsAsync(hostPromPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(hostPromPath));
+        Assert.AreEqual(hostProm, File.ReadAllText(hostPromPath));
+
+        var statusPath = Path.Combine(chainDir, "soft-seal-after-fourth-recover-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        StringAssert.Contains(File.ReadAllText(statusPath), "\"consumedDepositCount\": 5");
+        StringAssert.Contains(File.ReadAllText(statusPath), "\"isSettlementRetrying\": true");
+
+        var probePath = Path.Combine(chainDir, "soft-seal-after-fourth-recover-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        StringAssert.Contains(File.ReadAllText(probePath), "\"consumedDepositCount\": 5");
+
+        var durablePath = Path.Combine(chainDir, "soft-seal-after-fourth-recover-da-deposit.json");
+        File.WriteAllText(durablePath, $$"""
+            {
+              "daBatch1Layer": "{{da1.Layer}}",
+              "daBatch2Layer": "{{da2.Layer}}",
+              "daBatch1Available": true,
+              "daBatch2Available": true,
+              "consumedDepositCount": {{status.ConsumedDepositCount}},
+              "deposit5IncludedInBatch": 2,
+              "messageOutboxL2ToL1Count": {{status.MessageOutboxL2ToL1Count}},
+              "knownForcedInclusionNonceCount": {{status.KnownForcedInclusionNonceCount}},
+              "knownInboundNonceCount": {{status.KnownInboundNonceCount}},
+              "latestCheckpointBatchNumber": {{status.LatestCheckpointBatchNumber}},
+              "pendingSettlementCount": {{status.PendingSettlementCount}},
+              "isSettlementRetrying": true,
+              "isSettlementPoisoned": false,
+              "isOfflinePassportComplete": true
+            }
+            """);
+        Assert.IsTrue(File.Exists(durablePath));
+        var durableFile = File.ReadAllText(durablePath);
+        StringAssert.Contains(durableFile, "\"daBatch1Layer\": \"Local\"");
+        StringAssert.Contains(durableFile, "\"daBatch2Layer\": \"Local\"");
+        StringAssert.Contains(durableFile, "\"consumedDepositCount\": 5");
+        StringAssert.Contains(durableFile, "\"deposit5IncludedInBatch\": 2");
+        StringAssert.Contains(durableFile, "\"messageOutboxL2ToL1Count\": 4");
+        StringAssert.Contains(durableFile, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(durableFile, "\"isOfflinePassportComplete\": true");
     }
 
     /// <summary>

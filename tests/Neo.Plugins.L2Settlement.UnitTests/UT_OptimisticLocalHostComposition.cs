@@ -3254,6 +3254,83 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(File.Exists(ninthOutboundRpcPath));
             StringAssert.Contains(File.ReadAllText(ninthOutboundRpcPath), "\"outboundMessageHash\": \"" + ninthOutbound.MessageHash + "\"");
 
+            // Ninth poison→recover after nonuple soft multi-batch path retains soft state.
+            LocalHostOperatorStatus afterNinthPoison = afterNinthOutbound;
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                try
+                {
+                    host.ReconcileAsync().GetAwaiter().GetResult();
+                }
+                catch (OverflowException)
+                {
+                }
+                catch (Exception)
+                {
+                }
+
+                host.SubmitNextAsync().GetAwaiter().GetResult();
+                afterNinthPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+                if (afterNinthPoison.IsSettlementPoisoned)
+                    break;
+            }
+
+            Assert.IsTrue(afterNinthPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterNinthPoison.IsSettlementRetrying);
+            Assert.IsTrue(afterNinthPoison.PendingSettlementCount >= 2);
+            Assert.AreEqual(9, afterNinthPoison.ConsumedDepositCount);
+            Assert.AreEqual(9, afterNinthPoison.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(9, afterNinthPoison.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(9, afterNinthPoison.KnownInboundNonceCount);
+            Assert.IsNotNull(afterNinthPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterNinthPoison.Recovery.ArtifactContentHash);
+            var ninthBlocked = afterNinthPoison.Recovery.BlockedBatchNumber!.Value;
+            var ninthHash = afterNinthPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(ninthBlocked, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(ninthBlocked, ninthHash).GetAwaiter().GetResult();
+            var afterNinthRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterNinthRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterNinthRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterNinthRecover.Recovery.State);
+            Assert.AreEqual(0, afterNinthRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.AreEqual(2UL, afterNinthRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(9, afterNinthRecover.ConsumedDepositCount);
+            Assert.AreEqual(9, afterNinthRecover.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(9, afterNinthRecover.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(9, afterNinthRecover.KnownInboundNonceCount);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsTrue(host.GetRpcWithdrawalProof(ninthWdLeaf) is { Length: > 0 });
+            Assert.IsTrue(host.GetRpcMessageProof(ninthOutbound.MessageHash) is { Length: > 0 });
+            Assert.IsTrue(afterNinthRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterNinthRecover.IsOperatorReady);
+            var ninthPoisonPath = Path.Combine(chainDir, "soft-seal-ninth-poison-recover.json");
+            File.WriteAllText(ninthPoisonPath, $$"""
+                {
+                  "ninthPoisonBlockedBatch": {{ninthBlocked}},
+                  "pendingSettlementCount": {{afterNinthRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterNinthRecover.LatestCheckpointBatchNumber}},
+                  "consumedDepositCount": {{afterNinthRecover.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterNinthRecover.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterNinthRecover.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterNinthRecover.KnownInboundNonceCount}},
+                  "rpcBatch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "rpcBatch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "ninthWithdrawalProofPresent": true,
+                  "ninthMessageProofPresent": true,
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(ninthPoisonPath));
+            StringAssert.Contains(File.ReadAllText(ninthPoisonPath), "\"rpcBatch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(ninthPoisonPath), "\"consumedDepositCount\": 9");
+            StringAssert.Contains(File.ReadAllText(ninthPoisonPath), "\"messageOutboxL2ToL1Count\": 9");
+            StringAssert.Contains(File.ReadAllText(ninthPoisonPath), "\"isSettlementRetrying\": true");
+            
             
             
             

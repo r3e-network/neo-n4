@@ -3149,6 +3149,112 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(File.Exists(afterEighthRecoverPromPath));
             Assert.AreEqual(afterEighthRecoverProm, File.ReadAllText(afterEighthRecoverPromPath));
 
+// Ninth offline withdrawal/outbox + FI/inbound after eighth recover (no L1).
+            var ninthSender = Account(0xcc);
+            var ninthL2Asset = UInt160.Parse("0x" + new string('2', 40));
+            var ninthWdLeaf = host.StageWithdrawal(new WithdrawalRequest
+            {
+                ChainId = 20260716u,
+                EmittingContract = ninthSender,
+                L2Sender = ninthSender,
+                L1Recipient = ninthSender,
+                L2Asset = ninthL2Asset,
+                Amount = new BigInteger(100),
+                Nonce = 9,
+            });
+            Assert.AreNotEqual(UInt256.Zero, ninthWdLeaf);
+            var ninthSealedWd = host.SealWithdrawalBatch();
+            Assert.AreNotEqual(UInt256.Zero, ninthSealedWd.Root);
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            Assert.IsTrue(ninthSealedWd.Tree.Count >= 1);
+            var ninthMerkle = ninthSealedWd.Tree.GetProof(ninthSealedWd.Tree.Count - 1);
+            Assert.AreEqual(ninthWdLeaf, ninthMerkle.Leaf);
+            var ninthWdProofBytes = MerkleProofSerializer.Encode(ninthMerkle);
+            Assert.IsTrue(ninthWdProofBytes.Length >= MerkleProofSerializer.HeaderSize);
+            host.RecordRpcWithdrawalProof(ninthWdLeaf, ninthWdProofBytes);
+            CollectionAssert.AreEqual(
+                ninthWdProofBytes,
+                host.GetRpcWithdrawalProof(ninthWdLeaf)!.Value.ToArray());
+            var ninthOutboundDraft = new CrossChainMessage
+            {
+                SourceChainId = 20260716u,
+                TargetChainId = 0,
+                Nonce = 18,
+                Sender = ninthSender,
+                Receiver = ninthSender,
+                MessageType = MessageType.Event,
+                Payload = new byte[] { 0x09 },
+                MessageHash = UInt256.Zero,
+            };
+            var ninthOutbound = ninthOutboundDraft with
+            {
+                MessageHash = MessageHasher.HashMessage(ninthOutboundDraft),
+            };
+            host.EnqueueOutboundMessagesAsync([ninthOutbound]).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(9, host.MessageOutbox!.L2ToL1Count);
+            var ninthMsgProofBytes = ninthOutbound.MessageHash.GetSpan().ToArray();
+            host.RecordRpcMessageProof(ninthOutbound.MessageHash, ninthMsgProofBytes);
+            CollectionAssert.AreEqual(
+                ninthMsgProofBytes,
+                host.GetRpcMessageProof(ninthOutbound.MessageHash)!.Value.ToArray());
+            host.RecordMessageRouterFinalizedProof(ninthOutbound.MessageHash, ninthMsgProofBytes);
+            CollectionAssert.AreEqual(
+                ninthMsgProofBytes,
+                host.GetMessageRouterProofAsync(ninthOutbound.MessageHash).AsTask().GetAwaiter().GetResult()!.Value.ToArray());
+            Assert.IsTrue(host.RegisterForcedInclusionNonce(20));
+            Assert.IsFalse(host.RegisterForcedInclusionNonce(20));
+            Assert.AreEqual(9, host.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(host.RegisterInboundMessageNonce(20));
+            Assert.IsFalse(host.RegisterInboundMessageNonce(20));
+            Assert.AreEqual(9, host.KnownInboundNonceCount);
+            Assert.AreEqual(0, host.OpenBatchForcedInclusionCount);
+            Assert.AreEqual(0, host.OpenBatchL1MessageCount);
+            var afterNinthOutbound = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(9, afterNinthOutbound.ConsumedDepositCount);
+            Assert.AreEqual(9, afterNinthOutbound.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(9, afterNinthOutbound.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(9, afterNinthOutbound.KnownInboundNonceCount);
+            Assert.IsTrue(afterNinthOutbound.IsSettlementRetrying);
+            Assert.IsTrue(afterNinthOutbound.PendingSettlementCount >= 2);
+            Assert.AreEqual(2UL, afterNinthOutbound.LatestCheckpointBatchNumber);
+            var ninthOutboundPath = Path.Combine(chainDir, "soft-seal-after-eighth-recover-ninth-outbound.json");
+            File.WriteAllText(ninthOutboundPath, $$"""
+                {
+                  "consumedDepositCount": {{afterNinthOutbound.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterNinthOutbound.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterNinthOutbound.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterNinthOutbound.KnownInboundNonceCount}},
+                  "withdrawalLeaf": "{{ninthWdLeaf}}",
+                  "outboundMessageHash": "{{ninthOutbound.MessageHash}}",
+                  "withdrawalProofBytes": {{ninthWdProofBytes.Length}},
+                  "messageProofBytes": {{ninthMsgProofBytes.Length}},
+                  "latestCheckpointBatchNumber": {{afterNinthOutbound.LatestCheckpointBatchNumber}},
+                  "pendingSettlementCount": {{afterNinthOutbound.PendingSettlementCount}},
+                  "isSettlementRetrying": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(ninthOutboundPath));
+            StringAssert.Contains(File.ReadAllText(ninthOutboundPath), "\"messageOutboxL2ToL1Count\": 9");
+            StringAssert.Contains(File.ReadAllText(ninthOutboundPath), "\"knownForcedInclusionNonceCount\": 9");
+            StringAssert.Contains(File.ReadAllText(ninthOutboundPath), "\"consumedDepositCount\": 9");
+            var ninthOutboundRpcPath = Path.Combine(chainDir, "soft-seal-after-eighth-recover-ninth-outbound-rpc.json");
+            File.WriteAllText(ninthOutboundRpcPath, $$"""
+                {
+                  "withdrawalLeaf": "{{ninthWdLeaf}}",
+                  "outboundMessageHash": "{{ninthOutbound.MessageHash}}",
+                  "withdrawalProofBytes": {{ninthWdProofBytes.Length}},
+                  "messageProofBytes": {{ninthMsgProofBytes.Length}},
+                  "messageOutboxL2ToL1Count": 9,
+                  "knownForcedInclusionNonceCount": 9,
+                  "knownInboundNonceCount": 9,
+                  "consumedDepositCount": 9,
+                  "isSettlementRetrying": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(ninthOutboundRpcPath));
+            StringAssert.Contains(File.ReadAllText(ninthOutboundRpcPath), "\"outboundMessageHash\": \"" + ninthOutbound.MessageHash + "\"");
+
+            
             
             
             host.SubmitNextAsync().GetAwaiter().GetResult();

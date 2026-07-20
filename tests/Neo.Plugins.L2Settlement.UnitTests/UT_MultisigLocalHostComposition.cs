@@ -2968,11 +2968,88 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(File.Exists(seventhOutboundRpcPath));
             StringAssert.Contains(File.ReadAllText(seventhOutboundRpcPath), "\"outboundMessageHash\": \"" + seventhOutbound.MessageHash + "\"");
 
-            // SubmitNext after sixth recover remains best-effort; does not clear pending without funded L1.
+            // Seventh poison→recover after septuple soft multi-batch path retains soft state.
+            LocalHostOperatorStatus afterSeventhPoison = afterSeventhOutbound;
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                try
+                {
+                    host.ReconcileAsync().GetAwaiter().GetResult();
+                }
+                catch (OverflowException)
+                {
+                }
+                catch (Exception)
+                {
+                }
+
+                host.SubmitNextAsync().GetAwaiter().GetResult();
+                afterSeventhPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+                if (afterSeventhPoison.IsSettlementPoisoned)
+                    break;
+            }
+
+            Assert.IsTrue(afterSeventhPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterSeventhPoison.IsSettlementRetrying);
+            Assert.IsTrue(afterSeventhPoison.PendingSettlementCount >= 2);
+            Assert.AreEqual(7, afterSeventhPoison.ConsumedDepositCount);
+            Assert.AreEqual(7, afterSeventhPoison.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(7, afterSeventhPoison.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(7, afterSeventhPoison.KnownInboundNonceCount);
+            Assert.IsNotNull(afterSeventhPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterSeventhPoison.Recovery.ArtifactContentHash);
+            var seventhBlocked = afterSeventhPoison.Recovery.BlockedBatchNumber!.Value;
+            var seventhHash = afterSeventhPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(seventhBlocked, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(seventhBlocked, seventhHash).GetAwaiter().GetResult();
+            var afterSeventhRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterSeventhRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterSeventhRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterSeventhRecover.Recovery.State);
+            Assert.AreEqual(0, afterSeventhRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.AreEqual(2UL, afterSeventhRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(7, afterSeventhRecover.ConsumedDepositCount);
+            Assert.AreEqual(7, afterSeventhRecover.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(7, afterSeventhRecover.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(7, afterSeventhRecover.KnownInboundNonceCount);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsTrue(host.GetRpcWithdrawalProof(seventhWdLeaf) is { Length: > 0 });
+            Assert.IsTrue(host.GetRpcMessageProof(seventhOutbound.MessageHash) is { Length: > 0 });
+            Assert.IsTrue(afterSeventhRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterSeventhRecover.IsOperatorReady);
+            var seventhPoisonPath = Path.Combine(chainDir, "soft-seal-seventh-poison-recover.json");
+            File.WriteAllText(seventhPoisonPath, $$"""
+                {
+                  "seventhPoisonBlockedBatch": {{seventhBlocked}},
+                  "pendingSettlementCount": {{afterSeventhRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterSeventhRecover.LatestCheckpointBatchNumber}},
+                  "consumedDepositCount": {{afterSeventhRecover.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterSeventhRecover.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterSeventhRecover.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterSeventhRecover.KnownInboundNonceCount}},
+                  "rpcBatch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "rpcBatch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "seventhWithdrawalProofPresent": true,
+                  "seventhMessageProofPresent": true,
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(seventhPoisonPath));
+            StringAssert.Contains(File.ReadAllText(seventhPoisonPath), "\"rpcBatch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(seventhPoisonPath), "\"consumedDepositCount\": 7");
+            StringAssert.Contains(File.ReadAllText(seventhPoisonPath), "\"messageOutboxL2ToL1Count\": 7");
+            StringAssert.Contains(File.ReadAllText(seventhPoisonPath), "\"isSettlementRetrying\": true");
+
+            // SubmitNext after seventh recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
-            // Gateway multi-batch backlog still independent after sixth recover / SubmitNext.
+            // Gateway multi-batch backlog still independent after seventh recover / SubmitNext.
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
         }
         finally

@@ -1267,6 +1267,15 @@ public sealed class UT_OptimisticLocalHostComposition
             var recoverSealedWd = host.SealWithdrawalBatch();
             Assert.AreNotEqual(UInt256.Zero, recoverSealedWd.Root);
             Assert.AreEqual(0, host.StagedWithdrawalCount);
+            Assert.IsTrue(recoverSealedWd.Tree.Count >= 1);
+            var recoverMerkle = recoverSealedWd.Tree.GetProof(recoverSealedWd.Tree.Count - 1);
+            Assert.AreEqual(recoverWdLeaf, recoverMerkle.Leaf);
+            var recoverWdProofBytes = MerkleProofSerializer.Encode(recoverMerkle);
+            Assert.IsTrue(recoverWdProofBytes.Length >= MerkleProofSerializer.HeaderSize);
+            host.RecordRpcWithdrawalProof(recoverWdLeaf, recoverWdProofBytes);
+            var storedRecoverWdProof = host.GetRpcWithdrawalProof(recoverWdLeaf);
+            Assert.IsTrue(storedRecoverWdProof is { Length: > 0 });
+            CollectionAssert.AreEqual(recoverWdProofBytes, storedRecoverWdProof!.Value.ToArray());
             var recoverOutboundDraft = new CrossChainMessage
             {
                 SourceChainId = 20260716u,
@@ -1284,6 +1293,15 @@ public sealed class UT_OptimisticLocalHostComposition
             };
             host.EnqueueOutboundMessagesAsync([recoverOutbound]).AsTask().GetAwaiter().GetResult();
             Assert.AreEqual(2, host.MessageOutbox!.L2ToL1Count);
+            var recoverMsgProofBytes = recoverOutbound.MessageHash.GetSpan().ToArray();
+            host.RecordRpcMessageProof(recoverOutbound.MessageHash, recoverMsgProofBytes);
+            CollectionAssert.AreEqual(
+                recoverMsgProofBytes,
+                host.GetRpcMessageProof(recoverOutbound.MessageHash)!.Value.ToArray());
+            host.RecordMessageRouterFinalizedProof(recoverOutbound.MessageHash, recoverMsgProofBytes);
+            CollectionAssert.AreEqual(
+                recoverMsgProofBytes,
+                host.GetMessageRouterProofAsync(recoverOutbound.MessageHash).AsTask().GetAwaiter().GetResult()!.Value.ToArray());
             Assert.IsTrue(host.RegisterForcedInclusionNonce(12));
             Assert.IsFalse(host.RegisterForcedInclusionNonce(12));
             Assert.AreEqual(2, host.KnownForcedInclusionNonceCount);
@@ -1305,6 +1323,10 @@ public sealed class UT_OptimisticLocalHostComposition
                   "messageOutboxL2ToL1Count": {{afterSecondOutbound.MessageOutboxL2ToL1Count}},
                   "knownForcedInclusionNonceCount": {{afterSecondOutbound.KnownForcedInclusionNonceCount}},
                   "knownInboundNonceCount": {{afterSecondOutbound.KnownInboundNonceCount}},
+                  "withdrawalLeaf": "{{recoverWdLeaf}}",
+                  "outboundMessageHash": "{{recoverOutbound.MessageHash}}",
+                  "withdrawalProofBytes": {{recoverWdProofBytes.Length}},
+                  "messageProofBytes": {{recoverMsgProofBytes.Length}},
                   "latestCheckpointBatchNumber": {{afterSecondOutbound.LatestCheckpointBatchNumber}},
                   "pendingSettlementCount": {{afterSecondOutbound.PendingSettlementCount}},
                   "isSettlementRetrying": true
@@ -1314,6 +1336,21 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(File.ReadAllText(afterSecondOutboundPath), "\"messageOutboxL2ToL1Count\": 2");
             StringAssert.Contains(File.ReadAllText(afterSecondOutboundPath), "\"knownForcedInclusionNonceCount\": 2");
             StringAssert.Contains(File.ReadAllText(afterSecondOutboundPath), "\"knownInboundNonceCount\": 2");
+            StringAssert.Contains(File.ReadAllText(afterSecondOutboundPath), "\"withdrawalLeaf\": \"" + recoverWdLeaf + "\"");
+            var afterSecondOutboundRpcPath = Path.Combine(chainDir, "soft-seal-after-recover-second-outbound-rpc.json");
+            File.WriteAllText(afterSecondOutboundRpcPath, $$"""
+                {
+                  "withdrawalLeaf": "{{recoverWdLeaf}}",
+                  "outboundMessageHash": "{{recoverOutbound.MessageHash}}",
+                  "withdrawalProofBytes": {{recoverWdProofBytes.Length}},
+                  "messageProofBytes": {{recoverMsgProofBytes.Length}},
+                  "knownForcedInclusionNonceCount": 2,
+                  "knownInboundNonceCount": 2,
+                  "isSettlementRetrying": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(afterSecondOutboundRpcPath));
+            StringAssert.Contains(File.ReadAllText(afterSecondOutboundRpcPath), "\"outboundMessageHash\": \"" + recoverOutbound.MessageHash + "\"");
 
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);

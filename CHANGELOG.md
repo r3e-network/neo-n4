@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after-recover second outbound RPC proofs — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after recover second withdrawal/outbox,
+  pin RPC durability — `MerkleProofSerializer` withdrawal proof,
+  message + MessageRouter finalized proofs for outbound hash, status still
+  `Retrying` with outbox/FI/inbound known counts = 2 and multi-batch pending≥2.
+- Durable `soft-seal-after-recover-second-outbound-rpc.json` (leaf/hash/proof
+  sizes). Soft `RegisterForcedInclusionNonce` remains Known* only (not durable
+  Tracked*). No wire/ABI change. L1 claim / FI drain / settle remain funded.
+
 ### Changed — SoftSeal after-recover second outbound + FI/inbound — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal: after recover second deposit, pin

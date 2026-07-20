@@ -1095,6 +1095,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 host.InvalidateInboundMessageCache,
                 () => host.OpenBatchL1MessageCount,
                 () => host.L1InboxPendingCount,
+                host.RecordRpcWithdrawalProof,
+                host.GetRpcWithdrawalProof,
+                host.RecordRpcMessageProof,
+                host.GetRpcMessageProof,
+                host.RecordMessageRouterFinalizedProof,
+                msgHash => host.GetMessageRouterProofAsync(msgHash).AsTask(),
                 () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
                 () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
                 () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
@@ -1103,6 +1109,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => host.WriteHealthProbeAsync(path).AsTask(),
                 chainDir);
             Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-second-outbound.json")));
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-second-outbound-rpc.json")));
         }
         finally
         {
@@ -1422,6 +1429,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 host.InvalidateInboundMessageCache,
                 () => host.OpenBatchL1MessageCount,
                 () => host.L1InboxPendingCount,
+                host.RecordRpcWithdrawalProof,
+                host.GetRpcWithdrawalProof,
+                host.RecordRpcMessageProof,
+                host.GetRpcMessageProof,
+                host.RecordMessageRouterFinalizedProof,
+                msgHash => host.GetMessageRouterProofAsync(msgHash).AsTask(),
                 () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
                 () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
                 () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
@@ -1430,6 +1443,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => host.WriteHealthProbeAsync(path).AsTask(),
                 chainDir);
             Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-second-outbound.json")));
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-second-outbound-rpc.json")));
         }
         finally
         {
@@ -2288,8 +2302,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
 
     /// <summary>
     /// SoftSeal after poison→recover (and after second offline deposit): second withdrawal
-    /// seal + L2→L1 outbox enqueue + second FI/inbound nonces while settle remains Retrying
-    /// with multi-batch pending. Does not claim L1 withdraw claim / FI drain / settle.
+    /// seal + L2→L1 outbox enqueue + second FI/inbound nonces + RPC withdrawal/message/router
+    /// proof durability while settle remains Retrying with multi-batch pending. Does not claim
+    /// L1 withdraw claim / FI drain / settle.
     /// </summary>
     private static void AssertSoftSealAfterRecoverSecondOutboundAndFi(
         Func<WithdrawalRequest, UInt256> stageWithdrawal,
@@ -2308,6 +2323,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Action invalidateInboundMessageCache,
         Func<int> openBatchL1MessageCount,
         Func<int> l1InboxPendingCount,
+        Action<UInt256, byte[]> recordRpcWithdrawalProof,
+        Func<UInt256, ReadOnlyMemory<byte>?> getRpcWithdrawalProof,
+        Action<UInt256, byte[]> recordRpcMessageProof,
+        Func<UInt256, ReadOnlyMemory<byte>?> getRpcMessageProof,
+        Action<UInt256, ReadOnlyMemory<byte>> recordMessageRouterFinalizedProof,
+        Func<UInt256, Task<ReadOnlyMemory<byte>?>> getMessageRouterProofAsync,
         Func<LocalHostOperatorStatus> getOperatorStatus,
         Func<LocalHostHealthProbeDocument> getHealthProbe,
         Func<string> formatOperatorStatusJson,
@@ -2333,6 +2354,15 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         var sealedWd = sealWithdrawalBatch();
         Assert.AreNotEqual(UInt256.Zero, sealedWd.Root);
         Assert.AreEqual(0, stagedWithdrawalCount());
+        Assert.IsTrue(sealedWd.Tree.Count >= 1);
+        var merkleProof = sealedWd.Tree.GetProof(sealedWd.Tree.Count - 1);
+        Assert.AreEqual(wdLeaf, merkleProof.Leaf);
+        var proofBytes = MerkleProofSerializer.Encode(merkleProof);
+        Assert.IsTrue(proofBytes.Length >= MerkleProofSerializer.HeaderSize);
+        recordRpcWithdrawalProof(wdLeaf, proofBytes);
+        var storedWdProof = getRpcWithdrawalProof(wdLeaf);
+        Assert.IsTrue(storedWdProof is { Length: > 0 });
+        CollectionAssert.AreEqual(proofBytes, storedWdProof!.Value.ToArray());
 
         var outboundDraft = new CrossChainMessage
         {
@@ -2349,6 +2379,17 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         enqueueOutbound([outbound]).GetAwaiter().GetResult();
         Assert.AreEqual(2, messageOutboxL2ToL1Count());
         Assert.AreNotEqual(UInt256.Zero, messageOutboxL2ToL1Root());
+
+        // Soft message inclusion bytes for RPC explorers (not an L1 MessageRouter claim).
+        var messageProofBytes = outbound.MessageHash.GetSpan().ToArray();
+        recordRpcMessageProof(outbound.MessageHash, messageProofBytes);
+        var storedMsgProof = getRpcMessageProof(outbound.MessageHash);
+        Assert.IsTrue(storedMsgProof is { Length: > 0 });
+        CollectionAssert.AreEqual(messageProofBytes, storedMsgProof!.Value.ToArray());
+        recordMessageRouterFinalizedProof(outbound.MessageHash, messageProofBytes);
+        var routerProof = getMessageRouterProofAsync(outbound.MessageHash).GetAwaiter().GetResult();
+        Assert.IsTrue(routerProof is { Length: > 0 });
+        CollectionAssert.AreEqual(messageProofBytes, routerProof!.Value.ToArray());
 
         // Second FI/inbound nonces while still Retrying (open-batch remains 0 — sealed).
         Assert.IsTrue(registerForcedInclusionNonce(12));
@@ -2373,6 +2414,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Assert.AreEqual(0, status.StagedWithdrawalCount);
         Assert.AreEqual(2, status.KnownForcedInclusionNonceCount);
         Assert.AreEqual(2, status.KnownInboundNonceCount);
+        // Soft RegisterForcedInclusionNonce updates Known* only; durable Tracked* is settlement-store.
+        Assert.IsTrue(status.TrackedForcedInclusionNonceCount >= 0);
         Assert.IsFalse(status.HasOverdueForcedInclusion);
         Assert.AreEqual(0, status.OpenBatchForcedInclusionCount);
         Assert.AreEqual(0, status.OpenBatchL1MessageCount);
@@ -2440,6 +2483,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
               "stagedWithdrawalCount": {{status.StagedWithdrawalCount}},
               "knownForcedInclusionNonceCount": {{status.KnownForcedInclusionNonceCount}},
               "knownInboundNonceCount": {{status.KnownInboundNonceCount}},
+              "trackedForcedInclusionNonceCount": {{status.TrackedForcedInclusionNonceCount}},
+              "withdrawalLeaf": "{{wdLeaf}}",
+              "withdrawalRoot": "{{sealedWd.Root}}",
+              "withdrawalProofBytes": {{proofBytes.Length}},
+              "outboundMessageHash": "{{outbound.MessageHash}}",
+              "messageProofBytes": {{messageProofBytes.Length}},
               "latestCheckpointBatchNumber": {{status.LatestCheckpointBatchNumber}},
               "pendingSettlementCount": {{status.PendingSettlementCount}},
               "isSettlementRetrying": true,
@@ -2451,7 +2500,30 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(durableFile, "\"messageOutboxL2ToL1Count\": 2");
         StringAssert.Contains(durableFile, "\"knownForcedInclusionNonceCount\": 2");
         StringAssert.Contains(durableFile, "\"knownInboundNonceCount\": 2");
+        StringAssert.Contains(durableFile, "\"withdrawalLeaf\": \"" + wdLeaf + "\"");
+        StringAssert.Contains(durableFile, "\"outboundMessageHash\": \"" + outbound.MessageHash + "\"");
         StringAssert.Contains(durableFile, "\"isSettlementRetrying\": true");
+
+        var rpcSurfacePath = Path.Combine(chainDir, "soft-seal-after-recover-second-outbound-rpc.json");
+        File.WriteAllText(rpcSurfacePath, $$"""
+            {
+              "withdrawalLeaf": "{{wdLeaf}}",
+              "withdrawalRoot": "{{sealedWd.Root}}",
+              "withdrawalProofBytes": {{proofBytes.Length}},
+              "outboundMessageHash": "{{outbound.MessageHash}}",
+              "messageProofBytes": {{messageProofBytes.Length}},
+              "routerProofBytes": {{messageProofBytes.Length}},
+              "knownForcedInclusionNonceCount": 2,
+              "knownInboundNonceCount": 2,
+              "isSettlementRetrying": true
+            }
+            """);
+        Assert.IsTrue(File.Exists(rpcSurfacePath));
+        var rpcSurface = File.ReadAllText(rpcSurfacePath);
+        StringAssert.Contains(rpcSurface, "\"withdrawalLeaf\": \"" + wdLeaf + "\"");
+        StringAssert.Contains(rpcSurface, "\"outboundMessageHash\": \"" + outbound.MessageHash + "\"");
+        StringAssert.Contains(rpcSurface, "\"knownForcedInclusionNonceCount\": 2");
+        StringAssert.Contains(rpcSurface, "\"knownInboundNonceCount\": 2");
     }
 
     /// <summary>

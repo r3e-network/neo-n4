@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal fifth poison→recover quintuple-state retention — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after fourth recover + fifth deposit/outbox/FI,
+  re-escalate mock L1 failures until **fifth** `Poisoned`, then `RecoverPoisonedBatch`
+  (wrong-hash fail-closed) and pin quintuple soft multi-batch state survives: pending≥2,
+  tip=2, `ConsumedDepositCount=5`, outbox=5, FI/inbound known=5, RPC Finalized batch1+2,
+  fifth withdrawal + message proofs retained while settle returns to `Retrying`.
+- Durable `soft-seal-fifth-poison-recover.json` + status/probe. E2E helper
+  `AssertSoftSealFifthPoisonRecoverRetention`.
+- No wire/ABI change. L1 settle for multi-pending batches remains a funded gate.
+
 ### Changed — SoftSeal after fourth-recover fifth outbound + FI/RPC — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal: after fourth recover + fifth deposit,

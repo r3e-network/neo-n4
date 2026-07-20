@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after-recover second outbound + FI/inbound — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after recover second deposit, pin
+  second offline withdrawal seal + L2→L1 outbox enqueue (`MessageOutboxL2ToL1Count=2`)
+  and second FI/inbound nonces (`KnownForcedInclusionNonceCount=2` /
+  `KnownInboundNonceCount=2`) while settle remains `Retrying` with multi-batch
+  pending≥2 and open-batch FI/L1 counts stay 0.
+- Durable `soft-seal-after-recover-second-outbound.json` + status/probe files.
+  E2E helper `AssertSoftSealAfterRecoverSecondOutboundAndFi`.
+- No wire/ABI change. L1 withdraw claim / FI drain / settle remain funded.
+
 ### Changed — SoftSeal after-recover multi-batch DA + second offline deposit — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal: after poison→recover retention pins,

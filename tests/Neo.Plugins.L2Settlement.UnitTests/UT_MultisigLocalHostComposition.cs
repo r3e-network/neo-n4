@@ -1514,6 +1514,71 @@ public sealed class UT_MultisigLocalHostComposition
             host.WritePrometheusMetricsAsync(afterRecoverPromPath).AsTask().GetAwaiter().GetResult();
             Assert.IsTrue(File.Exists(afterRecoverPromPath));
             Assert.AreEqual(afterRecoverProm, File.ReadAllText(afterRecoverPromPath));
+
+            // Second offline withdrawal/outbox + FI/inbound nonces after recover (no L1).
+            var recoverSender = Account(0x77);
+            var recoverWdLeaf = host.StageWithdrawal(new WithdrawalRequest
+            {
+                ChainId = 20260716u,
+                EmittingContract = recoverSender,
+                L2Sender = recoverSender,
+                L1Recipient = recoverSender,
+                L2Asset = recoverL2Asset,
+                Amount = new BigInteger(75),
+                Nonce = 2,
+            });
+            Assert.AreNotEqual(UInt256.Zero, recoverWdLeaf);
+            var recoverSealedWd = host.SealWithdrawalBatch();
+            Assert.AreNotEqual(UInt256.Zero, recoverSealedWd.Root);
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            var recoverOutboundDraft = new CrossChainMessage
+            {
+                SourceChainId = 20260716u,
+                TargetChainId = 0,
+                Nonce = 10,
+                Sender = recoverSender,
+                Receiver = recoverSender,
+                MessageType = MessageType.Event,
+                Payload = new byte[] { 0x02 },
+                MessageHash = UInt256.Zero,
+            };
+            var recoverOutbound = recoverOutboundDraft with
+            {
+                MessageHash = MessageHasher.HashMessage(recoverOutboundDraft),
+            };
+            host.EnqueueOutboundMessagesAsync([recoverOutbound]).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(2, host.MessageOutbox!.L2ToL1Count);
+            Assert.IsTrue(host.RegisterForcedInclusionNonce(12));
+            Assert.IsFalse(host.RegisterForcedInclusionNonce(12));
+            Assert.AreEqual(2, host.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(host.RegisterInboundMessageNonce(12));
+            Assert.IsFalse(host.RegisterInboundMessageNonce(12));
+            Assert.AreEqual(2, host.KnownInboundNonceCount);
+            Assert.AreEqual(0, host.OpenBatchForcedInclusionCount);
+            Assert.AreEqual(0, host.OpenBatchL1MessageCount);
+            var afterSecondOutbound = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(2, afterSecondOutbound.ConsumedDepositCount);
+            Assert.AreEqual(2, afterSecondOutbound.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(2, afterSecondOutbound.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(2, afterSecondOutbound.KnownInboundNonceCount);
+            Assert.IsTrue(afterSecondOutbound.IsSettlementRetrying);
+            Assert.IsTrue(afterSecondOutbound.PendingSettlementCount >= 2);
+            var afterSecondOutboundPath = Path.Combine(chainDir, "soft-seal-after-recover-second-outbound.json");
+            File.WriteAllText(afterSecondOutboundPath, $$"""
+                {
+                  "messageOutboxL2ToL1Count": {{afterSecondOutbound.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterSecondOutbound.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterSecondOutbound.KnownInboundNonceCount}},
+                  "latestCheckpointBatchNumber": {{afterSecondOutbound.LatestCheckpointBatchNumber}},
+                  "pendingSettlementCount": {{afterSecondOutbound.PendingSettlementCount}},
+                  "isSettlementRetrying": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(afterSecondOutboundPath));
+            StringAssert.Contains(File.ReadAllText(afterSecondOutboundPath), "\"messageOutboxL2ToL1Count\": 2");
+            StringAssert.Contains(File.ReadAllText(afterSecondOutboundPath), "\"knownForcedInclusionNonceCount\": 2");
+            StringAssert.Contains(File.ReadAllText(afterSecondOutboundPath), "\"knownInboundNonceCount\": 2");
+
             // SubmitNext after recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);

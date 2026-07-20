@@ -1078,6 +1078,31 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => host.WritePrometheusMetricsAsync(path).AsTask(),
                 chainDir);
             Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-da-offline.json")));
+            AssertSoftSealAfterRecoverSecondOutboundAndFi(
+                host.StageWithdrawal,
+                () => host.StagedWithdrawalCount,
+                host.SealWithdrawalBatch,
+                msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
+                () => host.MessageOutbox!.L2ToL1Count,
+                () => host.MessageOutboxL2ToL1Root,
+                host.RegisterForcedInclusionNonce,
+                () => host.KnownForcedInclusionNonceCount,
+                () => host.HasOverdueForcedInclusionCached(),
+                host.InvalidateForcedInclusionCache,
+                () => host.OpenBatchForcedInclusionCount,
+                host.RegisterInboundMessageNonce,
+                () => host.KnownInboundNonceCount,
+                host.InvalidateInboundMessageCache,
+                () => host.OpenBatchL1MessageCount,
+                () => host.L1InboxPendingCount,
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir);
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-second-outbound.json")));
         }
         finally
         {
@@ -1380,6 +1405,31 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => host.WritePrometheusMetricsAsync(path).AsTask(),
                 chainDir);
             Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-da-offline.json")));
+            AssertSoftSealAfterRecoverSecondOutboundAndFi(
+                host.StageWithdrawal,
+                () => host.StagedWithdrawalCount,
+                host.SealWithdrawalBatch,
+                msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
+                () => host.MessageOutbox!.L2ToL1Count,
+                () => host.MessageOutboxL2ToL1Root,
+                host.RegisterForcedInclusionNonce,
+                () => host.KnownForcedInclusionNonceCount,
+                () => host.HasOverdueForcedInclusionCached(),
+                host.InvalidateForcedInclusionCache,
+                () => host.OpenBatchForcedInclusionCount,
+                host.RegisterInboundMessageNonce,
+                () => host.KnownInboundNonceCount,
+                host.InvalidateInboundMessageCache,
+                () => host.OpenBatchL1MessageCount,
+                () => host.L1InboxPendingCount,
+                () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
+                () => host.FormatHealthProbeJson(),
+                path => host.WriteOperatorStatusAsync(path).AsTask(),
+                path => host.WriteHealthProbeAsync(path).AsTask(),
+                chainDir);
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-second-outbound.json")));
         }
         finally
         {
@@ -2233,6 +2283,174 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(durableFile, "\"consumedDepositCount\": 2");
         StringAssert.Contains(durableFile, "\"deposit2IncludedInBatch\": 2");
         StringAssert.Contains(durableFile, "\"latestCheckpointBatchNumber\": 2");
+        StringAssert.Contains(durableFile, "\"isSettlementRetrying\": true");
+    }
+
+    /// <summary>
+    /// SoftSeal after poison→recover (and after second offline deposit): second withdrawal
+    /// seal + L2→L1 outbox enqueue + second FI/inbound nonces while settle remains Retrying
+    /// with multi-batch pending. Does not claim L1 withdraw claim / FI drain / settle.
+    /// </summary>
+    private static void AssertSoftSealAfterRecoverSecondOutboundAndFi(
+        Func<WithdrawalRequest, UInt256> stageWithdrawal,
+        Func<int> stagedWithdrawalCount,
+        Func<(UInt256 Root, WithdrawalTree Tree)> sealWithdrawalBatch,
+        Func<IReadOnlyList<CrossChainMessage>, Task> enqueueOutbound,
+        Func<int> messageOutboxL2ToL1Count,
+        Func<UInt256> messageOutboxL2ToL1Root,
+        Func<ulong, bool> registerForcedInclusionNonce,
+        Func<int> knownForcedInclusionNonceCount,
+        Func<bool> hasOverdueForcedInclusionCached,
+        Action invalidateForcedInclusionCache,
+        Func<int> openBatchForcedInclusionCount,
+        Func<ulong, bool> registerInboundMessageNonce,
+        Func<int> knownInboundNonceCount,
+        Action invalidateInboundMessageCache,
+        Func<int> openBatchL1MessageCount,
+        Func<int> l1InboxPendingCount,
+        Func<LocalHostOperatorStatus> getOperatorStatus,
+        Func<LocalHostHealthProbeDocument> getHealthProbe,
+        Func<string> formatOperatorStatusJson,
+        Func<string> formatHealthProbeJson,
+        Func<string, Task> writeOperatorStatusAsync,
+        Func<string, Task> writeHealthProbeAsync,
+        string chainDir)
+    {
+        var softL2Asset = UInt160.Parse("0x" + new string('2', 40));
+        var softSender = Account(0x77);
+        var wdLeaf = stageWithdrawal(new WithdrawalRequest
+        {
+            ChainId = 20260716u,
+            EmittingContract = softSender,
+            L2Sender = softSender,
+            L1Recipient = softSender,
+            L2Asset = softL2Asset,
+            Amount = new BigInteger(75),
+            Nonce = 2,
+        });
+        Assert.AreNotEqual(UInt256.Zero, wdLeaf);
+        Assert.IsTrue(stagedWithdrawalCount() >= 1);
+        var sealedWd = sealWithdrawalBatch();
+        Assert.AreNotEqual(UInt256.Zero, sealedWd.Root);
+        Assert.AreEqual(0, stagedWithdrawalCount());
+
+        var outboundDraft = new CrossChainMessage
+        {
+            SourceChainId = 20260716u,
+            TargetChainId = 0,
+            Nonce = 10,
+            Sender = softSender,
+            Receiver = softSender,
+            MessageType = MessageType.Event,
+            Payload = new byte[] { 0x02 },
+            MessageHash = UInt256.Zero,
+        };
+        var outbound = outboundDraft with { MessageHash = MessageHasher.HashMessage(outboundDraft) };
+        enqueueOutbound([outbound]).GetAwaiter().GetResult();
+        Assert.AreEqual(2, messageOutboxL2ToL1Count());
+        Assert.AreNotEqual(UInt256.Zero, messageOutboxL2ToL1Root());
+
+        // Second FI/inbound nonces while still Retrying (open-batch remains 0 — sealed).
+        Assert.IsTrue(registerForcedInclusionNonce(12));
+        Assert.IsFalse(registerForcedInclusionNonce(12));
+        Assert.AreEqual(2, knownForcedInclusionNonceCount());
+        Assert.AreEqual(0, openBatchForcedInclusionCount());
+        Assert.IsFalse(hasOverdueForcedInclusionCached());
+        invalidateForcedInclusionCache();
+        Assert.AreEqual(2, knownForcedInclusionNonceCount());
+
+        Assert.IsTrue(registerInboundMessageNonce(12));
+        Assert.IsFalse(registerInboundMessageNonce(12));
+        Assert.AreEqual(2, knownInboundNonceCount());
+        Assert.AreEqual(0, openBatchL1MessageCount());
+        Assert.AreEqual(0, l1InboxPendingCount());
+        invalidateInboundMessageCache();
+        Assert.AreEqual(2, knownInboundNonceCount());
+
+        var status = getOperatorStatus();
+        Assert.AreEqual(2, status.ConsumedDepositCount);
+        Assert.AreEqual(2, status.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(0, status.StagedWithdrawalCount);
+        Assert.AreEqual(2, status.KnownForcedInclusionNonceCount);
+        Assert.AreEqual(2, status.KnownInboundNonceCount);
+        Assert.IsFalse(status.HasOverdueForcedInclusion);
+        Assert.AreEqual(0, status.OpenBatchForcedInclusionCount);
+        Assert.AreEqual(0, status.OpenBatchL1MessageCount);
+        Assert.AreEqual(2UL, status.LatestCheckpointBatchNumber);
+        Assert.IsTrue(status.PendingSettlementCount >= 2);
+        Assert.IsTrue(status.IsSettlementRetrying);
+        Assert.IsFalse(status.IsSettlementPoisoned);
+        Assert.IsFalse(status.IsSettlementIdle);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        Assert.IsTrue(status.IsOperatorReady);
+        Assert.IsFalse(status.IsPipelineHealthy);
+        CollectionAssert.Contains(
+            status.PipelineHealthFailures.ToArray(),
+            nameof(status.IsSettlementRetrying));
+        CollectionAssert.DoesNotContain(
+            status.PipelineHealthFailures.ToArray(),
+            nameof(status.HasOverdueForcedInclusion));
+
+        var probe = getHealthProbe();
+        Assert.AreEqual(2, probe.ConsumedDepositCount);
+        Assert.AreEqual(2, probe.MessageOutboxL2ToL1Count);
+        Assert.AreEqual(2, probe.KnownForcedInclusionNonceCount);
+        Assert.AreEqual(2, probe.KnownInboundNonceCount);
+        Assert.IsTrue(probe.IsSettlementRetrying);
+        Assert.AreEqual(2UL, probe.LatestCheckpointBatchNumber);
+        Assert.IsTrue(probe.PendingSettlementCount >= 2);
+
+        var statusJson = formatOperatorStatusJson();
+        StringAssert.Contains(statusJson, "\"consumedDepositCount\": 2");
+        StringAssert.Contains(statusJson, "\"messageOutboxL2ToL1Count\": 2");
+        StringAssert.Contains(statusJson, "\"knownForcedInclusionNonceCount\": 2");
+        StringAssert.Contains(statusJson, "\"knownInboundNonceCount\": 2");
+        StringAssert.Contains(statusJson, "\"isSettlementRetrying\": true");
+        StringAssert.Contains(statusJson, "\"latestCheckpointBatchNumber\": 2");
+
+        var probeJson = formatHealthProbeJson();
+        StringAssert.Contains(probeJson, "\"messageOutboxL2ToL1Count\": 2");
+        StringAssert.Contains(probeJson, "\"knownForcedInclusionNonceCount\": 2");
+        StringAssert.Contains(probeJson, "\"knownInboundNonceCount\": 2");
+        StringAssert.Contains(probeJson, "\"isSettlementRetrying\": true");
+
+        var statusPath = Path.Combine(chainDir, "soft-seal-after-recover-second-outbound-status.json");
+        writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(statusPath));
+        var statusFile = File.ReadAllText(statusPath);
+        StringAssert.Contains(statusFile, "\"messageOutboxL2ToL1Count\": 2");
+        StringAssert.Contains(statusFile, "\"knownForcedInclusionNonceCount\": 2");
+        StringAssert.Contains(statusFile, "\"knownInboundNonceCount\": 2");
+        StringAssert.Contains(statusFile, "\"isSettlementRetrying\": true");
+
+        var probePath = Path.Combine(chainDir, "soft-seal-after-recover-second-outbound-probe.json");
+        writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
+        Assert.IsTrue(File.Exists(probePath));
+        var probeFile = File.ReadAllText(probePath);
+        StringAssert.Contains(probeFile, "\"messageOutboxL2ToL1Count\": 2");
+        StringAssert.Contains(probeFile, "\"knownForcedInclusionNonceCount\": 2");
+        StringAssert.Contains(probeFile, "\"knownInboundNonceCount\": 2");
+
+        var durablePath = Path.Combine(chainDir, "soft-seal-after-recover-second-outbound.json");
+        File.WriteAllText(durablePath, $$"""
+            {
+              "withdrawalNonce": 2,
+              "outboundNonce": 10,
+              "messageOutboxL2ToL1Count": {{status.MessageOutboxL2ToL1Count}},
+              "stagedWithdrawalCount": {{status.StagedWithdrawalCount}},
+              "knownForcedInclusionNonceCount": {{status.KnownForcedInclusionNonceCount}},
+              "knownInboundNonceCount": {{status.KnownInboundNonceCount}},
+              "latestCheckpointBatchNumber": {{status.LatestCheckpointBatchNumber}},
+              "pendingSettlementCount": {{status.PendingSettlementCount}},
+              "isSettlementRetrying": true,
+              "isSettlementPoisoned": false
+            }
+            """);
+        Assert.IsTrue(File.Exists(durablePath));
+        var durableFile = File.ReadAllText(durablePath);
+        StringAssert.Contains(durableFile, "\"messageOutboxL2ToL1Count\": 2");
+        StringAssert.Contains(durableFile, "\"knownForcedInclusionNonceCount\": 2");
+        StringAssert.Contains(durableFile, "\"knownInboundNonceCount\": 2");
         StringAssert.Contains(durableFile, "\"isSettlementRetrying\": true");
     }
 

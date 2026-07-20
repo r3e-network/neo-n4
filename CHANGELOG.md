@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal third poison→recover triple-state retention — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after second recover + third deposit/outbox/FI,
+  re-escalate mock L1 failures until **third** `Poisoned`, then `RecoverPoisonedBatch`
+  (wrong-hash fail-closed) and pin triple soft multi-batch state survives: pending≥2,
+  tip=2, `ConsumedDepositCount=3`, outbox=3, FI/inbound known=3, RPC Finalized batch1+2,
+  third withdrawal + message proofs retained while settle returns to `Retrying`.
+- Durable `soft-seal-third-poison-recover.json` + status/probe. E2E helper
+  `AssertSoftSealThirdPoisonRecoverRetention` (third outbound helper now returns
+  leaf + hash for follow-on pins).
+- No wire/ABI change. L1 settle for multi-pending batches remains a funded gate.
+
 ### Tested — Neo N3 testnet session18 reverify + SharedBridge deposit n19 — 2026-07-20
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

@@ -1878,11 +1878,88 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(File.Exists(thirdOutboundRpcPath));
             StringAssert.Contains(File.ReadAllText(thirdOutboundRpcPath), "\"outboundMessageHash\": \"" + thirdOutbound.MessageHash + "\"");
 
-            // SubmitNext after second recover remains best-effort; does not clear pending without funded L1.
+            // Third poison→recover after triple soft multi-batch path retains soft state.
+            LocalHostOperatorStatus afterThirdPoison = afterThirdOutbound;
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                try
+                {
+                    host.ReconcileAsync().GetAwaiter().GetResult();
+                }
+                catch (OverflowException)
+                {
+                }
+                catch (Exception)
+                {
+                }
+
+                host.SubmitNextAsync().GetAwaiter().GetResult();
+                afterThirdPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+                if (afterThirdPoison.IsSettlementPoisoned)
+                    break;
+            }
+
+            Assert.IsTrue(afterThirdPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterThirdPoison.IsSettlementRetrying);
+            Assert.IsTrue(afterThirdPoison.PendingSettlementCount >= 2);
+            Assert.AreEqual(3, afterThirdPoison.ConsumedDepositCount);
+            Assert.AreEqual(3, afterThirdPoison.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(3, afterThirdPoison.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(3, afterThirdPoison.KnownInboundNonceCount);
+            Assert.IsNotNull(afterThirdPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterThirdPoison.Recovery.ArtifactContentHash);
+            var thirdBlocked = afterThirdPoison.Recovery.BlockedBatchNumber!.Value;
+            var thirdHash = afterThirdPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(thirdBlocked, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(thirdBlocked, thirdHash).GetAwaiter().GetResult();
+            var afterThirdRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterThirdRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterThirdRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterThirdRecover.Recovery.State);
+            Assert.AreEqual(0, afterThirdRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.AreEqual(2UL, afterThirdRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(3, afterThirdRecover.ConsumedDepositCount);
+            Assert.AreEqual(3, afterThirdRecover.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(3, afterThirdRecover.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(3, afterThirdRecover.KnownInboundNonceCount);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsTrue(host.GetRpcWithdrawalProof(thirdWdLeaf) is { Length: > 0 });
+            Assert.IsTrue(host.GetRpcMessageProof(thirdOutbound.MessageHash) is { Length: > 0 });
+            Assert.IsTrue(afterThirdRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterThirdRecover.IsOperatorReady);
+            var thirdPoisonPath = Path.Combine(chainDir, "soft-seal-third-poison-recover.json");
+            File.WriteAllText(thirdPoisonPath, $$"""
+                {
+                  "thirdPoisonBlockedBatch": {{thirdBlocked}},
+                  "pendingSettlementCount": {{afterThirdRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterThirdRecover.LatestCheckpointBatchNumber}},
+                  "consumedDepositCount": {{afterThirdRecover.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterThirdRecover.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterThirdRecover.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterThirdRecover.KnownInboundNonceCount}},
+                  "rpcBatch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "rpcBatch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "thirdWithdrawalProofPresent": true,
+                  "thirdMessageProofPresent": true,
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(thirdPoisonPath));
+            StringAssert.Contains(File.ReadAllText(thirdPoisonPath), "\"rpcBatch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(thirdPoisonPath), "\"consumedDepositCount\": 3");
+            StringAssert.Contains(File.ReadAllText(thirdPoisonPath), "\"messageOutboxL2ToL1Count\": 3");
+            StringAssert.Contains(File.ReadAllText(thirdPoisonPath), "\"isSettlementRetrying\": true");
+
+            // SubmitNext after third recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
-            // Gateway multi-batch backlog still independent after third outbound / SubmitNext.
+            // Gateway multi-batch backlog still independent after third recover / SubmitNext.
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
         }
         finally

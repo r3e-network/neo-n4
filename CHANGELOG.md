@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after-recover multi-batch DA + second offline deposit — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after poison→recover retention pins,
+  re-publish local DA for sealed batches 1+2 (reader round-trip), process a second
+  offline deposit (nonce 2, `IncludedInBatch=2`, `ConsumedDepositCount=2`), and
+  write host Prometheus scrape while settle remains `Retrying` with pending≥2.
+- Durable `soft-seal-after-recover-da-offline.json` +
+  `soft-seal-after-recover-host.prom`. E2E helper
+  `AssertSoftSealAfterRecoverDaAndSecondDeposit`.
+- No wire/ABI change. L1 deposit scan / production DA / settle remain funded.
+
 ### Changed — SoftSeal after-recover multi-batch RPC + Gateway retention — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal: after poison→recover, pin multi-batch

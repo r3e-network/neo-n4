@@ -1404,17 +1404,46 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(
                 afterRecoverJson,
                 "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
-            // Host recovery does not clear Gateway aggregator backlog (independent soft paths).
-            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+            // Host recovery does not clear Gateway multi-batch aggregator backlog (independent soft paths).
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
             Assert.IsFalse(gatewayHost.HasPendingPublication);
             Assert.IsFalse(gatewayHost.IsPublicationHealthy);
             CollectionAssert.Contains(
                 gatewayHost.PublicationHealthFailures.ToArray(),
                 nameof(gatewayHost.AggregatorPendingCount));
+            // Multi-batch soft RPC store survives poison→recover.
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsNotNull(host.GetRpcBatch(1));
+            Assert.IsNotNull(host.GetRpcBatch(2));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(1));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(2));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
+            Assert.AreEqual(2UL, afterRecover.LatestCheckpointBatchNumber);
+            Assert.IsTrue(afterRecover.PendingSettlementCount >= 2);
+            var afterRecoverMultiPath = Path.Combine(chainDir, "soft-seal-after-recover-multi-batch-rpc.json");
+            File.WriteAllText(afterRecoverMultiPath, $$"""
+                {
+                  "batch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "batch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "latestRpcStateRoot": "{{host.GetLatestRpcStateRoot()}}",
+                  "aggregatorPendingCount": {{gatewayHost.AggregatorPendingCount}},
+                  "pendingSettlementCount": {{afterRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterRecover.LatestCheckpointBatchNumber}},
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(afterRecoverMultiPath));
+            StringAssert.Contains(File.ReadAllText(afterRecoverMultiPath), "\"batch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(afterRecoverMultiPath), "\"aggregatorPendingCount\": " + gatewayHost.AggregatorPendingCount);
+            StringAssert.Contains(File.ReadAllText(afterRecoverMultiPath), "\"latestCheckpointBatchNumber\": 2");
             // SubmitNext after recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
+            // Gateway multi-batch backlog still independent after post-recover SubmitNext.
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
         }
         finally
         {

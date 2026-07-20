@@ -1035,7 +1035,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => host.WriteHealthProbeAsync(path).AsTask(),
                 host.HasConsumedDeposit,
                 host.GetRpcL1DepositStatus,
-                chainDir);
+                chainDir,
+                getRpcBatch: host.GetRpcBatch,
+                getRpcStateRootAtBatch: host.GetRpcStateRootAtBatch,
+                getRpcBatchStatus: host.GetRpcBatchStatus,
+                getLatestRpcStateRoot: host.GetLatestRpcStateRoot);
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-multi-batch-rpc.json")));
             var afterRecoverStatusPath = Path.Combine(chainDir, "soft-seal-after-recover-status.json");
             host.WriteOperatorStatusAsync(afterRecoverStatusPath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isSettlementRetrying\": true");
@@ -1051,6 +1056,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownInboundNonceCount\": 1");
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"latestCheckpointBatchNumber\": 2");
+            StringAssert.Contains(
+                File.ReadAllText(afterRecoverStatusPath),
+                "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
         }
         finally
         {
@@ -1310,7 +1318,12 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 path => host.WriteHealthProbeAsync(path).AsTask(),
                 host.HasConsumedDeposit,
                 host.GetRpcL1DepositStatus,
-                chainDir);
+                chainDir,
+                getRpcBatch: host.GetRpcBatch,
+                getRpcStateRootAtBatch: host.GetRpcStateRootAtBatch,
+                getRpcBatchStatus: host.GetRpcBatchStatus,
+                getLatestRpcStateRoot: host.GetLatestRpcStateRoot);
+            Assert.IsTrue(File.Exists(Path.Combine(chainDir, "soft-seal-after-recover-multi-batch-rpc.json")));
             var afterRecoverStatusPath = Path.Combine(chainDir, "soft-seal-after-recover-status.json");
             host.WriteOperatorStatusAsync(afterRecoverStatusPath).AsTask().GetAwaiter().GetResult();
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"isSettlementRetrying\": true");
@@ -1326,6 +1339,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"knownInboundNonceCount\": 1");
             StringAssert.Contains(File.ReadAllText(afterRecoverStatusPath), "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(File.ReadAllText(afterRecoverProbePath), "\"latestCheckpointBatchNumber\": 2");
+            StringAssert.Contains(
+                File.ReadAllText(afterRecoverStatusPath),
+                "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
         }
         finally
         {
@@ -1895,7 +1911,8 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
     /// <summary>
     /// SoftSeal poison→recover: offline deposit/FI/inbound/outbox bookkeeping survives
     /// RecoverPoisonedBatch and remains visible while settlement is still Retrying.
-    /// Does not claim L1 settle.
+    /// When multi-batch RPC delegates are supplied, also pins batch 1+2 store/tip retention
+    /// after recover (does not claim L1 settle / PublishAggregate).
     /// </summary>
     private static void AssertSoftSealAfterRecoverSoftStateRetention(
         LocalHostOperatorStatus afterRecover,
@@ -1906,7 +1923,11 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Func<string, Task> writeHealthProbeAsync,
         Func<uint, ulong, bool> hasConsumedDeposit,
         Func<uint, ulong, DepositStatus?> getRpcL1DepositStatus,
-        string chainDir)
+        string chainDir,
+        Func<ulong, L2BatchCommitment?>? getRpcBatch = null,
+        Func<ulong, UInt256>? getRpcStateRootAtBatch = null,
+        Func<ulong, BatchStatus>? getRpcBatchStatus = null,
+        Func<UInt256>? getLatestRpcStateRoot = null)
     {
         // Soft offline bridge + FI/inbound bookkeeping established before poison must remain.
         Assert.IsTrue(hasConsumedDeposit(0, 1));
@@ -1929,11 +1950,54 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Assert.IsTrue(afterRecover.PendingSettlementCount >= 2);
         Assert.IsTrue(afterRecover.IsOfflinePassportComplete);
         Assert.IsTrue(afterRecover.IsOperatorReady);
+        Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, afterRecover.LatestRpcStateRoot);
 
         var depositStatus = getRpcL1DepositStatus(0, 1);
         Assert.IsNotNull(depositStatus);
         Assert.IsTrue(depositStatus!.Value.ConsumedOnL2);
         Assert.AreEqual(1UL, depositStatus.Value.IncludedInBatch);
+
+        if (getRpcBatch is not null
+            && getRpcStateRootAtBatch is not null
+            && getRpcBatchStatus is not null
+            && getLatestRpcStateRoot is not null)
+        {
+            // Multi-batch soft RPC store survives poison→recover (independent of L1 settle).
+            Assert.AreEqual(BatchStatus.Finalized, getRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, getRpcBatchStatus(2));
+            var rpc1 = getRpcBatch(1);
+            var rpc2 = getRpcBatch(2);
+            Assert.IsNotNull(rpc1);
+            Assert.IsNotNull(rpc2);
+            Assert.AreEqual(1UL, rpc1!.BatchNumber);
+            Assert.AreEqual(2UL, rpc2!.BatchNumber);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, rpc1.PostStateRoot);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, rpc2.PostStateRoot);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, getRpcStateRootAtBatch(1));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, getRpcStateRootAtBatch(2));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, getLatestRpcStateRoot());
+            Assert.AreEqual(getLatestRpcStateRoot(), afterRecover.LatestRpcStateRoot);
+
+            var multiRpcPath = Path.Combine(chainDir, "soft-seal-after-recover-multi-batch-rpc.json");
+            File.WriteAllText(multiRpcPath, $$"""
+                {
+                  "batch1Status": "{{getRpcBatchStatus(1)}}",
+                  "batch2Status": "{{getRpcBatchStatus(2)}}",
+                  "latestRpcStateRoot": "{{getLatestRpcStateRoot()}}",
+                  "latestCheckpointBatchNumber": {{afterRecover.LatestCheckpointBatchNumber}},
+                  "pendingSettlementCount": {{afterRecover.PendingSettlementCount}},
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(multiRpcPath));
+            var multiRpcFile = File.ReadAllText(multiRpcPath);
+            StringAssert.Contains(multiRpcFile, "\"batch1Status\": \"Finalized\"");
+            StringAssert.Contains(multiRpcFile, "\"batch2Status\": \"Finalized\"");
+            StringAssert.Contains(multiRpcFile, "\"latestCheckpointBatchNumber\": 2");
+            StringAssert.Contains(multiRpcFile, "\"isSettlementRetrying\": true");
+            StringAssert.Contains(multiRpcFile, "\"isSettlementPoisoned\": false");
+        }
 
         var probe = getHealthProbe();
         Assert.AreEqual(1, probe.ConsumedDepositCount);
@@ -1944,6 +2008,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Assert.IsFalse(probe.IsSettlementPoisoned);
         Assert.AreEqual(2UL, probe.LatestCheckpointBatchNumber);
         Assert.IsTrue(probe.PendingSettlementCount >= 2);
+        Assert.AreEqual(
+            SoftPassThroughExecutor.PostStateRoot.ToString(),
+            probe.LatestRpcStateRoot);
 
         var statusJson = formatOperatorStatusJson();
         StringAssert.Contains(statusJson, "\"consumedDepositCount\": 1");
@@ -1953,6 +2020,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(statusJson, "\"isSettlementRetrying\": true");
         StringAssert.Contains(statusJson, "\"isSettlementPoisoned\": false");
         StringAssert.Contains(statusJson, "\"latestCheckpointBatchNumber\": 2");
+        StringAssert.Contains(
+            statusJson,
+            "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
 
         var probeJson = formatHealthProbeJson();
         StringAssert.Contains(probeJson, "\"consumedDepositCount\": 1");
@@ -1960,6 +2030,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(probeJson, "\"knownInboundNonceCount\": 1");
         StringAssert.Contains(probeJson, "\"isSettlementRetrying\": true");
         StringAssert.Contains(probeJson, "\"latestCheckpointBatchNumber\": 2");
+        StringAssert.Contains(
+            probeJson,
+            "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
 
         var statusPath = Path.Combine(chainDir, "soft-seal-after-recover-retention-status.json");
         writeOperatorStatusAsync(statusPath).GetAwaiter().GetResult();
@@ -1970,6 +2043,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(statusFile, "\"knownInboundNonceCount\": 1");
         StringAssert.Contains(statusFile, "\"isSettlementRetrying\": true");
         StringAssert.Contains(statusFile, "\"latestCheckpointBatchNumber\": 2");
+        StringAssert.Contains(
+            statusFile,
+            "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
 
         var probePath = Path.Combine(chainDir, "soft-seal-after-recover-retention-probe.json");
         writeHealthProbeAsync(probePath).GetAwaiter().GetResult();
@@ -1979,6 +2055,9 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         StringAssert.Contains(probeFile, "\"knownForcedInclusionNonceCount\": 1");
         StringAssert.Contains(probeFile, "\"knownInboundNonceCount\": 1");
         StringAssert.Contains(probeFile, "\"latestCheckpointBatchNumber\": 2");
+        StringAssert.Contains(
+            probeFile,
+            "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
     }
 
     /// <summary>

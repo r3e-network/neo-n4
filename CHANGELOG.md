@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after-recover multi-batch RPC + Gateway retention — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after poison→recover, pin multi-batch
+  soft RPC store still Finalized for batches 1+2 (`GetRpcBatch` /
+  `GetRpcStateRootAtBatch` / latest tip), checkpoint tip 2, pending≥2, and
+  `LatestRpcStateRoot` on status/probe durable files.
+- Unit: Gateway multi-batch aggregator backlog stays ≥4 after host recover and
+  post-recover `SubmitNext` (independent soft path); durable
+  `soft-seal-after-recover-multi-batch-rpc.json`.
+- E2E extends `AssertSoftSealAfterRecoverSoftStateRetention` with optional RPC
+  delegates. No wire/ABI change. L1 settle / PublishAggregate remain funded.
+
 ### Changed — SoftSeal multi-batch RPC + Gateway ReceiveBatch surface — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal: after multi-batch pending queue, RPC

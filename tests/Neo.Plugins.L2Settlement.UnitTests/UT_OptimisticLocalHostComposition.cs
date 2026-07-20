@@ -1140,15 +1140,44 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(
                 afterRecoverJson,
                 "\"latestRpcStateRoot\": \"" + SoftPassThroughExecutor.PostStateRoot + "\"");
-            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 1);
+            // Host recovery does not clear Gateway multi-batch aggregator backlog.
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
             Assert.IsFalse(gatewayHost.HasPendingPublication);
             Assert.IsFalse(gatewayHost.IsPublicationHealthy);
             CollectionAssert.Contains(
                 gatewayHost.PublicationHealthFailures.ToArray(),
                 nameof(gatewayHost.AggregatorPendingCount));
+            // Multi-batch soft RPC store survives poison→recover.
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsNotNull(host.GetRpcBatch(1));
+            Assert.IsNotNull(host.GetRpcBatch(2));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(1));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetRpcStateRootAtBatch(2));
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, host.GetLatestRpcStateRoot());
+            Assert.AreEqual(2UL, afterRecover.LatestCheckpointBatchNumber);
+            Assert.IsTrue(afterRecover.PendingSettlementCount >= 2);
+            var afterRecoverMultiPath = Path.Combine(chainDir, "soft-seal-after-recover-multi-batch-rpc.json");
+            File.WriteAllText(afterRecoverMultiPath, $$"""
+                {
+                  "batch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "batch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "latestRpcStateRoot": "{{host.GetLatestRpcStateRoot()}}",
+                  "aggregatorPendingCount": {{gatewayHost.AggregatorPendingCount}},
+                  "pendingSettlementCount": {{afterRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterRecover.LatestCheckpointBatchNumber}},
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(afterRecoverMultiPath));
+            StringAssert.Contains(File.ReadAllText(afterRecoverMultiPath), "\"batch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(afterRecoverMultiPath), "\"aggregatorPendingCount\": " + gatewayHost.AggregatorPendingCount);
+            StringAssert.Contains(File.ReadAllText(afterRecoverMultiPath), "\"latestCheckpointBatchNumber\": 2");
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
+            Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
         }
         finally
         {

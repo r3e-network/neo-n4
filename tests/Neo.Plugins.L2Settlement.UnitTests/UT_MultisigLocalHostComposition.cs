@@ -4357,11 +4357,89 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(File.Exists(twelfthOutboundRpcPath));
             StringAssert.Contains(File.ReadAllText(twelfthOutboundRpcPath), "\"outboundMessageHash\": \"" + twelfthOutbound.MessageHash + "\"");
 
-            // SubmitNext after eleventh recover / twelfth outbound remains best-effort; does not clear pending without funded L1.
+            // Twelfth poison→recover after duodecuple soft multi-batch path retains soft state.
+            LocalHostOperatorStatus afterTwelfthPoison = afterTwelfthOutbound;
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                try
+                {
+                    host.ReconcileAsync().GetAwaiter().GetResult();
+                }
+                catch (OverflowException)
+                {
+                }
+                catch (Exception)
+                {
+                }
+
+                host.SubmitNextAsync().GetAwaiter().GetResult();
+                afterTwelfthPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+                if (afterTwelfthPoison.IsSettlementPoisoned)
+                    break;
+            }
+
+            Assert.IsTrue(afterTwelfthPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterTwelfthPoison.IsSettlementRetrying);
+            Assert.IsTrue(afterTwelfthPoison.PendingSettlementCount >= 2);
+            Assert.AreEqual(12, afterTwelfthPoison.ConsumedDepositCount);
+            Assert.AreEqual(12, afterTwelfthPoison.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(12, afterTwelfthPoison.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(12, afterTwelfthPoison.KnownInboundNonceCount);
+            Assert.IsNotNull(afterTwelfthPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterTwelfthPoison.Recovery.ArtifactContentHash);
+            var twelfthBlocked = afterTwelfthPoison.Recovery.BlockedBatchNumber!.Value;
+            var twelfthHash = afterTwelfthPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(twelfthBlocked, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(twelfthBlocked, twelfthHash).GetAwaiter().GetResult();
+            var afterTwelfthRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterTwelfthRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterTwelfthRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterTwelfthRecover.Recovery.State);
+            Assert.AreEqual(0, afterTwelfthRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.AreEqual(2UL, afterTwelfthRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(12, afterTwelfthRecover.ConsumedDepositCount);
+            Assert.AreEqual(12, afterTwelfthRecover.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(12, afterTwelfthRecover.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(12, afterTwelfthRecover.KnownInboundNonceCount);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsTrue(host.GetRpcWithdrawalProof(twelfthWdLeaf) is { Length: > 0 });
+            Assert.IsTrue(host.GetRpcMessageProof(twelfthOutbound.MessageHash) is { Length: > 0 });
+            Assert.IsTrue(afterTwelfthRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterTwelfthRecover.IsOperatorReady);
+            var twelfthPoisonPath = Path.Combine(chainDir, "soft-seal-twelfth-poison-recover.json");
+            File.WriteAllText(twelfthPoisonPath, $$"""
+                {
+                  "twelfthPoisonBlockedBatch": {{twelfthBlocked}},
+                  "pendingSettlementCount": {{afterTwelfthRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterTwelfthRecover.LatestCheckpointBatchNumber}},
+                  "consumedDepositCount": {{afterTwelfthRecover.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterTwelfthRecover.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterTwelfthRecover.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterTwelfthRecover.KnownInboundNonceCount}},
+                  "rpcBatch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "rpcBatch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "twelfthWithdrawalProofPresent": true,
+                  "twelfthMessageProofPresent": true,
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(twelfthPoisonPath));
+            StringAssert.Contains(File.ReadAllText(twelfthPoisonPath), "\"rpcBatch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(twelfthPoisonPath), "\"consumedDepositCount\": 12");
+            StringAssert.Contains(File.ReadAllText(twelfthPoisonPath), "\"messageOutboxL2ToL1Count\": 12");
+            StringAssert.Contains(File.ReadAllText(twelfthPoisonPath), "\"isSettlementRetrying\": true");
+
+            
+            // SubmitNext after twelfth recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
-            // Gateway multi-batch backlog still independent after eleventh recover / twelfth outbound / SubmitNext.
+            // Gateway multi-batch backlog still independent after twelfth recover / SubmitNext.
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
         }
         finally

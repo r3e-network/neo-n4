@@ -3243,11 +3243,89 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(File.Exists(eighthOutboundRpcPath));
             StringAssert.Contains(File.ReadAllText(eighthOutboundRpcPath), "\"outboundMessageHash\": \"" + eighthOutbound.MessageHash + "\"");
 
-            // SubmitNext after seventh recover remains best-effort; does not clear pending without funded L1.
+// Eighth poison→recover after octuple soft multi-batch path retains soft state.
+            LocalHostOperatorStatus afterEighthPoison = afterEighthOutbound;
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                try
+                {
+                    host.ReconcileAsync().GetAwaiter().GetResult();
+                }
+                catch (OverflowException)
+                {
+                }
+                catch (Exception)
+                {
+                }
+
+                host.SubmitNextAsync().GetAwaiter().GetResult();
+                afterEighthPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+                if (afterEighthPoison.IsSettlementPoisoned)
+                    break;
+            }
+
+            Assert.IsTrue(afterEighthPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterEighthPoison.IsSettlementRetrying);
+            Assert.IsTrue(afterEighthPoison.PendingSettlementCount >= 2);
+            Assert.AreEqual(8, afterEighthPoison.ConsumedDepositCount);
+            Assert.AreEqual(8, afterEighthPoison.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(8, afterEighthPoison.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(8, afterEighthPoison.KnownInboundNonceCount);
+            Assert.IsNotNull(afterEighthPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterEighthPoison.Recovery.ArtifactContentHash);
+            var eighthBlocked = afterEighthPoison.Recovery.BlockedBatchNumber!.Value;
+            var eighthHash = afterEighthPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(eighthBlocked, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(eighthBlocked, eighthHash).GetAwaiter().GetResult();
+            var afterEighthRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterEighthRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterEighthRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterEighthRecover.Recovery.State);
+            Assert.AreEqual(0, afterEighthRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.AreEqual(2UL, afterEighthRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(8, afterEighthRecover.ConsumedDepositCount);
+            Assert.AreEqual(8, afterEighthRecover.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(8, afterEighthRecover.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(8, afterEighthRecover.KnownInboundNonceCount);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsTrue(host.GetRpcWithdrawalProof(eighthWdLeaf) is { Length: > 0 });
+            Assert.IsTrue(host.GetRpcMessageProof(eighthOutbound.MessageHash) is { Length: > 0 });
+            Assert.IsTrue(afterEighthRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterEighthRecover.IsOperatorReady);
+            var eighthPoisonPath = Path.Combine(chainDir, "soft-seal-eighth-poison-recover.json");
+            File.WriteAllText(eighthPoisonPath, $$"""
+                {
+                  "eighthPoisonBlockedBatch": {{eighthBlocked}},
+                  "pendingSettlementCount": {{afterEighthRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterEighthRecover.LatestCheckpointBatchNumber}},
+                  "consumedDepositCount": {{afterEighthRecover.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterEighthRecover.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterEighthRecover.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterEighthRecover.KnownInboundNonceCount}},
+                  "rpcBatch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "rpcBatch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "eighthWithdrawalProofPresent": true,
+                  "eighthMessageProofPresent": true,
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(eighthPoisonPath));
+            StringAssert.Contains(File.ReadAllText(eighthPoisonPath), "\"rpcBatch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(eighthPoisonPath), "\"consumedDepositCount\": 8");
+            StringAssert.Contains(File.ReadAllText(eighthPoisonPath), "\"messageOutboxL2ToL1Count\": 8");
+            StringAssert.Contains(File.ReadAllText(eighthPoisonPath), "\"isSettlementRetrying\": true");
+
+            
+            // SubmitNext after eighth recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
-            // Gateway multi-batch backlog still independent after seventh recover / SubmitNext.
+            // Gateway multi-batch backlog still independent after eighth recover / SubmitNext.
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
         }
         finally

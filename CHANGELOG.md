@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal fourth poison→recover quadruple-state retention — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after third recover + fourth deposit/outbox/FI,
+  re-escalate mock L1 failures until **fourth** `Poisoned`, then `RecoverPoisonedBatch`
+  (wrong-hash fail-closed) and pin quadruple soft multi-batch state survives: pending≥2,
+  tip=2, `ConsumedDepositCount=4`, outbox=4, FI/inbound known=4, RPC Finalized batch1+2,
+  fourth withdrawal + message proofs retained while settle returns to `Retrying`.
+- Durable `soft-seal-fourth-poison-recover.json` + status/probe. E2E helper
+  `AssertSoftSealFourthPoisonRecoverRetention`.
+- No wire/ABI change. L1 settle for multi-pending batches remains a funded gate.
+
 ### Changed — SoftSeal after third-recover fourth outbound + FI/RPC — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal: after third recover + fourth deposit,

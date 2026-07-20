@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after seventh-recover DA + eighth offline deposit — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after seventh poison→recover, re-publish
+  local DA for sealed batches 1+2 (reader round-trip), process an eighth offline
+  deposit (nonce 8, `IncludedInBatch=2`, `ConsumedDepositCount=8`) while settle
+  remains `Retrying` with pending≥2, outbox/FI/inbound known still 7, passport
+  complete; host Prometheus scrape + status/probe durable files.
+- Durable `soft-seal-after-seventh-recover-da-deposit.json` +
+  `soft-seal-after-seventh-recover-host.prom`. E2E helper
+  `AssertSoftSealAfterSeventhRecoverDaAndEighthDeposit`.
+- No wire/ABI change. L1 deposit scan / production DA / settle remain funded.
+
 ### Changed — SoftSeal seventh poison→recover septuple-state retention — 2026-07-20
 
 - Multisig/Optimistic unit + E2E SoftSeal: after sixth recover + seventh deposit/outbox/FI,

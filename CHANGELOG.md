@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after seventh-recover eighth outbound + FI/RPC — 2026-07-20
+
+- Multisig/Optimistic unit + E2E SoftSeal: after seventh recover + eighth deposit,
+  pin eighth withdrawal seal + L2→L1 outbox enqueue (`MessageOutboxL2ToL1Count=8`),
+  eighth FI/inbound nonces (known=8), and RPC withdrawal/message/router proofs
+  while settle remains `Retrying` with multi-batch pending≥2 and tip=2.
+- Durable `soft-seal-after-seventh-recover-eighth-outbound.json` +
+  `-rpc.json` + status/probe. E2E helper
+  `AssertSoftSealAfterSeventhRecoverEighthOutboundAndFi`.
+- No wire/ABI change. L1 claim / FI drain / settle remain funded.
+
 ### Tested — Neo N3 testnet session19 reverify + SharedBridge deposit n20 — 2026-07-20
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

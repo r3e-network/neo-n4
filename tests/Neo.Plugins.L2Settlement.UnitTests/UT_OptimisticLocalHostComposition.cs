@@ -2874,6 +2874,111 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(File.Exists(afterSeventhRecoverPromPath));
             Assert.AreEqual(afterSeventhRecoverProm, File.ReadAllText(afterSeventhRecoverPromPath));
 
+            // Eighth offline withdrawal/outbox + FI/inbound after seventh recover (no L1).
+            var eighthSender = Account(0xcc);
+            var eighthL2Asset = UInt160.Parse("0x" + new string('2', 40));
+            var eighthWdLeaf = host.StageWithdrawal(new WithdrawalRequest
+            {
+                ChainId = 20260716u,
+                EmittingContract = eighthSender,
+                L2Sender = eighthSender,
+                L1Recipient = eighthSender,
+                L2Asset = eighthL2Asset,
+                Amount = new BigInteger(100),
+                Nonce = 8,
+            });
+            Assert.AreNotEqual(UInt256.Zero, eighthWdLeaf);
+            var eighthSealedWd = host.SealWithdrawalBatch();
+            Assert.AreNotEqual(UInt256.Zero, eighthSealedWd.Root);
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            Assert.IsTrue(eighthSealedWd.Tree.Count >= 1);
+            var eighthMerkle = eighthSealedWd.Tree.GetProof(eighthSealedWd.Tree.Count - 1);
+            Assert.AreEqual(eighthWdLeaf, eighthMerkle.Leaf);
+            var eighthWdProofBytes = MerkleProofSerializer.Encode(eighthMerkle);
+            Assert.IsTrue(eighthWdProofBytes.Length >= MerkleProofSerializer.HeaderSize);
+            host.RecordRpcWithdrawalProof(eighthWdLeaf, eighthWdProofBytes);
+            CollectionAssert.AreEqual(
+                eighthWdProofBytes,
+                host.GetRpcWithdrawalProof(eighthWdLeaf)!.Value.ToArray());
+            var eighthOutboundDraft = new CrossChainMessage
+            {
+                SourceChainId = 20260716u,
+                TargetChainId = 0,
+                Nonce = 16,
+                Sender = eighthSender,
+                Receiver = eighthSender,
+                MessageType = MessageType.Event,
+                Payload = new byte[] { 0x08 },
+                MessageHash = UInt256.Zero,
+            };
+            var eighthOutbound = eighthOutboundDraft with
+            {
+                MessageHash = MessageHasher.HashMessage(eighthOutboundDraft),
+            };
+            host.EnqueueOutboundMessagesAsync([eighthOutbound]).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(8, host.MessageOutbox!.L2ToL1Count);
+            var eighthMsgProofBytes = eighthOutbound.MessageHash.GetSpan().ToArray();
+            host.RecordRpcMessageProof(eighthOutbound.MessageHash, eighthMsgProofBytes);
+            CollectionAssert.AreEqual(
+                eighthMsgProofBytes,
+                host.GetRpcMessageProof(eighthOutbound.MessageHash)!.Value.ToArray());
+            host.RecordMessageRouterFinalizedProof(eighthOutbound.MessageHash, eighthMsgProofBytes);
+            CollectionAssert.AreEqual(
+                eighthMsgProofBytes,
+                host.GetMessageRouterProofAsync(eighthOutbound.MessageHash).AsTask().GetAwaiter().GetResult()!.Value.ToArray());
+            Assert.IsTrue(host.RegisterForcedInclusionNonce(18));
+            Assert.IsFalse(host.RegisterForcedInclusionNonce(18));
+            Assert.AreEqual(8, host.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(host.RegisterInboundMessageNonce(18));
+            Assert.IsFalse(host.RegisterInboundMessageNonce(18));
+            Assert.AreEqual(8, host.KnownInboundNonceCount);
+            Assert.AreEqual(0, host.OpenBatchForcedInclusionCount);
+            Assert.AreEqual(0, host.OpenBatchL1MessageCount);
+            var afterEighthOutbound = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(8, afterEighthOutbound.ConsumedDepositCount);
+            Assert.AreEqual(8, afterEighthOutbound.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(8, afterEighthOutbound.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(8, afterEighthOutbound.KnownInboundNonceCount);
+            Assert.IsTrue(afterEighthOutbound.IsSettlementRetrying);
+            Assert.IsTrue(afterEighthOutbound.PendingSettlementCount >= 2);
+            Assert.AreEqual(2UL, afterEighthOutbound.LatestCheckpointBatchNumber);
+            var eighthOutboundPath = Path.Combine(chainDir, "soft-seal-after-seventh-recover-eighth-outbound.json");
+            File.WriteAllText(eighthOutboundPath, $$"""
+                {
+                  "consumedDepositCount": {{afterEighthOutbound.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterEighthOutbound.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterEighthOutbound.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterEighthOutbound.KnownInboundNonceCount}},
+                  "withdrawalLeaf": "{{eighthWdLeaf}}",
+                  "outboundMessageHash": "{{eighthOutbound.MessageHash}}",
+                  "withdrawalProofBytes": {{eighthWdProofBytes.Length}},
+                  "messageProofBytes": {{eighthMsgProofBytes.Length}},
+                  "latestCheckpointBatchNumber": {{afterEighthOutbound.LatestCheckpointBatchNumber}},
+                  "pendingSettlementCount": {{afterEighthOutbound.PendingSettlementCount}},
+                  "isSettlementRetrying": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(eighthOutboundPath));
+            StringAssert.Contains(File.ReadAllText(eighthOutboundPath), "\"messageOutboxL2ToL1Count\": 8");
+            StringAssert.Contains(File.ReadAllText(eighthOutboundPath), "\"knownForcedInclusionNonceCount\": 8");
+            StringAssert.Contains(File.ReadAllText(eighthOutboundPath), "\"consumedDepositCount\": 8");
+            var eighthOutboundRpcPath = Path.Combine(chainDir, "soft-seal-after-seventh-recover-eighth-outbound-rpc.json");
+            File.WriteAllText(eighthOutboundRpcPath, $$"""
+                {
+                  "withdrawalLeaf": "{{eighthWdLeaf}}",
+                  "outboundMessageHash": "{{eighthOutbound.MessageHash}}",
+                  "withdrawalProofBytes": {{eighthWdProofBytes.Length}},
+                  "messageProofBytes": {{eighthMsgProofBytes.Length}},
+                  "messageOutboxL2ToL1Count": 8,
+                  "knownForcedInclusionNonceCount": 8,
+                  "knownInboundNonceCount": 8,
+                  "consumedDepositCount": 8,
+                  "isSettlementRetrying": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(eighthOutboundRpcPath));
+            StringAssert.Contains(File.ReadAllText(eighthOutboundRpcPath), "\"outboundMessageHash\": \"" + eighthOutbound.MessageHash + "\"");
+
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);

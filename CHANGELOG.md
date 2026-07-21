@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after fifteenth-recover DA + sixteenth offline deposit — 2026-07-21
+
+- Multisig/Optimistic unit + E2E SoftSeal: after fifteenth poison→recover, re-publish
+  local DA for sealed batches 1+2 (reader round-trip), process a sixteenth offline
+  deposit (nonce 16, `IncludedInBatch=2`, `ConsumedDepositCount=16`) while settle
+  remains `Retrying` with pending≥2, outbox/FI/inbound known still 15, passport
+  complete; host Prometheus scrape + status/probe durable files.
+- Durable `soft-seal-after-fifteenth-recover-da-deposit.json` +
+  `soft-seal-after-fifteenth-recover-host.prom`. E2E helper
+  `AssertSoftSealAfterFifteenthRecoverDaAndSixteenthDeposit`.
+- No wire/ABI change. L1 deposit scan / production DA / settle remain funded.
+
 ### Changed — SoftSeal fifteenth poison→recover multi-state retention — 2026-07-21
 
 - Multisig/Optimistic unit + E2E SoftSeal: after full soft multi-batch path (quindecuple

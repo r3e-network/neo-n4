@@ -5002,7 +5002,107 @@ public sealed class UT_OptimisticLocalHostComposition
             StringAssert.Contains(File.ReadAllText(fifteenthPoisonPath), "\"messageOutboxL2ToL1Count\": 15");
             StringAssert.Contains(File.ReadAllText(fifteenthPoisonPath), "\"isSettlementRetrying\": true");
 
-            
+            // After fifteenth recover: re-publish local DA + sixteenth offline deposit while Retrying.
+            Assert.IsTrue(host.SupportsLocalDaReader);
+            var fifteenthRecoverDa1Payload = new byte[] { 0xDA, 0xA1, 0x01 };
+            var fifteenthRecoverDa1 = host.PublishDaAsync(new DAPublishRequest
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                Payload = fifteenthRecoverDa1Payload,
+            }).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(DAMode.Local, fifteenthRecoverDa1.Layer);
+            Assert.IsTrue(host.IsDaAvailableAsync(fifteenthRecoverDa1).AsTask().GetAwaiter().GetResult());
+            var fifteenthRecoverDa1Read = host.CreateLocalDaReader().ReadAsync(fifteenthRecoverDa1).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(fifteenthRecoverDa1Read is { Length: 3 });
+            CollectionAssert.AreEqual(fifteenthRecoverDa1Payload, fifteenthRecoverDa1Read!.Value.ToArray());
+            var fifteenthRecoverDa2Payload = new byte[] { 0xDA, 0xA2, 0x02 };
+            var fifteenthRecoverDa2 = host.PublishDaAsync(new DAPublishRequest
+            {
+                ChainId = 20260716u,
+                BatchNumber = 2,
+                Payload = fifteenthRecoverDa2Payload,
+            }).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(host.IsDaAvailableAsync(fifteenthRecoverDa2).AsTask().GetAwaiter().GetResult());
+            var fifteenthRecoverDa2Read = host.CreateLocalDaReader().ReadAsync(fifteenthRecoverDa2).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(fifteenthRecoverDa2Read is { Length: 3 });
+            CollectionAssert.AreEqual(fifteenthRecoverDa2Payload, fifteenthRecoverDa2Read!.Value.ToArray());
+            var fifteenthRecoverL1Asset = UInt160.Parse("0x" + new string('1', 40));
+            var fifteenthRecoverL2Asset = UInt160.Parse("0x" + new string('2', 40));
+            var deposit16 = new CrossChainMessage
+            {
+                SourceChainId = 0,
+                TargetChainId = 20260716u,
+                Nonce = 16,
+                Sender = Account(0x66),
+                Receiver = Account(0x55),
+                MessageType = MessageType.Deposit,
+                Payload = new DepositPayload
+                {
+                    L1Asset = fifteenthRecoverL1Asset,
+                    L2Recipient = Account(0x55),
+                    Amount = new BigInteger(16_000),
+                }.Encode(),
+                MessageHash = UInt256.Zero,
+            };
+            var mint16 = host.ProcessDeposit(deposit16);
+            Assert.AreEqual(fifteenthRecoverL2Asset, mint16.L2Asset);
+            Assert.IsTrue(host.HasConsumedDeposit(0, 1));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 2));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 3));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 4));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 5));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 6));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 7));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 8));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 9));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 10));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 11));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 12));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 13));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 14));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 15));
+            Assert.IsTrue(host.HasConsumedDeposit(0, 16));
+            Assert.AreEqual(16, host.ConsumedDepositCount);
+            host.RecordRpcDeposit(new DepositStatus(0, 16, ConsumedOnL2: true, IncludedInBatch: 2));
+            Assert.IsTrue(host.GetRpcL1DepositStatus(0, 16) is { ConsumedOnL2: true, IncludedInBatch: 2UL });
+            Assert.AreEqual(0, host.ScanSharedBridgeDepositsAsync().AsTask().GetAwaiter().GetResult());
+            var afterSixteenthDeposit = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(16, afterSixteenthDeposit.ConsumedDepositCount);
+            Assert.AreEqual(15, afterSixteenthDeposit.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(15, afterSixteenthDeposit.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(15, afterSixteenthDeposit.KnownInboundNonceCount);
+            Assert.IsTrue(afterSixteenthDeposit.IsSettlementRetrying);
+            Assert.IsTrue(afterSixteenthDeposit.PendingSettlementCount >= 2);
+            Assert.AreEqual(2UL, afterSixteenthDeposit.LatestCheckpointBatchNumber);
+            Assert.IsTrue(afterSixteenthDeposit.IsOfflinePassportComplete);
+            var afterFifteenthRecoverDaPath = Path.Combine(chainDir, "soft-seal-after-fifteenth-recover-da-deposit.json");
+            File.WriteAllText(afterFifteenthRecoverDaPath, $$"""
+                {
+                  "daBatch1Layer": "{{fifteenthRecoverDa1.Layer}}",
+                  "daBatch2Layer": "{{fifteenthRecoverDa2.Layer}}",
+                  "consumedDepositCount": {{afterSixteenthDeposit.ConsumedDepositCount}},
+                  "deposit16IncludedInBatch": 2,
+                  "messageOutboxL2ToL1Count": {{afterSixteenthDeposit.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterSixteenthDeposit.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterSixteenthDeposit.KnownInboundNonceCount}},
+                  "latestCheckpointBatchNumber": {{afterSixteenthDeposit.LatestCheckpointBatchNumber}},
+                  "pendingSettlementCount": {{afterSixteenthDeposit.PendingSettlementCount}},
+                  "isSettlementRetrying": true,
+                  "isOfflinePassportComplete": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(afterFifteenthRecoverDaPath));
+            StringAssert.Contains(File.ReadAllText(afterFifteenthRecoverDaPath), "\"consumedDepositCount\": 16");
+            StringAssert.Contains(File.ReadAllText(afterFifteenthRecoverDaPath), "\"deposit16IncludedInBatch\": 2");
+            StringAssert.Contains(File.ReadAllText(afterFifteenthRecoverDaPath), "\"daBatch2Layer\": \"Local\"");
+            var afterFifteenthRecoverProm = host.ExportPrometheusMetrics();
+            Assert.IsFalse(string.IsNullOrWhiteSpace(afterFifteenthRecoverProm));
+            var afterFifteenthRecoverPromPath = Path.Combine(chainDir, "soft-seal-after-fifteenth-recover-host.prom");
+            host.WritePrometheusMetricsAsync(afterFifteenthRecoverPromPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(afterFifteenthRecoverPromPath));
+            Assert.AreEqual(afterFifteenthRecoverProm, File.ReadAllText(afterFifteenthRecoverPromPath));
+
             // SubmitNext after fifteenth recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);

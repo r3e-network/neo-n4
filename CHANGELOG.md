@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after fourteenth-recover fifteenth outbound + FI/RPC — 2026-07-21
+
+- Multisig/Optimistic unit + E2E SoftSeal: after fourteenth recover + fifteenth deposit,
+  pin fifteenth withdrawal seal + L2→L1 outbox enqueue (`MessageOutboxL2ToL1Count=15`),
+  fifteenth FI/inbound nonces (known=15), and RPC withdrawal/message/router proofs
+  while settle remains `Retrying` with multi-batch pending≥2 and tip=2.
+- Durable `soft-seal-after-fourteenth-recover-fifteenth-outbound.json` +
+  `-rpc.json` + status/probe. E2E helper
+  `AssertSoftSealAfterFourteenthRecoverFifteenthOutboundAndFi`.
+- No wire/ABI change. L1 claim / FI drain / settle remain funded.
+
 ### Tested — Neo N3 testnet session20 reverify + SharedBridge deposit n21 — 2026-07-21
 
 - Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,

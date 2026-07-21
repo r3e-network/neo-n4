@@ -4925,7 +4925,85 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(File.Exists(fifteenthOutboundRpcPath));
             StringAssert.Contains(File.ReadAllText(fifteenthOutboundRpcPath), "\"outboundMessageHash\": \"" + fifteenthOutbound.MessageHash + "\"");
 
+            // Fifteenth poison→recover after quindecuple soft multi-batch path retains soft state.
+            LocalHostOperatorStatus afterFifteenthPoison = afterFifteenthOutbound;
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                try
+                {
+                    host.ReconcileAsync().GetAwaiter().GetResult();
+                }
+                catch (OverflowException)
+                {
+                }
+                catch (Exception)
+                {
+                }
 
+                host.SubmitNextAsync().GetAwaiter().GetResult();
+                afterFifteenthPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+                if (afterFifteenthPoison.IsSettlementPoisoned)
+                    break;
+            }
+
+            Assert.IsTrue(afterFifteenthPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterFifteenthPoison.IsSettlementRetrying);
+            Assert.IsTrue(afterFifteenthPoison.PendingSettlementCount >= 2);
+            Assert.AreEqual(15, afterFifteenthPoison.ConsumedDepositCount);
+            Assert.AreEqual(15, afterFifteenthPoison.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(15, afterFifteenthPoison.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(15, afterFifteenthPoison.KnownInboundNonceCount);
+            Assert.IsNotNull(afterFifteenthPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterFifteenthPoison.Recovery.ArtifactContentHash);
+            var fifteenthBlocked = afterFifteenthPoison.Recovery.BlockedBatchNumber!.Value;
+            var fifteenthHash = afterFifteenthPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(fifteenthBlocked, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(fifteenthBlocked, fifteenthHash).GetAwaiter().GetResult();
+            var afterFifteenthRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterFifteenthRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterFifteenthRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterFifteenthRecover.Recovery.State);
+            Assert.AreEqual(0, afterFifteenthRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.AreEqual(2UL, afterFifteenthRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(15, afterFifteenthRecover.ConsumedDepositCount);
+            Assert.AreEqual(15, afterFifteenthRecover.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(15, afterFifteenthRecover.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(15, afterFifteenthRecover.KnownInboundNonceCount);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsTrue(host.GetRpcWithdrawalProof(fifteenthWdLeaf) is { Length: > 0 });
+            Assert.IsTrue(host.GetRpcMessageProof(fifteenthOutbound.MessageHash) is { Length: > 0 });
+            Assert.IsTrue(afterFifteenthRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterFifteenthRecover.IsOperatorReady);
+            var fifteenthPoisonPath = Path.Combine(chainDir, "soft-seal-fifteenth-poison-recover.json");
+            File.WriteAllText(fifteenthPoisonPath, $$"""
+                {
+                  "fifteenthPoisonBlockedBatch": {{fifteenthBlocked}},
+                  "pendingSettlementCount": {{afterFifteenthRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterFifteenthRecover.LatestCheckpointBatchNumber}},
+                  "consumedDepositCount": {{afterFifteenthRecover.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterFifteenthRecover.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterFifteenthRecover.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterFifteenthRecover.KnownInboundNonceCount}},
+                  "rpcBatch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "rpcBatch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "fifteenthWithdrawalProofPresent": true,
+                  "fifteenthMessageProofPresent": true,
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(fifteenthPoisonPath));
+            StringAssert.Contains(File.ReadAllText(fifteenthPoisonPath), "\"rpcBatch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(fifteenthPoisonPath), "\"consumedDepositCount\": 15");
+            StringAssert.Contains(File.ReadAllText(fifteenthPoisonPath), "\"messageOutboxL2ToL1Count\": 15");
+            StringAssert.Contains(File.ReadAllText(fifteenthPoisonPath), "\"isSettlementRetrying\": true");
+
+            
+            // SubmitNext after fifteenth recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);

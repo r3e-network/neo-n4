@@ -6055,11 +6055,88 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(File.Exists(eighteenthOutboundRpcPath));
             StringAssert.Contains(File.ReadAllText(eighteenthOutboundRpcPath), "\"outboundMessageHash\": \"" + eighteenthOutbound.MessageHash + "\"");
 
-            // SubmitNext after seventeenth recover remains best-effort; does not clear pending without funded L1.
+            // Eighteenth poison→recover after octodecuple soft multi-batch path retains soft state.
+            LocalHostOperatorStatus afterEighteenthPoison = afterEighteenthOutbound;
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                try
+                {
+                    host.ReconcileAsync().GetAwaiter().GetResult();
+                }
+                catch (OverflowException)
+                {
+                }
+                catch (Exception)
+                {
+                }
+
+                host.SubmitNextAsync().GetAwaiter().GetResult();
+                afterEighteenthPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+                if (afterEighteenthPoison.IsSettlementPoisoned)
+                    break;
+            }
+
+            Assert.IsTrue(afterEighteenthPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterEighteenthPoison.IsSettlementRetrying);
+            Assert.IsTrue(afterEighteenthPoison.PendingSettlementCount >= 2);
+            Assert.AreEqual(18, afterEighteenthPoison.ConsumedDepositCount);
+            Assert.AreEqual(18, afterEighteenthPoison.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(18, afterEighteenthPoison.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(18, afterEighteenthPoison.KnownInboundNonceCount);
+            Assert.IsNotNull(afterEighteenthPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterEighteenthPoison.Recovery.ArtifactContentHash);
+            var eighteenthBlocked = afterEighteenthPoison.Recovery.BlockedBatchNumber!.Value;
+            var eighteenthHash = afterEighteenthPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(eighteenthBlocked, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(eighteenthBlocked, eighteenthHash).GetAwaiter().GetResult();
+            var afterEighteenthRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterEighteenthRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterEighteenthRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterEighteenthRecover.Recovery.State);
+            Assert.AreEqual(0, afterEighteenthRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.AreEqual(2UL, afterEighteenthRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(18, afterEighteenthRecover.ConsumedDepositCount);
+            Assert.AreEqual(18, afterEighteenthRecover.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(18, afterEighteenthRecover.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(18, afterEighteenthRecover.KnownInboundNonceCount);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsTrue(host.GetRpcWithdrawalProof(eighteenthWdLeaf) is { Length: > 0 });
+            Assert.IsTrue(host.GetRpcMessageProof(eighteenthOutbound.MessageHash) is { Length: > 0 });
+            Assert.IsTrue(afterEighteenthRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterEighteenthRecover.IsOperatorReady);
+            var eighteenthPoisonPath = Path.Combine(chainDir, "soft-seal-eighteenth-poison-recover.json");
+            File.WriteAllText(eighteenthPoisonPath, $$"""
+                {
+                  "eighteenthPoisonBlockedBatch": {{eighteenthBlocked}},
+                  "pendingSettlementCount": {{afterEighteenthRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterEighteenthRecover.LatestCheckpointBatchNumber}},
+                  "consumedDepositCount": {{afterEighteenthRecover.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterEighteenthRecover.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterEighteenthRecover.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterEighteenthRecover.KnownInboundNonceCount}},
+                  "rpcBatch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "rpcBatch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "eighteenthWithdrawalProofPresent": true,
+                  "eighteenthMessageProofPresent": true,
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(eighteenthPoisonPath));
+            StringAssert.Contains(File.ReadAllText(eighteenthPoisonPath), "\"rpcBatch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(eighteenthPoisonPath), "\"consumedDepositCount\": 18");
+            StringAssert.Contains(File.ReadAllText(eighteenthPoisonPath), "\"messageOutboxL2ToL1Count\": 18");
+            StringAssert.Contains(File.ReadAllText(eighteenthPoisonPath), "\"isSettlementRetrying\": true");
+
+            // SubmitNext after eighteenth recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
-            // Gateway multi-batch backlog still independent after seventeenth recover / SubmitNext.
+            // Gateway multi-batch backlog still independent after eighteenth recover / SubmitNext.
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
         }
         finally

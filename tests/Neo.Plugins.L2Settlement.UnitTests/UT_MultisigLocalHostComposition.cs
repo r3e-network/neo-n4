@@ -5381,6 +5381,111 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(File.Exists(afterFifteenthRecoverPromPath));
             Assert.AreEqual(afterFifteenthRecoverProm, File.ReadAllText(afterFifteenthRecoverPromPath));
 
+            // Sixteenth offline withdrawal/outbox + FI/inbound after fifteenth recover (no L1).
+            var sixteenthSender = Account(0xcc);
+            var sixteenthL2Asset = UInt160.Parse("0x" + new string('2', 40));
+            var sixteenthWdLeaf = host.StageWithdrawal(new WithdrawalRequest
+            {
+                ChainId = 20260716u,
+                EmittingContract = sixteenthSender,
+                L2Sender = sixteenthSender,
+                L1Recipient = sixteenthSender,
+                L2Asset = sixteenthL2Asset,
+                Amount = new BigInteger(100),
+                Nonce = 16,
+            });
+            Assert.AreNotEqual(UInt256.Zero, sixteenthWdLeaf);
+            var sixteenthSealedWd = host.SealWithdrawalBatch();
+            Assert.AreNotEqual(UInt256.Zero, sixteenthSealedWd.Root);
+            Assert.AreEqual(0, host.StagedWithdrawalCount);
+            Assert.IsTrue(sixteenthSealedWd.Tree.Count >= 1);
+            var sixteenthMerkle = sixteenthSealedWd.Tree.GetProof(sixteenthSealedWd.Tree.Count - 1);
+            Assert.AreEqual(sixteenthWdLeaf, sixteenthMerkle.Leaf);
+            var sixteenthWdProofBytes = MerkleProofSerializer.Encode(sixteenthMerkle);
+            Assert.IsTrue(sixteenthWdProofBytes.Length >= MerkleProofSerializer.HeaderSize);
+            host.RecordRpcWithdrawalProof(sixteenthWdLeaf, sixteenthWdProofBytes);
+            CollectionAssert.AreEqual(
+                sixteenthWdProofBytes,
+                host.GetRpcWithdrawalProof(sixteenthWdLeaf)!.Value.ToArray());
+            var sixteenthOutboundDraft = new CrossChainMessage
+            {
+                SourceChainId = 20260716u,
+                TargetChainId = 0,
+                Nonce = 32,
+                Sender = sixteenthSender,
+                Receiver = sixteenthSender,
+                MessageType = MessageType.Event,
+                Payload = new byte[] { 0x10 },
+                MessageHash = UInt256.Zero,
+            };
+            var sixteenthOutbound = sixteenthOutboundDraft with
+            {
+                MessageHash = MessageHasher.HashMessage(sixteenthOutboundDraft),
+            };
+            host.EnqueueOutboundMessagesAsync([sixteenthOutbound]).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(16, host.MessageOutbox!.L2ToL1Count);
+            var sixteenthMsgProofBytes = sixteenthOutbound.MessageHash.GetSpan().ToArray();
+            host.RecordRpcMessageProof(sixteenthOutbound.MessageHash, sixteenthMsgProofBytes);
+            CollectionAssert.AreEqual(
+                sixteenthMsgProofBytes,
+                host.GetRpcMessageProof(sixteenthOutbound.MessageHash)!.Value.ToArray());
+            host.RecordMessageRouterFinalizedProof(sixteenthOutbound.MessageHash, sixteenthMsgProofBytes);
+            CollectionAssert.AreEqual(
+                sixteenthMsgProofBytes,
+                host.GetMessageRouterProofAsync(sixteenthOutbound.MessageHash).AsTask().GetAwaiter().GetResult()!.Value.ToArray());
+            Assert.IsTrue(host.RegisterForcedInclusionNonce(34));
+            Assert.IsFalse(host.RegisterForcedInclusionNonce(34));
+            Assert.AreEqual(16, host.KnownForcedInclusionNonceCount);
+            Assert.IsTrue(host.RegisterInboundMessageNonce(34));
+            Assert.IsFalse(host.RegisterInboundMessageNonce(34));
+            Assert.AreEqual(16, host.KnownInboundNonceCount);
+            Assert.AreEqual(0, host.OpenBatchForcedInclusionCount);
+            Assert.AreEqual(0, host.OpenBatchL1MessageCount);
+            var afterSixteenthOutbound = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(16, afterSixteenthOutbound.ConsumedDepositCount);
+            Assert.AreEqual(16, afterSixteenthOutbound.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(16, afterSixteenthOutbound.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(16, afterSixteenthOutbound.KnownInboundNonceCount);
+            Assert.IsTrue(afterSixteenthOutbound.IsSettlementRetrying);
+            Assert.IsTrue(afterSixteenthOutbound.PendingSettlementCount >= 2);
+            Assert.AreEqual(2UL, afterSixteenthOutbound.LatestCheckpointBatchNumber);
+            var sixteenthOutboundPath = Path.Combine(chainDir, "soft-seal-after-fifteenth-recover-sixteenth-outbound.json");
+            File.WriteAllText(sixteenthOutboundPath, $$"""
+                {
+                  "consumedDepositCount": {{afterSixteenthOutbound.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterSixteenthOutbound.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterSixteenthOutbound.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterSixteenthOutbound.KnownInboundNonceCount}},
+                  "withdrawalLeaf": "{{sixteenthWdLeaf}}",
+                  "outboundMessageHash": "{{sixteenthOutbound.MessageHash}}",
+                  "withdrawalProofBytes": {{sixteenthWdProofBytes.Length}},
+                  "messageProofBytes": {{sixteenthMsgProofBytes.Length}},
+                  "latestCheckpointBatchNumber": {{afterSixteenthOutbound.LatestCheckpointBatchNumber}},
+                  "pendingSettlementCount": {{afterSixteenthOutbound.PendingSettlementCount}},
+                  "isSettlementRetrying": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(sixteenthOutboundPath));
+            StringAssert.Contains(File.ReadAllText(sixteenthOutboundPath), "\"messageOutboxL2ToL1Count\": 16");
+            StringAssert.Contains(File.ReadAllText(sixteenthOutboundPath), "\"knownForcedInclusionNonceCount\": 16");
+            StringAssert.Contains(File.ReadAllText(sixteenthOutboundPath), "\"consumedDepositCount\": 16");
+            var sixteenthOutboundRpcPath = Path.Combine(chainDir, "soft-seal-after-fifteenth-recover-sixteenth-outbound-rpc.json");
+            File.WriteAllText(sixteenthOutboundRpcPath, $$"""
+                {
+                  "withdrawalLeaf": "{{sixteenthWdLeaf}}",
+                  "outboundMessageHash": "{{sixteenthOutbound.MessageHash}}",
+                  "withdrawalProofBytes": {{sixteenthWdProofBytes.Length}},
+                  "messageProofBytes": {{sixteenthMsgProofBytes.Length}},
+                  "messageOutboxL2ToL1Count": 16,
+                  "knownForcedInclusionNonceCount": 16,
+                  "knownInboundNonceCount": 16,
+                  "consumedDepositCount": 16,
+                  "isSettlementRetrying": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(sixteenthOutboundRpcPath));
+            StringAssert.Contains(File.ReadAllText(sixteenthOutboundRpcPath), "\"outboundMessageHash\": \"" + sixteenthOutbound.MessageHash + "\"");
+
             // SubmitNext after fifteenth recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);

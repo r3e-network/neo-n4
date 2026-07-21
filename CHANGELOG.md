@@ -5,6 +5,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tested — Neo N3 testnet session20 reverify + SharedBridge deposit n21 — 2026-07-21
+
+- Re-ran `neo-hub-deploy deploy-testnet` (skip-existing): **24/24 deploy reused**,
+  **29/29 postdeploy reused**, **42/42 smoke ok** against magic `894710606`
+  (`https://n3seed1.ngd.network:20332/`).
+- CLI `--fraud-replay-domain` must be on-chain **raw wire** bytes
+  (`0xf1e2d3c4…1100`); report `ToString` may display the reversed form.
+- Live SharedBridge Deposit **nonce 21** HALT (`0x56e06c9d…291e`, 0.001 GAS,
+  `WitnessScope.Global`, Transfer + DepositEnqueued); `getDeposit` confirmed.
+- Chain `20260716` still active (securityLevel=3, daMode=0); TokenRegistry GAS/NEO
+  active; ForcedInclusion production-ready; fixed bridge still independent of legacy
+  registry pointer.
+- Evidence: `docs/audit/testnet-deployment-20260721-session20-reverify.json`,
+  `docs/audit/testnet-evidence-status-2026-07-21-session20.json`.
+- WIF only via process env `NEO_N4_TESTNET_WIF` (not committed). Funded gates still open:
+  L1 settle, Zk prove-batch, production DA, 2-of-2 bridge retarget, full Neo.CLI stack.
+
+### Changed — SoftSeal after fourteenth-recover DA + fifteenth offline deposit — 2026-07-21
+
+- Multisig/Optimistic unit + E2E SoftSeal: after fourteenth poison→recover, re-publish
+  local DA for sealed batches 1+2 (reader round-trip), process a fifteenth offline
+  deposit (nonce 15, `IncludedInBatch=2`, `ConsumedDepositCount=15`) while settle
+  remains `Retrying` with pending≥2, outbox/FI/inbound known still 14, passport
+  complete; host Prometheus scrape + status/probe durable files.
+- Durable `soft-seal-after-fourteenth-recover-da-deposit.json` +
+  `soft-seal-after-fourteenth-recover-host.prom`. E2E helper
+  `AssertSoftSealAfterFourteenthRecoverDaAndFifteenthDeposit`.
+- No wire/ABI change. L1 deposit scan / production DA / settle remain funded.
+
 ### Changed — SoftSeal fourteenth poison→recover multi-state retention — 2026-07-21
 
 - Multisig/Optimistic unit + E2E SoftSeal: after full soft multi-batch path (quattuordecuple

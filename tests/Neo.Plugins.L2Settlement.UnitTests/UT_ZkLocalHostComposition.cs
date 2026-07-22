@@ -372,6 +372,7 @@ public sealed class UT_ZkLocalHostComposition
             Assert.AreEqual(1, host.MessageOutbox!.L2ToL1Count);
             Assert.AreNotEqual(UInt256.Zero, host.MessageOutboxL2ToL1Root);
             Assert.IsFalse(string.IsNullOrWhiteSpace(host.ExportPrometheusMetrics()));
+            Assert.IsNotNull(host.CaptureMetricsSnapshot());
             Assert.IsNotNull(host.BatchProver);
             Assert.IsTrue(host.HasBatchProver);
             var statusPath = Path.Combine(chainDir, "operator-status.json");

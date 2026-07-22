@@ -854,6 +854,14 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(1UL, status.LastAcknowledgedBatchNumber);
             Assert.IsFalse(status.IsSettlementIdle);
             Assert.AreEqual(ProofType.Optimistic, status.ProofType);
+            // Operator surface: settlement tip advanced without batcher seal advance → misaligned.
+            Assert.IsFalse(status.IsBatcherCheckpointAligned);
+            Assert.IsFalse(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
+            var pipelineFailures = host.GetPipelineHealthFailuresAsync().AsTask().GetAwaiter().GetResult();
+            CollectionAssert.Contains(
+                pipelineFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
+            Assert.IsFalse(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
 
             var pinPath = Path.Combine(chainDir, "soft-offline-persist-backfill.json");
             File.WriteAllText(pinPath, $$"""
@@ -863,12 +871,14 @@ public sealed class UT_OptimisticLocalHostComposition
                   "latestCheckpointBatchNumber": {{status.LatestCheckpointBatchNumber}},
                   "batcherLastAcknowledgedBatchNumber": {{status.LastAcknowledgedBatchNumber}},
                   "nextExpectedBlock": {{status.NextExpectedBlock}},
+                  "isBatcherCheckpointAligned": false,
                   "persistBackfill": true,
                   "getLatestCheckpointAsync": "fail-closed-mock-l1"
                 }
                 """);
             Assert.IsTrue(File.Exists(pinPath));
             StringAssert.Contains(File.ReadAllText(pinPath), "\"persistBackfill\": true");
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"isBatcherCheckpointAligned\": false");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"proofType\": \"Optimistic\"");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"batcherLastAcknowledgedBatchNumber\": 1");

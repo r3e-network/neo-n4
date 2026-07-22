@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Soft backfill batcher/checkpoint misalignment ops signal + Zk metrics snapshot — 2026-07-23
+
+- Multisig EnqueueAsync + Optimistic PersistAsync soft offline backfill: pin
+  `IsBatcherCheckpointAligned=false`, `IsBatcherCheckpointAlignedAsync=false`, pipeline
+  health failure `IsBatcherCheckpointAligned`, and `IsPipelineHealthyAsync=false` when
+  settlement tip advances without batcher tip (operator misalignment surface).
+- Zk: pin `CaptureMetricsSnapshot` offline (Multisig/Optimistic parity).
+- Wire/ABI unchanged. Re-aligning batcher tip via seal or L1 settle remains operator/funded path.
+
 ### Changed — LocalHost PersistAsync backfill + GetLatestCheckpointAsync offline fail-closed — 2026-07-23
 
 - Optimistic: `SoftOffline_PersistAsync_BackfillsSettlementWithoutAdvancingBatcher` pins host

@@ -892,6 +892,14 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(2UL, status.LatestCheckpointBatchNumber);
             Assert.AreEqual(1UL, status.LastAcknowledgedBatchNumber);
             Assert.IsFalse(status.IsSettlementIdle);
+            // Operator surface: settlement tip advanced without batcher seal advance → misaligned.
+            Assert.IsFalse(status.IsBatcherCheckpointAligned);
+            Assert.IsFalse(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
+            var pipelineFailures = host.GetPipelineHealthFailuresAsync().AsTask().GetAwaiter().GetResult();
+            CollectionAssert.Contains(
+                pipelineFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
+            Assert.IsFalse(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
 
             var pinPath = Path.Combine(chainDir, "soft-offline-enqueue-backfill.json");
             File.WriteAllText(pinPath, $$"""
@@ -900,11 +908,13 @@ public sealed class UT_MultisigLocalHostComposition
                   "latestCheckpointBatchNumber": {{status.LatestCheckpointBatchNumber}},
                   "batcherLastAcknowledgedBatchNumber": {{status.LastAcknowledgedBatchNumber}},
                   "nextExpectedBlock": {{status.NextExpectedBlock}},
+                  "isBatcherCheckpointAligned": false,
                   "enqueueBackfill": true
                 }
                 """);
             Assert.IsTrue(File.Exists(pinPath));
             StringAssert.Contains(File.ReadAllText(pinPath), "\"enqueueBackfill\": true");
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"isBatcherCheckpointAligned\": false");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"batcherLastAcknowledgedBatchNumber\": 1");
         }

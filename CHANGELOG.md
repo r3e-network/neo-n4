@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after twentieth-recover twenty-first outbound + FI/RPC — 2026-07-22
+
+- Multisig/Optimistic unit + E2E SoftSeal: after twentieth recover + twenty-first deposit,
+  pin twenty-first withdrawal seal + L2→L1 outbox enqueue (`MessageOutboxL2ToL1Count=21`),
+  twenty-first FI/inbound nonces (known=21), and RPC withdrawal/message/router proofs
+  while settle remains `Retrying` with multi-batch pending≥2 and tip=2.
+- Durable `soft-seal-after-twentieth-recover-twenty-first-outbound.json` +
+  `-rpc.json` + status/probe. E2E helper
+  `AssertSoftSealAfterTwentiethRecoverTwentyFirstOutboundAndFi`.
+- No wire/ABI change. L1 claim / FI drain / settle remain funded.
+
 ### Changed — SoftSeal after twentieth-recover DA + twenty-first offline deposit — 2026-07-22
 
 - Multisig/Optimistic unit + E2E SoftSeal: after twentieth poison→recover, re-publish

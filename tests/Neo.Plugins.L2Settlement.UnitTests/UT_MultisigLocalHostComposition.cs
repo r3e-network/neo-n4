@@ -1692,6 +1692,61 @@ public sealed class UT_MultisigLocalHostComposition
         }
     }
 
+    /// <summary>
+    /// Multisig Open rejects Optimistic settlement config fail-closed (mode-only Open gate).
+    /// </summary>
+    [TestMethod]
+    public void Open_OptimisticSettlementConfig_FailsClosed()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-msig-host-opt-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(chainDir, "chain.config.json"), """
+                {
+                  "chainId": 20260716,
+                  "proofType": "Optimistic",
+                  "securityLevel": "Optimistic",
+                  "daMode": "Local",
+                  "sequencerModel": "DbftCommittee",
+                  "exitModel": "Permissionless",
+                  "gatewayEnabled": true,
+                  "permissionlessExit": true,
+                  "validators": []
+                }
+                """);
+            NeoHubDeployReport.Load(reportPath).WriteOperatorArtifacts(chainDir);
+            File.WriteAllText(Path.Combine(chainDir, "genesis-manifest.json"), """
+                { "chainId": 20260716, "initialStateRoot": "0x1111111111111111111111111111111111111111111111111111111111111111" }
+                """);
+            RewriteProofType(chainDir, "Neo.Plugins.L2Settlement", (byte)ProofType.Optimistic);
+            RewriteProofType(chainDir, "Neo.Plugins.L2Prover", (byte)ProofType.Optimistic);
+
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+                MultisigLocalHostComposition.Open(
+                    chainDir,
+                    new StubExecutor(),
+                    SampleSigners(),
+                    new StubSigner(Account(0x55))));
+            StringAssert.Contains(ex.Message, "Multisig");
+            StringAssert.Contains(ex.Message, "Optimistic");
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
     private static void MaterializeMultisigChain(string chainDir, string reportPath)
     {
         var validatorA = new KeyPair(Enumerable.Range(3, 32).Select(i => (byte)i).ToArray()).PublicKey;

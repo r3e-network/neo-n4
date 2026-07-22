@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Multisig Open Optimistic fail-closed + Gateway OpenMultisig metrics HTTP — 2026-07-23
+
+- Multisig LocalHost: `Open_OptimisticSettlementConfig_FailsClosed` (mode-only Open rejects
+  Optimistic settlement config; completes Multisig/Optimistic/Zk cross-mode fail-closed).
+- Gateway: `OpenMultisig_StartMetricsHttp_WiresReadyzAndHealthprobe` (OpenMultisig +
+  `metricsPlugin` → deferred `StartMetricsHttp` / `/readyz` / `/healthprobe` / stop; ops
+  parity with OpenMerkle).
+- Wire/ABI unchanged. PublishAggregate / funded L1 remain operator gates.
+
 ### Changed — Zk LocalHost Open metrics HTTP + Optimistic fail-closed parity — 2026-07-23
 
 - Close Multisig/Optimistic/Zk ops composition-root gap for Zk Open:

@@ -529,6 +529,109 @@ public sealed class UT_GatewayHostComposition
         }
     }
 
+    /// <summary>
+    /// OpenMultisig + metricsPlugin: StartMetricsHttp wires /readyz + /healthprobe
+    /// (ops parity with OpenMerkle; no funded L1 publish).
+    /// </summary>
+    [TestMethod]
+    public async Task OpenMultisig_StartMetricsHttp_WiresReadyzAndHealthprobe()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-host-msig-metrics-" + Guid.NewGuid().ToString("N"));
+        var gwConfigDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        var metricsConfigDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Metrics");
+        Directory.CreateDirectory(gwConfigDir);
+        Directory.CreateDirectory(metricsConfigDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(gwConfigDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            File.WriteAllText(Path.Combine(metricsConfigDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "BindAddress": "127.0.0.1",
+                    "Port": 0,
+                    "MaxConcurrentConnections": 8
+                  }
+                }
+                """);
+            File.WriteAllText(Path.Combine(dir, "l1.deployed.json"), $$"""
+                {
+                  "rpc": "https://l1.example/",
+                  "network": 894710606,
+                  "settlementManager": "{{SettlementManager}}",
+                  "messageRouter": "{{MessageRouter}}"
+                }
+                """);
+
+            var keys = Enumerable.Range(1, 2).Select(i =>
+            {
+                var priv = new byte[32];
+                for (var j = 0; j < 32; j++) priv[j] = (byte)(i + j);
+                return (ECCurve.Secp256r1.G * priv, priv);
+            }).ToList();
+            var signers = new InMemorySignerSet(keys);
+            var prover = new DelegatingGatewayProofProver(
+                proofSystem: 1,
+                aggregationBackendId: MultisigRoundProver.ConstBackendId,
+                proofFactory: static (_, _, _) => ValueTask.FromResult<ReadOnlyMemory<byte>>(
+                    new byte[] { 0x02 }));
+
+            using var metricsPlugin = L2MetricsPlugin.CreateFromChainDirectory(dir);
+            using var host = GatewayHostComposition.OpenMultisig(
+                dir,
+                signers,
+                threshold: 2,
+                prover,
+                new StubSigner(),
+                UInt256.Parse("0x" + new string('d', 64)),
+                UInt256.Parse("0x" + new string('e', 64)),
+                metricsPlugin: metricsPlugin);
+
+            Assert.IsTrue(host.HasMetricsPlugin);
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.AreEqual(
+                MultisigRoundProver.ConstBackendId,
+                ((BinaryTreeAggregator)host.Gateway.Aggregator).RoundProver.BackendId);
+
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+            Assert.IsTrue(host.IsGatewayHostHealthy);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
+
+            using var client = new HttpClient();
+            var ready = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/readyz");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, ready.StatusCode);
+            var healthprobe = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/healthprobe");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, healthprobe.StatusCode);
+            var probeBody = await healthprobe.Content.ReadAsStringAsync();
+            StringAssert.Contains(probeBody, "isOfflinePassportComplete");
+            StringAssert.Contains(probeBody, "hasMetricsOperatorStatus");
+
+            var status = host.GetOperatorStatus();
+            Assert.IsTrue(status.HasMetricsPlugin);
+            Assert.IsTrue(status.IsMetricsHttpHealthy);
+            Assert.IsTrue(status.IsGatewayHostHealthy);
+
+            host.StopMetricsHttp();
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.AreEqual(0, host.MetricsBoundPort);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [TestMethod]
     public void OpenSp1_CreatesQueueAndPublicationProfile()
     {

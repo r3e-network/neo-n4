@@ -673,6 +673,10 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(status.IsMetricsHttpHealthy);
             Assert.IsTrue(status.IsLocalHostHealthy);
             Assert.AreEqual(ProofType.Optimistic, status.ProofType);
+
+            host.StopMetricsHttp();
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.AreEqual(0, host.MetricsBoundPort);
         }
         finally
         {

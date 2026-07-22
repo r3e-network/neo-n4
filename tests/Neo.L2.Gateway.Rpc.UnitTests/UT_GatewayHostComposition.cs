@@ -685,6 +685,101 @@ public sealed class UT_GatewayHostComposition
         }
     }
 
+    /// <summary>
+    /// OpenSp1 + metricsPlugin: StartMetricsHttp wires /readyz + /healthprobe
+    /// (ops parity with OpenMerkle/OpenMultisig; no funded L1 publish / SP1 prove).
+    /// </summary>
+    [TestMethod]
+    public async Task OpenSp1_StartMetricsHttp_WiresReadyzAndHealthprobe()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "neo-n4-gw-host-sp1-metrics-" + Guid.NewGuid().ToString("N"));
+        var gwConfigDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Gateway");
+        var metricsConfigDir = Path.Combine(dir, "Plugins", "Neo.Plugins.L2Metrics");
+        Directory.CreateDirectory(gwConfigDir);
+        Directory.CreateDirectory(metricsConfigDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(gwConfigDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "MaxAutomaticRetries": 3
+                  }
+                }
+                """);
+            File.WriteAllText(Path.Combine(metricsConfigDir, "config.json"), """
+                {
+                  "PluginConfiguration": {
+                    "Enabled": true,
+                    "BindAddress": "127.0.0.1",
+                    "Port": 0,
+                    "MaxConcurrentConnections": 8
+                  }
+                }
+                """);
+            File.WriteAllText(Path.Combine(dir, "l1.deployed.json"), $$"""
+                {
+                  "rpc": "https://l1.example/",
+                  "network": 894710606,
+                  "settlementManager": "{{SettlementManager}}",
+                  "messageRouter": "{{MessageRouter}}"
+                }
+                """);
+
+            var vk = UInt256.Parse("0x" + new string('a', 64));
+            using var metricsPlugin = L2MetricsPlugin.CreateFromChainDirectory(dir);
+            using var host = GatewayHostComposition.OpenSp1(
+                dir,
+                vk,
+                new StubSigner(),
+                UInt256.Parse("0x" + new string('d', 64)),
+                vk,
+                resultTimeout: TimeSpan.FromSeconds(5),
+                pollInterval: TimeSpan.FromMilliseconds(10),
+                metricsPlugin: metricsPlugin);
+
+            Assert.IsTrue(host.HasMetricsPlugin);
+            Assert.IsTrue(host.OwnsProofProver);
+            Assert.IsInstanceOfType(host.ProofProver, typeof(Sp1GatewayProofProver));
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.AreEqual(
+                Sp1GatewayProofProver.RecursiveAggregationBackendId,
+                ((BinaryTreeAggregator)host.Gateway.Aggregator).RoundProver.BackendId);
+
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+            Assert.IsTrue(host.IsGatewayHostHealthy);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
+
+            using var client = new HttpClient();
+            var ready = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/readyz");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, ready.StatusCode);
+            var healthprobe = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/healthprobe");
+            Assert.AreEqual(System.Net.HttpStatusCode.OK, healthprobe.StatusCode);
+            var probeBody = await healthprobe.Content.ReadAsStringAsync();
+            StringAssert.Contains(probeBody, "isOfflinePassportComplete");
+            StringAssert.Contains(probeBody, "hasMetricsOperatorStatus");
+            StringAssert.Contains(probeBody, "chainDirectory");
+
+            var status = host.GetOperatorStatus();
+            Assert.IsTrue(status.HasMetricsPlugin);
+            Assert.IsTrue(status.IsMetricsHttpHealthy);
+            Assert.IsTrue(status.IsGatewayHostHealthy);
+            Assert.AreEqual(host.ChainDirectory, status.ChainDirectory);
+
+            host.StopMetricsHttp();
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.AreEqual(0, host.MetricsBoundPort);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
     private sealed class StubSigner : INeoTransactionSigner
     {
         public UInt160 Account { get; } = UInt160.Parse("0x" + new string('c', 40));

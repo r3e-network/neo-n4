@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Gateway OpenSp1 metrics HTTP + LocalHost StopMetricsHttp ops parity — 2026-07-23
+
+- Gateway: `OpenSp1_StartMetricsHttp_WiresReadyzAndHealthprobe` completes OpenMerkle /
+  OpenMultisig / OpenSp1 metrics HTTP ops surface (`StartMetricsHttp` → `/readyz` +
+  `/healthprobe` + `StopMetricsHttp`; no funded L1 publish / SP1 prove).
+- Optimistic + Zk LocalHost `Open_StartMetricsHttp_ReadyzOk`: pin `StopMetricsHttp`
+  lifecycle (already covered on Multisig).
+- Wire/ABI unchanged. PublishAggregate / funded L1 / Zk SoftSeal remain operator gates.
+
 ### Changed — Multisig Open Optimistic fail-closed + Gateway OpenMultisig metrics HTTP — 2026-07-23
 
 - Multisig LocalHost: `Open_OptimisticSettlementConfig_FailsClosed` (mode-only Open rejects

@@ -729,6 +729,10 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(status.IsLocalHostHealthy);
             Assert.AreEqual(ProofType.Zk, status.ProofType);
             Assert.IsFalse(status.SupportsLocalDaReader);
+
+            host.StopMetricsHttp();
+            Assert.IsFalse(host.IsMetricsHttpListening);
+            Assert.AreEqual(0, host.MetricsBoundPort);
         }
         finally
         {

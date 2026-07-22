@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after twenty-first-recover DA + twenty-second offline deposit — 2026-07-22
+
+- Multisig/Optimistic unit + E2E SoftSeal: after twenty-first poison→recover, re-publish
+  local DA for sealed batches 1+2 (reader round-trip), process a twenty-second offline
+  deposit (nonce 22, `IncludedInBatch=2`, `ConsumedDepositCount=22`) while settle
+  remains `Retrying` with pending≥2, outbox/FI/inbound known still 21, passport
+  complete; host Prometheus scrape + status/probe durable files.
+- Durable `soft-seal-after-twenty-first-recover-da-deposit.json` +
+  `soft-seal-after-twenty-first-recover-host.prom`. E2E helper
+  `AssertSoftSealAfterTwentyFirstRecoverDaAndTwentySecondDeposit`.
+- No wire/ABI change. L1 deposit scan / production DA / settle remain funded.
+
 ### Tested — RISC-V VM + neo-zkvm local verification — 2026-07-22
 
 - Re-verified PolkaVM `neo-riscv-host` + SP1-path `neo-zkvm` local gates on master

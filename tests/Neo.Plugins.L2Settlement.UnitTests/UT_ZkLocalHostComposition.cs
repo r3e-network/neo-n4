@@ -734,6 +734,12 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(status.IsLocalHostHealthy);
             Assert.AreEqual(ProofType.Zk, status.ProofType);
             Assert.IsFalse(status.SupportsLocalDaReader);
+            // Idle settle helpers (no pending artifacts; Multisig ReadyzOk parity).
+            Assert.AreEqual(0, await host.GetPendingCountAsync());
+            await host.ReconcileAsync();
+            await host.SubmitNextAsync();
+            Assert.AreEqual(0, await host.GetPendingCountAsync());
+            Assert.IsTrue(await host.IsSettlementRuntimeIdleAsync());
 
             host.StopMetricsHttp();
             Assert.IsFalse(host.IsMetricsHttpListening);

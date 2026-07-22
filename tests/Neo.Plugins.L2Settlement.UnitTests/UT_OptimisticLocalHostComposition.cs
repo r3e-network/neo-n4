@@ -9,6 +9,7 @@ using Neo.L2.Executor.ProofWitness;
 using Neo.L2.Gateway.Rpc;
 using Neo.L2.Persistence;
 using Neo.L2.Proving;
+using Neo.L2.Sequencer;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.State;
 using Neo.Network.P2P.Payloads;
@@ -678,6 +679,12 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(status.IsMetricsHttpHealthy);
             Assert.IsTrue(status.IsLocalHostHealthy);
             Assert.AreEqual(ProofType.Optimistic, status.ProofType);
+            // Idle settle helpers (no pending artifacts; Multisig ReadyzOk parity).
+            Assert.AreEqual(0, await host.GetPendingCountAsync());
+            await host.ReconcileAsync();
+            await host.SubmitNextAsync();
+            Assert.AreEqual(0, await host.GetPendingCountAsync());
+            Assert.IsTrue(await host.IsSettlementRuntimeIdleAsync());
 
             host.StopMetricsHttp();
             Assert.IsFalse(host.IsMetricsHttpListening);
@@ -740,6 +747,116 @@ public sealed class UT_OptimisticLocalHostComposition
                     new StubSigner(Account(0x55))));
             StringAssert.Contains(ex.Message, "Optimistic");
             StringAssert.Contains(ex.Message, "Zk");
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Soft offline settlement backfill (Optimistic): after seal batch 1 via ProcessCommittedBlock,
+    /// <see cref="LocalHostCompositionBase.EnqueueAsync"/> persists batch 2 without advancing
+    /// the batcher tip. Does not claim L1 settle (funded gate).
+    /// </summary>
+    [TestMethod]
+    public void SoftOffline_EnqueueAsync_BackfillsSettlementWithoutAdvancingBatcher()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-opt-enqueue-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeOptimisticChain(chainDir, reportPath);
+            RewriteMaxBlocksPerBatch(chainDir, 1);
+            using var http = CanonicalRootHttpClient();
+            var key = new KeyPair(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray());
+            using var host = OptimisticLocalHostComposition.Open(
+                chainDir,
+                new SoftPassThroughExecutor(),
+                key,
+                UInt160.Parse("0x" + new string('b', 40)),
+                UInt256.Parse("0x" + new string('c', 64)),
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http,
+                submittedAtUnixMs: static () => 1_700_000_000_000UL);
+
+            var ts1 = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            host.ProcessCommittedBlock(1, ts1, 894710606, Array.Empty<byte[]>());
+            Assert.AreEqual(1, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
+            Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
+            Assert.AreEqual(2UL, host.NextExpectedBlock);
+            Assert.AreEqual(2UL, host.NextBatchNumber);
+            Assert.IsFalse(host.TryRetryPendingSealedBatch());
+
+            var committeeHash =
+                SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir)();
+            Assert.IsFalse(committeeHash.Equals(UInt256.Zero));
+
+            var postRoot = host.EnqueueAsync(new SealedBatch(
+                chainId: 20260716u,
+                batchNumber: 2,
+                firstBlock: 2,
+                lastBlock: 2,
+                preStateRoot: SoftPassThroughExecutor.PostStateRoot,
+                transactions: Array.Empty<ReadOnlyMemory<byte>>(),
+                l1Messages: Array.Empty<CrossChainMessage>(),
+                blockContext: new BatchBlockContext
+                {
+                    L1FinalizedHeight = 1,
+                    FirstBlockTimestamp = ts1 + 1,
+                    LastBlockTimestamp = ts1 + 1,
+                    SequencerCommitteeHash = committeeHash,
+                    Network = 894710606,
+                })).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, postRoot);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+
+            var tip = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsNotNull(tip);
+            Assert.AreEqual(2UL, tip!.BatchNumber);
+            Assert.AreEqual(2UL, tip.LastBlock);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, tip.PostStateRoot);
+
+            Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
+            Assert.AreEqual(1UL, host.LastAcknowledgedBlock);
+            Assert.AreEqual(2UL, host.NextExpectedBlock);
+            Assert.AreEqual(2UL, host.NextBatchNumber);
+            Assert.IsFalse(host.HasPendingSealedBatch);
+            Assert.IsFalse(host.TryRetryPendingSealedBatch());
+
+            var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(status.PendingSettlementCount >= 2);
+            Assert.AreEqual(2UL, status.LatestCheckpointBatchNumber);
+            Assert.AreEqual(1UL, status.LastAcknowledgedBatchNumber);
+            Assert.IsFalse(status.IsSettlementIdle);
+            Assert.AreEqual(ProofType.Optimistic, status.ProofType);
+
+            var pinPath = Path.Combine(chainDir, "soft-offline-enqueue-backfill.json");
+            File.WriteAllText(pinPath, $$"""
+                {
+                  "proofType": "Optimistic",
+                  "settlementPending": {{status.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{status.LatestCheckpointBatchNumber}},
+                  "batcherLastAcknowledgedBatchNumber": {{status.LastAcknowledgedBatchNumber}},
+                  "nextExpectedBlock": {{status.NextExpectedBlock}},
+                  "enqueueBackfill": true
+                }
+                """);
+            Assert.IsTrue(File.Exists(pinPath));
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"enqueueBackfill\": true");
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"proofType\": \"Optimistic\"");
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"latestCheckpointBatchNumber\": 2");
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"batcherLastAcknowledgedBatchNumber\": 1");
         }
         finally
         {

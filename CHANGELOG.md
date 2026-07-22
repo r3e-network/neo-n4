@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Optimistic EnqueueAsync settlement backfill + idle settle helpers on ReadyzOk — 2026-07-23
+
+- Optimistic: `SoftOffline_EnqueueAsync_BackfillsSettlementWithoutAdvancingBatcher` (parity with
+  Multisig — settlement tip 2 / pending≥2 while batcher tip stays at 1).
+- Optimistic + Zk `Open_StartMetricsHttp_ReadyzOk`: pin idle `ReconcileAsync` /
+  `SubmitNextAsync` / `IsSettlementRuntimeIdleAsync` (Multisig ReadyzOk settle-helpers parity).
+- Wire/ABI unchanged. L1 settle after multi-pending remains a funded gate.
+
 ### Changed — LocalHost EnqueueAsync settlement backfill + SnapshotBridgeAssets parity — 2026-07-23
 
 - Multisig: `SoftOffline_EnqueueAsync_BackfillsSettlementWithoutAdvancingBatcher` pins host

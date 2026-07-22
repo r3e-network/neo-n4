@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal twenty-first poison→recover multi-state retention — 2026-07-22
+
+- Multisig/Optimistic unit + E2E SoftSeal: after full soft multi-batch path (unvigintuple
+  deposit/outbox/FI-inbound + RPC proofs), re-escalate mock L1 failures until
+  **twenty-first** `Poisoned`, then RecoverPoisonedBatch; pins pending≥2, tip=2, unvigintuple
+  deposits, unvigintuple outbox, unvigintuple FI/inbound known, Finalized RPC batch 1+2, and
+  twenty-first withdrawal/message proofs still present.
+- After twentieth recover, RetryCount resets — tests loop Reconcile/SubmitNext until
+  Poisoned. Durable `soft-seal-twenty-first-poison-recover.json` + status/probe.
+  E2E helper `AssertSoftSealTwentyFirstPoisonRecoverRetention`.
+- No wire/ABI change. L1 settle for multi-pending batches remains a funded gate.
+
 ### Changed — SoftSeal after twentieth-recover twenty-first outbound + FI/RPC — 2026-07-22
 
 - Multisig/Optimistic unit + E2E SoftSeal: after twentieth recover + twenty-first deposit,

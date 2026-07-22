@@ -306,6 +306,8 @@ public sealed class UT_OptimisticLocalHostComposition
                 Active = true,
             });
             Assert.AreEqual(1, host.BridgeAssetCount);
+            Assert.AreEqual(1, host.SnapshotBridgeAssets().Count);
+            Assert.AreEqual(l2Asset, host.SnapshotBridgeAssets()[0].L2Asset);
             var depositPayload = new DepositPayload
             {
                 L1Asset = l1Asset,

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost EnqueueAsync settlement backfill + SnapshotBridgeAssets parity — 2026-07-23
+
+- Multisig: `SoftOffline_EnqueueAsync_BackfillsSettlementWithoutAdvancingBatcher` pins host
+  `EnqueueAsync` durable settlement backfill after seal batch 1 (settlement tip 2 / pending≥2
+  while batcher tip stays at 1; `TryRetryPendingSealedBatch` false). No funded L1 settle.
+- Optimistic/Zk: pin `SnapshotBridgeAssets` after offline `RegisterBridgeAsset`.
+- Wire/ABI unchanged. L1 settle after multi-pending enqueue remains a funded gate.
+
 ### Changed — LocalHost ScanAndProcessReadyDeposits offline + Gateway OpenMultisig backend fail-closed — 2026-07-23
 
 - Multisig/Optimistic/Zk LocalHost: pin offline `ScanAndProcessReadyDepositsAsync` +

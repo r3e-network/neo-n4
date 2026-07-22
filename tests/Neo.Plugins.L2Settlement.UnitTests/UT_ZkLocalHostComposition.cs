@@ -596,6 +596,222 @@ public sealed class UT_ZkLocalHostComposition
         }
     }
 
+    /// <summary>
+    /// Zk Open composition root: deferred <see cref="LocalHostCompositionBase.StartMetricsHttp"/>
+    /// + <see cref="LocalHostCompositionBase.CreateRpcPlugin"/> (ops parity with Multisig/Optimistic).
+    /// </summary>
+    [TestMethod]
+    public void Open_DeferredStartMetricsHttp_And_CreateRpcPlugin()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-zk-host-deferred-metrics-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        var exeRoot = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-zk-exec-deferred-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(exeRoot);
+        try
+        {
+            var genesisRoot = MaterializeZkChain(chainDir, reportPath);
+            var exePath = Path.Combine(exeRoot, "neo-zkvm-executor");
+            File.WriteAllBytes(exePath, [0x0C, 0x0D]);
+            var sha = SHA256.HashData(File.ReadAllBytes(exePath));
+            var da = new RecordingProductionDaWriter();
+
+            using var http = CanonicalRootHttpClient(genesisRoot);
+            using var host = ZkLocalHostComposition.Open(
+                chainDir,
+                exePath,
+                sha,
+                Hash(0x7B),
+                da,
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http);
+
+            Assert.AreEqual(0, host.MetricsBoundPort);
+            Assert.IsFalse(host.IsMetricsHttpListening);
+
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.IsTrue(host.IsProductionWired);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+            Assert.AreEqual(ProofType.Zk, host.ProofType);
+            Assert.IsFalse(host.SupportsLocalDaReader);
+
+            var rpcPlugin = host.CreateRpcPlugin();
+            Assert.IsNotNull(rpcPlugin);
+            Assert.IsFalse(rpcPlugin.IsRegistered(894710606));
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+            if (Directory.Exists(exeRoot))
+                Directory.Delete(exeRoot, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Zk Open with <c>startMetricsHttp: true</c> wires /readyz + /healthprobe
+    /// (ops composition root; no funded L1 / prove-batch).
+    /// </summary>
+    [TestMethod]
+    public async Task Open_StartMetricsHttp_ReadyzOk()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-zk-host-metrics-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        var exeRoot = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-zk-exec-metrics-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(exeRoot);
+        try
+        {
+            var genesisRoot = MaterializeZkChain(chainDir, reportPath);
+            var exePath = Path.Combine(exeRoot, "neo-zkvm-executor");
+            File.WriteAllBytes(exePath, [0x0E, 0x0F]);
+            var sha = SHA256.HashData(File.ReadAllBytes(exePath));
+            var da = new RecordingProductionDaWriter();
+
+            using var http = CanonicalRootHttpClient(genesisRoot);
+            using var host = ZkLocalHostComposition.Open(
+                chainDir,
+                exePath,
+                sha,
+                Hash(0x7C),
+                da,
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http,
+                startMetricsHttp: true,
+                metricsPortOverride: 0);
+
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.IsTrue(host.HasMetricsReadinessCheck);
+            Assert.IsTrue(host.HasMetricsHealthProbe);
+            Assert.IsTrue(host.HasMetricsOperatorStatus);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+            Assert.IsTrue(await host.IsLocalHostHealthyAsync());
+
+            using var client = new HttpClient();
+            var ready = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/readyz");
+            Assert.AreEqual(HttpStatusCode.OK, ready.StatusCode);
+            var probeHttp = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/healthprobe");
+            Assert.AreEqual(HttpStatusCode.OK, probeHttp.StatusCode);
+            var probeBody = await probeHttp.Content.ReadAsStringAsync();
+            StringAssert.Contains(probeBody, "isOfflinePassportComplete");
+            StringAssert.Contains(probeBody, "\"proofType\":");
+            StringAssert.Contains(probeBody, "Zk");
+            StringAssert.Contains(probeBody, "hasMetricsHealthProbe");
+            StringAssert.Contains(probeBody, "\"supportsLocalDaReader\": false");
+
+            var status = await host.GetOperatorStatusAsync();
+            Assert.IsTrue(status.IsMetricsHttpHealthy);
+            Assert.IsTrue(status.IsLocalHostHealthy);
+            Assert.AreEqual(ProofType.Zk, status.ProofType);
+            Assert.IsFalse(status.SupportsLocalDaReader);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+            if (Directory.Exists(exeRoot))
+                Directory.Delete(exeRoot, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Zk Open rejects Optimistic settlement config fail-closed (mode-only Open gate).
+    /// </summary>
+    [TestMethod]
+    public void Open_OptimisticSettlementConfig_FailsClosed()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-zk-host-opt-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        var exeRoot = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-zk-exec-opt-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(exeRoot);
+        try
+        {
+            File.WriteAllText(Path.Combine(chainDir, "chain.config.json"), """
+                {
+                  "chainId": 20260716,
+                  "proofType": "Optimistic",
+                  "securityLevel": "Optimistic",
+                  "daMode": "Local",
+                  "sequencerModel": "DbftCommittee",
+                  "exitModel": "Permissionless",
+                  "gatewayEnabled": true,
+                  "permissionlessExit": true,
+                  "validators": []
+                }
+                """);
+            NeoHubDeployReport.Load(reportPath).WriteOperatorArtifacts(chainDir);
+            RewriteProofType(chainDir, "Neo.Plugins.L2Settlement", (byte)ProofType.Optimistic);
+            RewriteProofType(chainDir, "Neo.Plugins.L2Prover", (byte)ProofType.Optimistic);
+            File.WriteAllText(Path.Combine(chainDir, "genesis-manifest.json"), """
+                { "chainId": 20260716, "initialStateRoot": "0x1111111111111111111111111111111111111111111111111111111111111111" }
+                """);
+            var statePath = Path.Combine(chainDir, Sp1SettlementExecutionStack.RelativeStateDir);
+            Directory.CreateDirectory(statePath);
+            using (var seed = new RocksDbKeyValueStore(statePath))
+            {
+                seed.Put("k"u8, "v"u8);
+            }
+
+            var exePath = Path.Combine(exeRoot, "neo-zkvm-executor");
+            File.WriteAllBytes(exePath, [0x01]);
+            var sha = SHA256.HashData(File.ReadAllBytes(exePath));
+            var da = new RecordingProductionDaWriter();
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+                ZkLocalHostComposition.Open(
+                    chainDir,
+                    exePath,
+                    sha,
+                    Hash(0x55),
+                    da,
+                    new StubSigner(Account(0x55))));
+            StringAssert.Contains(ex.Message, "Zk");
+            StringAssert.Contains(ex.Message, "Optimistic");
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+            if (Directory.Exists(exeRoot))
+                Directory.Delete(exeRoot, recursive: true);
+        }
+    }
+
     [TestMethod]
     public void Open_MultisigSettlementConfig_FailsClosed()
     {

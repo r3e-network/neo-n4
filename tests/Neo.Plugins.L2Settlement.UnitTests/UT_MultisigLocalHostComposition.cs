@@ -919,6 +919,27 @@ public sealed class UT_MultisigLocalHostComposition
                 probe.PipelineHealthFailures.ToArray(),
                 nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
 
+            // Durable operator JSON writers still work offline while unhealthy (scrape/status files).
+            var statusJson = host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult();
+            StringAssert.Contains(statusJson, "\"isBatcherCheckpointAligned\": false");
+            StringAssert.Contains(statusJson, "\"isLocalHostHealthy\": false");
+            StringAssert.Contains(statusJson, "\"latestCheckpointBatchNumber\": 2");
+            var probeJson = host.FormatHealthProbeJson();
+            StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": false");
+            StringAssert.Contains(probeJson, "\"isLocalHostHealthy\": false");
+            var statusPath = Path.Combine(chainDir, "soft-offline-enqueue-operator-status.json");
+            host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(statusPath));
+            StringAssert.Contains(File.ReadAllText(statusPath), "\"isBatcherCheckpointAligned\": false");
+            var probePath = Path.Combine(chainDir, "soft-offline-enqueue-health-probe.json");
+            host.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(probePath));
+            StringAssert.Contains(File.ReadAllText(probePath), "\"isBatcherCheckpointAligned\": false");
+            var promPath = Path.Combine(chainDir, "soft-offline-enqueue-metrics.prom");
+            host.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
+            Assert.IsTrue(File.Exists(promPath));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(File.ReadAllText(promPath)));
+
             var pinPath = Path.Combine(chainDir, "soft-offline-enqueue-backfill.json");
             File.WriteAllText(pinPath, $$"""
                 {
@@ -929,6 +950,9 @@ public sealed class UT_MultisigLocalHostComposition
                   "isBatcherCheckpointAligned": false,
                   "isPipelineHealthy": false,
                   "isLocalHostHealthy": false,
+                  "operatorStatusJsonWritten": true,
+                  "healthProbeJsonWritten": true,
+                  "prometheusWritten": true,
                   "enqueueBackfill": true
                 }
                 """);
@@ -936,6 +960,7 @@ public sealed class UT_MultisigLocalHostComposition
             StringAssert.Contains(File.ReadAllText(pinPath), "\"enqueueBackfill\": true");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"isBatcherCheckpointAligned\": false");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"isLocalHostHealthy\": false");
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"operatorStatusJsonWritten\": true");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"batcherLastAcknowledgedBatchNumber\": 1");
         }

@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Soft backfill durable operator JSON/Prometheus writers while unhealthy — 2026-07-23
+
+- Multisig EnqueueAsync + Optimistic PersistAsync soft offline backfill: pin offline
+  `FormatOperatorStatusJsonAsync` / `FormatHealthProbeJson` contain misalignment flags, and
+  durable `WriteOperatorStatusAsync` / `WriteHealthProbeAsync` / `WritePrometheusMetricsAsync`
+  succeed while `IsLocalHostHealthy=false` (operator scrape/status files without funded L1).
+- Wire/ABI unchanged. Re-align via batcher seal or L1 settle remains operator/funded path.
+
 ### Changed — Soft backfill LocalHost health rollup + pre-align pin — 2026-07-23
 
 - Multisig EnqueueAsync + Optimistic PersistAsync soft offline backfill: after seal-1 pin

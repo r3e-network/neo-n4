@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Zk soft offline recording production-DA + SoftPassThroughExecutor shared fixture — 2026-07-23
+
+- Add shared `RecordingProductionDaWriter` (`Neo.L2.SoftSeal.TestSupport`) for offline
+  `IProductionDAWriter` publish/availability (no funded NeoFS/L1).
+- Zk unit: `SoftOffline_RecordingProductionDa_PublishAndAvailability` pins host
+  `PublishDaAsync` / `IsDaAvailableAsync`, `SupportsLocalDaReader=false`,
+  `CreateLocalDaReader` fail-closed, and SoftSeal `FromHost` reject for non-local DA.
+- Move `SoftPassThroughExecutor` into SoftSeal.TestSupport (single PostStateRoot 0x22);
+  drop private Multisig/Optimistic/E2E clones (divergent 0x22/0x33/0x44 fills).
+- Collapse `IMPLEMENTATION_STATUS` Host WireProduction cell (~13k → ~1.4k architecture note)
+  with explicit **code-complete** vs **funded** gates.
+- Wire/ABI unchanged. Zk SoftSeal multi-cycle / SP1 prove-batch / real production DA remain funded.
+
 ### Changed — Optimistic LocalHost ops Open parity (metrics HTTP + Zk fail-closed) — 2026-07-23
 
 - Close Multisig/Optimistic ops composition-root gap for Optimistic Open:

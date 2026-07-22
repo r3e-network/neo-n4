@@ -1494,45 +1494,6 @@ public sealed class UT_OptimisticLocalHostComposition
             => throw new NotSupportedException();
     }
 
-
-
-    private sealed class SoftPassThroughExecutor : IProofWitnessBatchExecutor
-    {
-        public static UInt256 PostStateRoot { get; } =
-            new(Enumerable.Repeat((byte)0x33, 32).ToArray());
-
-        public ValueTask<BatchExecutionResult> ApplyBatchAsync(
-            BatchExecutionRequest request,
-            CancellationToken cancellationToken = default)
-            => ValueTask.FromResult(BuildResult());
-
-        public ValueTask<ProofWitnessExecutionResult> ApplyBatchWithWitnessAsync(
-            SealedBatch batch,
-            CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(batch);
-            return ValueTask.FromResult(new ProofWitnessExecutionResult
-            {
-                ExecutionResult = BuildResult(),
-                ExecutionSemanticId = ExecutionSemanticIds.ReferenceNoOpV1,
-                WitnessAuthenticated = false,
-                StateWitness = ReadOnlyMemory<byte>.Empty,
-                Effects = new byte[] { 0x01 },
-            });
-        }
-
-        private static BatchExecutionResult BuildResult() => new()
-        {
-            PostStateRoot = PostStateRoot,
-            ReceiptRoot = UInt256.Zero,
-            WithdrawalRoot = UInt256.Zero,
-            L2ToL1MessageRoot = UInt256.Zero,
-            L2ToL2MessageRoot = UInt256.Zero,
-            TxRoot = UInt256.Zero,
-            GasConsumed = 0,
-        };
-    }
-
     private sealed class StubSigner(UInt160 account) : INeoTransactionSigner
     {
         public UInt160 Account { get; } = account;

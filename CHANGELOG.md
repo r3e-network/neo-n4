@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftSeal after twenty-second-recover DA + twenty-third offline deposit — 2026-07-22
+
+- Multisig/Optimistic unit + E2E SoftSeal: after twenty-second poison→recover, re-publish
+  local DA for sealed batches 1+2 (reader round-trip), process a twenty-third offline
+  deposit (nonce 23, `IncludedInBatch=2`, `ConsumedDepositCount=23`) while settle
+  remains `Retrying` with pending≥2, outbox/FI/inbound known still 22, passport
+  complete; host Prometheus scrape + status/probe durable files.
+- Durable `soft-seal-after-twenty-second-recover-da-deposit.json` +
+  `soft-seal-after-twenty-second-recover-host.prom`. E2E helper
+  `AssertSoftSealAfterTwentySecondRecoverDaAndTwentyThirdDeposit`.
+- No wire/ABI change. L1 deposit scan / production DA / settle remain funded.
+
 ### Changed — SoftSeal twenty-second poison→recover multi-state retention — 2026-07-22
 
 - Multisig/Optimistic unit + E2E SoftSeal: after full soft multi-batch path (duovigintuple

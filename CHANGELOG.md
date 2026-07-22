@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — LocalHostCompositionBase (kill Multisig/Optimistic/Zk triple clone) — 2026-07-23
+
+- Extract shared operator surface into `LocalHostCompositionBase` (~1.8k lines once):
+  batch/settlement/bridge/metrics/RPC/status/probe/passport/DA publish passthroughs.
+- Thin sealed hosts own only mode-private wiring:
+  - Multisig/Optimistic: `Open` + local `PersistentDAWriter` + `CreateLocalDaReader`
+  - Zk: `Open` + `Sp1SettlementExecutionStack` + durable state + host-supplied production DA
+- SoftSeal mapping collapses to `SoftSealMultiCycle.FromHost(LocalHostCompositionBase)`;
+  `FromMultisig`/`FromOptimistic` remain typed aliases. Zk SoftSeal still gated
+  (`SupportsLocalDaReader=false` / production DA).
+- Net: ~5.7k lines of near-identical host clones → ~2.4k shared+mode files. Wire/ABI unchanged.
+
 ### Refactored — SoftSeal host factories + STATUS SoftSeal wall cleanup — 2026-07-23
 
 - Move Multisig/Optimistic SoftSeal `HostSurface` mapping into

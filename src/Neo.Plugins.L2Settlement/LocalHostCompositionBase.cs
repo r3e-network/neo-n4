@@ -1,0 +1,1810 @@
+using Neo.L2;
+using Neo.L2.Batch;
+using Neo.L2.Bridge;
+using Neo.L2.Executor.ProofWitness;
+using Neo.L2.ForcedInclusion;
+using Neo.L2.Messaging;
+using Neo.L2.Persistence;
+using Neo.L2.Proving;
+using Neo.L2.Settlement.Rpc;
+using Neo.L2.Telemetry;
+using Neo.Plugins.L2Rpc;
+
+namespace Neo.Plugins.L2;
+
+/// <summary>
+/// Shared LocalHost composition surface for Multisig / Optimistic / Zk operator hosts.
+/// Mode-specific <c>Open</c> factories, typed DA writers, and ZK stack fields live on
+/// concrete subclasses so proof-mode wiring does not triplicate the operator API.
+/// </summary>
+/// <remarks>
+/// See doc.md §7.5 / §14.1 / §14.2. Holds chain-directory plugins + durable layout +
+/// WireProduction-facing passthroughs + metrics/RPC/status/probe helpers. Subclasses own
+/// DA backend policy (<see cref="SupportsLocalDaReader"/>) and disposal of mode-private
+/// resources. Dispose the composition (settlement first) before reopening the same RocksDB
+/// paths.
+/// </remarks>
+public abstract class LocalHostCompositionBase : IDisposable
+{
+    private bool _disposed;
+    private readonly IDAWriter _daWriter;
+
+    /// <summary>Shared constructor for mode-specific Open factories.</summary>
+    private protected LocalHostCompositionBase(
+        string chainDirectory,
+        L2BatchPlugin batch,
+        L2SettlementPlugin settlement,
+        L2SettlementStoreLayout layout,
+        L2ProverPlugin prover,
+        IDAWriter daWriter,
+        RpcForcedInclusionSource forcedInclusion,
+        L2BridgePlugin bridge,
+        L2MetricsPlugin metrics,
+        InMemoryL2RpcStore rpcStore)
+    {
+        ArgumentNullException.ThrowIfNull(daWriter);
+        ChainDirectory = chainDirectory;
+        Batch = batch;
+        Settlement = settlement;
+        Layout = layout;
+        Prover = prover;
+        _daWriter = daWriter;
+        ForcedInclusion = forcedInclusion;
+        Bridge = bridge;
+        Metrics = metrics;
+        RpcStore = rpcStore;
+    }
+
+    /// <summary>Absolute chain working directory.</summary>
+    public string ChainDirectory { get; }
+
+    /// <summary>Batch plugin with L1 inbox + sealed-batch sink wired.</summary>
+    public L2BatchPlugin Batch { get; }
+
+    /// <summary>Settlement plugin with production WireProduction stack.</summary>
+    public L2SettlementPlugin Settlement { get; }
+
+    /// <summary>Durable settlement RocksDB layout (dispose after Settlement).</summary>
+    public L2SettlementStoreLayout Layout { get; }
+
+    /// <summary>Wired <see cref="IL2Prover"/> host plugin.</summary>
+    public L2ProverPlugin Prover { get; }
+
+    /// <summary>Forced-inclusion source installed on the batch plugin.</summary>
+    public RpcForcedInclusionSource ForcedInclusion { get; }
+
+    /// <summary>
+    /// Bridge plugin with the same SharedBridge deposit source as the batcher L1 inbox
+    /// when production deposit wiring is active.
+    /// </summary>
+    public L2BridgePlugin Bridge { get; }
+
+    /// <summary>Shared metrics sink host (wired onto batch + settlement + bridge).</summary>
+    public L2MetricsPlugin Metrics { get; }
+
+    /// <summary>
+    /// Durable L2 RPC store under <c>data/rpc/proofs</c> (register with
+    /// <c>NeoSystem.AddService</c> before <c>L2RpcPlugin</c> methods).
+    /// </summary>
+    public InMemoryL2RpcStore RpcStore { get; }
+
+    /// <summary>Recover and process durable pending settlement artifacts.</summary>
+    public Task ReconcileAsync(CancellationToken cancellationToken = default)
+        => Settlement.ReconcileAsync(cancellationToken);
+
+    /// <summary>Process at most one durable pending artifact (best-effort).</summary>
+    public Task SubmitNextAsync(CancellationToken cancellationToken = default)
+        => Settlement.SubmitNextAsync(cancellationToken);
+
+    /// <summary>Count durable artifacts not yet finalized on L1.</summary>
+    public ValueTask<int> GetPendingCountAsync(CancellationToken cancellationToken = default)
+        => Settlement.GetPendingCountAsync(cancellationToken);
+
+    /// <summary>
+    /// Read durable pending / retry / poison state
+    /// (<see cref="L2SettlementPlugin.GetRecoveryStatusAsync"/>).
+    /// </summary>
+    public ValueTask<SettlementRecoveryStatus> GetRecoveryStatusAsync(
+        CancellationToken cancellationToken = default)
+        => Settlement.GetRecoveryStatusAsync(cancellationToken);
+
+    /// <summary>
+    /// Reset the exact poisoned batch after operator remediation
+    /// (<see cref="L2SettlementPlugin.RecoverPoisonedBatchAsync"/>).
+    /// </summary>
+    public Task RecoverPoisonedBatchAsync(
+        ulong batchNumber,
+        UInt256 artifactContentHash,
+        CancellationToken cancellationToken = default)
+        => Settlement.RecoverPoisonedBatchAsync(batchNumber, artifactContentHash, cancellationToken);
+
+    /// <summary>
+    /// Forced-inclusion nonces reserved in durable settlement state
+    /// (<see cref="L2SettlementPlugin.GetTrackedForcedInclusionNoncesAsync"/>).
+    /// </summary>
+    public ValueTask<IReadOnlyCollection<ulong>> GetTrackedForcedInclusionNoncesAsync(
+        uint chainId,
+        CancellationToken cancellationToken = default)
+        => Settlement.GetTrackedForcedInclusionNoncesAsync(chainId, cancellationToken);
+
+    /// <summary>
+    /// Latest sealed-batch checkpoint when present
+    /// (<see cref="L2SettlementPlugin.GetLatestCheckpointAsync"/>).
+    /// </summary>
+    public ValueTask<SealedBatchCheckpoint?> GetLatestCheckpointAsync(
+        CancellationToken cancellationToken = default)
+        => Settlement.GetLatestCheckpointAsync(cancellationToken);
+
+    /// <summary>
+    /// Durable local checkpoint only (no L1 refresh)
+    /// (<see cref="L2SettlementPlugin.GetLatestDurableCheckpointAsync"/>).
+    /// </summary>
+    public ValueTask<SealedBatchCheckpoint?> GetLatestDurableCheckpointAsync(
+        CancellationToken cancellationToken = default)
+        => Settlement.GetLatestDurableCheckpointAsync(cancellationToken);
+
+    /// <summary>
+    /// Pipeline initial state root (genesis / last finalized)
+    /// (<see cref="L2SettlementPlugin.GetInitialStateRootAsync"/>).
+    /// </summary>
+    public ValueTask<UInt256> GetInitialStateRootAsync(
+        CancellationToken cancellationToken = default)
+        => Settlement.GetInitialStateRootAsync(cancellationToken);
+
+    /// <summary>
+    /// Persist a sealed batch through the durable production settlement path
+    /// (<see cref="L2SettlementPlugin.PersistAsync"/>).
+    /// </summary>
+    public ValueTask<UInt256> PersistAsync(
+        SealedBatch batch,
+        CancellationToken cancellationToken = default)
+        => Settlement.PersistAsync(batch, cancellationToken);
+
+    /// <summary>
+    /// Backfill a sealed batch through the same durable path as
+    /// <see cref="PersistAsync"/> (<see cref="L2SettlementPlugin.EnqueueAsync"/>).
+    /// </summary>
+    public ValueTask<UInt256> EnqueueAsync(
+        SealedBatch batch,
+        CancellationToken cancellationToken = default)
+        => Settlement.EnqueueAsync(batch, cancellationToken);
+
+    /// <summary>
+    /// True after WireProduction installed the production composition
+    /// (<see cref="L2SettlementPlugin.IsProductionWired"/>).
+    /// </summary>
+    public bool IsProductionWired => Settlement.IsProductionWired;
+
+    /// <summary>
+    /// L2 chain id from the wired bridge / forced-inclusion inbox
+    /// (<see cref="L2BridgePlugin.ChainId"/>).
+    /// </summary>
+    public uint ChainId => Bridge.ChainId;
+
+    /// <summary>
+    /// Batcher plugin settings chain id
+    /// (<see cref="L2BatchPlugin.ConfiguredChainId"/>).
+    /// </summary>
+    public uint BatcherConfiguredChainId => Batch.ConfiguredChainId;
+
+    /// <summary>
+    /// Settlement plugin settings chain id
+    /// (<see cref="L2SettlementPlugin.ConfiguredChainId"/>).
+    /// </summary>
+    public uint SettlementConfiguredChainId => Settlement.ConfiguredChainId;
+
+    /// <summary>L2 chain id from the durable RPC store.</summary>
+    public uint RpcChainId => RpcStore.ChainId;
+
+    /// <summary>Configured proof type of the wired prover host.</summary>
+    public ProofType ProofType => Prover.Kind;
+
+    /// <summary>
+    /// Settlement plugin settings proof type
+    /// (<see cref="L2SettlementPlugin.ConfiguredProofType"/>).
+    /// </summary>
+    public ProofType SettlementConfiguredProofType => Settlement.ConfiguredProofType;
+
+    /// <summary>
+    /// True when bridge <see cref="ChainId"/> matches batcher, settlement, and RPC store chain ids.
+    /// </summary>
+    public bool IsChainIdConfigConsistent =>
+        ChainId == BatcherConfiguredChainId
+        && ChainId == SettlementConfiguredChainId
+        && ChainId == RpcChainId;
+
+    /// <summary>
+    /// True when host <see cref="ProofType"/> matches settlement configured proof type.
+    /// </summary>
+    public bool IsProofTypeConfigConsistent => ProofType == SettlementConfiguredProofType;
+
+    /// <summary>Local DA mode of the wired persistent DA writer.</summary>
+    public DAMode DaMode => _daWriter.Mode;
+
+    /// <summary>DA mode advertised by the durable L2 RPC store.</summary>
+    public DAMode RpcDaMode => RpcStore.DAMode;
+
+    /// <summary>
+    /// True when wired DA writer <see cref="DaMode"/> matches <see cref="RpcDaMode"/>.
+    /// </summary>
+    public bool IsDaModeConfigConsistent => DaMode == RpcDaMode;
+
+    /// <summary>
+    /// True when WireProduction installed the sealed-batch sink on the batcher
+    /// (<see cref="L2BatchPlugin.HasSealedBatchSink"/>).
+    /// </summary>
+    public bool HasSealedBatchSink => Batch.HasSealedBatchSink;
+
+    /// <summary>
+    /// Next L2 block index the batcher expects
+    /// (<see cref="L2BatchPlugin.NextExpectedBlock"/>).
+    /// </summary>
+    public ulong? NextExpectedBlock => Batch.NextExpectedBlock;
+
+    /// <summary>
+    /// True when a sealed batch awaits durable persistence
+    /// (<see cref="L2BatchPlugin.HasPendingSealedBatch"/>).
+    /// </summary>
+    public bool HasPendingSealedBatch => Batch.HasPendingSealedBatch;
+
+    /// <summary>
+    /// Sealed batch awaiting durable persistence, or null
+    /// (<see cref="L2BatchPlugin.PendingSealedBatch"/>).
+    /// </summary>
+    public SealedBatch? PendingSealedBatch => Batch.PendingSealedBatch;
+
+    /// <summary>
+    /// Pending sealed batch number, or null
+    /// (<see cref="L2BatchPlugin.PendingSealedBatchNumber"/>).
+    /// </summary>
+    public ulong? PendingSealedBatchNumber => Batch.PendingSealedBatchNumber;
+
+    /// <summary>
+    /// Last L2 block of the pending sealed batch, or null
+    /// (<see cref="L2BatchPlugin.PendingSealedBatchLastBlock"/>).
+    /// </summary>
+    public ulong? PendingSealedBatchLastBlock => Batch.PendingSealedBatchLastBlock;
+
+    /// <summary>
+    /// Whether the batcher is enabled in plugin settings
+    /// (<see cref="L2BatchPlugin.IsEnabled"/>).
+    /// </summary>
+    public bool IsBatcherEnabled => Batch.IsEnabled;
+
+    /// <summary>
+    /// Configured max L2 blocks per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxBlocksPerBatch"/>).
+    /// </summary>
+    public int MaxBlocksPerBatch => Batch.MaxBlocksPerBatch;
+
+    /// <summary>
+    /// Configured max transactions per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxTransactionsPerBatch"/>).
+    /// </summary>
+    public int MaxTransactionsPerBatch => Batch.MaxTransactionsPerBatch;
+
+    /// <summary>
+    /// Configured max open-batch age in milliseconds
+    /// (<see cref="L2BatchPlugin.MaxBatchAgeMillis"/>).
+    /// </summary>
+    public int MaxBatchAgeMillis => Batch.MaxBatchAgeMillis;
+
+    /// <summary>
+    /// True when a batch is currently being accumulated
+    /// (<see cref="L2BatchPlugin.HasOpenBatch"/>).
+    /// </summary>
+    public bool HasOpenBatch => Batch.HasOpenBatch;
+
+    /// <summary>
+    /// Wall-clock age of the open batch in milliseconds
+    /// (<see cref="L2BatchPlugin.OpenBatchAgeMillis"/>).
+    /// </summary>
+    public long? OpenBatchAgeMillis => Batch.OpenBatchAgeMillis;
+
+    /// <summary>
+    /// True when the open batch is at or past max age
+    /// (<see cref="L2BatchPlugin.IsOpenBatchPastMaxAge"/>).
+    /// </summary>
+    public bool IsOpenBatchPastMaxAge => Batch.IsOpenBatchPastMaxAge;
+
+    /// <summary>
+    /// Transaction count in the open batch
+    /// (<see cref="L2BatchPlugin.InProgressTxCount"/>).
+    /// </summary>
+    public int InProgressTxCount => Batch.InProgressTxCount;
+
+    /// <summary>
+    /// First L2 block in the open batch, or null
+    /// (<see cref="L2BatchPlugin.OpenBatchFirstBlock"/>).
+    /// </summary>
+    public ulong? OpenBatchFirstBlock => Batch.OpenBatchFirstBlock;
+
+    /// <summary>
+    /// Last L2 block in the open batch, or null
+    /// (<see cref="L2BatchPlugin.OpenBatchLastBlock"/>).
+    /// </summary>
+    public ulong? OpenBatchLastBlock => Batch.OpenBatchLastBlock;
+
+    /// <summary>
+    /// Block count in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchBlockCount"/>).
+    /// </summary>
+    public int OpenBatchBlockCount => Batch.OpenBatchBlockCount;
+
+    /// <summary>
+    /// L1 messages consumed into the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchL1MessageCount"/>).
+    /// </summary>
+    public int OpenBatchL1MessageCount => Batch.OpenBatchL1MessageCount;
+
+    /// <summary>
+    /// L2→L1 messages staged in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchL2ToL1MessageCount"/>).
+    /// </summary>
+    public int OpenBatchL2ToL1MessageCount => Batch.OpenBatchL2ToL1MessageCount;
+
+    /// <summary>
+    /// L2→L2 messages staged in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchL2ToL2MessageCount"/>).
+    /// </summary>
+    public int OpenBatchL2ToL2MessageCount => Batch.OpenBatchL2ToL2MessageCount;
+
+    /// <summary>
+    /// Forced-inclusion entries staged in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchForcedInclusionCount"/>).
+    /// </summary>
+    public int OpenBatchForcedInclusionCount => Batch.OpenBatchForcedInclusionCount;
+
+    /// <summary>
+    /// Withdrawals staged in the open batch
+    /// (<see cref="L2BatchPlugin.OpenBatchWithdrawalCount"/>).
+    /// </summary>
+    public int OpenBatchWithdrawalCount => Batch.OpenBatchWithdrawalCount;
+
+    /// <summary>
+    /// True when <see cref="CreateLocalDaReader"/> is available for this mode.
+    /// Multisig/Optimistic local DA return true; Zk production DA returns false.
+    /// </summary>
+    public abstract bool SupportsLocalDaReader { get; }
+
+    /// <summary>
+    /// Settlement settings include a non-empty L1 RPC endpoint
+    /// (<see cref="L2SettlementPlugin.HasL1RpcEndpoint"/>).
+    /// </summary>
+    public bool HasL1RpcEndpoint => Settlement.HasL1RpcEndpoint;
+
+    /// <summary>
+    /// Configured expected L1 network magic
+    /// (<see cref="L2SettlementPlugin.ExpectedNetwork"/>).
+    /// </summary>
+    public uint? ExpectedNetwork => Settlement.ExpectedNetwork;
+
+    /// <summary>
+    /// Settlement settings include SettlementManager hash
+    /// (<see cref="L2SettlementPlugin.HasSettlementManagerHash"/>).
+    /// </summary>
+    public bool HasSettlementManagerHash => Settlement.HasSettlementManagerHash;
+
+    /// <summary>
+    /// Settlement settings include ForcedInclusion hash
+    /// (<see cref="L2SettlementPlugin.HasForcedInclusionHash"/>).
+    /// </summary>
+    public bool HasForcedInclusionHash => Settlement.HasForcedInclusionHash;
+
+    /// <summary>
+    /// Settlement settings include SharedBridge hash
+    /// (<see cref="L2SettlementPlugin.HasSharedBridgeHash"/>).
+    /// </summary>
+    public bool HasSharedBridgeHash => Settlement.HasSharedBridgeHash;
+
+    /// <summary>
+    /// Settlement settings include MessageRouter hash
+    /// (<see cref="L2SettlementPlugin.HasMessageRouterHash"/>).
+    /// </summary>
+    public bool HasMessageRouterHash => Settlement.HasMessageRouterHash;
+
+    /// <summary>
+    /// Settlement settings include an explicit L2 bridge hash
+    /// (<see cref="L2SettlementPlugin.HasL2BridgeHash"/>).
+    /// </summary>
+    public bool HasL2BridgeHash => Settlement.HasL2BridgeHash;
+
+    /// <summary>
+    /// True when <see cref="MessageOutbox"/> is installed after WireProduction.
+    /// </summary>
+    public bool HasMessageOutbox => MessageOutbox is not null;
+
+    /// <summary>
+    /// Last batch number that completed durable persist + acknowledgement
+    /// (<see cref="L2BatchPlugin.LastAcknowledgedBatchNumber"/>).
+    /// </summary>
+    public ulong LastAcknowledgedBatchNumber => Batch.LastAcknowledgedBatchNumber;
+
+    /// <summary>
+    /// Last L2 block covered by the last acknowledged batch
+    /// (<see cref="L2BatchPlugin.LastAcknowledgedBlock"/>).
+    /// </summary>
+    public ulong LastAcknowledgedBlock => Batch.LastAcknowledgedBlock;
+
+    /// <summary>
+    /// Batch number that will be assigned to the next sealed batch
+    /// (<see cref="L2BatchPlugin.NextBatchNumber"/>).
+    /// </summary>
+    public ulong NextBatchNumber => Batch.NextBatchNumber;
+
+    /// <summary>
+    /// Subscribe to sealed-batch dispatch without Neo.CLI
+    /// (<see cref="L2BatchPlugin.OnBatchSealed"/>).
+    /// </summary>
+    public event EventHandler<SealedBatch>? OnBatchSealed
+    {
+        add => Batch.OnBatchSealed += value;
+        remove => Batch.OnBatchSealed -= value;
+    }
+
+    /// <summary>
+    /// Feed one committed L2 block into the durable batcher hand-off without Neo.CLI
+    /// (<see cref="L2BatchPlugin.ProcessCommittedBlock"/>).
+    /// </summary>
+    public void ProcessCommittedBlock(
+        uint blockIndex,
+        ulong blockTimestamp,
+        uint network,
+        IEnumerable<byte[]> rawTransactions)
+        => Batch.ProcessCommittedBlock(blockIndex, blockTimestamp, network, rawTransactions);
+
+    /// <summary>
+    /// Retry durable persistence of a pending sealed batch without a new L2 block
+    /// (<see cref="L2BatchPlugin.TryRetryPendingSealedBatch"/>).
+    /// </summary>
+    public bool TryRetryPendingSealedBatch() => Batch.TryRetryPendingSealedBatch();
+
+    /// <summary>
+    /// Operator readiness without Neo.CLI: production WireProduction + sealed-batch sink.
+    /// Minimal seal-path wiring; default metrics <c>/readyz</c> uses
+    /// <see cref="IsOfflinePassportComplete"/> (stricter offline passport).
+    /// </summary>
+    public bool IsOperatorReady => IsProductionWired && HasSealedBatchSink;
+
+    /// <summary>
+    /// Non-mutating view of ready SharedBridge deposits
+    /// (<see cref="L2BridgePlugin.PeekSharedBridgeDeposits"/>).
+    /// </summary>
+    public IReadOnlyList<CrossChainMessage> PeekSharedBridgeDeposits(int maxMessages)
+        => Bridge.PeekSharedBridgeDeposits(maxMessages);
+
+    /// <summary>
+    /// Proactively scan the wired SharedBridge deposit source for newly finalized L1 deposits
+    /// (<see cref="ISharedBridgeDepositSource.ScanAsync"/>). Returns 0 when no source is wired.
+    /// Live L1 discovery remains a funded RPC gate; offline mocks return 0.
+    /// </summary>
+    public ValueTask<int> ScanSharedBridgeDepositsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var source = DepositSource;
+        if (source is null)
+            return ValueTask.FromResult(0);
+        return source.ScanAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Scan then mint ready SharedBridge deposits not yet consumed by
+    /// <see cref="DepositProcessor"/> (peek-only on the deposit source).
+    /// </summary>
+    public async ValueTask<IReadOnlyList<MintInstruction>> ScanAndProcessReadyDepositsAsync(
+        int maxMessages = 64,
+        CancellationToken cancellationToken = default)
+    {
+        await ScanSharedBridgeDepositsAsync(cancellationToken).ConfigureAwait(false);
+        return ProcessReadyDeposits(maxMessages);
+    }
+
+    /// <summary>
+    /// True when any unconsumed forced-inclusion entry is past
+    /// <paramref name="nowUnixSeconds"/> (<see cref="IForcedInclusionSource.HasOverdueEntryAsync"/>).
+    /// Live L1 poll; for soft cache-only status use <see cref="HasOverdueForcedInclusionCached"/>.
+    /// </summary>
+    public ValueTask<bool> HasOverdueForcedInclusionAsync(
+        uint nowUnixSeconds,
+        CancellationToken cancellationToken = default)
+        => ForcedInclusion.HasOverdueEntryAsync(nowUnixSeconds, cancellationToken);
+
+    /// <summary>
+    /// Soft overdue check against the last FI drain cache only (no L1 scan).
+    /// When <paramref name="nowUnixSeconds"/> is null, uses UTC now.
+    /// </summary>
+    public bool HasOverdueForcedInclusionCached(uint? nowUnixSeconds = null)
+    {
+        var now = nowUnixSeconds
+            ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        return ForcedInclusion.HasOverdueCachedEntry(now);
+    }
+
+    /// <summary>
+    /// Aggregate local operator readiness (durable settlement + deposit peek + metrics)
+    /// without Neo.CLI or funded L1 traffic beyond stores already opened by WireProduction.
+    /// </summary>
+    /// <param name="depositPeekLimit">Max deposits counted via non-mutating peek (default 64).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="nowUnixSeconds">
+    /// Optional clock for forced-inclusion overdue checks; defaults to UTC now when null.
+    /// </param>
+    public async ValueTask<LocalHostOperatorStatus> GetOperatorStatusAsync(
+        int depositPeekLimit = 64,
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(depositPeekLimit);
+        var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var now = nowUnixSeconds
+            ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        // Soft cache-only overdue (no L1 scan); live poll remains HasOverdueForcedInclusionAsync.
+        var hasOverdueForcedInclusion = HasOverdueForcedInclusionCached(now);
+        var isBatcherCheckpointAligned = LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(
+            LastAcknowledgedBatchNumber, checkpoint?.BatchNumber);
+        var pipelineHealthFailures = LocalHostOperatorStatus.BuildPipelineHealthFailures(
+            IsOfflinePassportComplete,
+            IsPipelineEnabled,
+            HasPendingSealedBatch,
+            IsOpenBatchPastMaxAge,
+            isBatcherCheckpointAligned,
+            hasOverdueForcedInclusion,
+            pending,
+            recovery);
+        var metricsHttpHealthFailures = MetricsHttpHealthFailures;
+        var localHostHealthFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
+            pipelineHealthFailures, metricsHttpHealthFailures);
+        var tracked = await GetTrackedForcedInclusionNoncesAsync(ChainId, cancellationToken)
+            .ConfigureAwait(false);
+        var initialStateRoot = await GetInitialStateRootAsync(cancellationToken).ConfigureAwait(false);
+        var readyDeposits = PeekSharedBridgeDeposits(depositPeekLimit);
+        return new LocalHostOperatorStatus
+        {
+            ChainId = ChainId,
+            BatcherConfiguredChainId = BatcherConfiguredChainId,
+            SettlementConfiguredChainId = SettlementConfiguredChainId,
+            RpcChainId = RpcChainId,
+            ProofType = ProofType,
+            SettlementConfiguredProofType = SettlementConfiguredProofType,
+            IsChainIdConfigConsistent = IsChainIdConfigConsistent,
+            IsProofTypeConfigConsistent = IsProofTypeConfigConsistent,
+            DaMode = DaMode,
+            RpcDaMode = RpcDaMode,
+            IsDaModeConfigConsistent = IsDaModeConfigConsistent,
+            SecurityLevel = RpcStore.SecurityLevel,
+            GatewayEnabled = RpcStore.GatewayEnabled,
+            Sequencer = RpcStore.Sequencer,
+            Exit = RpcStore.Exit,
+            IsProductionWired = IsProductionWired,
+            HasSealedBatchSink = HasSealedBatchSink,
+            NextExpectedBlock = NextExpectedBlock,
+            HasPendingSealedBatch = HasPendingSealedBatch,
+            PendingSealedBatchNumber = PendingSealedBatchNumber,
+            PendingSealedBatchLastBlock = PendingSealedBatchLastBlock,
+            IsBatcherEnabled = IsBatcherEnabled,
+            MaxBlocksPerBatch = MaxBlocksPerBatch,
+            MaxTransactionsPerBatch = MaxTransactionsPerBatch,
+            MaxBatchAgeMillis = MaxBatchAgeMillis,
+            HasOpenBatch = HasOpenBatch,
+            OpenBatchAgeMillis = OpenBatchAgeMillis,
+            IsOpenBatchPastMaxAge = IsOpenBatchPastMaxAge,
+            InProgressTxCount = InProgressTxCount,
+            OpenBatchFirstBlock = OpenBatchFirstBlock,
+            OpenBatchLastBlock = OpenBatchLastBlock,
+            OpenBatchBlockCount = OpenBatchBlockCount,
+            OpenBatchL1MessageCount = OpenBatchL1MessageCount,
+            OpenBatchL2ToL1MessageCount = OpenBatchL2ToL1MessageCount,
+            OpenBatchL2ToL2MessageCount = OpenBatchL2ToL2MessageCount,
+            OpenBatchForcedInclusionCount = OpenBatchForcedInclusionCount,
+            OpenBatchWithdrawalCount = OpenBatchWithdrawalCount,
+            SupportsLocalDaReader = SupportsLocalDaReader,
+            HasL1RpcEndpoint = HasL1RpcEndpoint,
+            ExpectedNetwork = ExpectedNetwork,
+            HasSettlementManagerHash = HasSettlementManagerHash,
+            HasForcedInclusionHash = HasForcedInclusionHash,
+            HasSharedBridgeHash = HasSharedBridgeHash,
+            HasMessageRouterHash = HasMessageRouterHash,
+            HasL2BridgeHash = HasL2BridgeHash,
+            HasMessageOutbox = HasMessageOutbox,
+            ConsumedDepositCount = ConsumedDepositCount,
+            LastAcknowledgedBatchNumber = LastAcknowledgedBatchNumber,
+            LastAcknowledgedBlock = LastAcknowledgedBlock,
+            NextBatchNumber = NextBatchNumber,
+            IsOperatorReady = IsOperatorReady,
+            HasDepositSource = HasDepositSource,
+            HasMessageRouter = HasMessageRouter,
+            HasForcedInclusionFinalizer = HasForcedInclusionFinalizer,
+            HasSettlementClient = HasSettlementClient,
+            HasTransactionSender = HasTransactionSender,
+            L1InboxPendingCount = L1InboxPendingCount,
+            L1InboxConsumedCount = L1InboxConsumedCount,
+            KnownInboundNonceCount = KnownInboundNonceCount,
+            IsMetricsHttpListening = IsMetricsHttpListening,
+            MetricsBoundPort = MetricsBoundPort,
+            PendingSettlementCount = pending,
+            ReadyDepositCount = readyDeposits.Count,
+            LatestRpcStateRoot = GetLatestRpcStateRoot(),
+            BridgeAssetCount = Bridge.Registry.Count,
+            MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,
+            MessageOutboxL2ToL1Count = MessageOutbox?.L2ToL1Count ?? 0,
+            MessageOutboxL2ToL2Count = MessageOutbox?.L2ToL2Count ?? 0,
+            MessageOutboxL2ToL1Root = MessageOutboxL2ToL1Root,
+            MessageOutboxL2ToL2Root = MessageOutboxL2ToL2Root,
+            StagedWithdrawalCount = Bridge.WithdrawalProcessor.StagedCount,
+            Recovery = recovery,
+            TrackedForcedInclusionNonceCount = tracked.Count,
+            KnownForcedInclusionNonceCount = KnownForcedInclusionNonceCount,
+            HasOverdueForcedInclusion = hasOverdueForcedInclusion,
+            HasBatchForcedInclusionSource = HasBatchForcedInclusionSource,
+            HasBatchDepositSource = HasBatchDepositSource,
+            HasBatchMessageRouter = HasBatchMessageRouter,
+            MaxForcedTransactionsPerBatch = MaxForcedTransactionsPerBatch,
+            MaxL1MessagesPerBatch = MaxL1MessagesPerBatch,
+            MetricsMaxConcurrentConnections = MetricsMaxConcurrentConnections,
+            IsSettlementEnabled = IsSettlementEnabled,
+            IsPipelineEnabled = IsPipelineEnabled,
+            IsSettlementPoisoned = LocalHostOperatorStatus.IsSettlementPoisonedState(recovery),
+            IsSettlementRetrying = LocalHostOperatorStatus.IsSettlementRetryingState(recovery),
+            IsSettlementIdle = LocalHostOperatorStatus.IsSettlementRuntimeIdle(pending, recovery),
+            SettlementRetryCount = recovery.RetryCount,
+            SettlementConfirmationLagBatches = recovery.ConfirmationLagBatches,
+            IsPipelineHealthy = pipelineHealthFailures.Count == 0,
+            PipelineHealthFailures = pipelineHealthFailures,
+            IsMetricsHttpHealthy = metricsHttpHealthFailures.Count == 0,
+            MetricsHttpHealthFailures = metricsHttpHealthFailures,
+            IsLocalHostHealthy = localHostHealthFailures.Count == 0,
+            LocalHostHealthFailures = localHostHealthFailures,
+            L1FinalityDepth = L1FinalityDepth,
+            DepositSourceReadyCount = DepositSourceReadyCount,
+            DepositSourceReservedCount = DepositSourceReservedCount,
+            DepositSourceSoftConsumedCount = DepositSourceSoftConsumedCount,
+            IsMetricsEnabled = IsMetricsEnabled,
+            MetricsConfiguredPort = MetricsConfiguredPort,
+            MetricsBindAddress = MetricsBindAddress,
+            IsMetricsWiringComplete = IsMetricsWiringComplete,
+            HasMetricsReadinessCheck = HasMetricsReadinessCheck,
+            HasMetricsHealthProbe = HasMetricsHealthProbe,
+            HasMetricsOperatorStatus = HasMetricsOperatorStatus,
+            IsDepositPipelineWiringComplete = IsDepositPipelineWiringComplete,
+            IsMessagePipelineWiringComplete = IsMessagePipelineWiringComplete,
+            IsForcedInclusionPipelineWiringComplete = IsForcedInclusionPipelineWiringComplete,
+            IsSettlementClientWiringComplete = IsSettlementClientWiringComplete,
+            ForcedInclusionDeploymentHeight = ForcedInclusionDeploymentHeight,
+            SharedBridgeDeploymentHeight = SharedBridgeDeploymentHeight,
+            MessageRouterDeploymentHeight = MessageRouterDeploymentHeight,
+            IsNeoHubHashWiringComplete = IsNeoHubHashWiringComplete,
+            IsBatcherInboxWiringComplete = IsBatcherInboxWiringComplete,
+            IsSecurityLevelProofTypeConsistent = IsSecurityLevelProofTypeConsistent,
+            IsSecurityLevelDaModeConsistent = IsSecurityLevelDaModeConsistent,
+            HasExpectedNetwork = HasExpectedNetwork,
+            HasScannerDeployHeights = HasScannerDeployHeights,
+            IsOfflinePassportComplete = IsOfflinePassportComplete,
+            OfflinePassportFailures = OfflinePassportFailures,
+            HasBatchProver = HasBatchProver,
+            LatestCheckpointBatchNumber = checkpoint?.BatchNumber,
+            LatestCheckpointLastBlock = checkpoint?.LastBlock,
+            LatestCheckpointPostStateRoot = checkpoint?.PostStateRoot ?? UInt256.Zero,
+            IsBatcherCheckpointAligned = isBatcherCheckpointAligned,
+            InitialStateRoot = initialStateRoot,
+        };
+    }
+
+    /// <summary>
+    /// Pipeline-only health failure names (offline passport + enablement + batcher/settlement
+    /// runtime) without metrics HTTP. Soft FI clock via <paramref name="nowUnixSeconds"/>;
+    /// no L1 settle claim.
+    /// </summary>
+    public async ValueTask<IReadOnlyList<string>> GetPipelineHealthFailuresAsync(
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var now = nowUnixSeconds
+            ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        return LocalHostOperatorStatus.BuildPipelineHealthFailures(
+            IsOfflinePassportComplete,
+            IsPipelineEnabled,
+            HasPendingSealedBatch,
+            IsOpenBatchPastMaxAge,
+            LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(
+                LastAcknowledgedBatchNumber, checkpoint?.BatchNumber),
+            HasOverdueForcedInclusionCached(now),
+            pending,
+            recovery);
+    }
+
+    /// <summary>
+    /// True when <see cref="GetPipelineHealthFailuresAsync"/> is empty (pipeline only;
+    /// metrics HTTP may still be down).
+    /// </summary>
+    public async ValueTask<bool> IsPipelineHealthyAsync(
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var failures = await GetPipelineHealthFailuresAsync(cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        return failures.Count == 0;
+    }
+
+    /// <summary>
+    /// Batcher last-acked batch aligns with durable settlement checkpoint (local artifacts).
+    /// Light probe; not an L1 settle claim.
+    /// </summary>
+    public async ValueTask<bool> IsBatcherCheckpointAlignedAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(
+            LastAcknowledgedBatchNumber, checkpoint?.BatchNumber);
+    }
+
+    /// <summary>
+    /// Local settlement queue idle (pending + recovery). Light probe without a full status
+    /// document; does not claim L1 settle confirmation.
+    /// </summary>
+    public async ValueTask<bool> IsSettlementRuntimeIdleAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        return LocalHostOperatorStatus.IsSettlementRuntimeIdle(pending, recovery);
+    }
+
+    /// <summary>
+    /// Local durable recovery is poisoned. Light probe; not an L1 settle claim.
+    /// </summary>
+    public async ValueTask<bool> IsSettlementPoisonedAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        return LocalHostOperatorStatus.IsSettlementPoisonedState(recovery);
+    }
+
+    /// <summary>
+    /// Local durable recovery is retrying. Light probe; not an L1 settle claim.
+    /// </summary>
+    public async ValueTask<bool> IsSettlementRetryingAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        return LocalHostOperatorStatus.IsSettlementRetryingState(recovery);
+    }
+
+    /// <summary>
+    /// Local host health failure names (pipeline + metrics HTTP) without a full status document.
+    /// Soft FI clock via <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public async ValueTask<IReadOnlyList<string>> GetLocalHostHealthFailuresAsync(
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var pipeline = await GetPipelineHealthFailuresAsync(cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        return LocalHostOperatorStatus.BuildLocalHostHealthFailures(
+            pipeline, MetricsHttpHealthFailures);
+    }
+
+    /// <summary>
+    /// True when <see cref="GetLocalHostHealthFailuresAsync"/> is empty.
+    /// </summary>
+    public async ValueTask<bool> IsLocalHostHealthyAsync(
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var failures = await GetLocalHostHealthFailuresAsync(cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        return failures.Count == 0;
+    }
+
+    /// <summary>
+    /// Latest finalized L2 state root from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetLatestStateRoot"/>).
+    /// </summary>
+    public UInt256 GetLatestRpcStateRoot() => RpcStore.GetLatestStateRoot();
+
+    /// <summary>
+    /// State root at a finalized RPC batch number
+    /// (<see cref="InMemoryL2RpcStore.GetStateRootAtBatch"/>).
+    /// </summary>
+    public UInt256 GetRpcStateRootAtBatch(ulong batchNumber)
+        => RpcStore.GetStateRootAtBatch(batchNumber);
+
+    /// <summary>
+    /// Record a sealed batch into the host RPC store for L2 RPC without Neo.CLI
+    /// (<see cref="InMemoryL2RpcStore.AddBatch"/>).
+    /// </summary>
+    public void AddRpcBatch(L2BatchCommitment commitment, BatchStatus status)
+        => RpcStore.AddBatch(commitment, status);
+
+    /// <summary>
+    /// Mark a batch finalized in the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.Finalize"/>).
+    /// </summary>
+    public void FinalizeRpcBatch(ulong batchNumber) => RpcStore.Finalize(batchNumber);
+
+    /// <summary>
+    /// Record an L1 deposit status into the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.RecordDeposit"/>).
+    /// </summary>
+    public void RecordRpcDeposit(DepositStatus status) => RpcStore.RecordDeposit(status);
+
+    /// <summary>
+    /// Query L1 deposit status from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetL1DepositStatus"/>).
+    /// </summary>
+    public DepositStatus? GetRpcL1DepositStatus(uint sourceChainId, ulong nonce)
+        => RpcStore.GetL1DepositStatus(sourceChainId, nonce);
+
+    /// <summary>
+    /// Query a batch commitment from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetBatch"/>).
+    /// </summary>
+    public L2BatchCommitment? GetRpcBatch(ulong batchNumber) => RpcStore.GetBatch(batchNumber);
+
+    /// <summary>
+    /// Query batch status from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetBatchStatus"/>).
+    /// </summary>
+    public BatchStatus GetRpcBatchStatus(ulong batchNumber) => RpcStore.GetBatchStatus(batchNumber);
+
+    /// <summary>
+    /// Register an L1↔L2 asset mapping in the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.RegisterAsset"/>).
+    /// </summary>
+    public void RegisterRpcAsset(UInt160 l1Asset, UInt160 l2Asset)
+        => RpcStore.RegisterAsset(l1Asset, l2Asset);
+
+    /// <summary>
+    /// Resolve L1 asset for an L2 token from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetCanonicalAsset"/>).
+    /// </summary>
+    public UInt160? GetRpcCanonicalAsset(UInt160 l2Asset) => RpcStore.GetCanonicalAsset(l2Asset);
+
+    /// <summary>
+    /// Resolve L2 token for an L1 asset from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetBridgedAsset"/>).
+    /// </summary>
+    public UInt160? GetRpcBridgedAsset(UInt160 l1Asset) => RpcStore.GetBridgedAsset(l1Asset);
+
+    /// <summary>
+    /// Record a withdrawal inclusion proof in the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.RecordWithdrawalProof"/>).
+    /// </summary>
+    public void RecordRpcWithdrawalProof(UInt256 leafHash, byte[] proofBytes)
+        => RpcStore.RecordWithdrawalProof(leafHash, proofBytes);
+
+    /// <summary>
+    /// Record a message inclusion proof in the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.RecordMessageProof"/>).
+    /// </summary>
+    public void RecordRpcMessageProof(UInt256 messageHash, byte[] proofBytes)
+        => RpcStore.RecordMessageProof(messageHash, proofBytes);
+
+    /// <summary>
+    /// Query a withdrawal inclusion proof from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetWithdrawalProof"/>).
+    /// </summary>
+    public ReadOnlyMemory<byte>? GetRpcWithdrawalProof(UInt256 leafHash)
+        => RpcStore.GetWithdrawalProof(leafHash);
+
+    /// <summary>
+    /// Query a message inclusion proof from the host RPC store
+    /// (<see cref="InMemoryL2RpcStore.GetMessageProof"/>).
+    /// </summary>
+    public ReadOnlyMemory<byte>? GetRpcMessageProof(UInt256 messageHash)
+        => RpcStore.GetMessageProof(messageHash);
+
+    /// <summary>
+    /// Local MessageRouter outbox when WireProduction installed a router; null otherwise
+    /// (<see cref="RpcMessageRouter.Outbox"/>).
+    /// </summary>
+    public L2Outbox? MessageOutbox => MessageRouter?.Outbox;
+
+    /// <summary>
+    /// Current L2→L1 message-tree root from the local outbox, or zero when unwired/empty.
+    /// </summary>
+    public UInt256 MessageOutboxL2ToL1Root => MessageOutbox?.L2ToL1Root ?? UInt256.Zero;
+
+    /// <summary>
+    /// Current L2→L2 message-tree root from the local outbox, or zero when unwired/empty.
+    /// </summary>
+    public UInt256 MessageOutboxL2ToL2Root => MessageOutbox?.L2ToL2Root ?? UInt256.Zero;
+
+    /// <summary>
+    /// Enqueue outbound cross-chain messages into the wired MessageRouter outbox
+    /// (<see cref="RpcMessageRouter.EnqueueOutboundAsync"/>).
+    /// </summary>
+    public ValueTask EnqueueOutboundMessagesAsync(
+        IReadOnlyList<CrossChainMessage> messages,
+        CancellationToken cancellationToken = default)
+    {
+        var router = MessageRouter
+            ?? throw new InvalidOperationException("MessageRouter is not wired on this LocalHost");
+        return router.EnqueueOutboundAsync(messages, cancellationToken);
+    }
+
+    /// <summary>
+    /// Record a finalized message proof on the wired MessageRouter
+    /// (<see cref="RpcMessageRouter.RecordFinalizedProof"/>).
+    /// </summary>
+    public void RecordMessageRouterFinalizedProof(UInt256 messageHash, ReadOnlyMemory<byte> proofBytes)
+    {
+        var router = MessageRouter
+            ?? throw new InvalidOperationException("MessageRouter is not wired on this LocalHost");
+        router.RecordFinalizedProof(messageHash, proofBytes);
+    }
+
+    /// <summary>
+    /// Query a finalized message proof from the wired MessageRouter store
+    /// (<see cref="RpcMessageRouter.GetMessageProofAsync"/>). Returns null when unwired.
+    /// </summary>
+    public ValueTask<ReadOnlyMemory<byte>?> GetMessageRouterProofAsync(
+        UInt256 messageHash,
+        CancellationToken cancellationToken = default)
+    {
+        if (MessageRouter is null)
+            return ValueTask.FromResult<ReadOnlyMemory<byte>?>(null);
+        return MessageRouter.GetMessageProofAsync(messageHash, cancellationToken);
+    }
+
+    /// <summary>
+    /// Seed an L1→L2 inbound message nonce without scanning L1
+    /// (<see cref="RpcMessageRouter.RegisterInboundNonce"/>). Returns false when unwired.
+    /// </summary>
+    public bool RegisterInboundMessageNonce(ulong nonce)
+    {
+        if (MessageRouter is null) return false;
+        return MessageRouter.RegisterInboundNonce(nonce);
+    }
+
+    /// <summary>
+    /// Invalidate the MessageRouter inbound cache so the next dequeue re-fans out from L1
+    /// (<see cref="RpcMessageRouter.InvalidateInboundCache"/>). No-op when unwired.
+    /// </summary>
+    public void InvalidateInboundMessageCache()
+    {
+        MessageRouter?.InvalidateInboundCache();
+    }
+
+    /// <summary>
+    /// Register a forced-inclusion nonce for recovery without scanning L1
+    /// (<see cref="RpcForcedInclusionSource.RegisterNonce"/>).
+    /// </summary>
+    public bool RegisterForcedInclusionNonce(ulong nonce)
+        => ForcedInclusion.RegisterNonce(nonce);
+
+    /// <summary>
+    /// Drop the in-memory forced-inclusion cache
+    /// (<see cref="RpcForcedInclusionSource.InvalidateCache"/>).
+    /// </summary>
+    public void InvalidateForcedInclusionCache()
+        => ForcedInclusion.InvalidateCache();
+
+    /// <summary>
+    /// Publish batch payload to the host DA writer
+    /// (<see cref="IDAWriter.PublishAsync"/>). Local DA is fully offline; public DA
+    /// backends remain funded credential gates.
+    /// </summary>
+    public ValueTask<DAReceipt> PublishDaAsync(
+        DAPublishRequest request,
+        CancellationToken cancellationToken = default)
+        => _daWriter.PublishAsync(request, cancellationToken);
+
+    /// <summary>
+    /// Confirm a prior DA receipt is still retrievable
+    /// (<see cref="IDAWriter.IsAvailableAsync"/>).
+    /// </summary>
+    public ValueTask<bool> IsDaAvailableAsync(
+        DAReceipt receipt,
+        CancellationToken cancellationToken = default)
+        => _daWriter.IsAvailableAsync(receipt, cancellationToken);
+
+    /// <summary>
+    /// Open a distinct reader over the local persistent DA store when supported.
+    /// Multisig/Optimistic override; Zk leaves the base throw.
+    /// </summary>
+    public virtual IDAReader CreateLocalDaReader()
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not expose a local DA reader "
+            + $"(SupportsLocalDaReader={SupportsLocalDaReader}).");
+
+    /// <summary>
+    /// Production SharedBridge deposit source after WireProduction (same instance as
+    /// <see cref="L2BatchPlugin.DepositSource"/> / <see cref="L2BridgePlugin.DepositSource"/>).
+    /// </summary>
+    public RpcSharedBridgeDepositSource? DepositSource => Settlement.ProductionDepositSource;
+
+    /// <summary>True when WireProduction installed a SharedBridge deposit source.</summary>
+    public bool HasDepositSource => DepositSource is not null;
+
+    /// <summary>True when WireProduction installed a MessageRouter.</summary>
+    public bool HasMessageRouter => MessageRouter is not null;
+
+    /// <summary>True when WireProduction installed a forced-inclusion finalizer.</summary>
+    public bool HasForcedInclusionFinalizer => ForcedInclusionFinalizer is not null;
+
+    /// <summary>True when WireProduction installed a settlement client.</summary>
+    public bool HasSettlementClient => SettlementClient is not null;
+
+    /// <summary>True when WireProduction installed a transaction sender.</summary>
+    public bool HasTransactionSender => TransactionSender is not null;
+
+
+    /// <summary>
+    /// Production MessageRouter after WireProduction (same instance as
+    /// <see cref="L2BatchPlugin.MessageRouter"/>).
+    /// </summary>
+    public RpcMessageRouter? MessageRouter => Settlement.ProductionMessageRouter;
+
+    /// <summary>
+    /// Production forced-inclusion finalizer after WireProduction
+    /// (<see cref="L2SettlementPlugin.ProductionForcedInclusionFinalizer"/>).
+    /// </summary>
+    public RpcForcedInclusionFinalizationClient? ForcedInclusionFinalizer
+        => Settlement.ProductionForcedInclusionFinalizer;
+
+    /// <summary>
+    /// Production settlement client after WireProduction
+    /// (<see cref="L2SettlementPlugin.ProductionSettlementClient"/>).
+    /// </summary>
+    public RpcSettlementClient? SettlementClient => Settlement.ProductionSettlementClient;
+
+    /// <summary>
+    /// Production L1 transaction sender after WireProduction
+    /// (<see cref="L2SettlementPlugin.ProductionTransactionSender"/>).
+    /// </summary>
+    public RpcTransactionSender? TransactionSender => Settlement.ProductionTransactionSender;
+
+    /// <summary>
+    /// Unconsumed L1→L2 messages in the bridge inbox
+    /// (<see cref="L1MessageInbox.PendingCount"/>). Offline deposit pipeline health.
+    /// </summary>
+    public int L1InboxPendingCount => Bridge.Inbox.PendingCount;
+
+    /// <summary>
+    /// Messages ever consumed from the bridge inbox
+    /// (<see cref="L1MessageInbox.ConsumedCount"/>).
+    /// </summary>
+    public int L1InboxConsumedCount => Bridge.Inbox.ConsumedCount;
+
+    /// <summary>
+    /// Known MessageRouter L1→L2 inbound nonces (0 when MessageRouter is unwired).
+    /// Mirrors <see cref="RpcMessageRouter.KnownInboundNonceCount"/>.
+    /// </summary>
+    public int KnownInboundNonceCount => MessageRouter?.KnownInboundNonceCount ?? 0;
+
+    /// <summary>
+    /// Soft known-nonce count on the in-process FI source
+    /// (<see cref="RpcForcedInclusionSource.KnownNonceCount"/>). Distinct from durable
+    /// settlement tracked nonces.
+    /// </summary>
+    public int KnownForcedInclusionNonceCount => ForcedInclusion.KnownNonceCount;
+
+    /// <summary>
+    /// True when the batcher has a forced-inclusion source wired
+    /// (<see cref="L2BatchPlugin.HasForcedInclusionSource"/>).
+    /// </summary>
+    public bool HasBatchForcedInclusionSource => Batch.HasForcedInclusionSource;
+
+    /// <summary>
+    /// True when the batcher has a SharedBridge deposit source wired
+    /// (<see cref="L2BatchPlugin.HasDepositSource"/>).
+    /// </summary>
+    public bool HasBatchDepositSource => Batch.HasDepositSource;
+
+    /// <summary>
+    /// True when the batcher has a MessageRouter wired
+    /// (<see cref="L2BatchPlugin.HasMessageRouter"/>).
+    /// </summary>
+    public bool HasBatchMessageRouter => Batch.HasMessageRouter;
+
+    /// <summary>
+    /// True when the batcher has deposit, message-router, and forced-inclusion inbox sources.
+    /// </summary>
+    public bool IsBatcherInboxWiringComplete =>
+        HasBatchDepositSource && HasBatchMessageRouter && HasBatchForcedInclusionSource;
+
+    /// <summary>
+    /// True when settlement settings include SettlementManager, ForcedInclusion, SharedBridge,
+    /// and MessageRouter hashes (presence only; not on-chain verified).
+    /// </summary>
+    public bool IsNeoHubHashWiringComplete =>
+        HasSettlementManagerHash
+        && HasForcedInclusionHash
+        && HasSharedBridgeHash
+        && HasMessageRouterHash;
+
+    /// <summary>
+    /// True when RPC-store security level is a recommended pairing with host
+    /// <see cref="ProofType"/> (offline heuristic).
+    /// </summary>
+    public bool IsSecurityLevelProofTypeConsistent =>
+        LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(RpcStore.SecurityLevel, ProofType);
+
+    /// <summary>
+    /// True when RPC-store security level is a recommended pairing with host
+    /// <see cref="DaMode"/> (Validity→L1, Validium→off-chain DA).
+    /// </summary>
+    public bool IsSecurityLevelDaModeConsistent =>
+        LocalHostOperatorStatus.IsSecurityLevelPairedWithDaMode(RpcStore.SecurityLevel, DaMode);
+
+    /// <summary>True when settlement settings include a non-null expected L1 network magic.</summary>
+    public bool HasExpectedNetwork => ExpectedNetwork is not null;
+
+    /// <summary>
+    /// True when ForcedInclusion, SharedBridge, and MessageRouter scanner deploy heights are
+    /// all non-zero.
+    /// </summary>
+    public bool HasScannerDeployHeights =>
+        ForcedInclusionDeploymentHeight > 0
+        && SharedBridgeDeploymentHeight > 0
+        && MessageRouterDeploymentHeight > 0;
+
+    /// <summary>
+    /// True when metrics settings are operator-ready: enabled, port &gt; 0, non-empty bind address.
+    /// Does not claim the HTTP server is listening.
+    /// </summary>
+    public bool IsMetricsWiringComplete =>
+        IsMetricsEnabled
+        && MetricsConfiguredPort > 0
+        && !string.IsNullOrWhiteSpace(MetricsBindAddress);
+
+    /// <summary>True when a <c>/readyz</c> readiness predicate is installed on the metrics plugin.</summary>
+    public bool HasMetricsReadinessCheck => Metrics.HasReadinessCheck;
+
+    /// <summary>
+    /// True when a <c>/healthprobe</c> JSON body provider is installed on the metrics plugin.
+    /// </summary>
+    public bool HasMetricsHealthProbe => Metrics.HasHealthProbe;
+
+    /// <summary>
+    /// True when a <c>/operatorstatus</c> JSON body provider is installed on the metrics plugin.
+    /// </summary>
+    public bool HasMetricsOperatorStatus => Metrics.HasOperatorStatus;
+
+    /// <summary>
+    /// True when production deposit source and batcher deposit source are both wired.
+    /// </summary>
+    public bool IsDepositPipelineWiringComplete =>
+        HasDepositSource && HasBatchDepositSource;
+
+    /// <summary>
+    /// True when production MessageRouter, batcher MessageRouter, and MessageOutbox are wired.
+    /// </summary>
+    public bool IsMessagePipelineWiringComplete =>
+        HasMessageRouter && HasBatchMessageRouter && HasMessageOutbox;
+
+    /// <summary>
+    /// True when forced-inclusion finalizer and batcher forced-inclusion source are both wired.
+    /// </summary>
+    public bool IsForcedInclusionPipelineWiringComplete =>
+        HasForcedInclusionFinalizer && HasBatchForcedInclusionSource;
+
+    /// <summary>
+    /// True when settlement client, transaction sender, and settlement enablement are all ready.
+    /// </summary>
+    public bool IsSettlementClientWiringComplete =>
+        HasSettlementClient && HasTransactionSender && IsSettlementEnabled;
+
+    /// <summary>
+    /// Offline passport checks that failed (empty when complete). Diagnostic names only;
+    /// does not claim L1 settle, prove-batch, or live scan (funded gates).
+    /// </summary>
+    public IReadOnlyList<string> OfflinePassportFailures =>
+        LocalHostOperatorStatus.BuildOfflinePassportFailures(
+            IsOperatorReady,
+            IsChainIdConfigConsistent,
+            IsProofTypeConfigConsistent,
+            IsDaModeConfigConsistent,
+            IsSecurityLevelProofTypeConsistent,
+            IsSecurityLevelDaModeConsistent,
+            IsNeoHubHashWiringComplete,
+            IsBatcherInboxWiringComplete,
+            HasBatchProver,
+            IsSettlementEnabled,
+            IsBatcherEnabled,
+            HasL1RpcEndpoint,
+            HasExpectedNetwork,
+            HasScannerDeployHeights,
+            HasDepositSource,
+            HasMessageRouter,
+            HasForcedInclusionFinalizer,
+            HasSettlementClient,
+            HasTransactionSender,
+            HasMessageOutbox,
+            IsDepositPipelineWiringComplete,
+            IsMessagePipelineWiringComplete,
+            IsForcedInclusionPipelineWiringComplete,
+            IsSettlementClientWiringComplete);
+
+    /// <summary>
+    /// Offline operator passport: true when <see cref="OfflinePassportFailures"/> is empty.
+    /// Does not claim L1 settle, prove-batch, or live scan (funded gates).
+    /// </summary>
+    public bool IsOfflinePassportComplete => OfflinePassportFailures.Count == 0;
+
+    /// <summary>
+    /// Max forced-inclusion entries per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxForcedTransactionsPerBatch"/>).
+    /// </summary>
+    public int MaxForcedTransactionsPerBatch => Batch.MaxForcedTransactionsPerBatch;
+
+    /// <summary>
+    /// Max L1 inbox messages per sealed batch
+    /// (<see cref="L2BatchPlugin.MaxL1MessagesPerBatch"/>).
+    /// </summary>
+    public int MaxL1MessagesPerBatch => Batch.MaxL1MessagesPerBatch;
+
+    /// <summary>
+    /// Configured metrics max concurrent HTTP connections
+    /// (<see cref="L2MetricsPlugin.MaxConcurrentConnections"/>).
+    /// </summary>
+    public int MetricsMaxConcurrentConnections => Metrics.MaxConcurrentConnections;
+
+    /// <summary>
+    /// Whether settlement submit/reconcile is enabled
+    /// (<see cref="L2SettlementPlugin.IsEnabled"/>).
+    /// </summary>
+    public bool IsSettlementEnabled => Settlement.IsEnabled;
+
+    /// <summary>
+    /// True when both batcher and settlement plugins are enabled in settings.
+    /// </summary>
+    public bool IsPipelineEnabled => IsBatcherEnabled && IsSettlementEnabled;
+
+    /// <summary>
+    /// Configured L1 finality depth for production scanners
+    /// (<see cref="L2SettlementPlugin.L1FinalityDepth"/>).
+    /// </summary>
+    public uint L1FinalityDepth => Settlement.L1FinalityDepth;
+
+    /// <summary>
+    /// Soft ready depth on the production deposit source (0 when unwired).
+    /// (<see cref="RpcSharedBridgeDepositSource.ReadyCount"/>).
+    /// </summary>
+    public int DepositSourceReadyCount => DepositSource?.ReadyCount ?? 0;
+
+    /// <summary>
+    /// Soft reserved depth on the production deposit source (0 when unwired).
+    /// (<see cref="RpcSharedBridgeDepositSource.ReservedCount"/>).
+    /// </summary>
+    public int DepositSourceReservedCount => DepositSource?.ReservedCount ?? 0;
+
+    /// <summary>
+    /// Soft consumed-nonce cache size on the production deposit source (0 when unwired).
+    /// (<see cref="RpcSharedBridgeDepositSource.SoftConsumedCount"/>).
+    /// </summary>
+    public int DepositSourceSoftConsumedCount => DepositSource?.SoftConsumedCount ?? 0;
+
+    /// <summary>
+    /// Whether metrics HTTP is enabled in settings
+    /// (<see cref="L2MetricsPlugin.IsEnabled"/>).
+    /// </summary>
+    public bool IsMetricsEnabled => Metrics.IsEnabled;
+
+    /// <summary>
+    /// Configured metrics HTTP port from settings
+    /// (<see cref="L2MetricsPlugin.ConfiguredPort"/>).
+    /// </summary>
+    public int MetricsConfiguredPort => Metrics.ConfiguredPort;
+
+    /// <summary>
+    /// Configured metrics bind address from settings
+    /// (<see cref="L2MetricsPlugin.BindAddress"/>).
+    /// </summary>
+    public string MetricsBindAddress => Metrics.BindAddress;
+
+    /// <summary>
+    /// ForcedInclusion scanner deployment height
+    /// (<see cref="L2SettlementPlugin.ForcedInclusionDeploymentHeight"/>).
+    /// </summary>
+    public uint ForcedInclusionDeploymentHeight => Settlement.ForcedInclusionDeploymentHeight;
+
+    /// <summary>
+    /// SharedBridge scanner deployment height
+    /// (<see cref="L2SettlementPlugin.SharedBridgeDeploymentHeight"/>).
+    /// </summary>
+    public uint SharedBridgeDeploymentHeight => Settlement.SharedBridgeDeploymentHeight;
+
+    /// <summary>
+    /// MessageRouter scanner deployment height
+    /// (<see cref="L2SettlementPlugin.MessageRouterDeploymentHeight"/>).
+    /// </summary>
+    public uint MessageRouterDeploymentHeight => Settlement.MessageRouterDeploymentHeight;
+
+    /// <summary>
+    /// Bound metrics HTTP port after <see cref="StartMetricsHttp"/> (0 when not listening).
+    /// </summary>
+    public int MetricsBoundPort => Metrics.BoundPort;
+
+    /// <summary>True when the metrics HTTP server is listening.</summary>
+    public bool IsMetricsHttpListening => Metrics.BoundPort > 0;
+
+    /// <summary>
+    /// Metrics HTTP health failures when metrics are enabled (empty when disabled or healthy).
+    /// Sync host surface; also projected on <see cref="GetOperatorStatusAsync"/>.
+    /// </summary>
+    public IReadOnlyList<string> MetricsHttpHealthFailures =>
+        LocalHostOperatorStatus.BuildMetricsHttpHealthFailures(
+            IsMetricsEnabled,
+            IsMetricsWiringComplete,
+            IsMetricsHttpListening,
+            HasMetricsReadinessCheck,
+            HasMetricsHealthProbe,
+            HasMetricsOperatorStatus);
+
+    /// <summary>
+    /// True when <see cref="MetricsHttpHealthFailures"/> is empty
+    /// (metrics disabled, or wiring + listening + readiness all ok).
+    /// </summary>
+    public bool IsMetricsHttpHealthy => MetricsHttpHealthFailures.Count == 0;
+
+    /// <summary>
+    /// Start (or re-enter) the metrics HTTP server. Idempotent.
+    /// When <paramref name="readinessCheck"/> is null, uses
+    /// <see cref="IsOfflinePassportComplete"/> so <c>/readyz</c> tracks the offline operator
+    /// passport (not only sealed-batch sink presence).
+    /// Also wires <c>/healthprobe</c> to <see cref="FormatHealthProbeJson"/> and
+    /// <c>/operatorstatus</c> to <see cref="FormatOperatorStatusJsonAsync"/> so ops can
+    /// <c>curl</c> compact or full status JSON without writing a status file.
+    /// </summary>
+    public void StartMetricsHttp(int? portOverride = null, Func<bool>? readinessCheck = null)
+    {
+        Metrics.WithReadinessCheck(readinessCheck ?? (() => IsOfflinePassportComplete));
+        Metrics.WithHealthProbe(() => FormatHealthProbeJson());
+        Metrics.WithOperatorStatus(() => FormatOperatorStatusJsonAsync()
+            .AsTask()
+            .GetAwaiter()
+            .GetResult());
+        Metrics.Start(portOverride);
+    }
+
+    /// <summary>
+    /// Serialize <see cref="GetHealthProbeAsync"/> as indented camelCase JSON for ops
+    /// scripts and metrics HTTP <c>/healthprobe</c>. Soft FI clock via
+    /// <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public string FormatHealthProbeJson(uint? nowUnixSeconds = null)
+    {
+        var document = GetHealthProbeAsync(CancellationToken.None, nowUnixSeconds)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        return LocalHostHealthProbeDocument.FormatJson(document);
+    }
+
+    /// <summary>
+    /// Stop the metrics HTTP server without disposing the metrics sink
+    /// (<see cref="L2MetricsPlugin.Stop"/>). Idempotent.
+    /// </summary>
+    public void StopMetricsHttp() => Metrics.Stop();
+
+    /// <summary>
+    /// Create an <see cref="L2RpcPlugin"/> pre-wired with this host's metrics sink.
+    /// Caller must <c>NeoSystem.AddService(RpcStore)</c> and register the plugin with Neo.CLI;
+    /// this composition does not own the returned plugin.
+    /// </summary>
+
+    /// <summary>
+    /// Capture an in-process metrics snapshot without HTTP
+    /// (<see cref="IMetricsSource.Snapshot"/>).
+    /// </summary>
+    public MetricsSnapshot CaptureMetricsSnapshot()
+    {
+        if (Metrics.Metrics is IMetricsSource source)
+            return source.Snapshot();
+        return MetricsSnapshot.Empty;
+    }
+
+    /// <summary>
+    /// Render Prometheus exposition text from the current metrics sink
+    /// (<see cref="PrometheusExporter.Format"/>).
+    /// </summary>
+    public string ExportPrometheusMetrics()
+        => PrometheusExporter.Format(CaptureMetricsSnapshot());
+
+    /// <summary>
+    /// Bridge plugin asset registry (L1↔L2 mappings for deposit minting)
+    /// (<see cref="L2BridgePlugin.Registry"/>).
+    /// </summary>
+    public AssetRegistry BridgeAssetRegistry => Bridge.Registry;
+
+    /// <summary>
+    /// Register a bridge-side asset mapping
+    /// (<see cref="AssetRegistry.Register"/>).
+    /// </summary>
+    public void RegisterBridgeAsset(AssetMapping mapping)
+        => Bridge.Registry.Register(mapping);
+
+    /// <summary>
+    /// Snapshot all bridge-side asset mappings
+    /// (<see cref="AssetRegistry.Snapshot"/>).
+    /// </summary>
+    public IReadOnlyList<AssetMapping> SnapshotBridgeAssets()
+        => Bridge.Registry.Snapshot();
+
+    /// <summary>Count of bridge-side asset mappings.</summary>
+    public int BridgeAssetCount => Bridge.Registry.Count;
+
+
+    /// <summary>
+    /// Bridge deposit processor (mint instruction path)
+    /// (<see cref="L2BridgePlugin.DepositProcessor"/>).
+    /// </summary>
+    public DepositProcessor DepositProcessor => Bridge.DepositProcessor;
+
+    /// <summary>
+    /// Bridge withdrawal processor (staging + seal tree)
+    /// (<see cref="L2BridgePlugin.WithdrawalProcessor"/>).
+    /// </summary>
+    public WithdrawalProcessor WithdrawalProcessor => Bridge.WithdrawalProcessor;
+
+    /// <summary>
+    /// Validate a SharedBridge deposit message and produce a mint instruction
+    /// (<see cref="DepositProcessor.Process"/>).
+    /// </summary>
+    public MintInstruction ProcessDeposit(CrossChainMessage message)
+        => Bridge.DepositProcessor.Process(message);
+
+    /// <summary>
+    /// Peek ready SharedBridge deposits and mint any not yet consumed by
+    /// <see cref="DepositProcessor"/>. Non-mutating on the deposit source (peek only);
+    /// batcher <c>Drain</c>/<c>ConfirmConsumed</c> remains the inclusion path.
+    /// </summary>
+    public IReadOnlyList<MintInstruction> ProcessReadyDeposits(int maxMessages = 64)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxMessages);
+        if (maxMessages == 0)
+            return Array.Empty<MintInstruction>();
+        var ready = PeekSharedBridgeDeposits(maxMessages);
+        if (ready.Count == 0)
+            return Array.Empty<MintInstruction>();
+        List<MintInstruction>? minted = null;
+        foreach (var message in ready)
+        {
+            if (HasConsumedDeposit(message.SourceChainId, message.Nonce))
+                continue;
+            minted ??= new List<MintInstruction>(ready.Count);
+            minted.Add(ProcessDeposit(message));
+        }
+        return minted is null ? Array.Empty<MintInstruction>() : minted;
+    }
+
+    /// <summary>
+    /// True when the deposit processor has already consumed
+    /// (<paramref name="sourceChainId"/>, <paramref name="nonce"/>).
+    /// </summary>
+    public bool HasConsumedDeposit(uint sourceChainId, ulong nonce)
+        => Bridge.DepositProcessor.HasConsumed(sourceChainId, nonce);
+
+    /// <summary>
+    /// Soft in-memory consumed-deposit cache size
+    /// (<see cref="DepositProcessor.ConsumedCount"/>).
+    /// </summary>
+    public int ConsumedDepositCount => Bridge.DepositProcessor.ConsumedCount;
+
+    /// <summary>
+    /// Stage a withdrawal into the current batch tree
+    /// (<see cref="WithdrawalProcessor.Stage"/>).
+    /// </summary>
+    public UInt256 StageWithdrawal(WithdrawalRequest request)
+        => Bridge.WithdrawalProcessor.Stage(request);
+
+    /// <summary>Number of withdrawals staged in the current open tree.</summary>
+    public int StagedWithdrawalCount => Bridge.WithdrawalProcessor.StagedCount;
+
+    /// <summary>
+    /// Seal the staged withdrawal tree and start a fresh one
+    /// (<see cref="WithdrawalProcessor.SealBatch"/>).
+    /// </summary>
+    public (UInt256 Root, Neo.L2.State.WithdrawalTree Tree) SealWithdrawalBatch()
+        => Bridge.WithdrawalProcessor.SealBatch();
+
+    /// <summary>
+    /// Wired batch prover instance, or null when the prover plugin has not installed one.
+    /// </summary>
+    public IL2Prover? BatchProver => Prover.Prover;
+
+    /// <summary>True when <see cref="BatchProver"/> is installed.</summary>
+    public bool HasBatchProver => BatchProver is not null;
+
+    /// <summary>
+    /// Generate a proof via the wired host prover
+    /// (<see cref="IL2Prover.ProveAsync"/>). Multisig is fully offline; Zk may require
+    /// funded executor/daemon resources.
+    /// </summary>
+    public ValueTask<ProofResult> ProveAsync(
+        ProofRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var prover = Prover.Prover
+            ?? throw new InvalidOperationException("batch prover is not wired on this LocalHost");
+        return prover.ProveAsync(request, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// Write <see cref="ExportPrometheusMetrics"/> text to <paramref name="path"/> for offline scrape files.
+    /// </summary>
+    public async ValueTask WritePrometheusMetricsAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        var body = ExportPrometheusMetrics();
+        await File.WriteAllTextAsync(fullPath, body, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Serialize <see cref="GetOperatorStatusAsync"/> as indented camelCase JSON for ops
+    /// scripts without writing a file (primitive fields + recovery summary only).
+    /// Soft FI clock via <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public async ValueTask<string> FormatOperatorStatusJsonAsync(
+        int depositPeekLimit = 64,
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var status = await GetOperatorStatusAsync(
+                depositPeekLimit, cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        return LocalHostOperatorStatusDocument.FormatJson(
+            LocalHostOperatorStatusDocument.From(status));
+    }
+
+    /// <summary>
+    /// Write <see cref="GetOperatorStatusAsync"/> as indented JSON for host health files
+    /// without Neo.CLI (primitive fields + recovery summary only).
+    /// </summary>
+    public async ValueTask WriteOperatorStatusAsync(
+        string path,
+        int depositPeekLimit = 64,
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var json = await FormatOperatorStatusJsonAsync(
+                depositPeekLimit, cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(fullPath, json, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Build a compact in-memory health probe (passport / pipeline / metrics / settlement)
+    /// without the full operator status document. Soft FI clock via
+    /// <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public async ValueTask<LocalHostHealthProbeDocument> GetHealthProbeAsync(
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        var pipelineFailures = await GetPipelineHealthFailuresAsync(
+                cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        var metricsFailures = MetricsHttpHealthFailures;
+        var localHostFailures = LocalHostOperatorStatus.BuildLocalHostHealthFailures(
+            pipelineFailures, metricsFailures);
+        var pending = await GetPendingCountAsync(cancellationToken).ConfigureAwait(false);
+        var checkpoint = await GetLatestDurableCheckpointAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var recovery = await GetRecoveryStatusAsync(cancellationToken).ConfigureAwait(false);
+        var initialStateRoot = await GetInitialStateRootAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var trackedForced = await GetTrackedForcedInclusionNoncesAsync(ChainId, cancellationToken)
+            .ConfigureAwait(false);
+        var now = nowUnixSeconds
+            ?? (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        return new LocalHostHealthProbeDocument
+        {
+            IsOfflinePassportComplete = IsOfflinePassportComplete,
+            OfflinePassportFailures = OfflinePassportFailures,
+            ChainId = ChainId,
+            BatcherConfiguredChainId = BatcherConfiguredChainId,
+            SettlementConfiguredChainId = SettlementConfiguredChainId,
+            RpcChainId = RpcChainId,
+            ProofType = ProofType.ToString(),
+            SettlementConfiguredProofType = SettlementConfiguredProofType.ToString(),
+            DaMode = DaMode.ToString(),
+            RpcDaMode = RpcDaMode.ToString(),
+            SecurityLevel = RpcStore.SecurityLevel.ToString(),
+            Sequencer = RpcStore.Sequencer.ToString(),
+            Exit = RpcStore.Exit.ToString(),
+            ExpectedNetwork = ExpectedNetwork,
+            IsMetricsEnabled = IsMetricsEnabled,
+            IsMetricsWiringComplete = IsMetricsWiringComplete,
+            MetricsConfiguredPort = MetricsConfiguredPort,
+            MetricsBindAddress = MetricsBindAddress,
+            MetricsMaxConcurrentConnections = MetricsMaxConcurrentConnections,
+            MetricsEntryCount = CaptureMetricsSnapshot().TotalEntries,
+            GatewayEnabled = RpcStore.GatewayEnabled,
+            SupportsLocalDaReader = SupportsLocalDaReader,
+            BridgeAssetCount = BridgeAssetCount,
+            IsOperatorReady = IsOperatorReady,
+            IsProductionWired = IsProductionWired,
+            HasSealedBatchSink = HasSealedBatchSink,
+            HasBatchProver = HasBatchProver,
+            IsSettlementEnabled = IsSettlementEnabled,
+            IsBatcherEnabled = IsBatcherEnabled,
+            HasL1RpcEndpoint = HasL1RpcEndpoint,
+            HasExpectedNetwork = HasExpectedNetwork,
+            HasScannerDeployHeights = HasScannerDeployHeights,
+            ForcedInclusionDeploymentHeight = ForcedInclusionDeploymentHeight,
+            SharedBridgeDeploymentHeight = SharedBridgeDeploymentHeight,
+            MessageRouterDeploymentHeight = MessageRouterDeploymentHeight,
+            HasSettlementManagerHash = HasSettlementManagerHash,
+            HasForcedInclusionHash = HasForcedInclusionHash,
+            HasSharedBridgeHash = HasSharedBridgeHash,
+            HasMessageRouterHash = HasMessageRouterHash,
+            HasL2BridgeHash = HasL2BridgeHash,
+            L1FinalityDepth = L1FinalityDepth,
+            HasDepositSource = HasDepositSource,
+            HasMessageRouter = HasMessageRouter,
+            HasForcedInclusionFinalizer = HasForcedInclusionFinalizer,
+            HasSettlementClient = HasSettlementClient,
+            HasTransactionSender = HasTransactionSender,
+            HasBatchDepositSource = HasBatchDepositSource,
+            HasBatchMessageRouter = HasBatchMessageRouter,
+            HasBatchForcedInclusionSource = HasBatchForcedInclusionSource,
+            IsDepositPipelineWiringComplete = IsDepositPipelineWiringComplete,
+            IsMessagePipelineWiringComplete = IsMessagePipelineWiringComplete,
+            IsForcedInclusionPipelineWiringComplete = IsForcedInclusionPipelineWiringComplete,
+            IsSettlementClientWiringComplete = IsSettlementClientWiringComplete,
+            IsChainIdConfigConsistent = IsChainIdConfigConsistent,
+            IsProofTypeConfigConsistent = IsProofTypeConfigConsistent,
+            IsDaModeConfigConsistent = IsDaModeConfigConsistent,
+            IsSecurityLevelProofTypeConsistent = IsSecurityLevelProofTypeConsistent,
+            IsSecurityLevelDaModeConsistent = IsSecurityLevelDaModeConsistent,
+            IsNeoHubHashWiringComplete = IsNeoHubHashWiringComplete,
+            IsBatcherInboxWiringComplete = IsBatcherInboxWiringComplete,
+            IsPipelineEnabled = IsPipelineEnabled,
+            HasPendingSealedBatch = HasPendingSealedBatch,
+            PendingSealedBatchNumber = PendingSealedBatchNumber,
+            PendingSealedBatchLastBlock = PendingSealedBatchLastBlock,
+            HasOpenBatch = HasOpenBatch,
+            MaxBlocksPerBatch = MaxBlocksPerBatch,
+            MaxTransactionsPerBatch = MaxTransactionsPerBatch,
+            MaxBatchAgeMillis = MaxBatchAgeMillis,
+            MaxForcedTransactionsPerBatch = MaxForcedTransactionsPerBatch,
+            MaxL1MessagesPerBatch = MaxL1MessagesPerBatch,
+            OpenBatchAgeMillis = OpenBatchAgeMillis,
+            IsOpenBatchPastMaxAge = IsOpenBatchPastMaxAge,
+            InProgressTxCount = InProgressTxCount,
+            OpenBatchFirstBlock = OpenBatchFirstBlock,
+            OpenBatchLastBlock = OpenBatchLastBlock,
+            OpenBatchBlockCount = OpenBatchBlockCount,
+            OpenBatchL1MessageCount = OpenBatchL1MessageCount,
+            OpenBatchL2ToL1MessageCount = OpenBatchL2ToL1MessageCount,
+            OpenBatchL2ToL2MessageCount = OpenBatchL2ToL2MessageCount,
+            OpenBatchForcedInclusionCount = OpenBatchForcedInclusionCount,
+            OpenBatchWithdrawalCount = OpenBatchWithdrawalCount,
+            IsBatcherCheckpointAligned = LocalHostOperatorStatus.AreBatcherAndCheckpointAligned(
+                LastAcknowledgedBatchNumber, checkpoint?.BatchNumber),
+            NextExpectedBlock = NextExpectedBlock,
+            LastAcknowledgedBatchNumber = LastAcknowledgedBatchNumber,
+            LastAcknowledgedBlock = LastAcknowledgedBlock,
+            NextBatchNumber = NextBatchNumber,
+            LatestCheckpointBatchNumber = checkpoint?.BatchNumber,
+            LatestCheckpointLastBlock = checkpoint?.LastBlock,
+            LatestCheckpointPostStateRoot = checkpoint?.PostStateRoot?.ToString(),
+            InitialStateRoot = initialStateRoot.ToString(),
+            LatestRpcStateRoot = GetLatestRpcStateRoot().ToString(),
+            HasOverdueForcedInclusion = HasOverdueForcedInclusionCached(now),
+            IsPipelineHealthy = pipelineFailures.Count == 0,
+            PipelineHealthFailures = pipelineFailures,
+            IsMetricsHttpListening = IsMetricsHttpListening,
+            MetricsBoundPort = MetricsBoundPort,
+            HasMetricsReadinessCheck = HasMetricsReadinessCheck,
+            HasMetricsHealthProbe = HasMetricsHealthProbe,
+            HasMetricsOperatorStatus = HasMetricsOperatorStatus,
+            IsMetricsHttpHealthy = metricsFailures.Count == 0,
+            MetricsHttpHealthFailures = metricsFailures,
+            IsLocalHostHealthy = localHostFailures.Count == 0,
+            LocalHostHealthFailures = localHostFailures,
+            IsSettlementRuntimeIdle = LocalHostOperatorStatus.IsSettlementRuntimeIdle(pending, recovery),
+            IsSettlementIdle = LocalHostOperatorStatus.IsSettlementRuntimeIdle(pending, recovery),
+            IsSettlementPoisoned = LocalHostOperatorStatus.IsSettlementPoisonedState(recovery),
+            IsSettlementRetrying = LocalHostOperatorStatus.IsSettlementRetryingState(recovery),
+            SettlementRetryCount = recovery.RetryCount,
+            SettlementConfirmationLagBatches = recovery.ConfirmationLagBatches,
+            PendingSettlementCount = pending,
+            Recovery = LocalHostRecoveryDocument.From(recovery),
+            DepositSourceReadyCount = DepositSourceReadyCount,
+            ReadyDepositCount = PeekSharedBridgeDeposits(64).Count,
+            DepositSourceReservedCount = DepositSourceReservedCount,
+            DepositSourceSoftConsumedCount = DepositSourceSoftConsumedCount,
+            ConsumedDepositCount = ConsumedDepositCount,
+            L1InboxPendingCount = L1InboxPendingCount,
+            L1InboxConsumedCount = L1InboxConsumedCount,
+            HasMessageOutbox = HasMessageOutbox,
+            MessageOutboxL2ToL1Count = MessageOutbox?.L2ToL1Count ?? 0,
+            MessageOutboxL2ToL2Count = MessageOutbox?.L2ToL2Count ?? 0,
+            MessageOutboxL2ToL1Root = MessageOutboxL2ToL1Root.ToString(),
+            MessageOutboxL2ToL2Root = MessageOutboxL2ToL2Root.ToString(),
+            KnownInboundNonceCount = KnownInboundNonceCount,
+            KnownForcedInclusionNonceCount = KnownForcedInclusionNonceCount,
+            TrackedForcedInclusionNonceCount = trackedForced.Count,
+            StagedWithdrawalCount = StagedWithdrawalCount,
+        };
+    }
+
+    /// <summary>
+    /// Write <see cref="GetHealthProbeAsync"/> as indented camelCase JSON for ops scripts
+    /// without the full operator status document. Soft FI clock via
+    /// <paramref name="nowUnixSeconds"/>; no L1 settle claim.
+    /// </summary>
+    public async ValueTask WriteHealthProbeAsync(
+        string path,
+        CancellationToken cancellationToken = default,
+        uint? nowUnixSeconds = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var document = await GetHealthProbeAsync(cancellationToken, nowUnixSeconds)
+            .ConfigureAwait(false);
+        var fullPath = Path.GetFullPath(path);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(
+                fullPath,
+                LocalHostHealthProbeDocument.FormatJson(document),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public L2RpcPlugin CreateRpcPlugin()
+    {
+        var plugin = new L2RpcPlugin();
+        plugin.WithMetrics(Metrics.Metrics);
+        return plugin;
+    }
+
+    /// <summary>
+    /// Dispose mode-private resources after shared plugin teardown
+    /// (e.g. Zk durable state store).
+    /// </summary>
+    private protected virtual void DisposeModeResources()
+    {
+    }
+
+    /// <summary>
+    /// Dispose the DA writer when this composition owns it
+    /// (local PersistentDAWriter). Host-supplied production DA is left alone.
+    /// </summary>
+    private protected virtual void DisposeOwnedDaWriter()
+    {
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        // Settlement owns production RPC scanners/clients that hold layout store refs.
+        Settlement.Dispose();
+        Bridge.Dispose();
+        Metrics.Dispose();
+        Prover.Dispose();
+        Batch.Dispose();
+        Layout.Dispose();
+        DisposeModeResources();
+        DisposeOwnedDaWriter();
+        RpcStore.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}

@@ -563,6 +563,183 @@ public sealed class UT_OptimisticLocalHostComposition
     }
 
     /// <summary>
+    /// Optimistic Open composition root: deferred <see cref="LocalHostCompositionBase.StartMetricsHttp"/>
+    /// + <see cref="LocalHostCompositionBase.CreateRpcPlugin"/> (ops parity with Multisig).
+    /// </summary>
+    [TestMethod]
+    public void Open_DeferredStartMetricsHttp_And_CreateRpcPlugin()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-opt-host-deferred-metrics-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeOptimisticChain(chainDir, reportPath);
+            using var http = CanonicalRootHttpClient();
+            var key = new KeyPair(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray());
+            using var host = OptimisticLocalHostComposition.Open(
+                chainDir,
+                new StubExecutor(),
+                key,
+                UInt160.Parse("0x" + new string('d', 40)),
+                UInt256.Parse("0x" + new string('e', 64)),
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http);
+
+            Assert.AreEqual(0, host.MetricsBoundPort);
+            Assert.IsFalse(host.IsMetricsHttpListening);
+
+            host.StartMetricsHttp(portOverride: 0);
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.IsTrue(host.IsProductionWired);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+
+            var rpcPlugin = host.CreateRpcPlugin();
+            Assert.IsNotNull(rpcPlugin);
+            Assert.IsFalse(rpcPlugin.IsRegistered(894710606));
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Optimistic Open with <c>startMetricsHttp: true</c> wires /readyz + /healthprobe
+    /// (ops composition root; no funded L1).
+    /// </summary>
+    [TestMethod]
+    public async Task Open_StartMetricsHttp_ReadyzOk()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-opt-host-metrics-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeOptimisticChain(chainDir, reportPath);
+            using var http = CanonicalRootHttpClient();
+            var key = new KeyPair(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray());
+            using var host = OptimisticLocalHostComposition.Open(
+                chainDir,
+                new StubExecutor(),
+                key,
+                UInt160.Parse("0x" + new string('d', 40)),
+                UInt256.Parse("0x" + new string('e', 64)),
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http,
+                startMetricsHttp: true,
+                metricsPortOverride: 0);
+
+            Assert.IsTrue(host.IsMetricsHttpListening);
+            Assert.IsTrue(host.MetricsBoundPort > 0);
+            Assert.IsTrue(host.HasMetricsReadinessCheck);
+            Assert.IsTrue(host.HasMetricsHealthProbe);
+            Assert.IsTrue(host.HasMetricsOperatorStatus);
+            Assert.IsTrue(host.IsOfflinePassportComplete);
+            Assert.IsTrue(host.IsMetricsHttpHealthy);
+            Assert.IsTrue(await host.IsLocalHostHealthyAsync());
+
+            using var client = new HttpClient();
+            var ready = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/readyz");
+            Assert.AreEqual(HttpStatusCode.OK, ready.StatusCode);
+            var probeHttp = await client.GetAsync($"http://127.0.0.1:{host.MetricsBoundPort}/healthprobe");
+            Assert.AreEqual(HttpStatusCode.OK, probeHttp.StatusCode);
+            var probeBody = await probeHttp.Content.ReadAsStringAsync();
+            StringAssert.Contains(probeBody, "isOfflinePassportComplete");
+            StringAssert.Contains(probeBody, "\"proofType\":");
+            StringAssert.Contains(probeBody, "Optimistic");
+            StringAssert.Contains(probeBody, "hasMetricsHealthProbe");
+
+            var status = await host.GetOperatorStatusAsync();
+            Assert.IsTrue(status.IsMetricsHttpHealthy);
+            Assert.IsTrue(status.IsLocalHostHealthy);
+            Assert.AreEqual(ProofType.Optimistic, status.ProofType);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Optimistic Open rejects Zk settlement config fail-closed (mode-only Open gate).
+    /// </summary>
+    [TestMethod]
+    public void Open_ZkSettlementConfig_FailsClosed()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-opt-host-zk-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(chainDir, "chain.config.json"), """
+                {
+                  "chainId": 20260716,
+                  "proofType": "Zk",
+                  "securityLevel": "Validity",
+                  "daMode": "L1",
+                  "sequencerModel": "DbftCommittee",
+                  "exitModel": "Permissionless",
+                  "gatewayEnabled": true,
+                  "permissionlessExit": true,
+                  "validators": []
+                }
+                """);
+            NeoHubDeployReport.Load(reportPath).WriteOperatorArtifacts(chainDir);
+            File.WriteAllText(Path.Combine(chainDir, "genesis-manifest.json"), """
+                { "chainId": 20260716, "initialStateRoot": "0x1111111111111111111111111111111111111111111111111111111111111111" }
+                """);
+            RewriteProofType(chainDir, "Neo.Plugins.L2Settlement", (byte)ProofType.Zk);
+            RewriteProofType(chainDir, "Neo.Plugins.L2Prover", (byte)ProofType.Zk);
+
+            var key = new KeyPair(Enumerable.Range(2, 32).Select(i => (byte)i).ToArray());
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+                OptimisticLocalHostComposition.Open(
+                    chainDir,
+                    new StubExecutor(),
+                    key,
+                    UInt160.Parse("0x" + new string('d', 40)),
+                    UInt256.Parse("0x" + new string('e', 64)),
+                    new StubSigner(Account(0x55))));
+            StringAssert.Contains(ex.Message, "Optimistic");
+            StringAssert.Contains(ex.Message, "Zk");
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Soft seal→settlement hand-off: MaxBlocksPerBatch=1 + pass-through executor + local DA.
     /// Does not claim L1 settle broadcast (funded gate).
     /// </summary>

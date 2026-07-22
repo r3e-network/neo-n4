@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Optimistic LocalHost ops Open parity (metrics HTTP + Zk fail-closed) — 2026-07-23
+
+- Close Multisig/Optimistic ops composition-root gap for Optimistic Open:
+  - `Open_DeferredStartMetricsHttp_And_CreateRpcPlugin` (deferred `StartMetricsHttp` +
+    `CreateRpcPlugin`)
+  - `Open_StartMetricsHttp_ReadyzOk` (`startMetricsHttp: true` → `/readyz` + `/healthprobe`)
+  - `Open_ZkSettlementConfig_FailsClosed` (mode-only Open rejects Zk settlement config)
+- Wire/ABI unchanged. SoftSeal multi-cycle already covered; L1 settle remains funded.
+
 ### Changed — Zk soft offline production-DA surface + STATUS Host WireProduction architecture cell — 2026-07-23
 
 - Add shared `RecordingProductionDaWriter` (`Neo.L2.SoftSeal.TestSupport`) for offline

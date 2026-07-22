@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Soft backfill LocalHost health rollup + pre-align pin — 2026-07-23
+
+- Multisig EnqueueAsync + Optimistic PersistAsync soft offline backfill: after seal-1 pin
+  `IsBatcherCheckpointAligned=true`; after settlement-only backfill pin full operator rollup
+  (`IsLocalHostHealthyAsync=false`, `GetLocalHostHealthFailuresAsync` /
+  `status.LocalHostHealthFailures` / healthprobe include `IsBatcherCheckpointAligned`,
+  `IsPipelineHealthy` / `IsLocalHostHealthy` false on probe).
+- Wire/ABI unchanged. Re-align via batcher seal or L1 settle remains operator/funded path.
+
 ### Changed — Soft backfill batcher/checkpoint misalignment ops signal + Zk metrics snapshot — 2026-07-23
 
 - Multisig EnqueueAsync + Optimistic PersistAsync soft offline backfill: pin

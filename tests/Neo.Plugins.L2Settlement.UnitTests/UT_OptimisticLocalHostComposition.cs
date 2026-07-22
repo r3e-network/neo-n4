@@ -806,6 +806,7 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(2UL, host.NextExpectedBlock);
             Assert.AreEqual(2UL, host.NextBatchNumber);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
+            Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
 
             var committeeHash =
                 SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir)();
@@ -862,6 +863,21 @@ public sealed class UT_OptimisticLocalHostComposition
                 pipelineFailures.ToArray(),
                 nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
             Assert.IsFalse(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
+            Assert.IsFalse(host.IsLocalHostHealthyAsync().AsTask().GetAwaiter().GetResult());
+            var hostFailures = host.GetLocalHostHealthFailuresAsync().AsTask().GetAwaiter().GetResult();
+            CollectionAssert.Contains(
+                hostFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
+            CollectionAssert.Contains(
+                status.LocalHostHealthFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
+            var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(probe.IsBatcherCheckpointAligned);
+            Assert.IsFalse(probe.IsPipelineHealthy);
+            Assert.IsFalse(probe.IsLocalHostHealthy);
+            CollectionAssert.Contains(
+                probe.PipelineHealthFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
 
             var pinPath = Path.Combine(chainDir, "soft-offline-persist-backfill.json");
             File.WriteAllText(pinPath, $$"""
@@ -872,6 +888,8 @@ public sealed class UT_OptimisticLocalHostComposition
                   "batcherLastAcknowledgedBatchNumber": {{status.LastAcknowledgedBatchNumber}},
                   "nextExpectedBlock": {{status.NextExpectedBlock}},
                   "isBatcherCheckpointAligned": false,
+                  "isPipelineHealthy": false,
+                  "isLocalHostHealthy": false,
                   "persistBackfill": true,
                   "getLatestCheckpointAsync": "fail-closed-mock-l1"
                 }
@@ -879,6 +897,7 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsTrue(File.Exists(pinPath));
             StringAssert.Contains(File.ReadAllText(pinPath), "\"persistBackfill\": true");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"isBatcherCheckpointAligned\": false");
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"isLocalHostHealthy\": false");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"proofType\": \"Optimistic\"");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"batcherLastAcknowledgedBatchNumber\": 1");

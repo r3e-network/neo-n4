@@ -843,6 +843,8 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(2UL, host.NextExpectedBlock);
             Assert.AreEqual(2UL, host.NextBatchNumber);
             Assert.IsFalse(host.TryRetryPendingSealedBatch());
+            // After seal-1: batcher tip matches durable tip (aligned) while settle still pending L1.
+            Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
 
             var committeeHash =
                 SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir)();
@@ -900,6 +902,22 @@ public sealed class UT_MultisigLocalHostComposition
                 pipelineFailures.ToArray(),
                 nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
             Assert.IsFalse(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
+            // LocalHost health unions pipeline + metrics; misalignment surfaces on the rollup.
+            Assert.IsFalse(host.IsLocalHostHealthyAsync().AsTask().GetAwaiter().GetResult());
+            var hostFailures = host.GetLocalHostHealthFailuresAsync().AsTask().GetAwaiter().GetResult();
+            CollectionAssert.Contains(
+                hostFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
+            CollectionAssert.Contains(
+                status.LocalHostHealthFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
+            var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(probe.IsBatcherCheckpointAligned);
+            Assert.IsFalse(probe.IsPipelineHealthy);
+            Assert.IsFalse(probe.IsLocalHostHealthy);
+            CollectionAssert.Contains(
+                probe.PipelineHealthFailures.ToArray(),
+                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
 
             var pinPath = Path.Combine(chainDir, "soft-offline-enqueue-backfill.json");
             File.WriteAllText(pinPath, $$"""
@@ -909,12 +927,15 @@ public sealed class UT_MultisigLocalHostComposition
                   "batcherLastAcknowledgedBatchNumber": {{status.LastAcknowledgedBatchNumber}},
                   "nextExpectedBlock": {{status.NextExpectedBlock}},
                   "isBatcherCheckpointAligned": false,
+                  "isPipelineHealthy": false,
+                  "isLocalHostHealthy": false,
                   "enqueueBackfill": true
                 }
                 """);
             Assert.IsTrue(File.Exists(pinPath));
             StringAssert.Contains(File.ReadAllText(pinPath), "\"enqueueBackfill\": true");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"isBatcherCheckpointAligned\": false");
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"isLocalHostHealthy\": false");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"batcherLastAcknowledgedBatchNumber\": 1");
         }

@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — E2E Multisig soft offline EnqueueAsync backfill + misalignment ops — 2026-07-23
+
+- Integration: `MultisigLocalHost_SoftOffline_EnqueueAsync_BackfillsWithoutAdvancingBatcher`
+  from deploy-report layout — seal batch 1 then `EnqueueAsync` batch 2; pins settlement tip 2 /
+  batcher tip 1, `IsBatcherCheckpointAligned=false`, LocalHost health failures, mock-L1
+  `GetLatestCheckpointAsync` fail-closed, and durable operatorstatus/healthprobe/prometheus
+  writers while unhealthy. No L1 settle claim.
+- Wire/ABI unchanged. Re-align / L1 settle remain funded gates.
+
 ### Changed — Soft backfill durable operator JSON/Prometheus writers while unhealthy — 2026-07-23
 
 - Multisig EnqueueAsync + Optimistic PersistAsync soft offline backfill: pin offline

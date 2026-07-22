@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost ScanAndProcessReadyDeposits offline + Gateway OpenMultisig backend fail-closed — 2026-07-23
+
+- Multisig/Optimistic/Zk LocalHost: pin offline `ScanAndProcessReadyDepositsAsync` +
+  `ScanSharedBridgeDepositsAsync` (empty scan / empty ready set; no funded L1 deposit events;
+  ProcessDeposit path remains independent).
+- Gateway: `OpenMultisig_WrongBackend_FailsClosed` (rejects non-Multisig aggregation backend;
+  parity with OpenMerkle wrong-backend fail-closed).
+- Wire/ABI unchanged. Live deposit scan / settle / PublishAggregate remain funded gates.
+
 ### Changed — Gateway OpenSp1 metrics HTTP + LocalHost StopMetricsHttp ops parity — 2026-07-23
 
 - Gateway: `OpenSp1_StartMetricsHttp_WiresReadyzAndHealthprobe` completes OpenMerkle /

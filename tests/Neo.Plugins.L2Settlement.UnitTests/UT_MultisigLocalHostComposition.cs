@@ -450,6 +450,11 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsNotNull(host.ForcedInclusion);
             // Soft mock: deploy height >> getblockcount so deposit ScanAsync no-ops (0 blocks).
             Assert.AreEqual(0, await host.ScanSharedBridgeDepositsAsync());
+            // Scan + process composition (host deposit pipeline); offline scan finds nothing.
+            var scanMinted = await host.ScanAndProcessReadyDepositsAsync();
+            Assert.AreEqual(0, scanMinted.Count);
+            Assert.AreEqual(0, (await host.ScanAndProcessReadyDepositsAsync(0)).Count);
+            Assert.AreEqual(1, host.ConsumedDepositCount); // ProcessDeposit path above still retained
             // After RegisterForcedInclusionNonce, overdue check fans out getEntry/isConsumed —
             // mock returns ByteString roots (committee path), so parse fails closed (funded L1 gate).
             await Assert.ThrowsExactlyAsync<OverflowException>(

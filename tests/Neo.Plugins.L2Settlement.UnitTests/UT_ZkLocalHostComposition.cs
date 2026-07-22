@@ -334,6 +334,9 @@ public sealed class UT_ZkLocalHostComposition
             Assert.IsTrue(host.HasConsumedDeposit(0, 1));
             Assert.AreEqual(1, host.ConsumedDepositCount);
             Assert.AreEqual(0, host.ProcessReadyDeposits().Count);
+            // Offline scan+process composition (no funded L1 deposit events).
+            Assert.AreEqual(0, host.ScanAndProcessReadyDepositsAsync().AsTask().GetAwaiter().GetResult().Count);
+            Assert.AreEqual(0, host.ScanSharedBridgeDepositsAsync().AsTask().GetAwaiter().GetResult());
             // Offline withdrawal staging + L2→L1 outbox (no funded L1 / prove-batch).
             var sender = Account(0x77);
             var wdLeaf = host.StageWithdrawal(new WithdrawalRequest

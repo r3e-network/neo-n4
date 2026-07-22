@@ -685,6 +685,14 @@ public sealed class UT_OptimisticLocalHostComposition
             await host.SubmitNextAsync();
             Assert.AreEqual(0, await host.GetPendingCountAsync());
             Assert.IsTrue(await host.IsSettlementRuntimeIdleAsync());
+            var recovery = await host.GetRecoveryStatusAsync();
+            Assert.AreEqual(0, recovery.PendingCount);
+            Assert.IsNull(recovery.State);
+            var tracked = await host.GetTrackedForcedInclusionNoncesAsync(20260716u);
+            Assert.AreEqual(0, tracked.Count);
+            Assert.IsNull(await host.GetLatestDurableCheckpointAsync());
+            Assert.IsNull(await host.GetLatestCheckpointAsync());
+            Assert.IsNotNull(await host.GetInitialStateRootAsync());
 
             host.StopMetricsHttp();
             Assert.IsFalse(host.IsMetricsHttpListening);
@@ -757,11 +765,12 @@ public sealed class UT_OptimisticLocalHostComposition
 
     /// <summary>
     /// Soft offline settlement backfill (Optimistic): after seal batch 1 via ProcessCommittedBlock,
-    /// <see cref="LocalHostCompositionBase.EnqueueAsync"/> persists batch 2 without advancing
-    /// the batcher tip. Does not claim L1 settle (funded gate).
+    /// <see cref="LocalHostCompositionBase.PersistAsync"/> persists batch 2 without advancing
+    /// the batcher tip (<see cref="LocalHostCompositionBase.EnqueueAsync"/> aliases PersistAsync).
+    /// Does not claim L1 settle (funded gate).
     /// </summary>
     [TestMethod]
-    public void SoftOffline_EnqueueAsync_BackfillsSettlementWithoutAdvancingBatcher()
+    public void SoftOffline_PersistAsync_BackfillsSettlementWithoutAdvancingBatcher()
     {
         var reportPath = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
@@ -772,7 +781,7 @@ public sealed class UT_OptimisticLocalHostComposition
 
         var chainDir = Path.Combine(
             Path.GetTempPath(),
-            "neo-n4-opt-enqueue-" + Guid.NewGuid().ToString("N"));
+            "neo-n4-opt-persist-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(chainDir);
         try
         {
@@ -802,7 +811,8 @@ public sealed class UT_OptimisticLocalHostComposition
                 SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir)();
             Assert.IsFalse(committeeHash.Equals(UInt256.Zero));
 
-            var postRoot = host.EnqueueAsync(new SealedBatch(
+            // Canonical host PersistAsync entry (EnqueueAsync is an alias of PersistAsync).
+            var postRoot = host.PersistAsync(new SealedBatch(
                 chainId: 20260716u,
                 batchNumber: 2,
                 firstBlock: 2,
@@ -821,11 +831,15 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, postRoot);
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
 
-            var tip = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
-            Assert.IsNotNull(tip);
-            Assert.AreEqual(2UL, tip!.BatchNumber);
-            Assert.AreEqual(2UL, tip.LastBlock);
-            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, tip.PostStateRoot);
+            var durable = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsNotNull(durable);
+            Assert.AreEqual(2UL, durable!.BatchNumber);
+            Assert.AreEqual(2UL, durable.LastBlock);
+            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, durable.PostStateRoot);
+
+            // GetLatestCheckpointAsync refreshes L1 lifecycle — mock RPC fails closed (funded gate).
+            Assert.ThrowsExactly<OverflowException>(() =>
+                host.GetLatestCheckpointAsync().AsTask().GetAwaiter().GetResult());
 
             Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
             Assert.AreEqual(1UL, host.LastAcknowledgedBlock);
@@ -841,7 +855,7 @@ public sealed class UT_OptimisticLocalHostComposition
             Assert.IsFalse(status.IsSettlementIdle);
             Assert.AreEqual(ProofType.Optimistic, status.ProofType);
 
-            var pinPath = Path.Combine(chainDir, "soft-offline-enqueue-backfill.json");
+            var pinPath = Path.Combine(chainDir, "soft-offline-persist-backfill.json");
             File.WriteAllText(pinPath, $$"""
                 {
                   "proofType": "Optimistic",
@@ -849,11 +863,12 @@ public sealed class UT_OptimisticLocalHostComposition
                   "latestCheckpointBatchNumber": {{status.LatestCheckpointBatchNumber}},
                   "batcherLastAcknowledgedBatchNumber": {{status.LastAcknowledgedBatchNumber}},
                   "nextExpectedBlock": {{status.NextExpectedBlock}},
-                  "enqueueBackfill": true
+                  "persistBackfill": true,
+                  "getLatestCheckpointAsync": "fail-closed-mock-l1"
                 }
                 """);
             Assert.IsTrue(File.Exists(pinPath));
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"enqueueBackfill\": true");
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"persistBackfill\": true");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"proofType\": \"Optimistic\"");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"latestCheckpointBatchNumber\": 2");
             StringAssert.Contains(File.ReadAllText(pinPath), "\"batcherLastAcknowledgedBatchNumber\": 1");

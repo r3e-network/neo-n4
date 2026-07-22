@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — LocalHost PersistAsync backfill + GetLatestCheckpointAsync offline fail-closed — 2026-07-23
+
+- Optimistic: `SoftOffline_PersistAsync_BackfillsSettlementWithoutAdvancingBatcher` pins host
+  `PersistAsync` (canonical entry; `EnqueueAsync` is an alias) settlement tip 2 while batcher
+  tip stays at 1.
+- Multisig EnqueueAsync soft offline + Optimistic PersistAsync: pin
+  `GetLatestCheckpointAsync` mock-L1 **fail-closed** (`OverflowException`) while
+  `GetLatestDurableCheckpointAsync` remains offline-safe.
+- Optimistic/Zk ReadyzOk: pin recovery empty + tracked FI nonces + null durable/latest
+  checkpoint + non-null initial state root.
+- Wire/ABI unchanged. Live `GetLatestCheckpointAsync` / L1 settle remain funded gates.
+
 ### Changed — Optimistic EnqueueAsync settlement backfill + idle settle helpers on ReadyzOk — 2026-07-23
 
 - Optimistic: `SoftOffline_EnqueueAsync_BackfillsSettlementWithoutAdvancingBatcher` (parity with

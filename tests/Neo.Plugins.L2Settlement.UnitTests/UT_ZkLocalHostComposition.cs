@@ -740,6 +740,14 @@ public sealed class UT_ZkLocalHostComposition
             await host.SubmitNextAsync();
             Assert.AreEqual(0, await host.GetPendingCountAsync());
             Assert.IsTrue(await host.IsSettlementRuntimeIdleAsync());
+            var recovery = await host.GetRecoveryStatusAsync();
+            Assert.AreEqual(0, recovery.PendingCount);
+            Assert.IsNull(recovery.State);
+            var tracked = await host.GetTrackedForcedInclusionNoncesAsync(20260716u);
+            Assert.AreEqual(0, tracked.Count);
+            Assert.IsNull(await host.GetLatestDurableCheckpointAsync());
+            Assert.IsNull(await host.GetLatestCheckpointAsync());
+            Assert.IsNotNull(await host.GetInitialStateRootAsync());
 
             host.StopMetricsHttp();
             Assert.IsFalse(host.IsMetricsHttpListening);

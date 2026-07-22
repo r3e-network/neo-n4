@@ -874,6 +874,11 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.AreEqual(2UL, tip.LastBlock);
             Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, tip.PostStateRoot);
 
+            // GetLatestCheckpointAsync refreshes L1 settlement lifecycle — mock RPC fails closed
+            // (funded gate). Durable tip remains available offline.
+            Assert.ThrowsExactly<OverflowException>(() =>
+                host.GetLatestCheckpointAsync().AsTask().GetAwaiter().GetResult());
+
             // Batcher still sits at post-seal-1 tip; settlement tip advanced via EnqueueAsync only.
             Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
             Assert.AreEqual(1UL, host.LastAcknowledgedBlock);

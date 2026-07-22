@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUtc": "2026-07-22T12:45:21Z",
+  "sourceCommit": "fecb15a",
+  "host": {
+    "os": "macos",
+    "rustc": "rustc 1.91.0-nightly (523d3999d 2025-08-30)",
+    "cargo": "cargo 1.91.0-nightly (a6c58d430 2025-08-26)"
+  },
+  "submodules": {
+    "external/neo-riscv-vm": "b0fb827",
+    "external/neo-zkvm": "97f7aad",
+    "external/neo-vm-rs": "ecaac42"
+  },
+  "localGates": {
+    "neo-execution-core_cargo_test_release": {
+      "status": "pass",
+      "tests": 12
+    },
+    "neo-zkvm-guest_cargo_test_release": {
+      "status": "pass",
+      "tests": 18,
+      "note": "host-mode stateful + native executor CLI"
+    },
+    "neo-vm-rs_cargo_test_release": {
+      "status": "pass",
+      "note": "unit + syscall + wire suites green"
+    },
+    "external_neo-zkvm_cargo_check": {
+      "status": "pass",
+      "note": "vendored neo-zkvm workspace crates type-check"
+    },
+    "neo-riscv-host_cargo_build_release": {
+      "status": "pass",
+      "artifact": "external/neo-riscv-vm/target/release/libneo_riscv_host.dylib"
+    },
+    "neo-riscv-host_cargo_test_release": {
+      "status": "pass",
+      "host_lib_tests": 156,
+      "source_layout": 7
+    },
+    "Neo.L2.Executor.RiscV.UnitTests": {
+      "status": "pass",
+      "passed": 31,
+      "skipped": 0,
+      "native": "NEO_RISCV_NATIVE_TESTS=1 + libneo_riscv_host.dylib"
+    },
+    "neo-zkvm-executor_build_release": {
+      "status": "pass",
+      "sha256": "0169e66c8f4a4faff80770f34a7fc256ca7f989f7a667cfdfbbcb9ac4a5d15fc",
+      "path": "target/release/neo-zkvm-executor"
+    },
+    "Neo.L2.Executor.UnitTests_Sp1Stateful": {
+      "status": "pass",
+      "passed": 14,
+      "env": "NEO_ZKVM_EXECUTOR"
+    },
+    "Neo.L2.Proving.UnitTests_Sp1_RiscV": {
+      "status": "pass",
+      "passed": 51
+    },
+    "Neo.Plugins.L2Settlement.UnitTests_Sp1Settlement": {
+      "status": "pass",
+      "passed": 8
+    }
+  },
+  "fundedOrEnvGatesStillOpen": [
+    "neo-zkvm-host cargo prove --docker ELF rebuild (SP1 6.2.1 + Docker; network timeouts observed on this host)",
+    "neo-zkvm-host #[ignore] real-CPU prove/verify (~40s+)",
+    "neo-zkvm-gateway-host real recursive Groth16 release gate",
+    "PolkaVM ChainMode.L2RiscV validity prover (no matching ZK prover; profile only)",
+    "reviewed NEF/VK production deployment evidence"
+  ],
+  "codeCompleteVsFunded": {
+    "codeComplete": [
+      "PolkaVM neo-riscv-host FFI + C# RiscVTransactionExecutor RealNative ABI parity",
+      "Sp1StatefulNeoVmV1 native executor (neo-zkvm-executor) + C# Sp1StatefulBatchExecutor boundary",
+      "neo-execution-core canonical batch/state/witness",
+      "neo-zkvm-guest host-mode stateful execution + golden fixtures",
+      "mock/in-process RiscVZk proving seams + Sp1 settlement composition unit tests"
+    ],
+    "funded": [
+      "reproducible SP1 Docker ELF + VK embed for neo-zkvm-host/gateway-host",
+      "real SP1 batch prove-batch daemon on operator hardware",
+      "real recursive gateway proof",
+      "L1 settle with real proof vectors"
+    ]
+  }
+}

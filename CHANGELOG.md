@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Tested — RISC-V VM + neo-zkvm local verification — 2026-07-22
+
+- Re-verified PolkaVM `neo-riscv-host` + SP1-path `neo-zkvm` local gates on master
+  (no wire/ABI change):
+  - `neo-execution-core` + `neo-zkvm-guest` host tests pass (stateful fixtures +
+    `neo-zkvm-executor` CLI).
+  - `external/neo-vm-rs` + `external/neo-zkvm` cargo check/test green; submodule SHAs
+    `neo-riscv-vm@b0fb827`, `neo-zkvm@97f7aad`, `neo-vm-rs@ecaac42`.
+  - Built `libneo_riscv_host` + **31/31** `Neo.L2.Executor.RiscV.UnitTests` with
+    `NEO_RISCV_NATIVE_TESTS=1` (RealNative no longer skipped).
+  - Built release `neo-zkvm-executor` and **14/14** Sp1Stateful C# boundary tests via
+    `NEO_ZKVM_EXECUTOR`; Sp1/RiscV proving **51** + Sp1Settlement **8** unit tests pass.
+- Added `scripts/ci/verify_riscv_zkvm_local.sh` for repeatable local re-runs.
+- Evidence: `docs/audit/riscv-zkvm-local-verify-2026-07-22.json`.
+- Still **funded/env**: SP1 Docker `cargo prove` ELF rebuild (network timeouts on this
+  host), `#[ignore]` real-CPU prove, gateway recursive Groth16, PolkaVM validity prover
+  (profile only), reviewed NEF/VK deployment evidence.
+
 ### Changed — SoftSeal twenty-first poison→recover multi-state retention — 2026-07-22
 
 - Multisig/Optimistic unit + E2E SoftSeal: after full soft multi-batch path (unvigintuple

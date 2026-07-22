@@ -7495,11 +7495,88 @@ public sealed class UT_MultisigLocalHostComposition
             Assert.IsTrue(File.Exists(twentyThirdOutboundRpcPath));
             StringAssert.Contains(File.ReadAllText(twentyThirdOutboundRpcPath), "\"outboundMessageHash\": \"" + twentyThirdOutbound.MessageHash + "\"");
 
-            // SubmitNext after twenty-second recover remains best-effort; does not clear pending without funded L1.
+            // Twenty-third poison→recover after trevigintuple soft multi-batch path retains soft state.
+            LocalHostOperatorStatus afterTwentyThirdPoison = afterTwentyThirdOutbound;
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                try
+                {
+                    host.ReconcileAsync().GetAwaiter().GetResult();
+                }
+                catch (OverflowException)
+                {
+                }
+                catch (Exception)
+                {
+                }
+
+                host.SubmitNextAsync().GetAwaiter().GetResult();
+                afterTwentyThirdPoison = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+                if (afterTwentyThirdPoison.IsSettlementPoisoned)
+                    break;
+            }
+
+            Assert.IsTrue(afterTwentyThirdPoison.IsSettlementPoisoned);
+            Assert.IsFalse(afterTwentyThirdPoison.IsSettlementRetrying);
+            Assert.IsTrue(afterTwentyThirdPoison.PendingSettlementCount >= 2);
+            Assert.AreEqual(23, afterTwentyThirdPoison.ConsumedDepositCount);
+            Assert.AreEqual(23, afterTwentyThirdPoison.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(23, afterTwentyThirdPoison.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(23, afterTwentyThirdPoison.KnownInboundNonceCount);
+            Assert.IsNotNull(afterTwentyThirdPoison.Recovery.BlockedBatchNumber);
+            Assert.IsNotNull(afterTwentyThirdPoison.Recovery.ArtifactContentHash);
+            var twentyThirdBlocked = afterTwentyThirdPoison.Recovery.BlockedBatchNumber!.Value;
+            var twentyThirdHash = afterTwentyThirdPoison.Recovery.ArtifactContentHash!;
+            Assert.ThrowsExactly<InvalidOperationException>(
+                () => host.RecoverPoisonedBatchAsync(twentyThirdBlocked, UInt256.Zero)
+                    .GetAwaiter().GetResult());
+            host.RecoverPoisonedBatchAsync(twentyThirdBlocked, twentyThirdHash).GetAwaiter().GetResult();
+            var afterTwentyThirdRecover = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(afterTwentyThirdRecover.IsSettlementPoisoned);
+            Assert.IsTrue(afterTwentyThirdRecover.IsSettlementRetrying);
+            Assert.AreEqual(SettlementRecoveryState.Retrying, afterTwentyThirdRecover.Recovery.State);
+            Assert.AreEqual(0, afterTwentyThirdRecover.Recovery.RetryCount);
+            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
+            Assert.AreEqual(2UL, afterTwentyThirdRecover.LatestCheckpointBatchNumber);
+            Assert.AreEqual(23, afterTwentyThirdRecover.ConsumedDepositCount);
+            Assert.AreEqual(23, afterTwentyThirdRecover.MessageOutboxL2ToL1Count);
+            Assert.AreEqual(23, afterTwentyThirdRecover.KnownForcedInclusionNonceCount);
+            Assert.AreEqual(23, afterTwentyThirdRecover.KnownInboundNonceCount);
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(1));
+            Assert.AreEqual(BatchStatus.Finalized, host.GetRpcBatchStatus(2));
+            Assert.IsTrue(host.GetRpcWithdrawalProof(twentyThirdWdLeaf) is { Length: > 0 });
+            Assert.IsTrue(host.GetRpcMessageProof(twentyThirdOutbound.MessageHash) is { Length: > 0 });
+            Assert.IsTrue(afterTwentyThirdRecover.IsOfflinePassportComplete);
+            Assert.IsTrue(afterTwentyThirdRecover.IsOperatorReady);
+            var twentyThirdPoisonPath = Path.Combine(chainDir, "soft-seal-twenty-third-poison-recover.json");
+            File.WriteAllText(twentyThirdPoisonPath, $$"""
+                {
+                  "twentyThirdPoisonBlockedBatch": {{twentyThirdBlocked}},
+                  "pendingSettlementCount": {{afterTwentyThirdRecover.PendingSettlementCount}},
+                  "latestCheckpointBatchNumber": {{afterTwentyThirdRecover.LatestCheckpointBatchNumber}},
+                  "consumedDepositCount": {{afterTwentyThirdRecover.ConsumedDepositCount}},
+                  "messageOutboxL2ToL1Count": {{afterTwentyThirdRecover.MessageOutboxL2ToL1Count}},
+                  "knownForcedInclusionNonceCount": {{afterTwentyThirdRecover.KnownForcedInclusionNonceCount}},
+                  "knownInboundNonceCount": {{afterTwentyThirdRecover.KnownInboundNonceCount}},
+                  "rpcBatch1Status": "{{host.GetRpcBatchStatus(1)}}",
+                  "rpcBatch2Status": "{{host.GetRpcBatchStatus(2)}}",
+                  "twentyThirdWithdrawalProofPresent": true,
+                  "twentyThirdMessageProofPresent": true,
+                  "isSettlementRetrying": true,
+                  "isSettlementPoisoned": false
+                }
+                """);
+            Assert.IsTrue(File.Exists(twentyThirdPoisonPath));
+            StringAssert.Contains(File.ReadAllText(twentyThirdPoisonPath), "\"rpcBatch2Status\": \"Finalized\"");
+            StringAssert.Contains(File.ReadAllText(twentyThirdPoisonPath), "\"consumedDepositCount\": 23");
+            StringAssert.Contains(File.ReadAllText(twentyThirdPoisonPath), "\"messageOutboxL2ToL1Count\": 23");
+            StringAssert.Contains(File.ReadAllText(twentyThirdPoisonPath), "\"isSettlementRetrying\": true");
+
+            // SubmitNext after twenty-third recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
             Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
             Assert.IsFalse(host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult().IsSettlementIdle);
-            // Gateway multi-batch backlog still independent after twenty-second recover / SubmitNext.
+            // Gateway multi-batch backlog still independent after twenty-third recover / SubmitNext.
             Assert.IsTrue(gatewayHost.AggregatorPendingCount >= 4);
         }
         finally

@@ -43,6 +43,7 @@
     <ProjectReference Include="..\..\src\Neo.L2.Settlement.Rpc\Neo.L2.Settlement.Rpc.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Sdk\Neo.L2.Sdk.csproj" />
     <ProjectReference Include="..\..\tools\Neo.L2.Bridge.Cli\Neo.L2.Bridge.Cli.csproj" />
+    <ProjectReference Include="..\Neo.L2.SoftSeal.TestSupport\Neo.L2.SoftSeal.TestSupport.csproj" />
   </ItemGroup>
 
 </Project>

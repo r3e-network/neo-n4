@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — SoftSeal multi-cycle parameterized harness (anti-duplication) — 2026-07-22
+
+- Replaced SoftSeal n-way cloned helpers (E2E ~72 methods / ~789KB; Multisig/Optimistic
+  SoftSeal methods ~5.5k lines each) with a single parameterized harness:
+  `tests/Neo.L2.SoftSeal.TestSupport/SoftSealMultiCycle.cs`.
+- One cycle n (n≥2): local DA re-publish + offline deposit n → withdrawal/outbox/FI n →
+  poison→recover retention at count n; `RunCycles(fromN, toN)` drives n=2..`TargetCycle`.
+- Multisig/Optimistic unit SoftSeal tests keep unique setup through first recover, then
+  call `SoftSealMultiCycle.RunCycles`; E2E SoftSeal drops 66 clone helpers (file ~20k→~3.8k
+  lines). Durable artifacts use `soft-seal-cycle-{n}-*.json` naming.
+- Wire/ABI unchanged. Soft multi-batch completeness still **code-complete**; L1 settle /
+  production DA / FI drain remain funded gates.
+
 ### Changed — SoftSeal twenty-third poison→recover multi-state retention — 2026-07-22
 
 - Multisig/Optimistic unit + E2E SoftSeal: after full soft multi-batch path (trevigintuple

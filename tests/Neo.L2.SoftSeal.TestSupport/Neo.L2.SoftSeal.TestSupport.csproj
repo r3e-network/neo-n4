@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Neo.L2.SoftSeal.TestSupport</RootNamespace>
+    <AssemblyName>Neo.L2.SoftSeal.TestSupport</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="$(MSTestVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Bridge\Neo.L2.Bridge.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.State\Neo.L2.State.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Messaging\Neo.L2.Messaging.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Settlement\Neo.Plugins.L2Settlement.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2DA\Neo.Plugins.L2DA.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
+  </ItemGroup>
+</Project>

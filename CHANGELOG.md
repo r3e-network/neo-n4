@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Zk soft offline production-DA surface + STATUS Host WireProduction architecture cell — 2026-07-23
+
+- Add shared `RecordingProductionDaWriter` (`Neo.L2.SoftSeal.TestSupport`) for offline
+  `IProductionDAWriter` publish/availability without funded NeoFS/L1 credentials (replaces
+  per-file throw-only stub clones for soft DA paths).
+- Zk unit: `SoftOffline_RecordingProductionDa_PublishAndAvailability` pins host
+  `PublishDaAsync` / `IsDaAvailableAsync` / `SupportsLocalDaReader=false` /
+  `CreateLocalDaReader` fail-closed, and SoftSeal `FromHost` reject for non-local DA.
+- Collapse `IMPLEMENTATION_STATUS` Host WireProduction cell (~13k laundry chars → ~1.4k
+  architecture note) with explicit **code-complete** vs **funded** gates.
+- Wire/ABI unchanged. Zk SoftSeal multi-cycle / SP1 prove-batch / real production DA remain funded.
+
 ### Refactored — LocalHostCompositionBase (kill Multisig/Optimistic/Zk triple clone) — 2026-07-23
 
 - Extract shared operator surface into `LocalHostCompositionBase` (~1.8k lines once):

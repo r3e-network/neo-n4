@@ -13,6 +13,7 @@ using Neo.L2.Proving.RiscVZk;
 using Neo.L2.Settlement.Rpc;
 using Neo.L2.State;
 using Neo.Network.P2P.Payloads;
+using Neo.L2.SoftSeal.TestSupport;
 using Neo.Plugins.L2Rpc;
 using Neo.Wallets;
 
@@ -493,6 +494,98 @@ public sealed class UT_ZkLocalHostComposition
             var rpcPlugin = host.CreateRpcPlugin();
             Assert.IsNotNull(rpcPlugin);
             Assert.IsFalse(rpcPlugin.IsRegistered(894710606));
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+            if (Directory.Exists(exeRoot))
+                Directory.Delete(exeRoot, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Offline Zk host DA publish/availability via shared recording production-DA marker.
+    /// Does not claim funded NeoFS/L1 credentials, SoftSeal multi-cycle, or SP1 prove-batch.
+    /// </summary>
+    [TestMethod]
+    public void SoftOffline_RecordingProductionDa_PublishAndAvailability()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-zk-soft-da-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        var exeRoot = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-zk-soft-da-exe-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(exeRoot);
+        try
+        {
+            var genesisRoot = MaterializeZkChain(chainDir, reportPath);
+            var exePath = Path.Combine(exeRoot, "neo-zkvm-executor");
+            File.WriteAllBytes(exePath, [0x0A, 0x0B]);
+            var sha = SHA256.HashData(File.ReadAllBytes(exePath));
+            var da = new RecordingProductionDaWriter();
+
+            using var http = CanonicalRootHttpClient(genesisRoot);
+            using var host = ZkLocalHostComposition.Open(
+                chainDir,
+                exePath,
+                sha,
+                Hash(0x7A),
+                da,
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http);
+
+            Assert.IsFalse(host.SupportsLocalDaReader);
+            Assert.AreSame(da, host.DaWriter);
+            Assert.ThrowsExactly<NotSupportedException>(() => host.CreateLocalDaReader());
+
+            var payload = new byte[] { 0xDA, 0x5A, 0x01 };
+            var receipt = host.PublishDaAsync(new DAPublishRequest
+            {
+                ChainId = 20260716u,
+                BatchNumber = 1,
+                Payload = payload,
+            }).AsTask().GetAwaiter().GetResult();
+            Assert.AreEqual(DAMode.L1, receipt.Layer);
+            Assert.AreEqual(DAReceiptKind.L1Transaction, receipt.Kind);
+            Assert.IsTrue(host.IsDaAvailableAsync(receipt).AsTask().GetAwaiter().GetResult());
+            Assert.AreEqual(1, da.PublishCount);
+            Assert.IsTrue(da.TryGetPayload(receipt.Commitment, out var readBack));
+            CollectionAssert.AreEqual(payload, readBack.ToArray());
+
+            var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+            Assert.IsFalse(status.SupportsLocalDaReader);
+            Assert.AreEqual(DAMode.L1, status.DaMode);
+            Assert.IsTrue(status.IsOperatorReady);
+
+            // SoftSeal multi-cycle is Multisig/Optimistic local-DA only — architecture gate.
+            var softEx = Assert.ThrowsExactly<NotSupportedException>(() =>
+                SoftSealMultiCycle.FromHost(host, Hash(0x5E)));
+            StringAssert.Contains(softEx.Message, "SupportsLocalDaReader");
+            StringAssert.Contains(softEx.Message, "Zk");
+
+            var pinPath = Path.Combine(chainDir, "soft-offline-zk-production-da.json");
+            File.WriteAllText(pinPath, $$"""
+                {
+                  "supportsLocalDaReader": false,
+                  "daMode": "{{receipt.Layer}}",
+                  "kind": "{{receipt.Kind}}",
+                  "publishCount": {{da.PublishCount}},
+                  "payloadBytes": {{payload.Length}},
+                  "softSealFromHost": "rejected"
+                }
+                """);
+            Assert.IsTrue(File.Exists(pinPath));
+            StringAssert.Contains(File.ReadAllText(pinPath), "\"supportsLocalDaReader\": false");
         }
         finally
         {

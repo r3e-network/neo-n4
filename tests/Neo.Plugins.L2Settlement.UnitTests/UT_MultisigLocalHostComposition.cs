@@ -1442,7 +1442,9 @@ public sealed class UT_MultisigLocalHostComposition
 
             // SoftSeal multi-cycle n=2..Target: DA+deposit → outbound/FI → poison→recover.
             // Parameterized harness (SoftSealMultiCycle) replaces N-way cloned cycle bodies.
-            SoftSealMultiCycle.RunCycles(SoftSealHost(host), chainDir, fromN: 2, toN: SoftSealMultiCycle.TargetCycle);
+            SoftSealMultiCycle.RunCycles(
+                SoftSealMultiCycle.FromMultisig(host, SoftPassThroughExecutor.PostStateRoot),
+                chainDir, fromN: 2, toN: SoftSealMultiCycle.TargetCycle);
 
             // SubmitNext after multi-cycle recover remains best-effort; does not clear pending without funded L1.
             host.SubmitNextAsync().GetAwaiter().GetResult();
@@ -1833,59 +1835,6 @@ public sealed class UT_MultisigLocalHostComposition
     /// Not a ZK semantic; L1 settle broadcast remains operator-funded.
     /// </summary>
 
-    private static SoftSealMultiCycle.HostSurface SoftSealHost(MultisigLocalHostComposition host) => new()
-    {
-        PublishDaAsync = req => host.PublishDaAsync(req).AsTask(),
-        IsDaAvailableAsync = receipt => host.IsDaAvailableAsync(receipt).AsTask(),
-        SupportsLocalDaReader = () => host.SupportsLocalDaReader,
-        CreateLocalDaReader = () => host.CreateLocalDaReader(),
-        ProcessDeposit = host.ProcessDeposit,
-        HasConsumedDeposit = host.HasConsumedDeposit,
-        ConsumedDepositCount = () => host.ConsumedDepositCount,
-        RecordRpcDeposit = host.RecordRpcDeposit,
-        GetRpcL1DepositStatus = host.GetRpcL1DepositStatus,
-        ScanSharedBridgeDepositsAsync = () => host.ScanSharedBridgeDepositsAsync().AsTask(),
-        StageWithdrawal = host.StageWithdrawal,
-        StagedWithdrawalCount = () => host.StagedWithdrawalCount,
-        SealWithdrawalBatch = host.SealWithdrawalBatch,
-        EnqueueOutbound = msgs => host.EnqueueOutboundMessagesAsync(msgs).AsTask(),
-        MessageOutboxL2ToL1Count = () => host.MessageOutbox!.L2ToL1Count,
-        MessageOutboxL2ToL1Root = () => host.MessageOutboxL2ToL1Root,
-        RegisterForcedInclusionNonce = host.RegisterForcedInclusionNonce,
-        KnownForcedInclusionNonceCount = () => host.KnownForcedInclusionNonceCount,
-        HasOverdueForcedInclusionCached = () => host.HasOverdueForcedInclusionCached(),
-        InvalidateForcedInclusionCache = host.InvalidateForcedInclusionCache,
-        OpenBatchForcedInclusionCount = () => host.OpenBatchForcedInclusionCount,
-        RegisterInboundMessageNonce = host.RegisterInboundMessageNonce,
-        KnownInboundNonceCount = () => host.KnownInboundNonceCount,
-        InvalidateInboundMessageCache = host.InvalidateInboundMessageCache,
-        OpenBatchL1MessageCount = () => host.OpenBatchL1MessageCount,
-        L1InboxPendingCount = () => host.L1InboxPendingCount,
-        RecordRpcWithdrawalProof = host.RecordRpcWithdrawalProof,
-        GetRpcWithdrawalProof = host.GetRpcWithdrawalProof,
-        RecordRpcMessageProof = host.RecordRpcMessageProof,
-        GetRpcMessageProof = host.GetRpcMessageProof,
-        RecordMessageRouterFinalizedProof = host.RecordMessageRouterFinalizedProof,
-        GetMessageRouterProofAsync = msgHash => host.GetMessageRouterProofAsync(msgHash).AsTask(),
-        ReconcileAsync = () => host.ReconcileAsync(),
-        SubmitNextAsync = () => host.SubmitNextAsync(),
-        RecoverPoisonedBatchAsync = (batch, hash) => host.RecoverPoisonedBatchAsync(batch, hash),
-        IsSettlementPoisonedAsync = () => host.IsSettlementPoisonedAsync().AsTask(),
-        GetPendingCount = () => host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult(),
-        GetOperatorStatus = () => host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult(),
-        GetHealthProbe = () => host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult(),
-        FormatOperatorStatusJson = () => host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult(),
-        FormatHealthProbeJson = () => host.FormatHealthProbeJson(),
-        ExportPrometheusMetrics = () => host.ExportPrometheusMetrics(),
-        WritePrometheusMetricsAsync = path => host.WritePrometheusMetricsAsync(path).AsTask(),
-        WriteOperatorStatusAsync = path => host.WriteOperatorStatusAsync(path).AsTask(),
-        WriteHealthProbeAsync = path => host.WriteHealthProbeAsync(path).AsTask(),
-        GetRpcBatch = host.GetRpcBatch,
-        GetRpcBatchStatus = host.GetRpcBatchStatus,
-        GetRpcStateRootAtBatch = host.GetRpcStateRootAtBatch,
-        GetLatestRpcStateRoot = () => host.GetLatestRpcStateRoot(),
-        ExpectedPostStateRoot = SoftPassThroughExecutor.PostStateRoot,
-    };
 
     private sealed class SoftPassThroughExecutor : IProofWitnessBatchExecutor
     {

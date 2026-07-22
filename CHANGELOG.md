@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — SoftSeal host factories + STATUS SoftSeal wall cleanup — 2026-07-23
+
+- Move Multisig/Optimistic SoftSeal `HostSurface` mapping into
+  `SoftSealMultiCycle.FromMultisig` / `FromOptimistic` (single composition root for
+  unit + E2E SoftSeal tests; no per-file SoftSealHost clones).
+- Collapse `IMPLEMENTATION_STATUS` Host WireProduction SoftSeal laundry list
+  (~25k cell chars of soft-seal-nth names) to SoftSealMultiCycle architecture note.
+- Wire/ABI unchanged. Soft multi-batch still code-complete; L1 settle / Zk SoftSeal
+  production DA remain funded.
+
 ### Refactored — SoftSeal multi-cycle parameterized harness (anti-duplication) — 2026-07-22
 
 - Replaced SoftSeal n-way cloned helpers (E2E ~72 methods / ~789KB; Multisig/Optimistic

@@ -378,7 +378,10 @@ public sealed class L2BatchPlugin : Plugin
             throw new InvalidOperationException(
                 "forced-inclusion source chain differs from sealed-batch sink");
 
-        var checkpoint = sink.GetLatestCheckpointAsync()
+        // Offline-safe restore: durable local artifacts only. Do not call
+        // GetLatestCheckpointAsync here — production settlement refreshes L1 lifecycle
+        // (funded RPC) and would fail closed offline after soft settlement backfill.
+        var checkpoint = sink.GetLatestDurableCheckpointAsync()
             .AsTask().GetAwaiter().GetResult();
         var initialStateRoot = checkpoint is null
             ? sink.GetInitialStateRootAsync().AsTask().GetAwaiter().GetResult()

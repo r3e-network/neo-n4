@@ -214,10 +214,21 @@ public interface ISealedBatchSink
 
     /// <summary>
     /// Recover the latest checkpoint after validating that committed artifacts form one
-    /// continuous batch, block, and state-root chain.
+    /// continuous batch, block, and state-root chain. Production settlement may refresh
+    /// L1 lifecycle (funded RPC) before reading durable artifacts.
     /// </summary>
     ValueTask<SealedBatchCheckpoint?> GetLatestCheckpointAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Latest contiguous durable checkpoint from local artifacts only — used by
+    /// <c>L2BatchPlugin.WithSealedBatchSink</c> to restore the batcher tip offline without
+    /// L1 lifecycle refresh. Default falls through to <see cref="GetLatestCheckpointAsync"/>
+    /// for in-memory sinks; production settlement overrides to skip funded RPC.
+    /// </summary>
+    ValueTask<SealedBatchCheckpoint?> GetLatestDurableCheckpointAsync(
+        CancellationToken cancellationToken = default)
+        => GetLatestCheckpointAsync(cancellationToken);
 
     /// <summary>
     /// Return forced-inclusion nonces already tracked by durable artifacts.

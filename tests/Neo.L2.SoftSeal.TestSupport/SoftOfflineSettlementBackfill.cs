@@ -193,4 +193,52 @@ public static class SoftOfflineSettlementBackfill
         StringAssert.Contains(pinText, "\"latestCheckpointBatchNumber\": 2");
         StringAssert.Contains(pinText, "\"batcherLastAcknowledgedBatchNumber\": 1");
     }
+
+    /// <summary>
+    /// After soft settlement-only backfill left batcher tip behind durable tip, a host
+    /// reopen restores the batcher from <see cref="ISealedBatchSink.GetLatestDurableCheckpointAsync"/>
+    /// (no L1 refresh) so batcher/checkpoint tips re-align offline. Settlement may still be
+    /// poisoned/retrying until L1 settle (funded gate) — that is not cleared by reopen alone.
+    /// </summary>
+    /// <param name="host">Reopened Multisig/Optimistic LocalHost composition.</param>
+    /// <param name="expectedTip">Durable tip expected after backfill (typically 2).</param>
+    /// <param name="expectedProofType">ProofType on operator status.</param>
+    /// <param name="expectedPostStateRoot">Durable checkpoint post-state root.</param>
+    public static void AssertReopenRestoresBatcherFromDurableTip(
+        LocalHostCompositionBase host,
+        ulong expectedTip,
+        ProofType expectedProofType,
+        UInt256 expectedPostStateRoot)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(expectedPostStateRoot);
+        if (expectedTip == 0)
+            throw new ArgumentOutOfRangeException(nameof(expectedTip), "tip must be non-zero");
+
+        Assert.AreEqual(expectedTip, host.LastAcknowledgedBatchNumber);
+        Assert.AreEqual(expectedTip, host.LastAcknowledgedBlock);
+        Assert.AreEqual(expectedTip + 1, host.NextExpectedBlock);
+        Assert.AreEqual(expectedTip + 1, host.NextBatchNumber);
+
+        var tip = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
+        Assert.IsNotNull(tip);
+        Assert.AreEqual(expectedTip, tip!.BatchNumber);
+        Assert.AreEqual(expectedPostStateRoot, tip.PostStateRoot);
+
+        Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
+
+        var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
+        Assert.AreEqual(expectedProofType, status.ProofType);
+        Assert.AreEqual(expectedTip, status.LastAcknowledgedBatchNumber);
+        Assert.AreEqual(expectedTip, status.LatestCheckpointBatchNumber);
+        Assert.IsTrue(status.IsBatcherCheckpointAligned);
+        Assert.IsTrue(status.IsOfflinePassportComplete);
+        // Misalignment is cleared by durable restore; L1-pending poison/retry is orthogonal.
+        CollectionAssert.DoesNotContain(
+            status.PipelineHealthFailures.ToArray(),
+            nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
+        CollectionAssert.DoesNotContain(
+            status.LocalHostHealthFailures.ToArray(),
+            nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
+    }
 }

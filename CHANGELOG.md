@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Offline batcher restore from durable checkpoint (reopen re-align) — 2026-07-23
+
+- Architecture: `ISealedBatchSink.GetLatestDurableCheckpointAsync` (default → L1-aware
+  `GetLatestCheckpointAsync`; production settlement already implements durable-only).
+  `L2BatchPlugin.WithSealedBatchSink` restores the batcher tip from **durable** artifacts so
+  offline host reopen after soft settlement-only backfill re-aligns batcher/checkpoint without
+  funded L1 lifecycle refresh (previously Open used `GetLatestCheckpointAsync` and failed closed
+  offline once durable batches existed).
+- Pins: Multisig/Optimistic `SoftOffline_Reopen_RestoresBatcherTipFromDurableCheckpoint` via
+  shared `SoftOfflineSettlementBackfill.AssertReopenRestoresBatcherFromDurableTip` (thin Open
+  shells). Settlement poison/retry until L1 settle remains a funded gate.
+- Wire/ABI unchanged (interface additive default method; batcher restore path only).
+
 ### Changed — SoftOfflineSettlementBackfill shared pin (unit + E2E, no mode clones) — 2026-07-23
 
 - Architecture: `Neo.L2.SoftSeal.TestSupport.SoftOfflineSettlementBackfill` is the single soft-offline

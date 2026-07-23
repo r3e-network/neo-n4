@@ -817,6 +817,75 @@ public sealed class UT_OptimisticLocalHostComposition
     }
 
     /// <summary>
+    /// Soft offline reopen after settlement-only PersistAsync backfill: batcher restores tip
+    /// from durable checkpoint (no L1). Shared pin:
+    /// <see cref="SoftOfflineSettlementBackfill.AssertReopenRestoresBatcherFromDurableTip"/>.
+    /// </summary>
+    [TestMethod]
+    public void SoftOffline_Reopen_RestoresBatcherTipFromDurableCheckpoint()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-opt-reopen-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeOptimisticChain(chainDir, reportPath);
+            RewriteMaxBlocksPerBatch(chainDir, 1);
+            var key = new KeyPair(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray());
+            using (var http = CanonicalRootHttpClient())
+            using (var host = OptimisticLocalHostComposition.Open(
+                chainDir,
+                new SoftPassThroughExecutor(),
+                key,
+                UInt160.Parse("0x" + new string('b', 40)),
+                UInt256.Parse("0x" + new string('c', 64)),
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http,
+                submittedAtUnixMs: static () => 1_700_000_000_000UL))
+            {
+                SoftOfflineSettlementBackfill.AssertBackfillWithoutAdvancingBatcher(
+                    host,
+                    chainDir,
+                    SoftPassThroughExecutor.PostStateRoot,
+                    ProofType.Optimistic,
+                    batch => host.PersistAsync(batch),
+                    artifactPrefix: "soft-offline-reopen-persist",
+                    backfillFlagName: "persistBackfill");
+                Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
+            }
+
+            using var http2 = CanonicalRootHttpClient();
+            using var reopened = OptimisticLocalHostComposition.Open(
+                chainDir,
+                new SoftPassThroughExecutor(),
+                key,
+                UInt160.Parse("0x" + new string('b', 40)),
+                UInt256.Parse("0x" + new string('c', 64)),
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http2,
+                submittedAtUnixMs: static () => 1_700_000_000_000UL);
+            SoftOfflineSettlementBackfill.AssertReopenRestoresBatcherFromDurableTip(
+                reopened,
+                expectedTip: 2,
+                ProofType.Optimistic,
+                SoftPassThroughExecutor.PostStateRoot);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Soft seal→settlement hand-off: MaxBlocksPerBatch=1 + pass-through executor + local DA.
     /// Does not claim L1 settle broadcast (funded gate).
     /// </summary>

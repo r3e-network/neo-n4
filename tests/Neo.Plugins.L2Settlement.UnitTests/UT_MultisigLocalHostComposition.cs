@@ -855,6 +855,69 @@ public sealed class UT_MultisigLocalHostComposition
     }
 
     /// <summary>
+    /// Soft offline reopen after settlement-only backfill: batcher restores tip from durable
+    /// checkpoint via <c>WithSealedBatchSink</c> (no L1 refresh). Shared pin:
+    /// <see cref="SoftOfflineSettlementBackfill.AssertReopenRestoresBatcherFromDurableTip"/>.
+    /// </summary>
+    [TestMethod]
+    public void SoftOffline_Reopen_RestoresBatcherTipFromDurableCheckpoint()
+    {
+        var reportPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-msig-reopen-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeMultisigChain(chainDir, reportPath);
+            RewriteMaxBlocksPerBatch(chainDir, 1);
+            using (var http = CanonicalRootHttpClient())
+            using (var host = MultisigLocalHostComposition.Open(
+                chainDir,
+                new SoftPassThroughExecutor(),
+                SampleSigners(),
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http))
+            {
+                SoftOfflineSettlementBackfill.AssertBackfillWithoutAdvancingBatcher(
+                    host,
+                    chainDir,
+                    SoftPassThroughExecutor.PostStateRoot,
+                    ProofType.Multisig,
+                    batch => host.EnqueueAsync(batch),
+                    artifactPrefix: "soft-offline-reopen-enqueue",
+                    backfillFlagName: "enqueueBackfill");
+                Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
+            }
+
+            // Dispose closed RocksDB; reopen restores batcher from durable tip 2 offline.
+            using var http2 = CanonicalRootHttpClient();
+            using var reopened = MultisigLocalHostComposition.Open(
+                chainDir,
+                new SoftPassThroughExecutor(),
+                SampleSigners(),
+                new StubSigner(Account(0x44)),
+                rpcHttpClient: http2);
+            SoftOfflineSettlementBackfill.AssertReopenRestoresBatcherFromDurableTip(
+                reopened,
+                expectedTip: 2,
+                ProofType.Multisig,
+                SoftPassThroughExecutor.PostStateRoot);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Soft seal→settlement hand-off: MaxBlocksPerBatch=1 + pass-through executor + local DA.
     /// Does not claim L1 settle broadcast (funded gate).
     /// </summary>

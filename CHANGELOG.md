@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — SoftOfflineSettlementBackfill shared pin (unit + E2E, no mode clones) — 2026-07-23
+
+- Architecture: `Neo.L2.SoftSeal.TestSupport.SoftOfflineSettlementBackfill` is the single soft-offline
+  settlement-backfill pin (seal batch 1 → Persist/Enqueue batch 2 without batcher tip advance;
+  misalignment health; mock-L1 `GetLatestCheckpointAsync` fail-closed; durable ops writers).
+  Multisig unit EnqueueAsync, Optimistic unit PersistAsync, and E2E Multisig Enqueue + Optimistic
+  Persist are thin host-Open shells over that helper — same pattern as `SoftSealMultiCycle`
+  (`FromHost`), no Multisig/Optimistic N-way clones of the assertion body.
+- Integration: E2E Optimistic soft offline PersistAsync parity closed via the shared helper.
+- Wire/ABI unchanged. Re-align / L1 settle remain funded gates.
+
 ### Changed — E2E Multisig soft offline EnqueueAsync backfill + misalignment ops — 2026-07-23
 
 - Integration: `MultisigLocalHost_SoftOffline_EnqueueAsync_BackfillsWithoutAdvancingBatcher`

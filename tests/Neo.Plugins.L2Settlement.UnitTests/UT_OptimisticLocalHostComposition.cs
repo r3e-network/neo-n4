@@ -764,9 +764,10 @@ public sealed class UT_OptimisticLocalHostComposition
     }
 
     /// <summary>
-    /// Soft offline settlement backfill (Optimistic): after seal batch 1 via ProcessCommittedBlock,
+    /// Soft offline settlement backfill (Optimistic): after seal batch 1,
     /// <see cref="LocalHostCompositionBase.PersistAsync"/> persists batch 2 without advancing
-    /// the batcher tip (<see cref="LocalHostCompositionBase.EnqueueAsync"/> aliases PersistAsync).
+    /// the batcher tip (EnqueueAsync aliases PersistAsync). Shared pin:
+    /// <see cref="SoftOfflineSettlementBackfill.AssertBackfillWithoutAdvancingBatcher"/>.
     /// Does not claim L1 settle (funded gate).
     /// </summary>
     [TestMethod]
@@ -799,133 +800,14 @@ public sealed class UT_OptimisticLocalHostComposition
                 rpcHttpClient: http,
                 submittedAtUnixMs: static () => 1_700_000_000_000UL);
 
-            var ts1 = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            host.ProcessCommittedBlock(1, ts1, 894710606, Array.Empty<byte[]>());
-            Assert.AreEqual(1, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
-            Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
-            Assert.AreEqual(2UL, host.NextExpectedBlock);
-            Assert.AreEqual(2UL, host.NextBatchNumber);
-            Assert.IsFalse(host.TryRetryPendingSealedBatch());
-            Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
-
-            var committeeHash =
-                SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir)();
-            Assert.IsFalse(committeeHash.Equals(UInt256.Zero));
-
-            // Canonical host PersistAsync entry (EnqueueAsync is an alias of PersistAsync).
-            var postRoot = host.PersistAsync(new SealedBatch(
-                chainId: 20260716u,
-                batchNumber: 2,
-                firstBlock: 2,
-                lastBlock: 2,
-                preStateRoot: SoftPassThroughExecutor.PostStateRoot,
-                transactions: Array.Empty<ReadOnlyMemory<byte>>(),
-                l1Messages: Array.Empty<CrossChainMessage>(),
-                blockContext: new BatchBlockContext
-                {
-                    L1FinalizedHeight = 1,
-                    FirstBlockTimestamp = ts1 + 1,
-                    LastBlockTimestamp = ts1 + 1,
-                    SequencerCommitteeHash = committeeHash,
-                    Network = 894710606,
-                })).AsTask().GetAwaiter().GetResult();
-            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, postRoot);
-            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
-
-            var durable = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
-            Assert.IsNotNull(durable);
-            Assert.AreEqual(2UL, durable!.BatchNumber);
-            Assert.AreEqual(2UL, durable.LastBlock);
-            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, durable.PostStateRoot);
-
-            // GetLatestCheckpointAsync refreshes L1 lifecycle — mock RPC fails closed (funded gate).
-            Assert.ThrowsExactly<OverflowException>(() =>
-                host.GetLatestCheckpointAsync().AsTask().GetAwaiter().GetResult());
-
-            Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
-            Assert.AreEqual(1UL, host.LastAcknowledgedBlock);
-            Assert.AreEqual(2UL, host.NextExpectedBlock);
-            Assert.AreEqual(2UL, host.NextBatchNumber);
-            Assert.IsFalse(host.HasPendingSealedBatch);
-            Assert.IsFalse(host.TryRetryPendingSealedBatch());
-
-            var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
-            Assert.IsTrue(status.PendingSettlementCount >= 2);
-            Assert.AreEqual(2UL, status.LatestCheckpointBatchNumber);
-            Assert.AreEqual(1UL, status.LastAcknowledgedBatchNumber);
-            Assert.IsFalse(status.IsSettlementIdle);
-            Assert.AreEqual(ProofType.Optimistic, status.ProofType);
-            // Operator surface: settlement tip advanced without batcher seal advance → misaligned.
-            Assert.IsFalse(status.IsBatcherCheckpointAligned);
-            Assert.IsFalse(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
-            var pipelineFailures = host.GetPipelineHealthFailuresAsync().AsTask().GetAwaiter().GetResult();
-            CollectionAssert.Contains(
-                pipelineFailures.ToArray(),
-                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
-            Assert.IsFalse(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
-            Assert.IsFalse(host.IsLocalHostHealthyAsync().AsTask().GetAwaiter().GetResult());
-            var hostFailures = host.GetLocalHostHealthFailuresAsync().AsTask().GetAwaiter().GetResult();
-            CollectionAssert.Contains(
-                hostFailures.ToArray(),
-                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
-            CollectionAssert.Contains(
-                status.LocalHostHealthFailures.ToArray(),
-                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
-            var probe = host.GetHealthProbeAsync().AsTask().GetAwaiter().GetResult();
-            Assert.IsFalse(probe.IsBatcherCheckpointAligned);
-            Assert.IsFalse(probe.IsPipelineHealthy);
-            Assert.IsFalse(probe.IsLocalHostHealthy);
-            CollectionAssert.Contains(
-                probe.PipelineHealthFailures.ToArray(),
-                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
-
-            // Durable operator JSON writers still work offline while unhealthy.
-            var statusJson = host.FormatOperatorStatusJsonAsync().AsTask().GetAwaiter().GetResult();
-            StringAssert.Contains(statusJson, "\"isBatcherCheckpointAligned\": false");
-            StringAssert.Contains(statusJson, "\"isLocalHostHealthy\": false");
-            StringAssert.Contains(statusJson, "\"proofType\": \"Optimistic\"");
-            var probeJson = host.FormatHealthProbeJson();
-            StringAssert.Contains(probeJson, "\"isBatcherCheckpointAligned\": false");
-            StringAssert.Contains(probeJson, "\"isLocalHostHealthy\": false");
-            var statusPath = Path.Combine(chainDir, "soft-offline-persist-operator-status.json");
-            host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
-            Assert.IsTrue(File.Exists(statusPath));
-            StringAssert.Contains(File.ReadAllText(statusPath), "\"isBatcherCheckpointAligned\": false");
-            var probePath = Path.Combine(chainDir, "soft-offline-persist-health-probe.json");
-            host.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
-            Assert.IsTrue(File.Exists(probePath));
-            StringAssert.Contains(File.ReadAllText(probePath), "\"isBatcherCheckpointAligned\": false");
-            var promPath = Path.Combine(chainDir, "soft-offline-persist-metrics.prom");
-            host.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
-            Assert.IsTrue(File.Exists(promPath));
-            Assert.IsFalse(string.IsNullOrWhiteSpace(File.ReadAllText(promPath)));
-
-            var pinPath = Path.Combine(chainDir, "soft-offline-persist-backfill.json");
-            File.WriteAllText(pinPath, $$"""
-                {
-                  "proofType": "Optimistic",
-                  "settlementPending": {{status.PendingSettlementCount}},
-                  "latestCheckpointBatchNumber": {{status.LatestCheckpointBatchNumber}},
-                  "batcherLastAcknowledgedBatchNumber": {{status.LastAcknowledgedBatchNumber}},
-                  "nextExpectedBlock": {{status.NextExpectedBlock}},
-                  "isBatcherCheckpointAligned": false,
-                  "isPipelineHealthy": false,
-                  "isLocalHostHealthy": false,
-                  "operatorStatusJsonWritten": true,
-                  "healthProbeJsonWritten": true,
-                  "prometheusWritten": true,
-                  "persistBackfill": true,
-                  "getLatestCheckpointAsync": "fail-closed-mock-l1"
-                }
-                """);
-            Assert.IsTrue(File.Exists(pinPath));
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"persistBackfill\": true");
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"isBatcherCheckpointAligned\": false");
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"isLocalHostHealthy\": false");
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"operatorStatusJsonWritten\": true");
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"proofType\": \"Optimistic\"");
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"latestCheckpointBatchNumber\": 2");
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"batcherLastAcknowledgedBatchNumber\": 1");
+            SoftOfflineSettlementBackfill.AssertBackfillWithoutAdvancingBatcher(
+                host,
+                chainDir,
+                SoftPassThroughExecutor.PostStateRoot,
+                ProofType.Optimistic,
+                batch => host.PersistAsync(batch),
+                artifactPrefix: "soft-offline-persist",
+                backfillFlagName: "persistBackfill");
         }
         finally
         {

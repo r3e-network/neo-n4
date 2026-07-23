@@ -803,82 +803,14 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 new StubSigner(Account(0x44)),
                 rpcHttpClient: http);
 
-            var ts1 = (ulong)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            host.ProcessCommittedBlock(1, ts1, 894710606, Array.Empty<byte[]>());
-            Assert.AreEqual(1, host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult());
-            Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
-            Assert.IsTrue(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
-
-            var committeeHash =
-                SequencerCommitteeConfig.CreateStaticHashProviderFromChainDirectory(chainDir)();
-            Assert.IsFalse(committeeHash.Equals(UInt256.Zero));
-
-            var postRoot = host.EnqueueAsync(new SealedBatch(
-                chainId: 20260716u,
-                batchNumber: 2,
-                firstBlock: 2,
-                lastBlock: 2,
-                preStateRoot: SoftPassThroughExecutor.PostStateRoot,
-                transactions: Array.Empty<ReadOnlyMemory<byte>>(),
-                l1Messages: Array.Empty<CrossChainMessage>(),
-                blockContext: new BatchBlockContext
-                {
-                    L1FinalizedHeight = 1,
-                    FirstBlockTimestamp = ts1 + 1,
-                    LastBlockTimestamp = ts1 + 1,
-                    SequencerCommitteeHash = committeeHash,
-                    Network = 894710606,
-                })).AsTask().GetAwaiter().GetResult();
-            Assert.AreEqual(SoftPassThroughExecutor.PostStateRoot, postRoot);
-            Assert.IsTrue(host.GetPendingCountAsync().AsTask().GetAwaiter().GetResult() >= 2);
-
-            var tip = host.GetLatestDurableCheckpointAsync().AsTask().GetAwaiter().GetResult();
-            Assert.IsNotNull(tip);
-            Assert.AreEqual(2UL, tip!.BatchNumber);
-            Assert.AreEqual(1UL, host.LastAcknowledgedBatchNumber);
-            Assert.IsFalse(host.IsBatcherCheckpointAlignedAsync().AsTask().GetAwaiter().GetResult());
-            Assert.IsFalse(host.IsPipelineHealthyAsync().AsTask().GetAwaiter().GetResult());
-            Assert.IsFalse(host.IsLocalHostHealthyAsync().AsTask().GetAwaiter().GetResult());
-
-            var status = host.GetOperatorStatusAsync().AsTask().GetAwaiter().GetResult();
-            Assert.AreEqual(2UL, status.LatestCheckpointBatchNumber);
-            Assert.AreEqual(1UL, status.LastAcknowledgedBatchNumber);
-            Assert.IsFalse(status.IsBatcherCheckpointAligned);
-            Assert.IsFalse(status.IsLocalHostHealthy);
-            CollectionAssert.Contains(
-                status.LocalHostHealthFailures.ToArray(),
-                nameof(LocalHostOperatorStatus.IsBatcherCheckpointAligned));
-
-            Assert.ThrowsExactly<OverflowException>(() =>
-                host.GetLatestCheckpointAsync().AsTask().GetAwaiter().GetResult());
-
-            var statusPath = Path.Combine(chainDir, "e2e-soft-offline-enqueue-operator-status.json");
-            host.WriteOperatorStatusAsync(statusPath).AsTask().GetAwaiter().GetResult();
-            Assert.IsTrue(File.Exists(statusPath));
-            StringAssert.Contains(File.ReadAllText(statusPath), "\"isBatcherCheckpointAligned\": false");
-            var probePath = Path.Combine(chainDir, "e2e-soft-offline-enqueue-health-probe.json");
-            host.WriteHealthProbeAsync(probePath).AsTask().GetAwaiter().GetResult();
-            Assert.IsTrue(File.Exists(probePath));
-            StringAssert.Contains(File.ReadAllText(probePath), "\"isBatcherCheckpointAligned\": false");
-            var promPath = Path.Combine(chainDir, "e2e-soft-offline-enqueue-metrics.prom");
-            host.WritePrometheusMetricsAsync(promPath).AsTask().GetAwaiter().GetResult();
-            Assert.IsTrue(File.Exists(promPath));
-
-            var pinPath = Path.Combine(chainDir, "e2e-soft-offline-enqueue-backfill.json");
-            File.WriteAllText(pinPath, $$"""
-                {
-                  "proofType": "Multisig",
-                  "settlementPending": {{status.PendingSettlementCount}},
-                  "latestCheckpointBatchNumber": {{status.LatestCheckpointBatchNumber}},
-                  "batcherLastAcknowledgedBatchNumber": {{status.LastAcknowledgedBatchNumber}},
-                  "isBatcherCheckpointAligned": false,
-                  "isLocalHostHealthy": false,
-                  "enqueueBackfill": true
-                }
-                """);
-            Assert.IsTrue(File.Exists(pinPath));
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"enqueueBackfill\": true");
-            StringAssert.Contains(File.ReadAllText(pinPath), "\"isBatcherCheckpointAligned\": false");
+            SoftOfflineSettlementBackfill.AssertBackfillWithoutAdvancingBatcher(
+                host,
+                chainDir,
+                SoftPassThroughExecutor.PostStateRoot,
+                ProofType.Multisig,
+                batch => host.EnqueueAsync(batch),
+                artifactPrefix: "e2e-soft-offline-enqueue",
+                backfillFlagName: "enqueueBackfill");
         }
         finally
         {
@@ -1180,6 +1112,56 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             SoftSealMultiCycle.RunCycles(
                 SoftSealMultiCycle.FromMultisig(host, SoftPassThroughExecutor.PostStateRoot),
                 chainDir, fromN: 2, toN: SoftSealMultiCycle.TargetCycle);
+        }
+        finally
+        {
+            if (Directory.Exists(chainDir))
+                Directory.Delete(chainDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Soft offline settlement backfill on Optimistic host from deploy report: after seal batch 1,
+    /// <see cref="LocalHostCompositionBase.PersistAsync"/> advances settlement tip without the
+    /// batcher tip. Shared pin:
+    /// <see cref="SoftOfflineSettlementBackfill.AssertBackfillWithoutAdvancingBatcher"/>.
+    /// No L1 settle claim.
+    /// </summary>
+    [TestMethod]
+    public void OptimisticLocalHost_SoftOffline_PersistAsync_BackfillsWithoutAdvancingBatcher()
+    {
+        var reportPath = ResolveDeployReportPath();
+        if (!File.Exists(reportPath))
+            Assert.Inconclusive($"repo evidence file not found at {reportPath}");
+
+        var chainDir = Path.Combine(
+            Path.GetTempPath(),
+            "neo-n4-host-opt-persist-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(chainDir);
+        try
+        {
+            MaterializeChain(chainDir, reportPath, ProofType.Optimistic, DAMode.Local, "Optimistic");
+            RewriteMaxBlocksPerBatch(chainDir, 1);
+            using var http = MockL1HttpClient(Root(0x11));
+            var sequencer = new KeyPair(Enumerable.Range(1, 32).Select(i => (byte)i).ToArray());
+            using var host = OptimisticLocalHostComposition.Open(
+                chainDir,
+                new SoftPassThroughExecutor(),
+                sequencer,
+                UInt160.Parse("0x" + new string('b', 40)),
+                UInt256.Parse("0x" + new string('c', 64)),
+                new StubSigner(Account(0x46)),
+                rpcHttpClient: http,
+                submittedAtUnixMs: static () => 1_700_000_000_000UL);
+
+            SoftOfflineSettlementBackfill.AssertBackfillWithoutAdvancingBatcher(
+                host,
+                chainDir,
+                SoftPassThroughExecutor.PostStateRoot,
+                ProofType.Optimistic,
+                batch => host.PersistAsync(batch),
+                artifactPrefix: "e2e-soft-offline-persist",
+                backfillFlagName: "persistBackfill");
         }
         finally
         {

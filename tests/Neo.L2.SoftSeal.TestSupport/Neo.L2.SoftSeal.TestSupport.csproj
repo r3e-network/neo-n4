@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Settlement\Neo.Plugins.L2Settlement.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2DA\Neo.Plugins.L2DA.csproj" />
     <ProjectReference Include="..\..\src\Neo.L2.Persistence\Neo.L2.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Sequencer\Neo.L2.Sequencer.csproj" />
     <ProjectReference Include="..\..\src\Neo.Plugins.L2Rpc\Neo.Plugins.L2Rpc.csproj" />
   </ItemGroup>
 </Project>

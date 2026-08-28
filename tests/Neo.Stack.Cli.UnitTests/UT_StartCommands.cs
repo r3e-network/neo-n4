@@ -524,7 +524,7 @@ public class UT_StartCommands
         File.WriteAllText(Path.Combine(_tempDir, "node", "config.json"), $$"""
             {
               "ApplicationConfiguration": {
-                "Storage": { "Path": "{{Path.Combine(_tempDir, "data")}}" },
+                "Storage": { "Path": {{System.Text.Json.JsonSerializer.Serialize(Path.Combine(_tempDir, "data"))}} },
                 "UnlockWallet": {
                   "Path": "validator.json",
                   "Password": "test-only",
@@ -542,7 +542,7 @@ public class UT_StartCommands
         File.WriteAllText(Path.Combine(_tempDir, "batcher-node", "config.json"), $$"""
             {
               "ApplicationConfiguration": {
-                "Storage": { "Path": "{{Path.Combine(_tempDir, "batcher-data")}}" }
+                "Storage": { "Path": {{System.Text.Json.JsonSerializer.Serialize(Path.Combine(_tempDir, "batcher-data"))}} }
               },
               "ProtocolConfiguration": {
                 "Network": 123456789,

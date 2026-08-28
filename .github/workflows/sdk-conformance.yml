@@ -55,7 +55,7 @@ jobs:
           cache-dependency-path: sdk/typescript/package-lock.json
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
@@ -115,7 +115,7 @@ jobs:
           cache-dependency-path: sdk/typescript/package-lock.json
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip

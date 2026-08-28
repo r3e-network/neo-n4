@@ -328,6 +328,27 @@ public class UT_L2MetricsPlugin
     [TestMethod]
     public void ResolveBindAddress_BogusHostname_Throws()
     {
+        // RFC 2606 reserves .invalid so it must never resolve. DNS setups with wildcard
+        // answers (VPN Fake-IP modes, captive portals, ISP NXDOMAIN redirects) resolve
+        // it anyway, and then the fallback-to-DNS path correctly returns an address —
+        // the throw contract only holds on resolvers that honor NXDOMAIN (CI, default
+        // configs). Detect the wildcard environment and skip rather than fail.
+        try
+        {
+            var resolved = System.Net.Dns.GetHostAddresses("does-not-exist.invalid");
+            if (resolved.Length > 0)
+            {
+                Assert.Inconclusive(
+                    $"Host DNS wildcard-resolves reserved names (got {resolved[0]}); " +
+                    "NXDOMAIN failure path cannot be exercised here.");
+                return;
+            }
+        }
+        catch (System.Net.Sockets.SocketException)
+        {
+            // Expected environment: reserved name does not resolve — exercise the throw.
+        }
+
         Assert.ThrowsExactly<InvalidOperationException>(() =>
             L2MetricsPlugin.ResolveBindAddress("does-not-exist.invalid"));
     }

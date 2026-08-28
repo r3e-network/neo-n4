@@ -20,7 +20,7 @@
     <PackageReference Include="MSTest.TestAdapter" Version="$(MSTestVersion)" />
     <PackageReference Include="MSTest.TestFramework" Version="$(MSTestVersion)" />
     <!-- Version-aligned with the devpack nccs (3.9.1) that compiles the contract NEFs. -->
-    <PackageReference Include="Neo.SmartContract.Testing" Version="3.9.1" />
+    <PackageReference Include="Neo.SmartContract.Testing" Version="3.10.1" />
   </ItemGroup>
 
   <ItemGroup>

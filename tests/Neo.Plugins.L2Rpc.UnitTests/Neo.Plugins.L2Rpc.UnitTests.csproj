@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="MSTest" Version="$(MSTestVersion)" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 

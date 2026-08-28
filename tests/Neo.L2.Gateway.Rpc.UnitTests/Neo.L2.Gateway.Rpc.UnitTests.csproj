@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="MSTest" Version="$(MSTestVersion)" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
   </ItemGroup>
 
   <ItemGroup>

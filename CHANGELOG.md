@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — document SP1 6.2.1 transitive advisories, quiet unfixable Dependabot jobs — 2026-08-28
+
+- Assessment: two GitHub-Advisory-Database-only findings flag transitives of the pinned
+  SP1 6.2.1 toolchain — GHSA-vj64-rjf3-w3v7/CVE-2026-46654 (`p3-challenger 0.3.3-succinct`,
+  Plonky3 Fiat-Shamir transcript malleability) and GHSA-qqmc-hwqp-8g2w (`lru 0.12.5`,
+  use-after-free). Both are reachable only through `sp1-sdk 6.2.1` operator-side prover
+  paths; neither has a RUSTSEC record, so the CI `cargo audit` gate scans green. Full
+  impact analysis + remediation plan: `docs/audit/sp1-transitive-advisories-2026-08-28.md`.
+- CI: `dependabot.yml` now ignores exactly these two cargo dependency names so the
+  unfixable security-update jobs stop failing on every master commit; the sp1 upgrade
+  (VK re-pin + guest rebuild) remains the real fix and RUSTSEC publication would still
+  trip the cargo-audit gate loudly. All other advisory paths stay active.
+- Wire/ABI unchanged.
+
 ### Fixed — Windows-local test fixtures escape JSON paths — 2026-08-28
 
 - Tests: `UT_StartCommands.SeedOperatorLayout` and `UT_QuickPathIntegration` embedded

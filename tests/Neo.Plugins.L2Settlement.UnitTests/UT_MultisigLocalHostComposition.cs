@@ -147,7 +147,7 @@ public sealed class UT_MultisigLocalHostComposition
                 Assert.AreEqual(3UL, host.NextExpectedBlock);
                 Assert.AreEqual(1UL, host.NextBatchNumber);
             }
-            Assert.IsTrue(host.RegisterInboundMessageNonce(7));            Assert.AreEqual(1, host.KnownInboundNonceCount);
+            Assert.IsTrue(host.RegisterInboundMessageNonce(7)); Assert.AreEqual(1, host.KnownInboundNonceCount);
             host.InvalidateInboundMessageCache();
             Assert.AreEqual(0, host.L1InboxPendingCount);
             Assert.AreEqual(0, host.L1InboxConsumedCount);

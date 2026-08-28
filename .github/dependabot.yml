@@ -23,6 +23,16 @@ updates:
     labels:
       - dependencies
       - rust
+    ignore:
+      # Transitive deps of the pinned sp1-sdk 6.2.1 prover toolchain. Their
+      # advisories (GHSA-vj64-rjf3-w3v7, GHSA-qqmc-hwqp-8g2w) cannot be fixed
+      # inside this dependency graph — remediation is the coordinated SP1
+      # upgrade (VK re-pin + guest rebuild), not a lockfile bump. Assessment,
+      # reachability evidence, and the remediation plan live in
+      # docs/audit/sp1-transitive-advisories-2026-08-28.md. Every other
+      # advisory path stays active.
+      - dependency-name: "lru"
+      - dependency-name: "p3-challenger"
 
   # GitHub Actions — keep checkout / setup-dotnet / rust-toolchain on the
   # latest stable.

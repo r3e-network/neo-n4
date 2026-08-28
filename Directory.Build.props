@@ -7,9 +7,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsNotAsErrors>CS1591;NU1900;NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
-    <NuGetAudit>false</NuGetAudit>
+    <!--
+      Restore-time vulnerability scanning is ENABLED (audit finding M5). NU190x advisories are
+      surfaced as warnings but kept out of TreatWarningsAsErrors above, matching the documented
+      "audit runs, advisories don't fail the build" intent. NuGetAuditMode=all also flags
+      vulnerable transitive packages, not just direct references.
+    -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591;NU1900;NU1901;NU1902;NU1903;NU1904</NoWarn>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <!--
       Path to the r3e-network/neo Neo L2 core fork checkout. Default points at the
       external/neo git submodule on the r3e/neo-n4-core branch so a fresh clone

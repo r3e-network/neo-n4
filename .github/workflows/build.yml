@@ -79,6 +79,20 @@ jobs:
       - name: dotnet format --verify-no-changes
         run: dotnet format Neo.L2.sln --verify-no-changes --exclude external/
 
+      - name: Audit NuGet packages for known vulnerabilities
+        # Non-overridable supply-chain gate (audit finding M5). The build/test
+        # invocations pass /p:NuGetAudit=false for build-time noise reasons, which
+        # also disables restore-time advisories; this step independently fails CI if
+        # ANY direct or transitive package has a known advisory.
+        run: |
+          dotnet list Neo.L2.sln package --vulnerable --include-transitive \
+            | tee /tmp/nuget-vuln.log
+          if grep -qi "is affected by" /tmp/nuget-vuln.log; then
+            echo "FAIL: one or more NuGet packages have known vulnerabilities (see log above)"
+            exit 1
+          fi
+          echo "OK: no vulnerable NuGet packages (direct or transitive)"
+
       - name: Test
         run: dotnet test Neo.L2.sln /p:NuGetAudit=false --nologo --no-build
 

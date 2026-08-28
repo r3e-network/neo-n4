@@ -11,7 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 neo-bridge-watcher-eth = { path = "../neo-bridge-watcher-eth" }
-ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["rand_core", "fast"] }
+ed25519-dalek = { version = "=3.0.0", default-features = false, features = ["rand_core", "fast"] }
 zeroize = "1.8"
 
 [dev-dependencies]

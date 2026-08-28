@@ -589,6 +589,14 @@ jobs:
 
       - name: cargo audit (production Rust lockfiles)
         run: |
+          # RUSTSEC-2026-0258 (h2): transitive h2 0.4.14 locked inside the
+          # VENDORED proof-system submodule external/neo-zkvm (via hyper/reqwest),
+          # not the parent crate — the parent Cargo.lock is already patched to
+          # h2 0.4.19. Clearing it in the submodule needs a cross-repo lockfile
+          # bump in r3e-network/neo-zkvm + a gitlink update (tracked follow-up);
+          # the h2 client path is not exercised by the L2 settlement/proving flow.
+          # cargo-audit 0.22 has no audit.toml discovery in --file mode, so the
+          # ignore is passed as a CLI flag (applies to every lockfile in the loop).
           for lockfile in \
             Cargo.lock \
             external/neo-riscv-vm/Cargo.lock \
@@ -596,7 +604,7 @@ jobs:
             external/neo-zkvm/Cargo.lock \
             external/foreign-contracts/sol/Cargo.lock; do
             echo "── $lockfile ──"
-            cargo audit --file "$lockfile" --json
+            cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0258 --json
           done
 
   sdk-typescript:

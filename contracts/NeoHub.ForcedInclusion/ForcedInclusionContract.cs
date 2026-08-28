@@ -50,6 +50,15 @@ public class ForcedInclusionContract : SmartContract
     private const byte KeyOwner = 0xFF;
     private const int MaxTransactionProofDepth = 64;
 
+    /// <summary>
+    /// Hard ceiling on the size of a forced transaction's <c>encodedTx</c>. Without an upper
+    /// bound a payer could, for one flat <see cref="GetFee"/>, enqueue a multi-megabyte blob that
+    /// bloats L1 storage and forces the sequencer to inflate a batch's tx-root to satisfy
+    /// <c>Consume</c> (or face <c>ReportCensorship → pauseChain</c>). Matches the payload ceiling
+    /// used by <c>NeoHub.L1TxFilter.MaxPayloadBytes</c>.
+    /// </summary>
+    public const int MaxEncodedTxBytes = 128 * 1024;   // 128 KiB
+
     /// <summary>Default time the sequencer has to include a forced tx before censorship kicks in.</summary>
     public const uint DefaultDeadlineSeconds = 7200;   // 2 hours
 
@@ -344,6 +353,7 @@ public class ForcedInclusionContract : SmartContract
         // would ever consume.
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(encodedTx.Length > 0, "empty tx");
+        ExecutionEngine.Assert(encodedTx.Length <= MaxEncodedTxBytes, "tx too large");
         ExecutionEngine.Assert(HashTransaction(encodedTx).Equals(txHash), "txHash does not match encodedTx");
         var submitter = Runtime.Transaction.Sender;
         ExecutionEngine.Assert(Runtime.CheckWitness(submitter),

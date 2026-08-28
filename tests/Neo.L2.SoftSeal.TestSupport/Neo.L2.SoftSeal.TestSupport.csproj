@@ -6,6 +6,10 @@
     <IsPackable>false</IsPackable>
     <RootNamespace>Neo.L2.SoftSeal.TestSupport</RootNamespace>
     <AssemblyName>Neo.L2.SoftSeal.TestSupport</AssemblyName>
+    <!-- Shared test-support library (Assert helpers used by real test projects),
+         not itself a test project: the MSTest meta-package would otherwise mark it
+         IsTestProject=true and `dotnet test` would fail it with "No test is available". -->
+    <IsTestProject>false</IsTestProject>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>

@@ -23,7 +23,8 @@
     -->
     <NeoDevpackPath>$(MSBuildThisFileDirectory)..$([System.IO.Path]::DirectorySeparatorChar)external$([System.IO.Path]::DirectorySeparatorChar)neo-devpack-dotnet$([System.IO.Path]::DirectorySeparatorChar)src</NeoDevpackPath>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
-    <NuGetAudit>false</NuGetAudit>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
   </PropertyGroup>
 
   <ItemGroup>

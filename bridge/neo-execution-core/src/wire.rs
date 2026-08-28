@@ -1117,6 +1117,14 @@ impl<'a> Reader<'a> {
         if value > maximum {
             return Err(ExecutionError::Oversized(field));
         }
+        // Every counted element occupies at least one byte of the buffer, so a well-formed
+        // payload can never declare more items than there are bytes remaining. Rejecting an
+        // inflated count here (before any `Vec::with_capacity`) prevents a truncated body from
+        // forcing a large transient allocation off an untrusted length prefix.
+        let remaining = self.bytes.len().saturating_sub(self.position);
+        if value > remaining {
+            return Err(ExecutionError::Truncated);
+        }
         Ok(value)
     }
 
@@ -1261,5 +1269,37 @@ impl Writer {
 
     fn finish(self) -> Vec<u8> {
         self.bytes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ExecutionError, Reader, MAX_PAYLOAD_ITEMS};
+
+    // Regression for audit finding M1: a length/count prefix larger than the bytes actually
+    // present must be rejected up front (so the caller's `Vec::with_capacity` never allocates
+    // tens of MB off a truncated, untrusted witness), while a count backed by enough bytes passes.
+    #[test]
+    fn read_count_rejects_count_larger_than_remaining_bytes() {
+        // u32 little-endian count of 1_000_000 (0x000F4240) followed by only 3 body bytes.
+        let bytes = [0x40u8, 0x42, 0x0F, 0x00, 0xAA, 0xBB, 0xCC];
+        let mut reader = Reader::new(&bytes);
+        let err = reader
+            .read_count(MAX_PAYLOAD_ITEMS, "payload transactions")
+            .expect_err("inflated count with truncated body must not be accepted");
+        assert!(matches!(err, ExecutionError::Truncated), "got {err:?}");
+    }
+
+    #[test]
+    fn read_count_accepts_count_backed_by_enough_bytes() {
+        // count = 2 with exactly 2 body bytes remaining -> valid, must not error.
+        let bytes = [0x02u8, 0x00, 0x00, 0x00, 0x11, 0x22];
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            reader
+                .read_count(MAX_PAYLOAD_ITEMS, "L1 messages")
+                .expect("valid count backed by bytes"),
+            2
+        );
     }
 }

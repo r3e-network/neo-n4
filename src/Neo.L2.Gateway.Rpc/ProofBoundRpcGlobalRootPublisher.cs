@@ -146,7 +146,8 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
                 ?? throw new InvalidDataException(
                     "ExpectedNetwork is required (settlement plugin config or l1.deployed.json network)");
         var senderOptions = (options ?? new RpcTransactionSenderOptions { ExpectedNetwork = network })
-            with { ExpectedNetwork = network };
+            with
+        { ExpectedNetwork = network };
         var rpc = new JsonRpcClient(endpoints.RpcEndpoint.AbsoluteUri);
         var sender = new RpcTransactionSender(rpc, signer, senderOptions);
         var signAndSend = CreateSignAndSend(sender);

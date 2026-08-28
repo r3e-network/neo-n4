@@ -65,7 +65,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 | Rust crates — watchers | 3 | `watchers/neo-bridge-watcher-{eth,tron,sol}/` |
 | App SDK source implementations (TS / Rust / Python / .NET) | 4 | `sdk/typescript/`, `sdk/rust/`, `sdk/python/`, `src/Neo.L2.Sdk/` — 10 RPC methods (11 convenience calls because state-root supports latest/at-batch) × 4 languages, parity-pinned; package release evidence is not claimed |
 | Web explorer (static-file dApp) | 1 | `sdk/web-explorer/index.html` |
-| Test projects | 38 | Current `tests/**/*.csproj` entries in `Neo.L2.sln` |
+| Test projects | 39 | Current `tests/**/*.csproj` entries in `Neo.L2.sln` |
 | Top-level documentation pages | 39 EN + 49 zh | Current `docs/*.md`, `docs/zh/*.md`; nested guides are additional |
 
 The solution and test inventories are discovered from `Neo.L2.sln` and

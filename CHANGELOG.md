@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Windows-local test fixtures escape JSON paths — 2026-08-28
+
+- Tests: `UT_StartCommands.SeedOperatorLayout` and `UT_QuickPathIntegration` embedded
+  `Path.Combine(_tempDir, …)` values into raw-string JSON via string interpolation, so every
+  backslash in a Windows temp path (`C:\Users\...`) produced invalid JSON (`\U` is not a legal
+  escape). Linux CI paths carry no backslashes, which is why the suite was green on ubuntu while
+  all 13 `start-*` / quick-path tests failed on Windows. Fixtures now emit the path through
+  `JsonSerializer.Serialize`, which quotes and escapes correctly on every platform. Production
+  `neo-stack` JSON writers embed only template enum values (no paths), so no runtime change.
+- Wire/ABI unchanged.
+
 ### Changed — Offline batcher restore from durable checkpoint (reopen re-align) — 2026-07-23
 
 - Architecture: `ISealedBatchSink.GetLatestDurableCheckpointAsync` (default → L1-aware

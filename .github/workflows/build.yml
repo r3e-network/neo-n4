@@ -79,6 +79,20 @@ jobs:
       - name: dotnet format --verify-no-changes
         run: dotnet format Neo.L2.sln --verify-no-changes --exclude external/
 
+      - name: Audit NuGet packages for known vulnerabilities
+        # Non-overridable supply-chain gate (audit finding M5). The build/test
+        # invocations pass /p:NuGetAudit=false for build-time noise reasons, which
+        # also disables restore-time advisories; this step independently fails CI if
+        # ANY direct or transitive package has a known advisory.
+        run: |
+          dotnet list Neo.L2.sln package --vulnerable --include-transitive \
+            | tee /tmp/nuget-vuln.log
+          if grep -qi "is affected by" /tmp/nuget-vuln.log; then
+            echo "FAIL: one or more NuGet packages have known vulnerabilities (see log above)"
+            exit 1
+          fi
+          echo "OK: no vulnerable NuGet packages (direct or transitive)"
+
       - name: Test
         run: dotnet test Neo.L2.sln /p:NuGetAudit=false --nologo --no-build
 
@@ -575,6 +589,14 @@ jobs:
 
       - name: cargo audit (production Rust lockfiles)
         run: |
+          # RUSTSEC-2026-0258 (h2): transitive h2 0.4.14 locked inside the
+          # VENDORED proof-system submodule external/neo-zkvm (via hyper/reqwest),
+          # not the parent crate — the parent Cargo.lock is already patched to
+          # h2 0.4.19. Clearing it in the submodule needs a cross-repo lockfile
+          # bump in r3e-network/neo-zkvm + a gitlink update (tracked follow-up);
+          # the h2 client path is not exercised by the L2 settlement/proving flow.
+          # cargo-audit 0.22 has no audit.toml discovery in --file mode, so the
+          # ignore is passed as a CLI flag (applies to every lockfile in the loop).
           for lockfile in \
             Cargo.lock \
             external/neo-riscv-vm/Cargo.lock \
@@ -582,7 +604,7 @@ jobs:
             external/neo-zkvm/Cargo.lock \
             external/foreign-contracts/sol/Cargo.lock; do
             echo "── $lockfile ──"
-            cargo audit --file "$lockfile" --json
+            cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0258 --json
           done
 
   sdk-typescript:

@@ -112,7 +112,7 @@ public sealed class UT_OptimisticLocalHostComposition
                 Assert.AreEqual(3UL, host.NextExpectedBlock);
                 Assert.AreEqual(1UL, host.NextBatchNumber);
             }
-            Assert.IsTrue(host.RegisterInboundMessageNonce(3));            Assert.AreEqual(1, host.KnownInboundNonceCount);
+            Assert.IsTrue(host.RegisterInboundMessageNonce(3)); Assert.AreEqual(1, host.KnownInboundNonceCount);
             Assert.AreEqual(0, host.L1InboxPendingCount);
             Assert.IsTrue(host.Settlement.IsProductionWired);
             Assert.IsNotNull(host.Settlement.ProductionTransactionSender);

@@ -246,7 +246,7 @@ public class UT_ProofWitnessStore
         Assert.AreEqual(first.BatchNumber, checkpoint.FirstBatchNumber);
         Assert.AreEqual(second.BatchNumber, checkpoint.LastBatchNumber);
         Assert.AreEqual(first.ContentHash, checkpoint.RevertedArtifactContentHash);
-        Assert.AreEqual(second.ExecutionResult.PostStateRoot, checkpoint.ExpectedCurrentStateRoot);
+        Assert.AreEqual(checkpoint.ExpectedCurrentStateRoot, second.ExecutionResult.PostStateRoot);
         Assert.AreEqual(first.ExecutionPayload.PreStateRoot, checkpoint.TargetStateRoot);
         Assert.AreEqual(checkpoint, await store.GetSettlementRollbackAsync(first.ChainId));
         Assert.IsNull(await store.GetAsync(first.ChainId, first.BatchNumber));

@@ -56,7 +56,7 @@ public class UT_ProofWitnessArtifact
 
         Assert.AreEqual(payload, equal);
         Assert.AreEqual(payload.GetHashCode(), equal.GetHashCode());
-        Assert.AreNotEqual(payload, null);
+        Assert.AreNotEqual(null, payload);
         Assert.AreNotEqual(payload, payload with { ChainId = payload.ChainId + 1 });
         Assert.AreNotEqual(payload, payload with { BatchNumber = payload.BatchNumber + 1 });
         Assert.AreNotEqual(payload, payload with { FirstBlock = payload.FirstBlock + 1 });
@@ -253,7 +253,7 @@ public class UT_ProofWitnessArtifact
 
         Assert.AreEqual(artifact, equal);
         Assert.AreEqual(artifact.GetHashCode(), equal.GetHashCode());
-        Assert.AreNotEqual(artifact, null);
+        Assert.AreNotEqual(null, artifact);
         Assert.AreNotEqual(artifact, artifact with { ProofSystem = WitnessProofSystem.Halo2 });
         Assert.AreNotEqual(artifact, artifact with { ProofType = ProofType.Optimistic });
         Assert.AreNotEqual(artifact, artifact with { VerificationKeyId = H(0x81) });

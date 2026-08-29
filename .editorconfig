@@ -6,3 +6,13 @@ insert_final_newline = true
 
 [*.cs]
 charset = utf-8
+
+# MSTest 4 analyzer adjudication (2026-08-28, MSTest 4.3.3):
+# - MSTEST0025 false-positives on byte/enum pin assertions: it reports
+#   AreEqual((byte)0, (byte)ChainMode.L1Mode) as always-failing while a runtime
+#   probe passes. Keep the assertions, drop the diagnostic.
+# - MSTEST0032 flags the intentional constant-pinning tests (wire-format guards
+#   comparing a const against its pinned literal). Tautology is the point.
+[*.cs]
+dotnet_diagnostic.MSTEST0025.severity = none
+dotnet_diagnostic.MSTEST0032.severity = none

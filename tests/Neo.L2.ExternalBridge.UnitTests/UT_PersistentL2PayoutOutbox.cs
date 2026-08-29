@@ -76,7 +76,7 @@ public sealed class UT_PersistentL2PayoutOutbox
 
         Assert.AreEqual(instruction, equal);
         Assert.AreEqual(instruction.GetHashCode(), equal.GetHashCode());
-        Assert.AreNotEqual(instruction, null);
+        Assert.AreNotEqual(null, instruction);
         Assert.AreNotEqual(instruction, instruction with { Sequence = 2 });
         Assert.AreNotEqual(instruction, instruction with { Adapter = H160(0x81) });
         Assert.AreNotEqual(instruction, instruction with { NeoAsset = H160(0x82) });

@@ -373,7 +373,7 @@ public class UT_OptimisticAndRiscV
 
         Assert.AreEqual(payload, equal);
         Assert.AreEqual(payload.GetHashCode(), equal.GetHashCode());
-        Assert.AreNotEqual(payload, null);
+        Assert.AreNotEqual(null, payload);
         Assert.AreNotEqual(payload, payload with { BondContract = UInt160.Zero });
         Assert.AreNotEqual(payload, payload with { BondTxHash = UInt256.Zero });
         Assert.AreNotEqual(payload, payload with { SubmittedAt = payload.SubmittedAt + 1 });

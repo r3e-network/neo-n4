@@ -44,6 +44,7 @@ public class ExternalBridgeRegistryContract : SmartContract
     private const byte PrefixBridgeKind = 0x02;        // 0x02 + externalChainId(4B LE) → 1B
     private const byte KeyGovernanceController = 0x03;
     private const byte PrefixConsumedProposal = 0x04;  // 0x04 + proposalId(8B LE) → 1B
+    private const byte KeyGovernanceLocked = 0x05;     // once set → instant owner RegisterVerifier is disabled (one-way)
     private const byte KeyOwner = 0xFF;
 
     /// <summary>Foreign-namespace prefix all <c>externalChainId</c>s must carry —
@@ -69,6 +70,10 @@ public class ExternalBridgeRegistryContract : SmartContract
     /// <summary>Emitted when ownership is transferred.</summary>
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Emitted once production governance is irreversibly locked.</summary>
+    [DisplayName("GovernanceLocked")]
+    public static event Action OnGovernanceLocked = default!;
 
     /// <summary>Set the initial owner. Same shape as VerifierRegistry._deploy.</summary>
     public static void _deploy(object data, bool update)
@@ -98,14 +103,53 @@ public class ExternalBridgeRegistryContract : SmartContract
     }
 
     /// <summary>Wire the GovernanceController contract hash that
-    /// <see cref="UpgradeVerifierViaProposal"/> consults. Owner only.</summary>
+    /// <see cref="UpgradeVerifierViaProposal"/> consults. Owner only —
+    /// permanently frozen by <see cref="LockGovernance"/>.</summary>
     public static void SetGovernanceController(UInt160 governanceController)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — the controller hash is frozen");
         ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
             "invalid governance controller");
         Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
         OnGovernanceControllerChanged(governanceController);
+    }
+
+    /// <summary>
+    /// Permanently disable the instant owner-only <see cref="RegisterVerifier"/> path so every
+    /// future <c>externalChainId → verifier</c> binding must go through the council multisig +
+    /// timelock (<see cref="UpgradeVerifierViaProposal"/>). Owner only; one-way (there is no
+    /// unlock); idempotent. The GovernanceController must be wired first, and locking also freezes
+    /// that controller hash — otherwise the owner could swap in an accept-all controller and the
+    /// proposal path would be a formality.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §3.2 (ExternalBridgeRegistry) and §16 (Governance).
+    /// <see cref="NeoHub.ExternalBridgeEscrow.ExternalBridgeEscrowContract.LockGovernance"/> only
+    /// freezes the escrow's <em>pointer to</em> this registry, so the dispatch table itself stays
+    /// mutable until this call runs. A production launch that locks the escrow but not the registry
+    /// is still one owner call away from routing a foreign chain to a permissive verifier.
+    /// </remarks>
+    public static void LockGovernance()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero,
+            "wire GovernanceController before locking — else no verifier could ever be registered");
+        var key = new byte[] { KeyGovernanceLocked };
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnGovernanceLocked();
+        }
+    }
+
+    /// <summary>True once <see cref="LockGovernance"/> has been called — the instant owner
+    /// <see cref="RegisterVerifier"/> path is then permanently disabled.</summary>
+    [Safe]
+    public static bool IsGovernanceLocked()
+    {
+        return Storage.Get(new byte[] { KeyGovernanceLocked }) != null;
     }
 
     /// <summary>Look up the wired GovernanceController hash, or
@@ -117,11 +161,14 @@ public class ExternalBridgeRegistryContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
-    /// <summary>Bind a verifier to an <c>externalChainId</c>. Owner only —
-    /// the council-veto path is <see cref="UpgradeVerifierViaProposal"/>.</summary>
+    /// <summary>Bind a verifier to an <c>externalChainId</c>. Owner only until
+    /// <see cref="LockGovernance"/> runs; the council-veto path is
+    /// <see cref="UpgradeVerifierViaProposal"/>.</summary>
     public static void RegisterVerifier(uint externalChainId, UInt160 verifier, byte bridgeKind)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use UpgradeVerifierViaProposal");
         WriteVerifier(externalChainId, verifier, bridgeKind);
     }
 

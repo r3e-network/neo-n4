@@ -34,6 +34,10 @@ public abstract class Mock_MpcCommitteeVerifier_GovernanceController(SmartContra
 ///  - Governance-mediated rotation: GovernanceController must be wired, the proposal must be
 ///    approved + timelocked AND its payload must bind to the exact action bytes, and a consumed
 ///    proposalId is permanently replay-protected (one council vote = one rotation).
+///  - LockGovernance: owner-gated, refuses to lock before the GC is wired (else no committee could
+///    ever be rotated), one-way + idempotent, permanently closes BOTH instant RegisterCommittee*
+///    paths and freezes the controller hash — while leaving the installed committee live and the
+///    council rotation path open.
 ///  - VerifyInboundMessage dispatch guards: message/proof length floors, signed-domain binding
 ///    (signed externalChainId == argument), direction == ForeignToNeo, deadline expiry, committee
 ///    presence, sigCount ≥ threshold, and proof-length consistency with declared sigCount. These are
@@ -461,6 +465,106 @@ public class UT_MpcCommitteeVerifier_Vm
         Assert.ThrowsExactly<TestException>(
             () => c.RegisterCommitteeWithMembersViaProposal(OtherForeignChain, 2, CurveSecp256k1, blob, members, 100),
             "a consumed proposalId must not be applied again");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // LockGovernance — one-way production gate over the instant committee-registration paths
+    // ---------------------------------------------------------------------------------------------
+
+    [TestMethod]
+    public void LockGovernance_RequiresGcWired_OwnerOnly_OneWay_DisablesInstantPaths()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine); // owner == engine.Sender
+
+        Assert.IsFalse(c.IsGovernanceLocked!.Value, "not locked at deploy");
+
+        // Locking with no GC wired would brick committee rotation permanently -> rejected.
+        Assert.ThrowsExactly<TestException>(() => c.LockGovernance(),
+            "must refuse to lock before GovernanceController is wired");
+        Assert.IsFalse(c.IsGovernanceLocked!.Value, "failed lock must not change state");
+
+        c.GovernanceController = GcHash;
+        c.LockGovernance();
+        Assert.IsTrue(c.IsGovernanceLocked!.Value, "governance must be locked");
+
+        // One-way + idempotent: re-locking is a no-op (does not fault).
+        c.LockGovernance();
+        Assert.IsTrue(c.IsGovernanceLocked!.Value, "re-lock stays locked");
+
+        // Both instant owner paths are now permanently disabled — even for the legitimate owner.
+        // This is the whole point of the lock: installing an attacker-chosen committee would otherwise
+        // remain a single owner call, and a malicious committee is un-falsifiable by fraud proof.
+        Assert.ThrowsExactly<TestException>(
+            () => c.RegisterCommittee(ForeignChain, 1, CurveSecp256k1, Secp256k1Blob(1)),
+            "instant owner RegisterCommittee must revert once governance is locked");
+        Assert.ThrowsExactly<TestException>(
+            () => c.RegisterCommitteeWithMembers(OtherForeignChain, 1, CurveSecp256k1, Secp256k1Blob(1), new byte[20]),
+            "instant owner RegisterCommitteeWithMembers must revert once governance is locked");
+        Assert.AreEqual(0, c.GetCommittee(ForeignChain)!.Length, "rejected register must not set state");
+        Assert.AreEqual(0, c.GetCommittee(OtherForeignChain)!.Length, "rejected register must not set state");
+
+        // The controller hash is frozen too: swapping it for an accept-all contract would make the
+        // council path a formality.
+        Assert.ThrowsExactly<TestException>(() => c.GovernanceController = GcHashB,
+            "the owner must not be able to replace the trusted GovernanceController after locking");
+        Assert.AreEqual(GcHash, c.GovernanceController,
+            "a rejected controller replacement must preserve the exact pre-lock controller");
+    }
+
+    [TestMethod]
+    public void LockGovernance_NonOwner_Faults()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine, owner: OtherOwner);
+        // Wiring the GC is itself owner-gated, so a stranger cannot even reach a legal lock.
+        Assert.ThrowsExactly<TestException>(() => c.LockGovernance(),
+            "LockGovernance is owner-witness-gated");
+        Assert.IsFalse(c.IsGovernanceLocked!.Value, "rejected lock must not change state");
+    }
+
+    [TestMethod]
+    public void LockGovernance_PreservesCommittee_AndLeavesTheCouncilPathOpen()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+        engine.FromHash<Mock_MpcCommitteeVerifier_GovernanceController>(GcHash, m =>
+        {
+            m.Setup(x => x.IsApprovedAndTimelocked(It.IsAny<BigInteger?>())).Returns(true);
+            m.Setup(x => x.MatchesProposalPayload(It.IsAny<BigInteger?>(), It.IsAny<byte[]?>())).Returns(true);
+        }, checkExistence: false);
+        c.GovernanceController = GcHash;
+
+        var priv = Secp256k1PrivKey();
+        var pub = DeriveSecp256k1PubKey(priv); // 33 bytes, a REAL key so the crypto path is reached
+        var members = new byte[20];
+        MemberA.GetSpan().CopyTo(members.AsSpan(0, 20));
+        c.RegisterCommitteeWithMembers(ForeignChain, 1, CurveSecp256k1, pub, members);
+        c.LockGovernance();
+
+        // The lock closes paths, it does not wipe live state: the installed committee and its
+        // slashable member bindings must survive.
+        Assert.AreEqual(3 + pub.Length, c.GetCommittee(ForeignChain)!.Length,
+            "locking must not drop the installed committee");
+        Assert.AreEqual(MemberA, c.GetSignerMember(ForeignChain, 0),
+            "locking must not drop signer->member bindings");
+
+        // Locking must never disable the attestation path itself, or a locked deployment would
+        // strand every already-supported foreign chain.
+        var msg = Message(ForeignChain, direction: 2, deadlineUnixSeconds: 0);
+        var sig = Secp256k1Sign(priv, msg);
+        Assert.IsTrue(c.VerifyInboundMessage(ForeignChain, msg, Secp256k1ProofWith(new[] { (pub, sig) }))!,
+            "a valid committee attestation must still verify once governance is locked");
+
+        // A locked verifier is still rotatable through the council multisig + timelock.
+        var nextBlob = Secp256k1Blob(2);
+        var nextMembers = new byte[40];
+        MemberA.GetSpan().CopyTo(nextMembers.AsSpan(0, 20));
+        MemberB.GetSpan().CopyTo(nextMembers.AsSpan(20, 20));
+        c.RegisterCommitteeWithMembersViaProposal(
+            OtherForeignChain, 2, CurveSecp256k1, nextBlob, nextMembers, 200);
+        Assert.AreEqual(MemberA, c.GetSignerMember(OtherForeignChain, 0),
+            "the council path must remain available once governance is locked");
     }
 
     [TestMethod]

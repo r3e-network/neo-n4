@@ -906,9 +906,17 @@ bond↔challenge cycle, `ChainRegistry.SetGovernanceController` to enable
 §16.1 admission policy, `SettlementManager.SetGovernanceController` plus the irreversible
 `SettlementManager.LockGovernance` to remove hot-wallet rewiring/direct rollback,
 `SettlementManager.SetMessageRouter(MessageRouter)` to close the Gateway contract-witness path,
-and per-fraud-verifier informational notes
+the `OptimisticChallenge`/`MpcCommitteeVerifier`/`ExternalBridgeRegistry`
+`SetGovernanceController` + `LockGovernance` pairs that freeze who may prove a fraud, which
+committee may attest a foreign deposit, and which verifier a foreign chain routes to, and
+per-fraud-verifier informational notes
 naming which contract hash to pass as the `fraudVerifier` argument to
 `OptimisticChallenge.Challenge`).
+
+`ExternalBridgeEscrow.LockGovernance` freezes only the escrow's pointer to the registry, so the
+committee and dispatch tables must be locked separately — onboarding an additional foreign chain
+after those two locks requires `RegisterCommitteeWithMembersViaProposal` plus
+`UpgradeVerifierViaProposal`, not the instant owner calls.
 
 After the SettlementManager lock, emergency finalized-head rollback requires an exact
 `RevertBatchViaProposal(chainId,batchNumber,proposalId)` action that has reached the configured

@@ -26,6 +26,19 @@ public abstract class Mock_OptimisticChallenge_Verifier(SmartContractInitialize 
     public abstract UInt256? GetReplayDomain();
 }
 
+/// <summary>Minimal GovernanceController surface so the §16 council-veto proposal paths can be
+/// mocked. The contract consults BOTH read-only checks on the wired hash:
+/// <c>isApprovedAndTimelocked</c> (council multisig + timelock) and <c>matchesProposalPayload</c>
+/// (binds the voted payload to the exact action args about to be applied).</summary>
+public abstract class Mock_OptimisticChallenge_GovernanceController(SmartContractInitialize initialize) : SmartContract(initialize)
+{
+    [DisplayName("isApprovedAndTimelocked")]
+    public abstract bool? IsApprovedAndTimelocked(BigInteger? proposalId);
+
+    [DisplayName("matchesProposalPayload")]
+    public abstract bool? MatchesProposalPayload(BigInteger? proposalId, byte[]? expectedAction);
+}
+
 /// <summary>
 /// VM-level tests for NeoHub.OptimisticChallenge — the Phase-3 optimistic-rollup challenge window.
 /// Executes the open-window / challenge / finalize paths in a real NeoVM (SettlementManager,
@@ -41,6 +54,11 @@ public abstract class Mock_OptimisticChallenge_Verifier(SmartContractInitialize 
 ///   * A successful Challenge records the accepted-fraud marker, which both blocks a second challenge
 ///     and blocks FinalizeIfPastWindow (a challenged batch can never be finalized).
 ///   * FinalizeIfPastWindow only runs once the deadline has elapsed and only on an open window.
+///   * §16 production governance lock: owner-gated, one-way LockGovernance (refuses to lock before a
+///     GovernanceController is wired) permanently disables the instant allowlist add / profile bind /
+///     revoke paths and freezes the controller hash, while the council proposal twins
+///     (RegisterFraudVerifierViaProposal and friends) stay open and stay replay-protected +
+///     payload-bound.
 /// </summary>
 [TestClass]
 public class UT_OptimisticChallenge_Vm
@@ -127,6 +145,18 @@ public class UT_OptimisticChallenge_Vm
             m.Setup(c => c.GetSettlementManager()).Returns(settlementManager ?? Hash('5'));
             m.Setup(c => c.GetExecutorSemanticId()).Returns(executorSemanticId ?? ExecutorSemanticId);
             m.Setup(c => c.GetReplayDomain()).Returns(replayDomain ?? ReplayDomain);
+        }, checkExistence: false);
+
+    /// <summary>Wire a GovernanceController mock whose two read-only proposal checks answer
+    /// <paramref name="approved"/> and <paramref name="payloadMatches"/> independently, so a test
+    /// can pin the council-approval gate and the payload-binding gate separately.</summary>
+    private static void WireGc(
+        TestEngine engine, UInt160 gcHash, bool approved = true, bool payloadMatches = true) =>
+        engine.FromHash<Mock_OptimisticChallenge_GovernanceController>(gcHash, m =>
+        {
+            m.Setup(c => c.IsApprovedAndTimelocked(It.IsAny<BigInteger?>())).Returns(approved);
+            m.Setup(c => c.MatchesProposalPayload(It.IsAny<BigInteger?>(), It.IsAny<byte[]?>()))
+                .Returns(payloadMatches);
         }, checkExistence: false);
 
     private static byte[] V4Proof(
@@ -677,5 +707,252 @@ public class UT_OptimisticChallenge_Vm
             "finalized window must be consumed before the external finalize call");
         Assert.ThrowsExactly<TestException>(() => oc.FinalizeIfPastWindow(ChainId, BatchNum),
             "finalized window cannot be replayed");
+    }
+
+    // ---- production governance lock (§16) ----------------------------------------------------
+
+    [TestMethod]
+    public void SetGovernanceController_OwnerOnly_Persists()
+    {
+        var engine = new TestEngine(true);
+        var oc = Deploy(engine, Hash('5'), Hash('8'));
+        Assert.AreEqual(UInt160.Zero, oc.GovernanceController, "GC is unset at deploy");
+        oc.GovernanceController = Hash('c');
+        Assert.AreEqual(Hash('c'), oc.GovernanceController, "GC wiring must persist");
+    }
+
+    [TestMethod]
+    public void SetGovernanceController_NonOwner_Faults()
+    {
+        var engine = new TestEngine(true);
+        var oc = Deploy(engine, Hash('5'), Hash('8'), owner: Hash('1'));
+        Assert.ThrowsExactly<TestException>(() => oc.GovernanceController = Hash('c'),
+            "SetGovernanceController is owner-gated");
+    }
+
+    [TestMethod]
+    public void LockGovernance_RequiresGcWired_OwnerOnly_OneWay_FreezeTheRest()
+    {
+        var engine = new TestEngine(true);
+        var smHash = Hash('5');
+        var oc = Deploy(engine, smHash, Hash('8'));
+        Assert.IsFalse(oc.IsGovernanceLocked!.Value, "not locked at deploy");
+
+        // Locking before wiring the GC would brick the allowlist forever -> rejected, no state change.
+        Assert.ThrowsExactly<TestException>(() => oc.LockGovernance(),
+            "must refuse to lock before GovernanceController is wired");
+        Assert.IsFalse(oc.IsGovernanceLocked!.Value, "a failed lock must not change state");
+
+        var gc = Hash('c');
+        oc.GovernanceController = gc;
+        oc.LockGovernance();
+        Assert.IsTrue(oc.IsGovernanceLocked!.Value, "governance must be locked");
+
+        // One-way + idempotent: re-locking is a no-op, not a fault.
+        oc.LockGovernance();
+        Assert.IsTrue(oc.IsGovernanceLocked!.Value, "re-lock stays locked");
+
+        // Every instant owner path is now permanently closed — including for the legitimate owner.
+        Assert.ThrowsExactly<TestException>(() => oc.RegisterFraudVerifier(Hash('a')),
+            "instant allowlist add must revert once governance is locked");
+        Assert.ThrowsExactly<TestException>(() => oc.RegisterPermissionlessFraudProfile(
+            ChainId, Hash('a'), ExecutorSemanticId, ReplayDomain),
+            "instant profile bind must revert once governance is locked");
+        Assert.ThrowsExactly<TestException>(() => oc.RevokeFraudVerifier(Hash('a')),
+            "instant revoke must revert once governance is locked — otherwise a locked owner " +
+            "could still disable every fraud verifier");
+
+        // The controller hash is frozen too: swapping it for an accept-all contract would make the
+        // council-veto path a formality.
+        Assert.ThrowsExactly<TestException>(() => oc.GovernanceController = Hash('a'),
+            "the owner must not be able to replace the trusted GovernanceController after locking");
+        Assert.AreEqual(gc, oc.GovernanceController,
+            "a rejected controller replacement must preserve the exact pre-lock controller");
+    }
+
+    [TestMethod]
+    public void LockGovernance_NonOwner_Faults()
+    {
+        var engine = new TestEngine(true);
+        var oc = Deploy(engine, Hash('5'), Hash('8'), owner: Hash('1'));
+        Assert.ThrowsExactly<TestException>(() => oc.LockGovernance(),
+            "LockGovernance is owner-gated");
+    }
+
+    [TestMethod]
+    public void LockedGovernance_StillChallenges_AndSlashes()
+    {
+        // The lock freezes WHO may be allowed to prove fraud — it must never freeze fraud proving.
+        // A deployment that locked administration and then lost the challenge path would turn every
+        // subsequent fraudulent batch into an unconditional finalization.
+        var engine = new TestEngine(true);
+        var smHash = Hash('5');
+        var sbHash = Hash('8');
+        var verifier = Hash('a');
+        var oc = Deploy(engine, smHash, sbHash);
+        WireVerifier(engine, verifier, verdict: true, settlementManager: smHash);
+        WireSm(engine, smHash);
+        WireBond(engine, sbHash, 1000);
+        oc.RegisterPermissionlessFraudProfile(ChainId, verifier, ExecutorSemanticId, ReplayDomain);
+
+        var gc = Hash('c');
+        oc.GovernanceController = gc;
+        oc.LockGovernance();
+
+        oc.OpenWindow(ChainId, BatchNum, Sequencer);
+        oc.Challenge(ChainId, BatchNum, engine.Sender, V4Proof(), verifier);
+        Assert.IsTrue(oc.IsClaimConsumed(ClaimId)!.Value,
+            "a locked deployment must still accept a valid fraud proof");
+        Assert.ThrowsExactly<TestException>(() => oc.FinalizeIfPastWindow(ChainId, BatchNum),
+            "the challenged batch must still be blocked from finalizing");
+    }
+
+    [TestMethod]
+    public void RegisterFraudVerifierViaProposal_RequiresGcWired_Faults()
+    {
+        var engine = new TestEngine(true);
+        var oc = Deploy(engine, Hash('5'), Hash('8'));
+        Assert.ThrowsExactly<TestException>(() => oc.RegisterFraudVerifierViaProposal(Hash('a'), 1),
+            "proposal path needs the GovernanceController wired first");
+    }
+
+    [TestMethod]
+    public void RegisterFraudVerifierViaProposal_PayloadMismatch_Faults()
+    {
+        // Approved + timelocked, but the council voted on different bytes: blank-check defense.
+        var engine = new TestEngine(true);
+        var gc = Hash('c');
+        WireGc(engine, gc, approved: true, payloadMatches: false);
+        var oc = Deploy(engine, Hash('5'), Hash('8'));
+        oc.GovernanceController = gc;
+
+        Assert.ThrowsExactly<TestException>(() => oc.RegisterFraudVerifierViaProposal(Hash('a'), 1),
+            "a proposal whose payload does not match the action args must be rejected");
+        Assert.IsFalse(oc.IsApprovedFraudVerifier(Hash('a'))!.Value,
+            "a rejected proposal must not touch the allowlist");
+    }
+
+    [TestMethod]
+    public void RegisterFraudVerifierViaProposal_NotApproved_Faults()
+    {
+        // Payload binds, but the council has not approved + timelocked it.
+        var engine = new TestEngine(true);
+        var gc = Hash('c');
+        WireGc(engine, gc, approved: false, payloadMatches: true);
+        var oc = Deploy(engine, Hash('5'), Hash('8'));
+        oc.GovernanceController = gc;
+
+        Assert.ThrowsExactly<TestException>(() => oc.RegisterFraudVerifierViaProposal(Hash('a'), 1),
+            "an un-approved / un-timelocked proposal must not register a verifier");
+    }
+
+    [TestMethod]
+    public void RegisterFraudVerifierViaProposal_Registers_ReplayProtects_AndSurvivesLock()
+    {
+        var engine = new TestEngine(true);
+        var gc = Hash('c');
+        WireGc(engine, gc);
+        var oc = Deploy(engine, Hash('5'), Hash('8'));
+        oc.GovernanceController = gc;
+
+        var verifier = Hash('a');
+        oc.RegisterFraudVerifierViaProposal(verifier, 42);
+        Assert.IsTrue(oc.IsApprovedFraudVerifier(verifier)!.Value,
+            "an approved + bound proposal must extend the allowlist");
+
+        // One proposal, one application — and the consumption is per-proposal, not per-action, so
+        // the same vote cannot be re-spent on a different verifier.
+        Assert.ThrowsExactly<TestException>(() => oc.RegisterFraudVerifierViaProposal(verifier, 42),
+            "a consumed proposal cannot be replayed");
+        Assert.ThrowsExactly<TestException>(() => oc.RevokeFraudVerifierViaProposal(verifier, 42),
+            "a consumed proposal cannot be re-spent on a different action");
+
+        // The lock closes the instant paths but must NOT strand upgrades: the council path still works.
+        oc.LockGovernance();
+        Assert.ThrowsExactly<TestException>(() => oc.RegisterFraudVerifier(Hash('b')),
+            "instant path stays closed after locking");
+        oc.RegisterFraudVerifierViaProposal(Hash('b'), 43);
+        Assert.IsTrue(oc.IsApprovedFraudVerifier(Hash('b'))!.Value,
+            "the council path must remain available once governance is locked");
+        oc.RevokeFraudVerifierViaProposal(Hash('b'), 44);
+        Assert.IsFalse(oc.IsApprovedFraudVerifier(Hash('b'))!.Value,
+            "the council must also be able to revoke once governance is locked");
+    }
+
+    [TestMethod]
+    public void RegisterPermissionlessFraudProfileViaProposal_BindsExactProfile_AndSurvivesLock()
+    {
+        var engine = new TestEngine(true);
+        var smHash = Hash('5');
+        var gc = Hash('c');
+        var verifier = Hash('a');
+        WireGc(engine, gc);
+        WireVerifier(engine, verifier, verdict: true, settlementManager: smHash);
+        var oc = Deploy(engine, smHash, Hash('8'));
+        oc.GovernanceController = gc;
+
+        oc.RegisterPermissionlessFraudProfileViaProposal(
+            ChainId, verifier, ExecutorSemanticId, ReplayDomain, 7);
+        Assert.IsTrue(oc.IsPermissionlessFraudProfile(
+            ChainId, verifier, ExecutorSemanticId, ReplayDomain)!.Value,
+            "an approved + bound profile proposal must authorize the exact tuple");
+        Assert.IsFalse(oc.IsPermissionlessFraudProfile(
+            ChainId + 1, verifier, ExecutorSemanticId, ReplayDomain)!.Value,
+            "the proposal must not authorize a neighbouring chain");
+
+        oc.LockGovernance();
+        Assert.ThrowsExactly<TestException>(() => oc.RegisterPermissionlessFraudProfile(
+            ChainId, verifier, ExecutorSemanticId, ReplayDomain),
+            "instant profile bind must revert once governance is locked");
+        Assert.ThrowsExactly<TestException>(() => oc.RegisterPermissionlessFraudProfileViaProposal(
+            ChainId, verifier, ExecutorSemanticId, ReplayDomain, 7),
+            "the profile proposal must be replay-protected like every other council action");
+    }
+
+    [TestMethod]
+    public void BuildActions_UseCanonicalTagEncoding()
+    {
+        var engine = new TestEngine(true);
+        var oc = Deploy(engine, Hash('5'), Hash('8'));
+        var verifier = Hash('a');
+        var verifierBytes = verifier.GetSpan().ToArray();
+
+        // The tags are hand-built byte arrays on-chain, so the only thing that catches a mistyped
+        // spelling is comparing them against the off-chain ASCII the council actually signs.
+        var register = oc.BuildRegisterFraudVerifierAction(verifier)!;
+        CollectionAssert.AreEqual(Concat(
+            System.Text.Encoding.ASCII.GetBytes("neo4-gov:registerFraudVerifier"), verifierBytes), register,
+            "registerFraudVerifier action must be tag||verifier (50B)");
+
+        var revoke = oc.BuildRevokeFraudVerifierAction(verifier)!;
+        CollectionAssert.AreEqual(Concat(
+            System.Text.Encoding.ASCII.GetBytes("neo4-gov:revokeFraudVerifier"), verifierBytes), revoke,
+            "revokeFraudVerifier action must be tag||verifier (48B)");
+
+        var profile = oc.BuildRegisterPermissionlessFraudProfileAction(
+            ChainId, verifier, ExecutorSemanticId, ReplayDomain)!;
+        CollectionAssert.AreEqual(Concat(
+            System.Text.Encoding.ASCII.GetBytes("neo4-gov:registerPermissionlessFraudProfile"),
+            BitConverter.GetBytes(ChainId),
+            verifierBytes, ExecutorSemanticId.GetSpan().ToArray(),
+            ReplayDomain.GetSpan().ToArray()), profile,
+            "fraud-profile action must bind chain + verifier + semantic id + replay domain, LE");
+
+        // Distinct tags keep a vote on one action from being replayable as another.
+        Assert.IsFalse(register.AsSpan().SequenceEqual(revoke), "register and revoke actions must differ");
+    }
+
+    private static byte[] Concat(params byte[][] parts)
+    {
+        var total = 0;
+        foreach (var part in parts) total += part.Length;
+        var buf = new byte[total];
+        var pos = 0;
+        foreach (var part in parts)
+        {
+            Array.Copy(part, 0, buf, pos, part.Length);
+            pos += part.Length;
+        }
+        return buf;
     }
 }

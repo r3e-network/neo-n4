@@ -40,6 +40,10 @@ public abstract class Mock_ExternalBridgeRegistry_Verifier(SmartContractInitiali
 ///  - _deploy / ownership: zero-owner rejection, owner witness gating (positive AND negative),
 ///    ownership transfer actually moves the effective authority.
 ///  - SetGovernanceController: owner-gated (positive AND negative), zero/invalid rejection.
+///  - LockGovernance: owner-gated, refuses to lock before the GC is wired (else no verifier could
+///    ever be registered), one-way + idempotent, and permanently closes the instant owner
+///    RegisterVerifier / UpgradeVerifier paths while freezing the controller hash — the council
+///    proposal path stays open, so locking never strands the dispatch table.
 ///  - RegisterVerifier: owner-gated (positive AND negative); the WriteVerifier guards — non-zero
 ///    verifier, the 0xE0_xx_xx_xx foreign-namespace prefix on externalChainId, bridgeKind range
 ///    {1,2,3}, and the load-bearing check that the verifier's self-declared bridgeKind matches the
@@ -370,6 +374,86 @@ public class UT_ExternalBridgeRegistry_Vm
         c.UpgradeVerifierViaProposal(ChainEth, VerifierB, KindZk, 43);
         Assert.AreEqual(VerifierB, c.GetVerifier(ChainEth), "a new proposalId may register");
         Assert.AreEqual((BigInteger)KindZk, c.GetBridgeKind(ChainEth));
+    }
+
+    // ── LockGovernance (one-way production gate) ───────────────────────────────────────────────
+
+    [TestMethod]
+    public void LockGovernance_RequiresGcWired_OwnerOnly_OneWay_DisablesInstantPath()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine); // owner == engine.Sender
+        MockVerifier(engine, VerifierA, KindMpc, verifyResult: true);
+        MockVerifier(engine, VerifierB, KindZk, verifyResult: true);
+
+        Assert.IsFalse(c.IsGovernanceLocked!.Value, "not locked at deploy");
+
+        // Locking with no GC wired would brick verifier registration permanently -> rejected.
+        Assert.ThrowsExactly<TestException>(() => c.LockGovernance(),
+            "must refuse to lock before GovernanceController is wired");
+        Assert.IsFalse(c.IsGovernanceLocked!.Value, "failed lock must not change state");
+
+        c.GovernanceController = GcHash;
+        c.LockGovernance();
+        Assert.IsTrue(c.IsGovernanceLocked!.Value, "governance must be locked");
+
+        // One-way + idempotent: re-locking is a no-op (does not fault).
+        c.LockGovernance();
+        Assert.IsTrue(c.IsGovernanceLocked!.Value, "re-lock stays locked");
+
+        // The instant owner path is permanently disabled — even for the legitimate owner — and the
+        // UpgradeVerifier alias inherits that, since it forwards to RegisterVerifier.
+        Assert.ThrowsExactly<TestException>(() => c.RegisterVerifier(ChainTron, VerifierA, KindMpc),
+            "instant owner RegisterVerifier must revert once governance is locked");
+        Assert.ThrowsExactly<TestException>(() => c.UpgradeVerifier(ChainTron, VerifierA, KindMpc),
+            "the UpgradeVerifier alias must not bypass the lock");
+        Assert.AreEqual(UInt160.Zero, c.GetVerifier(ChainTron),
+            "a rejected instant register must not add a dispatch entry");
+
+        // The owner must not be able to swap in an accept-all controller after locking, or the
+        // council-veto path would become a formality.
+        Assert.ThrowsExactly<TestException>(() => c.GovernanceController = VerifierB,
+            "the owner must not be able to replace the trusted GovernanceController after locking");
+        Assert.AreEqual(GcHash, c.GovernanceController,
+            "a rejected controller replacement must preserve the exact pre-lock controller");
+    }
+
+    [TestMethod]
+    public void LockGovernance_NonOwner_Faults()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine, owner: Stranger);
+        // Wiring the GC is itself owner-gated, so a stranger cannot even reach a legal lock.
+        Assert.ThrowsExactly<TestException>(() => c.LockGovernance(),
+            "LockGovernance is owner-gated");
+    }
+
+    [TestMethod]
+    public void LockGovernance_PreservesBindings_AndLeavesTheCouncilPathOpen()
+    {
+        var engine = new TestEngine(true);
+        var c = Deploy(engine);
+        MockVerifier(engine, VerifierA, KindMpc, verifyResult: true);
+        MockVerifier(engine, VerifierB, KindZk, verifyResult: true);
+        engine.FromHash<Mock_ExternalBridgeRegistry_GovernanceController>(GcHash, m =>
+        {
+            m.Setup(x => x.IsApprovedAndTimelocked(It.IsAny<BigInteger?>())).Returns(true);
+            m.Setup(x => x.MatchesProposalPayload(It.IsAny<BigInteger?>(), It.IsAny<byte[]?>())).Returns(true);
+        }, checkExistence: false);
+
+        c.GovernanceController = GcHash;
+        c.RegisterVerifier(ChainEth, VerifierA, KindMpc);
+        c.LockGovernance();
+
+        // The lock is a path restriction, not a wipe: live dispatch keeps working.
+        Assert.AreEqual(VerifierA, c.GetVerifier(ChainEth), "locking must not drop existing bindings");
+        Assert.IsTrue(c.VerifyInbound(ChainEth, new byte[] { 0x01 }, new byte[] { 0x02 })!.Value,
+            "existing routing must still verify after locking");
+
+        // A locked registry is still upgradable through the council multisig + timelock.
+        c.UpgradeVerifierViaProposal(ChainEth, VerifierB, KindZk, 7);
+        Assert.AreEqual(VerifierB, c.GetVerifier(ChainEth),
+            "the council path must remain available once governance is locked");
     }
 
     // ── VerifyInbound (dispatch) ───────────────────────────────────────────────────────────────

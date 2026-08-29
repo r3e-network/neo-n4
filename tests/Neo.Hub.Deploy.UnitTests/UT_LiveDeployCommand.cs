@@ -430,6 +430,61 @@ public class UT_LiveDeployCommand
     }
 
     [TestMethod]
+    public void BuildPostDeployCalls_LocksEveryGovernanceSurfaceItWires()
+    {
+        var hashes = ContractHashes();
+        var actions = LiveDeployCommand.BuildPostDeployCalls(
+            hashes,
+            hashes["Gas"],
+            hashes["Owner"],
+            100_000,
+            new UInt256(AsymmetricProgramVKey),
+            1001,
+            FraudReplayDomain).ToArray();
+
+        // H12: a deployment that wires a GovernanceController but never locks leaves the instant
+        // owner path live forever — "owner is honest today" instead of "owner cannot be evil later".
+        // So every surface this sequence arms with a controller must also be locked by it.
+        var wiredSurfaces = actions
+            .Select(action => action.Name)
+            .Where(name => name.EndsWith(".SetGovernanceController", StringComparison.Ordinal))
+            .Select(name => name[..^".SetGovernanceController".Length])
+            .ToArray();
+        CollectionAssert.AreEquivalent(
+            new[]
+            {
+                "ChainRegistry", "VerifierRegistry", "SettlementManager",
+                "OptimisticChallenge", "MpcCommitteeVerifier", "ExternalBridgeRegistry",
+            },
+            wiredSurfaces,
+            "the production sequence must arm every governance surface it intends to lock");
+
+        foreach (var surface in wiredSurfaces)
+        {
+            var wireIndex = IndexOf(actions, $"{surface}.SetGovernanceController");
+            var lockIndex = IndexOf(actions, $"{surface}.LockGovernance");
+            Assert.IsTrue(lockIndex > wireIndex,
+                $"{surface} must be locked after its GovernanceController is wired (locking first faults)");
+
+            var lockAction = actions[lockIndex];
+            Assert.AreEqual(hashes[surface], lockAction.Contract,
+                $"{surface}.LockGovernance must target the contract it names");
+            Assert.AreEqual($"{surface}.IsGovernanceLocked", lockAction.CompletionCheck!.Name,
+                $"{surface} must be resumable from its own isGovernanceLocked read");
+            Assert.AreEqual(lockAction.Contract, lockAction.CompletionCheck.Contract,
+                $"{surface}'s completion check must read the same contract the lock writes");
+        }
+
+        // The v4 profile bind is the one instant owner mutation the sequence itself performs, so the
+        // OptimisticChallenge lock has to land strictly after it.
+        var registerPermissionlessV4 = IndexOf(actions,
+            "OptimisticChallenge.RegisterPermissionlessFraudProfile.RestrictedExecutionV4");
+        var lockChallenge = IndexOf(actions, "OptimisticChallenge.LockGovernance");
+        Assert.AreEqual(registerPermissionlessV4 + 1, lockChallenge,
+            "the fraud-proof allowlist must be frozen immediately after bootstrap profile registration");
+    }
+
+    [TestMethod]
     public void ValidateNativeGasHash_RejectsNonNativeFeeToken()
     {
         LiveDeployCommand.ValidateNativeGasHash(LiveDeployCommand.NativeGasHash);
@@ -530,6 +585,14 @@ public class UT_LiveDeployCommand
             .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
         await smokes["SettlementManager.IsGovernanceLocked"]
             .RunAsync(new StubRpcClient(BooleanResult(true)));
+        await smokes["OptimisticChallenge.GetGovernanceController"]
+            .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
+        await smokes["OptimisticChallenge.IsGovernanceLocked"]
+            .RunAsync(new StubRpcClient(BooleanResult(true)));
+        await smokes["MpcCommitteeVerifier.IsGovernanceLocked"]
+            .RunAsync(new StubRpcClient(BooleanResult(true)));
+        await smokes["ExternalBridgeRegistry.IsGovernanceLocked"]
+            .RunAsync(new StubRpcClient(BooleanResult(true)));
         await smokes["ForcedInclusion.GetGasToken"]
             .RunAsync(new StubRpcClient(HashResult(hashes["Gas"])));
         await smokes["ForcedInclusion.GetFeeRecipient"]
@@ -578,6 +641,10 @@ public class UT_LiveDeployCommand
             ["SettlementManager.GetMessageRouter"] = HashResult(UInt160.Zero),
             ["SettlementManager.GetGovernanceController"] = HashResult(UInt160.Zero),
             ["SettlementManager.IsGovernanceLocked"] = BooleanResult(false),
+            ["OptimisticChallenge.GetGovernanceController"] = HashResult(UInt160.Zero),
+            ["OptimisticChallenge.IsGovernanceLocked"] = BooleanResult(false),
+            ["MpcCommitteeVerifier.IsGovernanceLocked"] = BooleanResult(false),
+            ["ExternalBridgeRegistry.IsGovernanceLocked"] = BooleanResult(false),
             ["ForcedInclusion.GetGasToken"] = HashResult(UInt160.Zero),
             ["ForcedInclusion.GetFeeRecipient"] = HashResult(UInt160.Zero),
             ["ForcedInclusion.GetFee"] = IntegerResult(0),

@@ -694,9 +694,16 @@ bundle 的 "PostDeployActions" 段浮现在所有合约部署后必须跑的接�
 `ChainRegistry.SetGovernanceController` 启用 §16.1 准入策略、
 `SettlementManager.SetGovernanceController` 加不可逆的
 `SettlementManager.LockGovernance` 移除热钱包改线/直接回滚权、
-`SettlementManager.SetMessageRouter(MessageRouter)` 闭合 Gateway contract witness，以及按 fraud
+`SettlementManager.SetMessageRouter(MessageRouter)` 闭合 Gateway contract witness，
+`OptimisticChallenge`/`MpcCommitteeVerifier`/`ExternalBridgeRegistry` 的
+`SetGovernanceController` + `LockGovernance` 配对（冻结谁可证明欺诈、哪个委员会可为外来存款
+出证、以及每条外链路由到哪个 verifier），以及按 fraud
 verifier 的信息提示,告知传给 `OptimisticChallenge.Challenge` 的 `fraudVerifier`
 参数应是哪个合约哈希)。
+
+`ExternalBridgeEscrow.LockGovernance` 只冻结 escrow 指向 registry 的指针，committee 与 dispatch
+两张表必须各自加锁——这两把锁之后再接入新的外链，只能走
+`RegisterCommitteeWithMembersViaProposal` 加 `UpgradeVerifierViaProposal`，而不是即时 owner 调用。
 
 SettlementManager 锁定后，紧急 finalized-head 回滚必须使用达到配置 council 阈值和
 timelock 的精确 `RevertBatchViaProposal(chainId,batchNumber,proposalId)` action；

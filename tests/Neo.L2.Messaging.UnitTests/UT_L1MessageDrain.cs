@@ -5,17 +5,21 @@ namespace Neo.L2.Messaging.UnitTests;
 [TestClass]
 public class UT_L1MessageDrain
 {
-    private static CrossChainMessage Msg(uint source, ulong nonce, byte tag = 1) => new()
-    {
-        SourceChainId = source,
-        TargetChainId = 1001,
-        Nonce = nonce,
-        Sender = UInt160.Parse("0x" + new string('1', 40)),
-        Receiver = UInt160.Parse("0x" + new string('2', 40)),
-        MessageType = MessageType.Deposit,
-        Payload = new byte[] { tag },
-        MessageHash = UInt256.Zero,
-    };
+    private static CrossChainMessage Msg(
+        uint source,
+        ulong nonce,
+        byte tag = 1,
+        MessageType type = MessageType.Deposit) => new()
+        {
+            SourceChainId = source,
+            TargetChainId = 1001,
+            Nonce = nonce,
+            Sender = UInt160.Parse("0x" + new string('1', 40)),
+            Receiver = UInt160.Parse("0x" + new string('2', 40)),
+            MessageType = type,
+            Payload = new byte[] { tag },
+            MessageHash = UInt256.Zero,
+        };
 
     [TestMethod]
     public void Combine_MergesSortsAndCaps()
@@ -39,13 +43,54 @@ public class UT_L1MessageDrain
     }
 
     [TestMethod]
-    public void Combine_RejectsDuplicateSourceNonceAcrossDrains()
+    public void Combine_AcceptsDepositAndRouterAtSameNonce()
+    {
+        // SharedBridge and MessageRouter each start their own per-chain counter at 1, so equal
+        // nonces under sourceChainId=0 are normal and must not halt the chain (C1).
+        var deposit = Msg(0, 1, tag: 0xD0);
+        var routed = Msg(0, 1, tag: 0xA1, type: MessageType.Call);
+
+        var result = L1MessageDrain.Combine(_ => new[] { deposit }, _ => new[] { routed })(10);
+
+        Assert.AreEqual(2, result.Count);
+        Assert.AreEqual(MessageType.Deposit, result[0].MessageType);
+        Assert.AreEqual(MessageType.Call, result[1].MessageType);
+    }
+
+    [TestMethod]
+    public void Combine_RejectsDuplicateDepositSlotAcrossDrains()
     {
         var drain = L1MessageDrain.Combine(
             _ => new[] { Msg(0, 7, tag: 1) },
             _ => new[] { Msg(0, 7, tag: 2) });
         var ex = Assert.ThrowsExactly<InvalidOperationException>(() => drain(10));
-        StringAssert.Contains(ex.Message, "duplicate L1 message key");
+        StringAssert.Contains(ex.Message, "claim slot (0, 7)");
+    }
+
+    [TestMethod]
+    public void Combine_RejectsSameMessageFromTwoDrains()
+    {
+        var drain = L1MessageDrain.Combine(
+            _ => new[] { Msg(0, 4, tag: 9) },
+            _ => new[] { Msg(0, 4, tag: 9) });
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => drain(10));
+        StringAssert.Contains(ex.Message, "duplicate L1 inbox message");
+    }
+
+    [TestMethod]
+    public void Combine_OrdersTiedNonceIndependentlyOfDrainOrder()
+    {
+        var deposit = Msg(0, 1, tag: 0xD0);
+        var routed = Msg(0, 1, tag: 0xA1, type: MessageType.Call);
+        var generic = Msg(0, 1, tag: 0xB0, type: MessageType.Event);
+
+        var forward = L1MessageDrain.Combine(
+            _ => new[] { deposit }, _ => new[] { routed }, _ => new[] { generic })(10);
+        var reversed = L1MessageDrain.Combine(
+            _ => new[] { generic }, _ => new[] { routed }, _ => new[] { deposit })(10);
+
+        CollectionAssert.AreEqual(forward.ToArray(), reversed.ToArray(),
+            "three same-slot messages must merge into one reproducible sequence");
     }
 
     [TestMethod]

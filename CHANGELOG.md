@@ -5,6 +5,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — H16: pausing a chain now halts finalization, not only its intake — 2026-08-30
+
+- `SettlementManager.FinalizeBatch` never consulted `ChainRegistry.isActive`, so `PauseChain` — the
+  per-chain incident-response primitive that *is* wired (`RegisterPauser` + `PauseChain`, deployed at
+  `LiveDeployCommand.cs:801-802`) — stopped new submissions while every already-`Pending` or
+  `Challengeable` batch continued to advance `canonicalRoot`/`latestFinalized`, which is the root
+  `SharedBridge` payouts commit to. An operator who paused a chain mid-incident got a UI state, not a halt.
+- `FinalizeBatch` now asserts the same byte `SubmitBatch` does, reusing the `chainRegistry` handle the
+  function already loads for its security-level revalidation: one read-only cross-contract call, no new
+  storage slot. `RevertBatch` deliberately keeps no guard — a paused chain must stay revertible, or the
+  one action that undoes a wrong root becomes impossible at exactly the moment it is needed.
+- Blast radius measured, not assumed. `finalizeBatch` has exactly one in-repo caller,
+  `OptimisticChallenge.FinalizeIfPastWindow:791`, and that caller deletes its window keys *before* the
+  external call, so a fault rolls the deletion back atomically and finalization is merely retryable once
+  `ResumeChain` runs — pausing cannot strand a batch, so this is not a second `C4`.
+  `finalizeIfPastWindow` itself has no off-chain driver anywhere under `src/` or `tools/`.
+- Two VM tests land with the fix. `FinalizeBatch_RejectsPausedChain` asserts the fault *message* rather
+  than only the exception type, then resumes and finalizes the same batch so a pause cannot be terminal;
+  `RevertBatch_StillWorksOnPausedChain` pins the unguarded recovery path. As a negative control, with the
+  contract source reverted and its NEF re-emitted by the pinned `nccs` 3.9.1 the first fails with
+  `Expected exception of exact type TestException but no exception was thrown` — the paused chain
+  finalizing, executed rather than read — while the second passes on both builds, which is what a
+  guard-absence test must do. `UT_SettlementManager_Vm`'s shared `Deploy` helper gained an
+  `isActiveProvider` replacing a constant `.Returns(true)`, which is why no test had been able to
+  observe the pause path at all.
+- `NeoHubSettlementManager.artifacts.cs` regenerated: NEF bytes and method offsets moved, the 103-entry
+  ABI name set intact.
+- Docs: audit §4 H16 status block, §7 `H13` row split (global flag open, per-chain variant fixed), §10
+  item 3 → done. Chinese mirror carried to the same structure.
+- `tests/NeoHub.Contracts.VmTests` 573/573 with 0 skipped; full solution 38 assemblies, 2,895 tests, 0
+  failed, 5 skipped — the V4 run's 2,893 plus these two, skip count unchanged.
+  `dotnet format Neo.L2.sln --verify-no-changes` clean.
+
 ### Fixed — V4: 40 tests that never executed on Windows now do — 2026-08-30
 
 - `tests/Shared/RepoRoot.cs` (new) resolves the repository root by walking ancestors of

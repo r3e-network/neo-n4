@@ -239,6 +239,33 @@ timestamp drive contract behavior, not L1's"，随后却赋上 L1 高度。第�
 中断言 `isActive`（而 `RevertBatch` 必须保持可在暂停状态下调用，否则无法恢复），并补上先暂停、
 再分别尝试两者的 VM 测试。
 
+**状态 —— 已在当前分支修复，并重新定级为 [E1]。** `FinalizeBatch` 现在断言的就是
+`SubmitBatch` 断言的那个字节（`SettlementManagerContract.cs:509-510`），并且复用的正是该函数
+为了重验安全等级而已经载入的 `chainRegistry` 句柄，因此这次暂停只多付出一次只读的跨合约调用，
+不新增任何存储槽位。所以自本次变更起 `isActive` 在该文件中出现**两次**；上面"恰好出现一次"
+的记录作为审计时点状态保留。`RevertBatch:551` 刻意不加守卫，而这正是修复必须保住的不对称性 ——
+一条被暂停的链仍然必须可回滚，否则那个唯一能撤销错误 root 的动作，恰好在最需要它的时刻变得不可用。
+
+实测下来的爆炸半径比这条发现当初假设的更小，值得记录，因为它界定了这次改动的风险边界。
+`finalizeBatch` 在仓库内恰好有一个调用方，即
+`OptimisticChallenge.FinalizeIfPastWindow:791`，而那个调用方在外部调用*之前*就删掉了
+`deadlineKey` 与 `SequencerKey` —— 于是一次 FAULT 会把删除原子地回滚掉，等 `ResumeChain`
+之后终局化可以直接重试。这不是第二个 `C4`：暂停不会困住任何 batch。
+`finalizeIfPastWindow` 本身在 `src/` 与 `tools/` 下根本没有链外驱动，所以这个守卫改变的只是
+VM 测试实际执行的那条路径。
+
+随修复落地两个测试：`FinalizeBatch_RejectsPausedChain` 断言的是 FAULT 的*消息文本*而不只是
+异常类型，随后恢复并终局化同一个 batch，使暂停不可能是终结性的；
+`RevertBatch_StillWorksOnPausedChain` 钉住那条无守卫的恢复路径。把这两个测试区分开来的正是
+反向对照，这也是第二个测试值得存在的理由：把合约源码回退、并用钉住的 `nccs` 3.9.1 重新生成
+它的 NEF 之后，`FinalizeBatch_RejectsPausedChain` 以
+`Expected exception of exact type TestException but no exception was thrown`
+失败 —— 被暂停的链确实终局化了，这是执行出来的而非读出来的 ——
+而第二个测试在两种构建下都通过，这正是一个"守卫缺席"测试应该有的行为。
+重新生成的 artifact 挪动了 NEF 字节与方法偏移量，103 项的 ABI 名字集合保持不变。
+`tests/NeoHub.Contracts.VmTests` 为 573/573、0 skipped；整个解决方案为 2,895 个测试、0 失败、
+5 skipped —— 即 §5 V4 的 2,893 加上这两个，且跳过数未变，而这道算术正是"别的东西都没动"的确认。
+
 ### H17 — 文档所述的 Gateway global-root 路径在部署器产出的每一次部署上都会 FAULT [E1]
 
 除非 global-root 治理已被锁定，否则 `MessageRouter.PublishGlobalRoot` 会拒绝*第一次*发布：
@@ -618,7 +645,7 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
 | `H1` 插件异常会停止节点 | **未修复**，已提升为 [E1] | `L2BatchPlugin.cs:479 throw;`、`Plugin.cs:74` 默认值、`src/` 中零个 `ExceptionPolicy` 覆写 |
 | `H6` 装饰性的链下二进制钉扎 | **未修复**，证据等级如今升到 [E1]，其测试的期望摘要由被测二进制自身派生，且没有反向测试（§5 V3） | `UT_Sp1StatefulBatchExecutor.cs:318` |
 | `H12` 信任根上的治理锁 | 就本分支覆盖的三根而言**已修复**；该模式在别处仍不完备（§7.1） | `ChainRegistryContract.cs:158-168,172-181,389` |
-| `H13` kill-switch 覆盖 3 个资产合约中的 1 个 | **未修复**，外加按链的那个变体（§4 H16） | `SubmitBatch:330-331` 对比 `FinalizeBatch:479-533` |
+| `H13` kill-switch 覆盖 3 个资产合约中的 1 个 | 全局标志**未修复**；它的按链变体（§4 H16）**已修复**（当前分支） | 审计时点为 `SubmitBatch:330-331` 对比 `FinalizeBatch:479-533`；`FinalizeBatch` 现在在 `:509-510` 断言 `isActive` |
 | `H2` FI 截止期短于它所暂停的挑战窗口 | **重新确认** | `ForcedInclusionContract.cs:195` 界定为 `[60, 86400]`，而 `OptimisticChallengeContract.cs:246` 允许 `[60, 7*86400]` —— 一个 7 天的窗口配上 24 小时的截止期，会让 `ReportCensorship:503` 暂停一个仍可被挑战的 batch。§4 H19 是它的镜像那一半：*部署期*那个字段完全跳过了这条边界 |
 | `H3` escape hatch 需要手工接线 | **一半被推翻** | `LiveDeployCommand.cs:801-802` 如今会在 `LockGovernance`（`:861-862`）之前注册该 pauser 并读回校验；只剩 `IsProductionReady()` 这条断言仍未落地（`ForcedInclusionContract.cs:254-266`）—— 见 §6 |
 | `§3.1` Windows 自我跳过 | **已修复**（本分支） | 同样 2,893 道测试下全仓库跳过 45 → 5；`tests/Shared/RepoRoot.cs` 在 10 个文件的 33 处替换了那五层上溯，受影响的六个项目现在都报告 `Skipped: 0`（§5 V4） |
@@ -779,7 +806,8 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
    模板与部署器之间的不匹配，只会把一条坏掉的 optimistic 链变成一条永久卡死的链。
 2. `V4` —— **已在本分支完成**：证据文件的向上回溯被 `tests/Shared/RepoRoot.cs` 在全部 33 处替换
    （§5 V4）。重新可见的是 40 个测试、而不是 27 个 —— 27 只是其中一个项目的份额。
-3. `H16` —— 在 `FinalizeBatch` 中断言 `isActive` + 两个 VM 测试。
+3. `H16` —— **已在当前分支完成**：`FinalizeBatch` 在 `SettlementManagerContract.cs:509-510`
+   断言 `isActive`，而 `RevertBatch` 刻意保持无守卫，两个 VM 测试随之落地（§4 H16 状态）。
 4. `H17` —— 把 `LockGlobalRootGovernance` 接进 `LiveDeployCommand` + CLI plan 文本 + 冒烟步骤。
 5. `H19` —— 在 `ForcedInclusion._deploy` 里施加 `[60, 86400]` 这条边界，并补上那个把 `uint`
    溢出方向钉住的 VM 测试。

@@ -474,7 +474,9 @@ public class SettlementManagerContract : SmartContract
     /// <summary>
     /// Move a batch from Pending or Challengeable to Finalized. Records the canonical state
     /// root and bumps <c>latestFinalized</c>. Anyone may call once the conditions are met (the
-    /// underlying verifier / challenge logic is the gate, not msg.sender).
+    /// underlying verifier / challenge logic is the gate, not msg.sender) and the chain is active;
+    /// a chain paused through <c>ChainRegistry.PauseChain</c> stops finalizing, but stays
+    /// revertible so incident response can still recover it.
     /// </summary>
     public static void FinalizeBatch(uint chainId, ulong batchNumber)
     {
@@ -500,6 +502,13 @@ public class SettlementManagerContract : SmartContract
         // submitted under a weaker label cannot finalize after the chain advertises Validity or
         // Validium, and a pre-upgrade contradictory DA label cannot cross the finalization gate.
         var chainRegistry = (UInt160)(Storage.Get(new byte[] { PrefixChainRegistry }) ?? throw new Exception("registry unset"));
+
+        // Pause must halt the chain, not merely its intake: FinalizeBatch is the only writer of
+        // canonicalRoot/latestFinalized, and SharedBridge payouts commit to that root. RevertBatch
+        // deliberately keeps no such guard so a fraud proof still recovers a paused chain.
+        var isActive = (bool)Contract.Call(chainRegistry, "isActive", CallFlags.ReadOnly, new object[] { chainId });
+        ExecutionEngine.Assert(isActive, "chain inactive");
+
         var securityLevel = GetChainSecurityLevel(chainRegistry, chainId);
         var daMode = GetChainDAMode(chainRegistry, chainId);
         AssertSecurityConfigurationCompatible(securityLevel, daMode);

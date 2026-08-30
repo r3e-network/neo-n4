@@ -329,6 +329,23 @@ regression in `bridge/neo-zkvm-host` cannot redden anything an author sees. Nigh
 merge-queue-scheduled dispatch would keep the resource envelope while making the assertion
 meaningful.
 
+This pass produced a live instance rather than a read-only inference. PR #52's head `20d7ce80`
+(workflow run `33301282516`, merged to `master` as `6116d659` on 2026-08-30) reported all 14 required
+contexts `completed/success` — including `SP1 compatibility and manual release proof gate`, check-run
+`99230673595` — inside the same run that recorded the heavy lane as `skipped`, `matrix.name`, check-run
+`99229821429`. That PR touched `contracts/`, `tests/`, `tools/` and `src/` and re-emitted VM contract
+artifacts; the SP1 execution and proof stack was not exercised by any check that gated its merge, and
+the required check that appears to cover it passed *because* of that absence.
+
+One audit-trail fact, recorded because this report would be inconsistent if it skipped it: that merge
+reached `master` with zero approvals. `master` sets `enforce_admins: true`, so an admin merge is
+refused outright ("New changes require approval from someone other than the last pusher") and the
+setting had to be toggled off and immediately back on for it to land. No `V1`..`V6` finding was
+implicated in that decision, and nothing about the toggle is a code defect — but a release path whose
+only review control can be removed in one API call by the same identity that pushes to it is the same
+class of gate-that-checks-the-wrong-thing this section is about, and §10's remediation order should
+value it accordingly.
+
 ### V2 — The "off-chain ↔ on-chain encodings are paired" invariant has no cross-boundary test [E1]
 
 `tests/NeoHub.Contracts.VmTests/NeoHub.Contracts.VmTests.csproj` references

@@ -62,6 +62,16 @@ public class ForcedInclusionContract : SmartContract
     /// <summary>Default time the sequencer has to include a forced tx before censorship kicks in.</summary>
     public const uint DefaultDeadlineSeconds = 7200;   // 2 hours
 
+    /// <summary>
+    /// Legal deadline window, enforced identically at deploy time and by
+    /// <see cref="SetDeadlineSeconds"/>. The upper bound is also what keeps
+    /// <c>EnqueueForcedTransaction</c>'s <c>enqueuedAt + deadline</c> inside <c>uint</c> range.
+    /// </summary>
+    public const uint MinDeadlineSeconds = 60;
+
+    /// <summary>Inclusive upper bound on the deadline: 24 hours.</summary>
+    public const uint MaxDeadlineSeconds = 86400;
+
     /// <summary>Emitted whenever a user enqueues a forced transaction.</summary>
     [DisplayName("ForcedTxEnqueued")]
     public static event Action<uint, ulong, UInt160, UInt256> OnForcedTxEnqueued = default!;
@@ -128,9 +138,12 @@ public class ForcedInclusionContract : SmartContract
         Storage.Put(new byte[] { KeyOwner }, owner);
         Storage.Put(new byte[] { KeySettlementManager }, settlementManager);
         var deadline = arr.Length >= 3 ? (uint)(BigInteger)arr[2] : DefaultDeadlineSeconds;
-        // A zero deadline would let any sequencer pass the censorship check by definition;
-        // surface the misconfig at deploy time.
-        ExecutionEngine.Assert(deadline > 0, "deadline must be positive");
+        // A zero deadline would let any sequencer pass the censorship check by definition, and an
+        // out-of-range one would leave the contract in a state SetDeadlineSeconds can never
+        // reproduce. Surface the misconfig at deploy time.
+        ExecutionEngine.Assert(
+            deadline >= MinDeadlineSeconds && deadline <= MaxDeadlineSeconds,
+            "deadline out of bounds [60, 86400]");
         Storage.Put(new byte[] { KeyDeadlineSeconds }, (BigInteger)deadline);
 
         // Optional native GAS token — operator can defer setting this and run fee-free.
@@ -192,7 +205,9 @@ public class ForcedInclusionContract : SmartContract
     public static void SetDeadlineSeconds(uint seconds)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
-        ExecutionEngine.Assert(seconds >= 60 && seconds <= 86400, "deadline out of bounds [60, 86400]");
+        ExecutionEngine.Assert(
+            seconds >= MinDeadlineSeconds && seconds <= MaxDeadlineSeconds,
+            "deadline out of bounds [60, 86400]");
         var old = GetDeadlineSeconds();
         Storage.Put(new byte[] { KeyDeadlineSeconds }, (BigInteger)seconds);
         OnDeadlineSecondsChanged(old, seconds);

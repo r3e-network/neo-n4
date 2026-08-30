@@ -5,6 +5,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — H19: the anti-censorship deadline is now bounded on the deploy path, not only on the owner path — 2026-08-30
+
+- `ForcedInclusion._deploy` accepted any `deadline > 0` while `SetDeadlineSeconds` enforced
+  `[60, 86400]`, so a deployment could start in a state the owner can never reproduce. Both guards now
+  read one pair of new constants, `MinDeadlineSeconds` / `MaxDeadlineSeconds`
+  (`ForcedInclusionContract.cs:70`, `:73`), with the deploy-time assert at `:140-146`, so the two sites
+  cannot drift apart again.
+- The finding deliberately left both hazard directions open because the NCCS semantics of the `uint`
+  arithmetic at `:388-389` could not be read off the source. A VM test measured it instead: **the value
+  truncates mod 2³² and the VM halts.** A control enqueue at the legal maximum stores `1,468,681,716`;
+  the same enqueue advanced by `4,294,880,900` s stores `1,468,595,320`; the stored fields differ by
+  exactly the advance, which is only possible if neither site checks. Both branches are therefore live,
+  split by magnitude — `100,000,000` leaves `ReportCensorship` inert forever, `3,000,000,000` wraps the
+  stored deadline into the past and hands a permissionless `pauseChain` to the first caller. The upper
+  bound is what puts the problem out of reach: with `deadline ≤ 86400`,
+  `enqueuedAt + deadline < 2³²` holds for the entire pre-2106 life of a chain.
+- Not a breaking change for anything in the tree: nobody supplies the third `_deploy` element. The
+  deployer passes two (`resolvedDeployData` in
+  `artifacts/local-deployment-rehearsal/*/hub/deploy-bundle.json`), so `DefaultDeadlineSeconds = 7200`
+  applies, inside the window, and no `.json` template or C# caller passes a deadline at all.
+- Tests: `DeployDeadlineSeconds_RejectsEveryValueTheOwnerSetterRefuses` (rejects `0`, `1`, `59`,
+  `86401`, `uint.MaxValue`; accepts `60`, `86400`, one fresh `TestEngine` per deploy) and
+  `EnqueueDeadlineSum_TruncatesModuloTwoTo32InsteadOfFaulting` pin the above.
+  `UT_ForcedInclusion_Vm` 17/17 (was 15), `NeoHub.Contracts.VmTests` 575/575, full solution
+  38 assemblies / 2,899 tests / 0 failed / 5 skipped.
+- The contract body changed, so `TestingArtifacts/NeoHubForcedInclusion.artifacts.cs` was re-emitted
+  with the pinned `nccs` 3.9.1 — exactly two lines differ (`Manifest`, `Nef`) and the ABI name set is
+  identical. Negative control: reverting *only* that tracked artifact makes the new deploy test fail
+  naming deadline `1`, which is what proves the guard executes on-chain rather than in C#.
+- Docs: audit §4 H19 status block, §2 gate table, §10 item 5, §11 overflow bullet. Chinese mirror
+  carried to the same structure.
+
+### Audit — V8: the repository's only Rust dependency gate cannot see the advisories Dependabot reports — 2026-08-30
+
+- Three open Dependabot alerts sit on `Cargo.lock` (one High, two Low), all filed 2026-07-15. The CI
+  `cargo audit` job scans that same lockfile and reports `found: false, count: 0` against a same-day
+  database: the job reads RustSec, Dependabot reads the GitHub Advisory Database, and for
+  `p3-challenger` the two disagree. The green check is therefore not evidence about these advisories —
+  audit §5 V8.
+- The High is live, and a grep of this tree would have cleared it wrongly:
+  `slop-challenger-6.2.1/src/lib.rs:6` is `pub use p3_challenger::*;`, and the flagged
+  `MultiField32Challenger` is the transcript challenger of the recursion configs the bundled SP1 path
+  proves with. Checked against the pinned source rather than the advisory text: its *entropy-loss* half
+  does not apply here (the fork's `num_f_elms` yields 4 limbs ≥ 254 bits, not the advisory's 3), while
+  its *transcript malleability* half does (unchunked-length absorption through `reduce_31`, plus a
+  partial-buffer duplex in `sample()`).
+- The fix now has a name: `slop-challenger 6.5.0` requires `p3-challenger = "=0.4.3-succinct"`. It is
+  not reachable by `cargo update` — `slop-challenger 6.2.1` requires `^0.3.3-succinct` and the repo pins
+  `sp1-sdk = "=6.2.1"` exactly in two in-repo manifests plus the vendored workspace, so this is an
+  SP1 6.2.1 → 6.5.0 release bump: VK re-pin, guest rebuild, semantic-ID rotation, cross-repo. §10 item 17
+  records it as a decision, alongside two cheap actions that do not need it.
+- Also newly assessed: `p3-symmetric` (never written up before) does carry the vulnerable
+  `PaddingFreeSponge` / `MultiField32PaddingFreeSponge` and has no `Pad10Sponge`, so it is reachable,
+  with the advisory's own fixed-arity caveat narrowing it to Low. And `.github/dependabot.yml`'s
+  `ignore` block suppresses update PRs, not alerts — all three are still open while the comment reads
+  as resolved. §10 item 18 separately records that `finalizeIfPastWindow` has no driver anywhere in
+  the tree, which is what makes an Optimistic chain's finalization depend on a hand-made L1 call.
+
 ### Fixed — H17: cross-chain finality relay is now deployable, not just documented — 2026-08-30
 
 - `MessageRouter.PublishGlobalRoot` refuses its *first* publication unless global-root governance is

@@ -29,7 +29,7 @@ than restate it:
 | Track | Subsystem | Disposition |
 | --- | --- | --- |
 | T1 | `external/neo-riscv-vm` (PolkaVM host + guest + adapter plugin) | §3, §4 |
-| T2 | `bridge/neo-zkvm-{guest,host}`, `neo-zkvm-executor` pin, `Sp1SettlementExecutionStack`, `NeoHub.Sp1Groth16Verifier` | §5 V3, V7, §7 |
+| T2 | `bridge/neo-zkvm-{guest,host}`, `neo-zkvm-executor` pin, `Sp1SettlementExecutionStack`, `NeoHub.Sp1Groth16Verifier` | §5 V3, V7, V8, §7 |
 | T3 | `NeoHub.SharedBridge` / `ExternalBridgeEscrow` / `MpcCommitteeVerifier` / `VerifierRegistry`, foreign EVM + Solana programs, `L2NativeContracts.cs` | §5 V5, §7 |
 | T4 | `Neo.L2.Batch`, `Neo.Plugins.L2Batch`, `Neo.L2.State`, `Neo.Plugins.L2DA` | §4 H15, §6 |
 | T5 | `NeoHub.SettlementManager` / `OptimisticChallenge` / `ForcedInclusion` / `Censorship` | §3 C4, §4 H16, H19, §5 V5, §6 |
@@ -53,6 +53,9 @@ Executed locally on Windows (`win-x64`), all commands exit 0 unless stated:
 | Batch / state / DA suites (5 projects) | `Neo.L2.Batch` 68/68 · `Neo.Plugins.L2Batch` 65 pass + 1 skipped · `Neo.L2.State` 120/120 · `Neo.Plugins.L2DA` 109/109 · `Neo.L2.Abstractions` 79 pass + 1 skipped — all exit 0 |
 | `dotnet test tests/Neo.Hub.Deploy.UnitTests` after §10 item 4 | 115 passed, 0 failed (the 113 above plus two Gateway parser tests) |
 | `dotnet test Neo.L2.sln`, twice, after §10 items 1–4 | run 1: 2,897 total, **1 failed** — §5 V7, in a project that branch does not touch; run 2: 2,897 total, 0 failed, 5 skipped, exit 0 |
+| `dotnet test tests/NeoHub.Contracts.VmTests` after §10 item 5 | 575 passed, 0 failed (`UT_ForcedInclusion_Vm` 17/17) |
+| `dotnet test Neo.L2.sln`, after §10 item 5 | 38 assemblies, 2,899 total, 0 failed, 5 skipped, exit 0 |
+| `cargo audit --file Cargo.lock` vs the Dependabot API, for §5 V8 | audit: `found: false, count: 0`, exit 0 — while the same lockfile carries 3 open alerts, one High |
 
 The two skips are self-skips of the §5 V4 class, not failures. Track-reported counts for these five
 projects were reproduced independently and matched exactly. (`V4` was repaired on this branch after
@@ -407,7 +410,9 @@ default security posture of the flagship template.
 
 ### H19 — The anti-censorship deadline is bounded on the owner path and unbounded on the deploy path [E2]
 
-`ForcedInclusion` stores one global `deadlineSeconds` and reads it when stamping each entry:
+`ForcedInclusion` stores one global `deadlineSeconds` and reads it when stamping each entry. The excerpt
+below quotes the pre-fix source at its pre-fix line numbers; every citation in the prose that follows
+has been re-resolved against the fixed file.
 
 ```
 ForcedInclusionContract.cs:130-133   _deploy: deadline = (uint)(BigInteger)arr[2]; Assert(deadline > 0, "deadline must be positive")
@@ -417,15 +422,15 @@ ForcedInclusionContract.cs:373-374   enqueuedAt = (uint)(Runtime.Time / 1000u); 
 
 The same value is therefore range-checked when the owner changes it and unchecked when the deployer
 sets it. Two consequences follow from the deploy-time field alone, and which one applies depends on
-how NCCS compiles the `uint` addition at `:374` — this pass could not determine that from source, so
+how NCCS compiles the `uint` addition at `:389` — this pass could not determine that from source, so
 it is stated as a hazard requiring a VM test, not as a proven behavior:
 
 - If the arithmetic saturates or the value is simply large, the censorship window is effectively
   never reached, and the whole point of `ReportCensorship` — the §17 escape hatch that lets anyone
-  prove a sequencer is ignoring the L1 queue and pause the chain (`:496` `if (nowSec < deadline)
-  return false;` then `:503` `pauseChain`) — is inert on a chain that was deployed with a mistyped
+  prove a sequencer is ignoring the L1 queue and pause the chain (`:511` `if (nowSec < deadline)
+  return false;` then `:518` `pauseChain`) — is inert on a chain that was deployed with a mistyped
   deadline. One `uint` field in the deploy data silently disables the anti-censorship guarantee, and
-  `IsProductionReady()` does not check it (`:254-266` omits the pauser and the deadline bound).
+  `IsProductionReady()` does not check it (`:269-281` omits the pauser and the deadline bound).
 - If the addition wraps mod 2³², the stored per-entry deadline lands in the past, every entry is
   instantly reportable, and a permissionless caller can `pauseChain` at will.
 
@@ -433,11 +438,46 @@ Fix both directions with the same one-line change: apply the `[60, 86400]` bound
 `SetDeadlineSeconds` already enforces, and add the VM test that pins the overflow behavior.
 
 What is genuinely sound here, and worth stating so the finding is not overread: an entry's deadline is
-immutable once written. The nonce strictly increments (`:369-370`), there is exactly one `Put` per
+immutable once written. The nonce strictly increments (`:384-385`), there is exactly one `Put` per
 enqueue and no update path anywhere in the contract, so a censoring sequencer **cannot** postpone a
 forced inclusion by renewing its deadline — the classic escape from this design is absent.
-`ReportCensorship` is likewise one-shot per entry (`:498` sets a `reportedKey`), and the comparison at
-`:496` is inclusive at equality, which is the correct direction for a deadline.
+`ReportCensorship` is likewise one-shot per entry (`:513` sets a `reportedKey`), and the comparison at
+`:511` is inclusive at equality, which is the correct direction for a deadline.
+
+**Status — fixed on this branch, and the question the finding refused to guess is now closed.**
+`_deploy` applies the same `[60, 86400]` window `SetDeadlineSeconds` already enforced
+(`ForcedInclusionContract.cs:140-146`), and both guards now read one pair of constants
+(`MinDeadlineSeconds` / `MaxDeadlineSeconds`, `:70` and `:73`), so the two sites cannot drift apart
+again.
+
+The VM test settled the arithmetic by measurement, not by reading NCCS: **the value truncates mod 2³²
+and the VM halts.** A control enqueue at the legal maximum deadline stores `1,468,681,716`; the same
+enqueue advanced by `4,294,880,900` s stores `1,468,595,320`; the difference between the two stored
+fields is exactly the advance, which is only possible if both `(uint)(Runtime.Time / 1000u)` (`:388`)
+and `enqueuedAt + deadline` (`:389`) truncate rather than check.
+`EnqueueDeadlineSum_TruncatesModuloTwoTo32InsteadOfFaulting` pins that relation.
+
+So both hazard branches above are live, split by magnitude rather than by which instruction NCCS
+emits: an out-of-window value that still fits (`100,000,000`) leaves the censorship window effectively
+unreachable and `ReportCensorship` inert, while one that does not (`3,000,000,000`) wraps the stored
+deadline back into 1984, makes every entry instantly reportable, and hands a permissionless
+`pauseChain` to the first caller. The same truncation is why the upper bound is what keeps the whole
+problem out of reach: with `deadline ≤ 86400`, `enqueuedAt + deadline < 2³²` holds for the entire
+pre-2106 life of a chain, so no further change is warranted and the test exists to document the
+residual rather than to gate it.
+
+Not a breaking change for anything in the tree, because nobody supplies the third deploy element. The
+deployer passes two (`resolvedDeployData: ["OWNER_REPLACE_ME", <settlement manager>]` in
+`artifacts/local-deployment-rehearsal/*/hub/deploy-bundle.json`), so `DefaultDeadlineSeconds = 7200`
+(`:63`) applies — inside the window — and no `.json` template or C# caller passes a deadline at all.
+
+Negative control, so the [E1] claim is real: reverting *only* the tracked artifact
+(`TestingArtifacts/NeoHubForcedInclusion.artifacts.cs`) to its pre-fix NEF makes the new deploy test
+fail naming deadline `1`. The guard therefore executes on-chain, not in C#. Re-emission changed
+exactly two lines (the `Manifest` and `Nef` properties) and the ABI name set is identical to `HEAD`'s.
+
+`UT_ForcedInclusion_Vm` 17/17 (was 15), `NeoHub.Contracts.VmTests` 575/575, full solution
+38 assemblies / 2,899 tests / 0 failed / 5 skipped (the H17 run's 2,897 plus these two).
 
 ## 5. Verification-integrity findings
 
@@ -703,6 +743,166 @@ and decide explicitly whether an exhausted `IOException` belongs in the protocol
 ships a structurally identical helper — same `File.Exists` check, same unguarded
 `File.ReadAllBytesAsync` at `:429` — so whichever answer is right should be applied to both.
 
+### V8 — The only Rust dependency gate in CI cannot see the advisories Dependabot reports, and the High one is live [E1 gate-blindness + reachability]
+
+GitHub lists three open Dependabot alerts on this repository. All three are Rust, all three resolve
+out of the *same* `Cargo.lock`, and all three were opened on the same day:
+
+```
+$ gh api "repos/r3e-network/neo-n4/dependabot/alerts?state=open"
+3 | high | p3-challenger  | < 0.4.3        | first patched 0.4.3 | GHSA-vj64-rjf3-w3v7  | created 2026-07-15
+2 | low  | p3-symmetric   | <= 0.5.2       | no patch            | GHSA-3g92-f9ch-qjcm  | created 2026-07-15
+1 | low  | lru            | >=0.9.0,<0.16.3| first patched 0.16.3| GHSA-rhfx-m35p-ff5j  | created 2026-07-15
+```
+
+Two of the three are already written up: `docs/audit/sp1-transitive-advisories-2026-08-28.md` assesses
+`p3-challenger` and `lru`, records that RustSec carries no matching record so the CI gate stays green,
+names the remediation as a coordinated SP1 upgrade rather than a lockfile bump, and cites the closed
+Dependabot sp1-6.3.1 attempt (PR #23, 4 failing checks). That note is good work and this finding does
+not restate it. What V8 adds is four things the note could not say on 2026-08-28, each measured here
+against the pinned source rather than inferred: which of the challenger advisory's *two* mechanisms
+actually survives in the `0.3.3-succinct` fork (the note explicitly declined to guess, calling the
+backport "not publicly recorded"); the *concrete* target release for the upgrade; an assessment of
+`p3-symmetric`, which is not covered there at all; and one loose end in the accepted-risk bookkeeping,
+flagged at the end of this section.
+
+The repository's answer to "are our Rust dependencies audited?" is one CI job:
+
+```
+$ grep -n "cargo audit" .github/workflows/build.yml
+590:      - name: cargo audit (production Rust lockfiles)
+600:          for lockfile in \
+601-            Cargo.lock \
+...
+607-            cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0258 --json
+```
+
+That loop starts at `Cargo.lock` — the exact manifest Dependabot flags — and it passes locally
+against a same-day advisory database:
+
+```
+$ cargo audit --file Cargo.lock --json | head -c 300
+{"database":{"advisory-count":1226,"last-updated":"2026-08-29T08:11:09+02:00"},
+ "lockfile":{"dependency-count":614},"vulnerabilities":{"found":false,"count":0,"list":[]}
+```
+
+So the green `cargo audit` check is not evidence about these three advisories: the job reads RustSec,
+Dependabot reads the GitHub Advisory Database, and for `p3-challenger` the two databases disagree. This
+is the §5 shape again — a check that is green for a reason unrelated to the property it appears to
+assert — with one twist worth naming: unlike the other V findings, nothing here is miswritten. The repo
+already carries the same kind of discrepancy once, deliberately, with an explanatory comment and an
+`--ignore` for `RUSTSEC-2026-0258` (`build.yml:592-599`). The difference is that the h2 case is
+disclosed and this one is invisible.
+
+**The High is not noise, and a grep of this tree would have cleared it wrongly.** `MultiField32Challenger`
+is named in the advisory title, and the only hits for it in the repository are audit prose:
+
+```
+$ git grep -ln "MultiField32Challenger"
+docs/audit/sp1-transitive-advisories-2026-08-28.md      ← and this report; no .rs, no .cs
+$ sed -n '6p' ~/.cargo/…/slop-challenger-6.2.1/src/lib.rs
+pub use p3_challenger::*;
+```
+
+The flagged type is re-exported under a renamed crate (`slop-challenger` → the `slop_*` family) and is
+then used as the transcript challenger of the recursion configs that the bundled SP1 path proves with:
+
+```
+~/.cargo/…/slop-basefold-6.2.1/src/config.rs:13,50   MultiField32Challenger<F, Bn254Fr, OuterPerm, …>
+~/.cargo/…/slop-bn254-6.2.1/src/lib.rs:17,75,104     type Challenger = MultiField32Challenger<…>
+Cargo.lock:2718                                       p3-challenger 0.3.3-succinct
+```
+
+**What does and does not apply at the pinned pairing.** The advisory text describes newer Plonky3 code
+(`reduce_32`, `num_f_elms = PF::bits() / 64`); the pinned fork is different, so the two claims in its
+title have to be checked separately against the code that actually ships:
+
+- *Challenge entropy loss* — **does not apply.** The pinned `num_f_elms` is
+  `PF::bits() / F::bits() / 2` (`p3-challenger-0.3.3-succinct/src/multi_field_challenger.rs:47`), which
+  at the BN254 pairing is 4 limbs of a 2⁶⁴ base = 256 bits, and `split_32` (`:77`) therefore covers the
+  full 254-bit field element. The advisory's 3-limb version (192 bits) would not.
+- *Transcript malleability* — **does apply.** `duplexing()` absorbs
+  `input_buffer.chunks(num_duplex_elms)` through `reduce_31` (`:66-67`, `p3-field-0.3.3-succinct/src/helpers.rs:134`)
+  with no chunk-length marker, and `sample()` duplexes whatever partial buffer exists (`:172-175`). A
+  trailing zero observation therefore absorbs to the same state as no observation: the sponge input is
+  not injective, so two transcripts that differ only in appended zero elements sample identically.
+
+That is a real property of the live code path, and its consequence is bounded the way transcript
+malleability always is: it lets a prover rewrite its own public inputs without changing the challenges,
+which matters for anything that treats a transcript or its committed public inputs as unique. It is not
+a forged-proof result, and I did not attempt to build one against the settlement path — the remaining
+question is whether any N4 consumer relies on transcript/proof-input uniqueness across the batch or
+Gateway sidecars, which is an analysis of `AtomicFileQueueTransport` and the sidecar binding, not of the
+crate.
+
+**The fix path now has a name.** The 08-28 note correctly concluded that no version inside the pinned
+graph can express the fix, and asked for "a release whose dependency graph pins `p3-challenger >= 0.4.3`"
+without identifying one. It exists — the current `slop-challenger` requires exactly the patched build:
+
+```
+$ curl -s https://crates.io/api/v1/crates/slop-challenger/6.5.0/dependencies | grep -A1 p3-challenger
+"crate_id":"p3-challenger"  "req":"=0.4.3-succinct"
+```
+
+but `slop-challenger 6.2.1` requires `0.3.3-succinct` (i.e. `^0.3.3-succinct`), and this repo pins the
+toolchain by exact version in three in-repo manifests plus the vendored workspace:
+
+```
+bridge/neo-zkvm-host/Cargo.toml:31,50          sp1-sdk = { version = "=6.2.1", … }
+bridge/neo-zkvm-gateway-host/Cargo.toml:28,36  sp1-sdk = { version = "=6.2.1", … }
+external/neo-zkvm/Cargo.toml:27                sp1-sdk = { version = "=6.2.1", … }   (submodule)
+```
+
+So closing the High means an SP1 6.2.1 → 6.5.0 release bump, and that bump is spec-adjacent work rather
+than a dependency refresh: `doc.md:372` pins "SP1 6.2.1 compressed proof" as the requirement text,
+`AGENTS.md`, `ARCHITECTURE.md` and `IMPLEMENTATION_STATUS.md:266-267` all name 6.2.1, the build scripts
+embed SHA-256/VK from one Docker ELF snapshot, and `NeoHub.Sp1Groth16Verifier` is an immutable
+SP1-v6.1-compatible wrapper verified through the BN254 interops. Every one of those has to be
+re-established against 6.5.0, and the vendored submodule lives in `r3e-network/neo-zkvm` (its current
+gitlink is already on a `codex/rustsec-2026-refresh` branch), so the change is cross-repo. Note also
+that even after such a bump the resolved version would be `0.4.3-succinct`, which sorts *below* `0.4.3`
+in semver — whether Dependabot then closes the alert is untested here and must be checked rather than
+assumed.
+
+The `lru` alert needs no new analysis: `lru 0.12.5` is pulled in by `sp1-prover 6.2.1`
+(`[dependencies.lru] version = "0.12.4"`), and no release inside that requirement is patched — which is
+what the 08-28 note already concluded.
+
+`p3-symmetric` is the alert the repo has never assessed, and my first pass on it was wrong in the
+instructive direction: grepping the advisory's package name against a symbol guessed from its title
+suggests the vulnerable construct is absent from `0.3.3-succinct`. It is not. The advisory concerns
+`PaddingFreeSponge::hash_iter`, which pads a final partial block by leaving stale state elements in
+place, and both sponge variants plus their unfixed-ness are right there in the pinned crate:
+
+```
+$ grep -n "pub struct" ~/.cargo/…/p3-symmetric-0.3.3-succinct/src/sponge.rs
+15:pub struct PaddingFreeSponge<P, const WIDTH: usize, const RATE: usize, const OUT: usize>
+52:pub struct MultiField32PaddingFreeSponge<
+$ grep -rn "Pad10Sponge" ~/.cargo/…/p3-symmetric-0.3.3-succinct/src/     # → no matches
+```
+
+`Pad10Sponge` is the upstream half of the fix, so the pinned fork carries the vulnerable behavior.
+It is reachable and it is live in the BN254 config, which sets `type Hasher =
+MultiField32PaddingFreeSponge<…>` (`slop-bn254-6.2.1/src/lib.rs:83`). What narrows it — from the
+advisory's own impact section, not from an excuse made up here: *"in circumstances where the number of
+elements to be hashed is known and fixed in advance (as is the case for most STARKS), the method is
+collision resistant. This vulnerability only applies if a malicious user is able to manipulate the
+number of elements to be hashed."* In this tree the two `hash_iter` call sites in the prover stack are
+`slop-merkle-tree-6.2.1/src/p3sync.rs:137`, hashing a fixed literal array, and
+`slop-merkle-tree-6.2.1/src/tcs.rs:146`, hashing `vec![claimed_values_slices]` for a FRI batch
+decommitment — a length that follows the query shape. Whether an SP1 adversary can steer *that* length
+is the one open question, and I did not chase it: the crate is operator-side only, and the 08-28 note's
+threat model already places a malicious operator on this boundary, which is where alert #3's own impact
+statement lands too. Low, reachable, unpatchable in-graph, same remediation as the other two.
+
+One loose end in the bookkeeping, and it is the kind this §5 keeps finding. `.github/dependabot.yml:26-35`
+ignores `lru` and `p3-challenger` for the cargo ecosystem, pointing at the note, and its stated purpose
+is to stop the security-update jobs failing. That worked — and it is also reasonable to read that block
+as "these two are handled." They are not closed. All three alerts are still open in the Security tab
+today, six weeks after they were filed, and a fourth ignore would not dismiss them either: `ignore`
+suppresses pull requests, not alerts. The recorded accepted-risk decision and the visible alert state
+disagree, and only the alert state is legible to someone who has not read the note.
+
 ## 6. Medium / Low findings (new this pass)
 
 - **`SealedBatch` drops the message side of the batch** [E1]. `BatchBuilder.AddWithdrawal`,
@@ -812,6 +1012,28 @@ ships a structurally identical helper — same `File.Exists` check, same unguard
   half — `RegisterPauser` / `RevokePauser` surviving the lock — is already tracked in §7.1 and is the
   item worth fixing, since it means pause authority stays owner-mutable after the deployer has
   declared governance final.
+- **`docs/zh/CHANGELOG.md` promises a sync it does not perform** [E1 counted]. Its own header states the
+  rule (`:4`: when the English file changes structure, commands, paths, interfaces, contract counts,
+  test evidence or security conclusions, the Chinese version must be updated in lockstep), and the
+  localization gate is written to enforce exactly that pair — but the gate asserts only that a
+  counterpart *exists*:
+
+  ```
+  $ grep -c "2026-08" docs/zh/CHANGELOG.md
+  0
+  $ git log --oneline -1 -- docs/zh/CHANGELOG.md
+  a647886d Stabilize the coverage gate (#30) [skip ci]
+  ```
+
+  Nothing newer than 2026-07-15 is in it, while `CHANGELOG.md` gained nine dated entries on `master`
+  across 2026-08-28 → 2026-08-30. The `C1`, `H12`, `C4`, `H16`, `H17` security and test-evidence records
+  among them are precisely the category its own rule calls out as mandatory, and this branch's two
+  entries (`H19`, `V8`) widen the same gap the moment they land. A Chinese reader is
+  therefore told, in writing, that this file tracks security conclusions, and it has not tracked one
+  for six weeks. The fix is a decision about which artifact is real: either backfill and let a test
+  compare entry headers between the pair, or delete the promise from the header and label the file what
+  it is — a stale summary. Leaving it as-is is the one option that keeps a documented invariant false
+  while a green test certifies the pair as complete.
 
 ## 7. Status of prior findings re-checked this pass
 
@@ -823,7 +1045,7 @@ ships a structurally identical helper — same `File.Exists` check, same unguard
 | `H6` decorative off-chain binary pin | **Open**, now [E1] with a derived-digest test and no negative test (§5 V3) | `UT_Sp1StatefulBatchExecutor.cs:318` |
 | `H12` governance locks on trust roots | **Fixed** for the three roots this branch covered; the pattern is still incomplete elsewhere (§7.1) | `ChainRegistryContract.cs:158-168,172-181,389` |
 | `H13` kill-switch covers 1 of 3 asset contracts | **Open** for the global flag; its per-chain variant (§4 H16) is **Fixed** (this branch) | audit-time `SubmitBatch:330-331` vs `FinalizeBatch:479-533`; `FinalizeBatch` now asserts `isActive` at `:509-510` |
-| `H2` FI deadline < challenge window it pauses | **Re-confirmed** | `ForcedInclusionContract.cs:195` bounds `[60, 86400]` while `OptimisticChallengeContract.cs:246` allows `[60, 7*86400]` — a 7-day window with a 24 h deadline lets `ReportCensorship:503` pause a still-challengeable batch. §4 H19 is the mirror-image half: the *deploy-time* field skips the bound entirely |
+| `H2` FI deadline < challenge window it pauses | **Re-confirmed** | `ForcedInclusionContract.cs:209` bounds `[60, 86400]` while `OptimisticChallengeContract.cs:246` allows `[60, 7*86400]` — a 7-day window with a 24 h deadline lets `ReportCensorship:518` pause a still-challengeable batch. §4 H19 is the mirror-image half: the *deploy-time* field skips the bound entirely |
 | `H3` escape hatch needs hand wiring | **Half-refuted** | `LiveDeployCommand.cs:801-802` now registers + read-back-verifies the pauser before `LockGovernance` (`:861-862`); only the `IsProductionReady()` assertion remains open (`ForcedInclusionContract.cs:254-266`) — see §6 |
 | `§3.1` Windows self-skips | **Fixed** (this branch) | repo-wide skipped 45 → 5 on the same 2,893 tests; `tests/Shared/RepoRoot.cs` replaces the 5-level walk at 33 sites in 10 files, and the six affected projects each report `Skipped: 0` (§5 V4) |
 | `A4` non-reproducible VM artifacts | **Open** | unchanged; the artifact set still has two compiler stamps |
@@ -1011,8 +1233,12 @@ Split by whether it can land now.
    `--gateway-replay-domain` — because the Gateway profile tuple is operator-supplied and stored
    nowhere. Deploy tests 115/115, `NeoHub.Contracts.VmTests` 573/573, full solution 38 assemblies /
    2,897 tests / 0 failed / 5 skipped (the H16 run's 2,895 plus the two parser tests).
-5. `H19` — apply the `[60, 86400]` bound in `ForcedInclusion._deploy`, and add the VM test that pins
-   the `uint` overflow direction.
+5. `H19` — **done on this branch**: `_deploy` now enforces the `[60, 86400]` window through the same
+   constants `SetDeadlineSeconds` uses, and the `uint` overflow direction the finding refused to guess
+   was measured, not assumed — mod-2³² truncation behind a halting VM. `UT_ForcedInclusion_Vm` 17/17,
+   `NeoHub.Contracts.VmTests` 575/575, full solution 38 assemblies / 2,899 tests / 0 failed /
+   5 skipped (the H17 run's 2,897 plus these two). Negative control: reverting only the tracked
+   artifact fails the new deploy test naming deadline `1`. See §4 H19's status block.
 6. `V6` — promote `L2BatchPlugin.cs:477`'s literal to a `MetricNames` constant + catalog entry;
    optionally add the emission-site literal scan that would have caught it.
 7. §7.1 — add lock guards to `SetOwner`, `RegisterPauser`/`RevokePauser`, `SetWindowSeconds`,
@@ -1040,6 +1266,23 @@ Split by whether it can land now.
     the read path gets the same bounded wait-and-retry *and* whether an exhausted `IOException` is
     wrapped into the protocol's `InvalidDataException` family. One answer, applied to both read sites
     (`AtomicFileQueueTransport.cs:265`, `Sp1GatewayProofProver.cs:429`).
+17. `V8` — the SP1 transitive advisories. The decision is not "fix or not": the in-graph fix does not
+    exist. It is whether to schedule the SP1 6.2.1 → 6.5.0 bump now — which the 08-28 note already
+    scoped as a VK re-pin + guest rebuild + `SP1_STATEFUL_NEO_VM_V1` semantic-ID rotation across two
+    in-repo manifests and the `r3e-network/neo-zkvm` submodule — or to keep the documented
+    accepted-risk posture under the operator-trust model. Two cheap sub-actions do not need that
+    decision and should not wait for it: assess `p3-symmetric` in writing (unassessed today, and this
+    section is the first look), and reconcile `.github/dependabot.yml:26-35` with the Security tab —
+    its `ignore` block suppresses update PRs, not alerts, so all three stay open while the comment
+    reads as resolved.
+18. `finalizeIfPastWindow` has no driver anywhere in-tree — neither off-chain nor contract-to-contract
+    (§4 H16's blast-radius note). That makes it the sole caller of `finalizeBatch`
+    (`OptimisticChallengeContract.cs:791`) reachable only by an externally crafted L1 transaction, so
+    an Optimistic chain finalizes only as often as somebody remembers to call it, and withdrawals
+    behind a finalized root inherit that. The decision is ownership: `Neo.Plugins.L2Settlement` on a
+    deadline timer, the existing challenge orchestrator, or an explicit operator runbook step — the
+    last of which needs `docs/launching-an-l2.md` to say so. Pick one; "the contract exposes it" is not
+    an answer that survives a mainnet with a 7-day window.
 
 ## 11. Not verified in this pass
 
@@ -1070,9 +1313,18 @@ Split by whether it can land now.
   `OptimisticChallenge` as two real contracts, so `SubmitBatch`'s resubmit branch is still read, not run.
 - The NCCS compilation semantics of the `uint` addition at `ForcedInclusionContract.cs:374` — wrap,
   saturate or fault — were not determined, so `H19` states both branches instead of picking one. A
-  single VM test settles it.
+  single VM test settles it. **Settled the same day** — `EnqueueDeadlineSum_TruncatesModuloTwoTo32
+  InsteadOfFaulting` measured mod-2³² truncation behind a halting VM, and §4 H19's status block
+  records what that leaves live.
 - Telemetry and the RPC surface were verified by counted greps against source and docs (§5 V6, §9),
   not by scraping a live `/metrics` endpoint from a running node. If the endpoint and the catalog
   diverge at runtime, this pass would not see it.
 - The `docs/telemetry.md:214-226` sample exposition was compared to the exporter's rendering rules by
   reading `PrometheusExporter.cs`, not by generating real output.
+- `V8` deliberately stops short of two things it could name but not settle. Whether the claimed-value
+  count hashed at `slop-merkle-tree-6.2.1/src/tcs.rs:146` is steerable by an SP1 adversary — the one
+  precondition that would raise `p3-symmetric` from Low to something interesting — needs a reading of
+  SP1's recursion query shape, not of this repository. And whether an SP1 6.5.0 bump would actually
+  close GHSA-vj64-rjf3-w3v7 was not tried: the graph would resolve to `0.4.3-succinct`, which semver
+  sorts below `0.4.3`, so the alert may survive its own fix. Both are answerable, and neither is
+  answerable from here.

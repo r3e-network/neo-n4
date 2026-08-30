@@ -308,6 +308,21 @@ SP1 出证栈不只是未被观察，它*必须缺席*才能让那道必需检�
 真实的回归无法让作者看到的任何东西变红。改为 nightly 或由 merge queue 调度的 dispatch，
 既能保住资源上限，又能让这条断言变得有意义。
 
+本轮给出的是一次执行实例，而不是只读推断。PR #52 的 head `20d7ce80`（workflow run
+`33301282516`，2026-08-30 以 `6116d659` 合入 `master`）把全部 14 个 required context 都报成
+`completed/success` —— 包括 `SP1 compatibility and manual release proof gate`，check-run
+`99230673595` —— 而同一个 run 里那条重型 lane 记的是 `skipped`，`matrix.name`，check-run
+`99229821429`。那个 PR 改动了 `contracts/`、`tests/`、`tools/` 与 `src/`，并重新生成了 VM 合约
+artifact；SP1 的执行与证明栈没有被任何把关它合并的检查执行过，而看上去覆盖它的那道必需检查恰恰
+*因为*这一缺席才通过。
+
+一条审计轨迹事实，记下来是因为这份报告若跳过它就自相矛盾：那次 merge 是在零 approve 的情况下到达
+`master` 的。`master` 设了 `enforce_admins: true`，所以 admin merge 会被直接拒绝
+（"New changes require approval from someone other than the last pusher"），必须先把它关掉、
+再立刻打开，才落得下去。这个决定里没有任何 `V1`..`V6` 发现牵涉在内，这次开关本身也不是代码缺陷 ——
+但一条发布路径上唯一的审阅控制，能被推送它的同一个身份用一次 API 调用移除，这和本节所讲的
+“检查错了东西的门禁”是同一类问题，§10 的修复顺序应当据此给予权重。
+
 ### V2 — "off-chain ↔ on-chain encodings are paired" 这一不变式没有任何跨边界测试 [E1]
 
 `tests/NeoHub.Contracts.VmTests/NeoHub.Contracts.VmTests.csproj` 引用了

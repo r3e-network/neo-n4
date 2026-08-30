@@ -34,6 +34,10 @@ public static class LiveDeployCommand
     private const long DefaultForcedInclusionFee = 100_000L; // 0.001 GAS.
     private const byte ProofSystemSp1 = 1;
     private const byte ProofTypeZk = 3;
+
+    // Mirrors Neo.Plugins.L2Gateway.Sp1GatewayProofProver.RecursiveAggregationBackendId. This tool
+    // does not reference the gateway plugin, so the literal is paired the same way ProofSystemSp1 is.
+    private const byte GatewayRecursiveAggregationBackend = 0xC2;
     private const uint ValidUntilDelta = 100;
 
     internal static UInt256 RestrictedExecutorSemanticId { get; } =
@@ -61,6 +65,10 @@ public static class LiveDeployCommand
         var l2ChainId = ParseRequiredL2ChainId(ArgUtil.Get(args, "--l2-chain-id", ""));
         var fraudReplayDomain = ParseRequiredFraudReplayDomain(
             ArgUtil.Get(args, "--fraud-replay-domain", ""));
+        var gatewayProgramVKey = ParseGatewayProgramVKey(
+            ArgUtil.Get(args, "--gateway-program-vkey", ""));
+        var gatewayReplayDomain = ParseRequiredGatewayReplayDomain(
+            ArgUtil.Get(args, "--gateway-replay-domain", ""));
         var expectedNetwork = ParseRequiredNetwork(ArgUtil.Get(args, "--expected-network", ""));
         var forcedInclusionFee = ParsePositiveForcedInclusionFee(
             ArgUtil.Get(args, "--forced-inclusion-fee", DefaultForcedInclusionFee.ToString(CultureInfo.InvariantCulture)));
@@ -114,7 +122,7 @@ public static class LiveDeployCommand
         var bundle = DeployPlanner.Plan(plan, name => predicted[name]);
         var records = new List<Dictionary<string, object?>>();
         WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-            l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+            l2ChainId, fraudReplayDomain, gatewayProgramVKey, gatewayReplayDomain, governanceCouncil.Count, governanceThreshold,
             dryRun, records);
 
         Console.WriteLine($"NeoHub live deployment");
@@ -124,6 +132,9 @@ public static class LiveDeployCommand
         Console.WriteLine($"  external bridge L2 domain: {l2ChainId}");
         Console.WriteLine($"  external bridge payout relay: {l2PayoutRelayAccount}");
         Console.WriteLine($"  restricted-fraud replay domain: {fraudReplayDomain}");
+        Console.WriteLine($"  gateway global-root vkey (raw): 0x{Convert.ToHexString(gatewayProgramVKey.GetSpan()).ToLowerInvariant()}");
+        Console.WriteLine($"  gateway global-root replay domain: {gatewayReplayDomain}");
+        Console.WriteLine($"  gateway aggregation backend: 0x{GatewayRecursiveAggregationBackend:x2}");
         Console.WriteLine($"  forced inclusion fee: {forcedInclusionFee} ({forcedInclusionFeeRecipient})");
         Console.WriteLine($"  governance council: {governanceThreshold}-of-{governanceCouncil.Count}");
         Console.WriteLine($"  dryRun: {dryRun}");
@@ -151,7 +162,7 @@ public static class LiveDeployCommand
                 Console.WriteLine($"[{deployed}/{bundle.Invocations.Count}] reuse {invocation.Name} {hash}");
                 records.Add(Record("deploy", invocation.Name, "reused", hash, txHash: null, null, null, null, blockIndex: null));
                 WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                    l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                    l2ChainId, fraudReplayDomain, gatewayProgramVKey, gatewayReplayDomain, governanceCouncil.Count, governanceThreshold,
                     dryRun, records);
                 continue;
             }
@@ -184,7 +195,7 @@ public static class LiveDeployCommand
 
             records.Add(Record("deploy", invocation.Name, dryRun ? "dry-run" : "deployed", hash, txHash, tx.SystemFee, tx.NetworkFee, "HALT", blockIndex));
             WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                l2ChainId, fraudReplayDomain, gatewayProgramVKey, gatewayReplayDomain, governanceCouncil.Count, governanceThreshold,
                 dryRun, records);
         }
 
@@ -197,7 +208,9 @@ public static class LiveDeployCommand
                 forcedInclusionFee,
                 sp1ProgramVKey,
                 l2ChainId,
-                fraudReplayDomain))
+                fraudReplayDomain,
+                gatewayProgramVKey,
+                gatewayReplayDomain))
             {
                 if (action.CompletionCheck is not null &&
                     await IsPostDeployActionCompleteAsync(action.CompletionCheck, rpc))
@@ -206,7 +219,7 @@ public static class LiveDeployCommand
                     records.Add(Record("postdeploy", action.Name, "reused", action.Contract,
                         txHash: null, null, null, "HALT", blockIndex: null));
                     WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                        l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                        l2ChainId, fraudReplayDomain, gatewayProgramVKey, gatewayReplayDomain, governanceCouncil.Count, governanceThreshold,
                         dryRun, records);
                     continue;
                 }
@@ -221,7 +234,7 @@ public static class LiveDeployCommand
                 var postBlockIndex = await TryResolveTransactionBlockIndexAsync(rpc, tx.Hash);
                 records.Add(Record("postdeploy", action.Name, "executed", action.Contract, tx.Hash.ToString(), tx.SystemFee, tx.NetworkFee, execution.VmState, postBlockIndex));
                 WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                    l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                    l2ChainId, fraudReplayDomain, gatewayProgramVKey, gatewayReplayDomain, governanceCouncil.Count, governanceThreshold,
                     dryRun, records);
             }
         }
@@ -237,6 +250,8 @@ public static class LiveDeployCommand
                 sp1ProgramVKey,
                 l2ChainId,
                 fraudReplayDomain,
+                gatewayProgramVKey,
+                gatewayReplayDomain,
                 (uint)governanceCouncil.Count,
                 governanceThreshold))
             {
@@ -244,7 +259,7 @@ public static class LiveDeployCommand
                 Console.WriteLine($"smoke {smoke.Name}: ok");
                 records.Add(Record("smoke", smoke.Name, "ok", smoke.Contract, txHash: null, null, null, "HALT", blockIndex: null));
                 WriteReport(output, reportedRpc, network, ownerAddress, sender, sp1ProgramVKey,
-                    l2ChainId, fraudReplayDomain, governanceCouncil.Count, governanceThreshold,
+                    l2ChainId, fraudReplayDomain, gatewayProgramVKey, gatewayReplayDomain, governanceCouncil.Count, governanceThreshold,
                     dryRun, records);
             }
         }
@@ -255,11 +270,17 @@ public static class LiveDeployCommand
         return 0;
     }
 
-    internal static UInt256 ParseSp1ProgramVKey(string value)
+    internal static UInt256 ParseSp1ProgramVKey(string value) =>
+        ParseProgramVKey(value, "--sp1-program-vkey");
+
+    internal static UInt256 ParseGatewayProgramVKey(string value) =>
+        ParseProgramVKey(value, "--gateway-program-vkey");
+
+    internal static UInt256 ParseProgramVKey(string value, string switchName)
     {
         if (string.IsNullOrWhiteSpace(value))
             throw new ArgumentException(
-                "--sp1-program-vkey is required and must be an exact 32-byte prover .proof.vk file or 64 hexadecimal raw bytes.",
+                $"{switchName} is required and must be an exact 32-byte prover .proof.vk file or 64 hexadecimal raw bytes.",
                 nameof(value));
 
         byte[] raw;
@@ -272,18 +293,18 @@ public static class LiveDeployCommand
             var hex = value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? value[2..] : value;
             if (hex.Length != UInt256.Length * 2 || !hex.All(Uri.IsHexDigit))
                 throw new FormatException(
-                    "--sp1-program-vkey must be an existing 32-byte prover .proof.vk file or exactly 64 hexadecimal raw bytes (optional 0x prefix).");
+                    $"{switchName} must be an existing 32-byte prover .proof.vk file or exactly 64 hexadecimal raw bytes (optional 0x prefix).");
             raw = Convert.FromHexString(hex);
         }
 
         if (raw.Length != UInt256.Length)
             throw new FormatException(
-                $"--sp1-program-vkey must contain exactly {UInt256.Length} raw bytes; got {raw.Length}.");
+                $"{switchName} must contain exactly {UInt256.Length} raw bytes; got {raw.Length}.");
         if (raw.All(static value => value == 0))
-            throw new FormatException("--sp1-program-vkey must not be the all-zero verification key.");
+            throw new FormatException($"{switchName} must not be the all-zero verification key.");
         if (raw[0] != 0)
             throw new FormatException(
-                "--sp1-program-vkey must be the canonical SP1 bytes32_raw() encoding with a zero leading byte.");
+                $"{switchName} must be the canonical SP1 bytes32_raw() encoding with a zero leading byte.");
 
         // SP1 bytes32_raw() is already the canonical big-endian 32-byte digest.
         // UInt256 is used only as the Neo ABI's fixed-width byte container here;
@@ -303,19 +324,25 @@ public static class LiveDeployCommand
         return chainId;
     }
 
-    internal static UInt256 ParseRequiredFraudReplayDomain(string value)
+    internal static UInt256 ParseRequiredFraudReplayDomain(string value) =>
+        ParseRequiredReplayDomain(value, "--fraud-replay-domain");
+
+    internal static UInt256 ParseRequiredGatewayReplayDomain(string value) =>
+        ParseRequiredReplayDomain(value, "--gateway-replay-domain");
+
+    internal static UInt256 ParseRequiredReplayDomain(string value, string switchName)
     {
         if (string.IsNullOrWhiteSpace(value))
             throw new ArgumentException(
-                "--fraud-replay-domain is required and must be exactly 32 non-zero raw bytes encoded as 64 hexadecimal characters.",
+                $"{switchName} is required and must be exactly 32 non-zero raw bytes encoded as 64 hexadecimal characters.",
                 nameof(value));
         var hex = value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? value[2..] : value;
         if (hex.Length != UInt256.Length * 2 || !hex.All(Uri.IsHexDigit))
             throw new FormatException(
-                "--fraud-replay-domain must be exactly 64 hexadecimal characters (optional 0x prefix).");
+                $"{switchName} must be exactly 64 hexadecimal characters (optional 0x prefix).");
         var raw = Convert.FromHexString(hex);
         if (raw.All(static item => item == 0))
-            throw new FormatException("--fraud-replay-domain must not be zero.");
+            throw new FormatException($"{switchName} must not be zero.");
         return new UInt256(raw);
     }
 
@@ -778,7 +805,9 @@ public static class LiveDeployCommand
         long forcedInclusionFee,
         UInt256 sp1ProgramVKey,
         uint l2ChainId,
-        UInt256 fraudReplayDomain)
+        UInt256 fraudReplayDomain,
+        UInt256 gatewayProgramVKey,
+        UInt256 gatewayReplayDomain)
     {
         ArgumentNullException.ThrowIfNull(h);
         ArgumentNullException.ThrowIfNull(sp1ProgramVKey);
@@ -791,6 +820,10 @@ public static class LiveDeployCommand
         ArgumentNullException.ThrowIfNull(fraudReplayDomain);
         if (fraudReplayDomain == UInt256.Zero)
             throw new ArgumentException("Fraud replay domain must not be zero.", nameof(fraudReplayDomain));
+        if (gatewayProgramVKey == UInt256.Zero)
+            throw new ArgumentException("Gateway program vkey must not be zero.", nameof(gatewayProgramVKey));
+        if (gatewayReplayDomain == UInt256.Zero)
+            throw new ArgumentException("Gateway replay domain must not be zero.", nameof(gatewayReplayDomain));
 
         return
         [
@@ -858,6 +891,13 @@ public static class LiveDeployCommand
                 HashCheck("SettlementManager.GetOptimisticChallenge", h["SettlementManager"], "getOptimisticChallenge", h["OptimisticChallenge"]), h["OptimisticChallenge"]),
             CheckedCall("SettlementManager.SetMessageRouter", h["SettlementManager"], "setMessageRouter",
                 HashCheck("SettlementManager.GetMessageRouter", h["SettlementManager"], "getMessageRouter", h["MessageRouter"]), h["MessageRouter"]),
+            CheckedCall("MessageRouter.SetGovernanceController", h["MessageRouter"], "setGovernanceController",
+                HashCheck("MessageRouter.GetGovernanceController", h["MessageRouter"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
+            CheckedCall("MessageRouter.SetGlobalRootVerifier", h["MessageRouter"], "setGlobalRootVerifier",
+                HashCheck("MessageRouter.GetGlobalRootVerifier", h["MessageRouter"], "getGlobalRootVerifier", h["Sp1Groth16Verifier"]),
+                h["Sp1Groth16Verifier"], ProofSystemSp1, GatewayRecursiveAggregationBackend, gatewayProgramVKey, gatewayReplayDomain),
+            CheckedCall("MessageRouter.LockGlobalRootGovernance", h["MessageRouter"], "lockGlobalRootGovernance",
+                BoolCheck("MessageRouter.IsGlobalRootGovernanceLocked", h["MessageRouter"], "isGlobalRootGovernanceLocked", true)),
             CheckedCall("ChainRegistry.LockGovernance", h["ChainRegistry"], "lockGovernance",
                 BoolCheck("ChainRegistry.IsGovernanceLocked", h["ChainRegistry"], "isGovernanceLocked", true)),
             CheckedCall("SettlementManager.LockGovernance", h["SettlementManager"], "lockGovernance",
@@ -910,6 +950,8 @@ public static class LiveDeployCommand
         UInt256 sp1ProgramVKey,
         uint l2ChainId,
         UInt256 fraudReplayDomain,
+        UInt256 gatewayProgramVKey,
+        UInt256 gatewayReplayDomain,
         uint governanceCouncilCount,
         uint governanceThreshold)
     {
@@ -919,6 +961,10 @@ public static class LiveDeployCommand
         if (l2ChainId == 0) throw new ArgumentOutOfRangeException(nameof(l2ChainId));
         if (fraudReplayDomain == UInt256.Zero)
             throw new ArgumentException("Fraud replay domain must not be zero.", nameof(fraudReplayDomain));
+        if (gatewayProgramVKey == UInt256.Zero)
+            throw new ArgumentException("Gateway program vkey must not be zero.", nameof(gatewayProgramVKey));
+        if (gatewayReplayDomain == UInt256.Zero)
+            throw new ArgumentException("Gateway replay domain must not be zero.", nameof(gatewayReplayDomain));
         if (governanceCouncilCount < 2 || governanceCouncilCount > 64)
             throw new ArgumentOutOfRangeException(nameof(governanceCouncilCount));
         if (governanceThreshold < 2 || governanceThreshold > governanceCouncilCount)
@@ -935,6 +981,12 @@ public static class LiveDeployCommand
             HashCheck("SettlementManager.GetDAValidator", h["SettlementManager"], "getDAValidator", h["DAValidator"]),
             HashCheck("SettlementManager.GetOptimisticChallenge", h["SettlementManager"], "getOptimisticChallenge", h["OptimisticChallenge"]),
             HashCheck("SettlementManager.GetMessageRouter", h["SettlementManager"], "getMessageRouter", h["MessageRouter"]),
+            HashCheck("MessageRouter.GetGlobalRootVerifier", h["MessageRouter"], "getGlobalRootVerifier", h["Sp1Groth16Verifier"]),
+            IntegerCheck("MessageRouter.GetGlobalRootProofSystem", h["MessageRouter"], "getGlobalRootProofSystem", ProofSystemSp1),
+            IntegerCheck("MessageRouter.GetGlobalRootAggregationBackend", h["MessageRouter"], "getGlobalRootAggregationBackend", GatewayRecursiveAggregationBackend),
+            Hash256Check("MessageRouter.GetGlobalRootVerificationKeyId", h["MessageRouter"], "getGlobalRootVerificationKeyId", gatewayProgramVKey),
+            Hash256Check("MessageRouter.GetGlobalRootReplayDomain", h["MessageRouter"], "getGlobalRootReplayDomain", gatewayReplayDomain),
+            BoolCheck("MessageRouter.IsGlobalRootGovernanceLocked", h["MessageRouter"], "isGlobalRootGovernanceLocked", true),
             HashCheck("SettlementManager.GetGovernanceController", h["SettlementManager"], "getGovernanceController", h["GovernanceController"]),
             BoolCheck("SettlementManager.IsGovernanceLocked", h["SettlementManager"], "isGovernanceLocked", true),
             HashCheck("ForcedInclusion.GetChainRegistry", h["ForcedInclusion"], "getChainRegistry", h["ChainRegistry"]),
@@ -1186,6 +1238,8 @@ public static class LiveDeployCommand
         UInt256 sp1ProgramVKey,
         uint l2ChainId,
         UInt256 fraudReplayDomain,
+        UInt256 gatewayProgramVKey,
+        UInt256 gatewayReplayDomain,
         int governanceCouncilCount,
         uint governanceThreshold,
         bool dryRun,
@@ -1202,6 +1256,9 @@ public static class LiveDeployCommand
             ["sp1ProgramVKeyRaw"] = $"0x{Convert.ToHexString(sp1ProgramVKey.GetSpan()).ToLowerInvariant()}",
             ["l2ChainId"] = l2ChainId,
             ["fraudReplayDomain"] = fraudReplayDomain.ToString(),
+            ["gatewayProgramVKeyRaw"] = $"0x{Convert.ToHexString(gatewayProgramVKey.GetSpan()).ToLowerInvariant()}",
+            ["gatewayReplayDomain"] = gatewayReplayDomain.ToString(),
+            ["gatewayAggregationBackend"] = (int)GatewayRecursiveAggregationBackend,
             ["governanceCouncilCount"] = governanceCouncilCount,
             ["governanceThreshold"] = governanceThreshold,
             ["dryRun"] = dryRun,

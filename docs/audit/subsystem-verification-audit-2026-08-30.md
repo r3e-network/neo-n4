@@ -29,7 +29,7 @@ than restate it:
 | Track | Subsystem | Disposition |
 | --- | --- | --- |
 | T1 | `external/neo-riscv-vm` (PolkaVM host + guest + adapter plugin) | §3, §4 |
-| T2 | `bridge/neo-zkvm-{guest,host}`, `neo-zkvm-executor` pin, `Sp1SettlementExecutionStack`, `NeoHub.Sp1Groth16Verifier` | §5 V3, §7 |
+| T2 | `bridge/neo-zkvm-{guest,host}`, `neo-zkvm-executor` pin, `Sp1SettlementExecutionStack`, `NeoHub.Sp1Groth16Verifier` | §5 V3, V7, §7 |
 | T3 | `NeoHub.SharedBridge` / `ExternalBridgeEscrow` / `MpcCommitteeVerifier` / `VerifierRegistry`, foreign EVM + Solana programs, `L2NativeContracts.cs` | §5 V5, §7 |
 | T4 | `Neo.L2.Batch`, `Neo.Plugins.L2Batch`, `Neo.L2.State`, `Neo.Plugins.L2DA` | §4 H15, §6 |
 | T5 | `NeoHub.SettlementManager` / `OptimisticChallenge` / `ForcedInclusion` / `Censorship` | §3 C4, §4 H16, H19, §5 V5, §6 |
@@ -51,6 +51,8 @@ Executed locally on Windows (`win-x64`), all commands exit 0 unless stated:
 | `mdbook build` (repo root `book.toml`, `src = "docs"`) | exit 0 |
 | `NEO_RISCV_NATIVE_TESTS=1` RISC-V native suite | 10 tests executed and passed locally |
 | Batch / state / DA suites (5 projects) | `Neo.L2.Batch` 68/68 · `Neo.Plugins.L2Batch` 65 pass + 1 skipped · `Neo.L2.State` 120/120 · `Neo.Plugins.L2DA` 109/109 · `Neo.L2.Abstractions` 79 pass + 1 skipped — all exit 0 |
+| `dotnet test tests/Neo.Hub.Deploy.UnitTests` after §10 item 4 | 115 passed, 0 failed (the 113 above plus two Gateway parser tests) |
+| `dotnet test Neo.L2.sln`, twice, after §10 items 1–4 | run 1: 2,897 total, **1 failed** — §5 V7, in a project that branch does not touch; run 2: 2,897 total, 0 failed, 5 skipped, exit 0 |
 
 The two skips are self-skips of the §5 V4 class, not failures. Track-reported counts for these five
 projects were reproduced independently and matched exactly. (`V4` was repaired on this branch after
@@ -314,6 +316,78 @@ is not wired into the sequence an operator runs. Fix: order `LockGlobalRootGover
 `LiveDeployCommand` next to the other locks, add it to the CLI plan text, and extend the smoke pass
 to one end-to-end `PublishGatewayGlobalRoot`.
 
+**Status — fixed on this branch, with one deliberate deviation from the suggested fix.** The
+deployer now performs the three-call bootstrap as post-deploy steps `:894-900`, between
+`SettlementManager.SetMessageRouter` (`:892`) and `ChainRegistry.LockGovernance` (`:901`):
+`MessageRouter.SetGovernanceController` → `SetGlobalRootVerifier` → `LockGlobalRootGovernance`. Each
+carries a read-back completion check (`getGovernanceController`, `getGlobalRootVerifier`,
+`isGlobalRootGovernanceLocked`), so a re-run after a crash skips exactly the calls already applied
+instead of re-issuing owner-signed transactions.
+
+The order is not a style choice, it is enforced by the contract: `SetGovernanceController:329` and
+`SetGlobalRootVerifier:315` both assert `!IsGlobalRootGovernanceLocked()`, while
+`LockGlobalRootGovernance:341-343` asserts a non-zero controller *and* a configured verifier. Locking
+first therefore faults, and locking without the controller faults with `"wire GovernanceController
+before locking"`. This is the same sequence `UT_MessageRouter_Vm.cs:109-119` (`ConfigureAndLockGateway`)
+already used in tests — the deployer had simply never been told about it.
+
+The profile verifier is `Sp1Groth16Verifier`, not `ContractZkVerifier`, because
+`PublishGlobalRoot:286-296` dispatches `verifyZkProof(byte,byte[],byte[],byte[])` and
+`ContractZkVerifier` exposes a different ABI. `proofSystem` is SP1 (`1`) and the backend is `0xC2`,
+the recursive Gateway backend `Sp1GatewayProofProver` stamps; `tools/Neo.Hub.Deploy` does not
+reference the gateway plugin, so the literal is paired locally exactly as `ProofSystemSp1` and
+`ProofTypeZk` already are.
+
+Fixing the wiring surfaced a second gap: the profile cannot be derived in-repo. The Gateway guest
+program's vkey and replay domain are operator-supplied at
+`GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, verificationKeyId, …)`
+and persisted nowhere, so `deploy-testnet` gained two required switches — `--gateway-program-vkey`
+and `--gateway-replay-domain` — that share the existing parsers (`ParseProgramVKey`,
+`ParseRequiredReplayDomain`) with the SP1/fraud arguments, are written into the deployment report as
+`gatewayProgramVKeyRaw` / `gatewayReplayDomain` / `gatewayAggregationBackend`, and are printed in raw
+byte order so the operator can paste the same hex to the Gateway host. While documenting them, the
+usage text also gained `--sp1-program-vkey`, which the tool had required since it was written without
+ever listing it in `Program.cs`.
+
+The deviation: the smoke pass does **not** attempt an end-to-end `PublishGatewayGlobalRoot`. That
+would need a real SP1 recursive aggregate proof — a compiled guest ELF and a live prover in the
+deploy path — so instead the smoke pass reads back the entire compared surface (`:984-989`): the
+verifier hash, `getGlobalRootProofSystem`, `getGlobalRootAggregationBackend`,
+`getGlobalRootVerificationKeyId`, `getGlobalRootReplayDomain`, and `isGlobalRootGovernanceLocked`.
+Those are exactly the six values `PublishGlobalRoot:269-278` asserts before it dispatches, so a
+Gateway host configured with the reported tuple can no longer fault on the governance gate. That half
+is executed, not inferred: `UT_MessageRouter_Vm.PublishGlobalRoot_BindsEpochRootConstituentsBackendDomainAndProof:383`
+locks the profile via `ConfigureAndLockGateway`, asserts `IsTrue` on a publication carrying the exact
+registered tuple, and asserts a fault on each mismatched element of it. What remains uncovered by
+deploy smoke is the *proof* itself — `verifyZkProof` on a genuine Gateway
+aggregate — which is covered gateway-side (`Sp1GatewayProofProver` re-verification, VM tests), not
+here. Recording that boundary matters: the six read-backs prove the profile is correct, not that a
+publication will succeed.
+
+`plan` emits the same three steps as hints (`ScaffoldPlan.cs`, guarded on MessageRouter +
+GovernanceController + Sp1Groth16Verifier all existing) with `GATEWAY_PROGRAM_VKEY_REPLACE_ME` /
+`GATEWAY_REPLAY_DOMAIN_REPLACE_ME` placeholders and a pointer to
+`SetGlobalRootVerifierViaProposal` for post-lock rotation, so plan text and live sequence stay in one
+order; `PostDeployActions` therefore went 41 → 44 and the positional tail of
+`PostDeployActions_DefaultPlan_EmitsAllWiringHints` was renumbered with it.
+
+Tests: two new parser tests (`ParseGatewayProgramVKey_*`, `ParseRequiredGatewayReplayDomain_*`)
+assert the shared helpers fault naming the **Gateway** switch rather than the SP1 one, and the H12
+"every wired surface is also locked" loop was generalized to accept MessageRouter's differently named
+gate instead of exempting it. The ordering test pins the three new steps as contiguous and immediately
+before `ChainRegistry.LockGovernance`, and asserts the `setGlobalRootVerifier` script byte-for-byte.
+The negative smoke test adds six mismatched entries,
+one of them the pass-through backend `0xFE`. `tests/Neo.Hub.Deploy.UnitTests` is 115/115 (113 before,
++2 parser tests) and `tests/NeoHub.Contracts.VmTests` stays 573/573 because no contract source changed.
+Full-solution totals are in §10 item 4.
+
+One measurement caveat worth keeping: the first full-solution run after this change reported a single
+failure in `tests/Neo.L2.Proving.UnitTests` — `ProveAsync_TamperedExecutionSemantic_IsRejected`
+expected `InvalidDataException` and caught `IOException` (`The process cannot access the file
+'…f0712…proof.result.json' because it is being used by another process`) from
+`AtomicFileQueueTransport.ReadBoundedPathAsync:265`. That project is untouched by this branch and the
+test passes 3/3 when run alone. See §5 V7.
+
 ### H18 — The `rollup` template emits Optimistic commitments against a deployment that registers only the ZK verifier [E1]
 
 `tools/Neo.Stack.Cli/Commands/TemplateCatalog.cs:30-36` makes `rollup` the **first** template —
@@ -576,6 +650,58 @@ entry, at which point the existing reflection test keeps it honest. Durably: add
 emission sites for string literals, because the current completeness test walks *constants* and so is
 structurally unable to see code that skips the registry. That is the generalizable half of this
 finding — a completeness check keyed on a registry cannot detect a caller that bypasses it.
+
+### V7 — The SP1 queue's existence-then-read window tolerates no sharing violation, and the escaping exception is untyped [E1]
+
+Found while measuring H17, not while looking for it. Two consecutive full-solution runs on Windows:
+the first reported `2,897 total / 1 failed`, the second `2,897 / 0`. The failure was in
+`tests/Neo.L2.Proving.UnitTests`, a project neither branch touches:
+
+```
+Failed ProveAsync_TamperedExecutionSemantic_IsRejected [60 ms]
+  Assertion failed. Expected exception of exact type InvalidDataException but caught IOException.
+  System.IO.IOException: The process cannot access the file
+  '…\neo-n4-batch-prover-tests\f73f636e…\f07120bf…78d5c.proof.result.json'
+  because it is being used by another process.
+    at AtomicFileQueueTransport.ReadBoundedPathAsync (AtomicFileQueueTransport.cs:265)
+    at Sp1BatchProofProver.ReadAndValidateResultAsync (Sp1BatchProofProver.cs:208)
+```
+
+Reproduction rate measured, not assumed: 1 of 2 full-solution runs; `3/3` passes when
+`tests/Neo.L2.Proving.UnitTests` is run alone, which is the signature of contention rather than logic.
+
+The code shape that allows it is a check-then-use window with no tolerance. `ProveAsync` waits for the
+result file to exist (`Sp1BatchProofProver.cs:154`) and then reads it
+(`AtomicFileQueueTransport.cs:249-269`); `ReadBoundedPathAsync` converts *missing* (`:256-258`) and
+*oversize* (`:262-264`) and *changed while read* (`:266-268`) into `InvalidDataException`, but
+`File.ReadAllBytesAsync` at `:265` sits outside every one of those guards, so a sharing violation at
+that instant propagates as a raw `IOException`. On Windows that window is real: writers here use
+`FileShare.None` (`:137`, `:294`) and `File.Move` into place (`:106`), and a file just renamed into a
+temp directory can be held briefly by a filter driver (antivirus is the usual suspect under a
+38-assembly parallel run). That the window is real is conceded by the repo itself: sharing violations
+are already caught and retried or swallowed in four other places —
+
+```
+$ git grep -n "catch (IOException" -- src
+src/Neo.L2.Executor/Witness/Sp1StatefulBatchExecutor.cs:437:  catch (IOException) { }
+src/Neo.L2.Proving/RiscVZk/AtomicFileQueueTransport.cs:108:   catch (IOException) when (File.Exists(path))
+src/Neo.L2.Proving/RiscVZk/AtomicFileQueueTransport.cs:147:   catch (IOException) when (stopwatch.Elapsed < _resultTimeout)
+src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:377:       catch (IOException) when (File.Exists(path))
+```
+
+— two of them in this same transport, on its write and lock-acquisition paths. So the read path is not
+missing a tolerance nobody thought of; it is the one site where the established idiom was not applied,
+and the exception that escapes is the only class outside the transport's own
+`InvalidDataException` convention.
+
+The consequence is bounded and worth stating precisely: this is a *transient* becoming a *typed-failure
+gap*, not a demonstrated settlement outage. The test caught it only because it asserts the exact
+exception type rather than "some exception". Fix: apply the existing retry idiom to the read in
+`ReadBoundedPathAsync` (the file is already known to exist, so this is a wait, not a semantics change),
+and decide explicitly whether an exhausted `IOException` belongs in the protocol's
+`InvalidDataException` family. `src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:415-432`
+ships a structurally identical helper — same `File.Exists` check, same unguarded
+`File.ReadAllBytesAsync` at `:429` — so whichever answer is right should be applied to both.
 
 ## 6. Medium / Low findings (new this pass)
 
@@ -877,7 +1003,14 @@ Split by whether it can land now.
    all 33 sites (§5 V4). Un-hid 40 tests, not 27 — the 27 was one project's share.
 3. `H16` — **done on this branch**: `FinalizeBatch` asserts `isActive` at `SettlementManagerContract.cs:509-510`
    while `RevertBatch` deliberately stays unguarded, and the two VM tests landed with it (§4 H16 status).
-4. `H17` — wire `LockGlobalRootGovernance` into `LiveDeployCommand` + CLI plan text + smoke step.
+4. `H17` — **done on this branch**: `LiveDeployCommand` now runs
+   `MessageRouter.SetGovernanceController` → `SetGlobalRootVerifier` → `LockGlobalRootGovernance`
+   between `SettlementManager.SetMessageRouter` and `ChainRegistry.LockGovernance`, with read-back
+   completion checks and six new smoke read-backs rather than the suggested end-to-end publication
+   (§4 H17 status). `deploy-testnet` gained two required switches — `--gateway-program-vkey`,
+   `--gateway-replay-domain` — because the Gateway profile tuple is operator-supplied and stored
+   nowhere. Deploy tests 115/115, `NeoHub.Contracts.VmTests` 573/573, full solution 38 assemblies /
+   2,897 tests / 0 failed / 5 skipped (the H16 run's 2,895 plus the two parser tests).
 5. `H19` — apply the `[60, 86400]` bound in `ForcedInclusion._deploy`, and add the VM test that pins
    the `uint` overflow direction.
 6. `V6` — promote `L2BatchPlugin.cs:477`'s literal to a `MetricNames` constant + catalog entry;
@@ -903,6 +1036,10 @@ Split by whether it can land now.
 14. `H1` — `StopPlugin` + retry for `Committed`; needs the `OnBlockCommitted` test coverage first
     (§6, "OnBlockCommitted has no test").
 15. `C2` / `V5` — position-bound verification, plus un-mocking `UT_SharedBridge_Vm`.
+16. `V7` — the retry idiom already exists at `AtomicFileQueueTransport.cs:108`/`:147`; decide whether
+    the read path gets the same bounded wait-and-retry *and* whether an exhausted `IOException` is
+    wrapped into the protocol's `InvalidDataException` family. One answer, applied to both read sites
+    (`AtomicFileQueueTransport.cs:265`, `Sp1GatewayProofProver.cs:429`).
 
 ## 11. Not verified in this pass
 

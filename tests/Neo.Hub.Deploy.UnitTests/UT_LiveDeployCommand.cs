@@ -26,6 +26,10 @@ public class UT_LiveDeployCommand
         "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
     private static readonly UInt256 FraudReplayDomain = new(
         Convert.FromHexString("a50102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1eff"));
+    private static readonly UInt256 GatewayProgramVKey = new(
+        Convert.FromHexString("00d1d2d3d4d5d6d7d8d9dadbdcdddedfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf"));
+    private static readonly UInt256 GatewayReplayDomain = new(
+        Convert.FromHexString("b60102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1eff"));
 
     private static IReadOnlyList<Neo.Cryptography.ECC.ECPoint> GovernanceCouncil()
     {
@@ -133,6 +137,38 @@ public class UT_LiveDeployCommand
             LiveDeployCommand.ParseRequiredFraudReplayDomain(new string('g', 64)));
         Assert.ThrowsExactly<FormatException>(() =>
             LiveDeployCommand.ParseRequiredFraudReplayDomain(new string('0', 64)));
+    }
+
+    [TestMethod]
+    public void ParseGatewayProgramVKey_KeepsCanonicalWireBytesAndNamesItsOwnSwitch()
+    {
+        var raw = GatewayProgramVKey.GetSpan().ToArray();
+        var parsed = LiveDeployCommand.ParseGatewayProgramVKey($"0x{Convert.ToHexString(raw)}");
+        CollectionAssert.AreEqual(raw, parsed.GetSpan().ToArray());
+
+        Assert.ThrowsExactly<ArgumentException>(() => LiveDeployCommand.ParseGatewayProgramVKey(""));
+        Assert.ThrowsExactly<FormatException>(() =>
+            LiveDeployCommand.ParseGatewayProgramVKey("ff" + new string('0', 62)));
+
+        var message = Assert.ThrowsExactly<ArgumentException>(
+            () => LiveDeployCommand.ParseGatewayProgramVKey(string.Empty)).Message;
+        StringAssert.Contains(message, "--gateway-program-vkey",
+            "the shared vkey parser must fault with the Gateway switch name, not the SP1 one");
+    }
+
+    [TestMethod]
+    public void ParseRequiredGatewayReplayDomain_RequiresExactNonZeroBytesAndNamesItsOwnSwitch()
+    {
+        var raw = GatewayReplayDomain.GetSpan().ToArray();
+        var parsed = LiveDeployCommand.ParseRequiredGatewayReplayDomain($"0x{Convert.ToHexString(raw)}");
+        CollectionAssert.AreEqual(raw, parsed.GetSpan().ToArray());
+        Assert.AreNotEqual(FraudReplayDomain, parsed,
+            "the Gateway and fraud replay domains are independent locks and must not share a fixture value");
+
+        var message = Assert.ThrowsExactly<FormatException>(
+            () => LiveDeployCommand.ParseRequiredGatewayReplayDomain(new string('0', 64))).Message;
+        StringAssert.Contains(message, "--gateway-replay-domain",
+            "the shared replay-domain parser must fault with the Gateway switch name, not the fraud one");
     }
 
     [TestMethod]
@@ -363,7 +399,9 @@ public class UT_LiveDeployCommand
             100_000,
             programVKey,
             1001,
-            FraudReplayDomain).ToArray();
+            FraudReplayDomain,
+            GatewayProgramVKey,
+            GatewayReplayDomain).ToArray();
         Assert.IsTrue(actions.All(static action => action.CompletionCheck is not null),
             "every production post-deploy mutation must be resumable from its exact target state");
 
@@ -399,8 +437,16 @@ public class UT_LiveDeployCommand
             "fee must only be enabled after both the token and recipient are configured");
 
         var setMessageRouterIndex = IndexOf(actions, "SettlementManager.SetMessageRouter");
+        var setRouterGovernance = IndexOf(actions, "MessageRouter.SetGovernanceController");
+        var setRouterProfile = IndexOf(actions, "MessageRouter.SetGlobalRootVerifier");
+        var lockRouterProfile = IndexOf(actions, "MessageRouter.LockGlobalRootGovernance");
         var lockSettlementGovernance = IndexOf(actions, "SettlementManager.LockGovernance");
-        Assert.AreEqual(setMessageRouterIndex + 1, lockChainRegistry,
+        Assert.AreEqual(setMessageRouterIndex + 1, setRouterGovernance);
+        Assert.AreEqual(setRouterGovernance + 1, setRouterProfile,
+            "the Router refuses to lock a Gateway proof profile that was never configured, so the controller must be wired first");
+        Assert.AreEqual(setRouterProfile + 1, lockRouterProfile,
+            "the Gateway proof profile must be frozen in the same contiguous step group that configures it");
+        Assert.AreEqual(lockRouterProfile + 1, lockChainRegistry,
             "ChainRegistry must lock after all bootstrap wiring and before SettlementManager locks");
         Assert.AreEqual(lockChainRegistry + 1, lockSettlementGovernance,
             "both production registries must be locked in the same resumable deployment sequence");
@@ -413,6 +459,25 @@ public class UT_LiveDeployCommand
                 hashes["MessageRouter"]);
             CollectionAssert.AreEqual(expectedMessageRouterScript.ToArray(), setMessageRouter.Script);
         }
+
+        var gatewayProfileScript = actions[setRouterProfile].Script;
+        using (var expectedRouterProfileScript = new ScriptBuilder())
+        {
+            expectedRouterProfileScript.EmitDynamicCall(
+                hashes["MessageRouter"],
+                "setGlobalRootVerifier",
+                hashes["Sp1Groth16Verifier"],
+                (byte)1,
+                (byte)0xC2,
+                GatewayProgramVKey,
+                GatewayReplayDomain);
+            CollectionAssert.AreEqual(expectedRouterProfileScript.ToArray(), gatewayProfileScript);
+        }
+        Assert.IsTrue(gatewayProfileScript.AsSpan().IndexOf(GatewayProgramVKey.GetSpan()) >= 0,
+            "setGlobalRootVerifier must push the raw Gateway guest program vkey bytes");
+        Assert.AreEqual(-1, gatewayProfileScript.AsSpan()
+                .IndexOf(GatewayProgramVKey.GetSpan().ToArray().Reverse().ToArray()),
+            "setGlobalRootVerifier must not contain the reversed display-order Gateway program digest");
 
         var action = actions[registerKey];
         using var expected = new ScriptBuilder();
@@ -440,7 +505,9 @@ public class UT_LiveDeployCommand
             100_000,
             new UInt256(AsymmetricProgramVKey),
             1001,
-            FraudReplayDomain).ToArray();
+            FraudReplayDomain,
+            GatewayProgramVKey,
+            GatewayReplayDomain).ToArray();
 
         // H12: a deployment that wires a GovernanceController but never locks leaves the instant
         // owner path live forever — "owner is honest today" instead of "owner cannot be evil later".
@@ -455,22 +522,32 @@ public class UT_LiveDeployCommand
             {
                 "ChainRegistry", "VerifierRegistry", "SettlementManager",
                 "OptimisticChallenge", "MpcCommitteeVerifier", "ExternalBridgeRegistry",
+                "MessageRouter",
             },
             wiredSurfaces,
             "the production sequence must arm every governance surface it intends to lock");
 
         foreach (var surface in wiredSurfaces)
         {
+            // MessageRouter freezes a proof profile, not a verifier/committee table, so its
+            // one-way gate and its read-back carry the GlobalRoot names.
+            var lockName = surface == "MessageRouter"
+                ? $"{surface}.LockGlobalRootGovernance"
+                : $"{surface}.LockGovernance";
+            var readBackName = surface == "MessageRouter"
+                ? $"{surface}.IsGlobalRootGovernanceLocked"
+                : $"{surface}.IsGovernanceLocked";
+
             var wireIndex = IndexOf(actions, $"{surface}.SetGovernanceController");
-            var lockIndex = IndexOf(actions, $"{surface}.LockGovernance");
+            var lockIndex = IndexOf(actions, lockName);
             Assert.IsTrue(lockIndex > wireIndex,
                 $"{surface} must be locked after its GovernanceController is wired (locking first faults)");
 
             var lockAction = actions[lockIndex];
             Assert.AreEqual(hashes[surface], lockAction.Contract,
-                $"{surface}.LockGovernance must target the contract it names");
-            Assert.AreEqual($"{surface}.IsGovernanceLocked", lockAction.CompletionCheck!.Name,
-                $"{surface} must be resumable from its own isGovernanceLocked read");
+                $"{lockName} must target the contract it names");
+            Assert.AreEqual(readBackName, lockAction.CompletionCheck!.Name,
+                $"{surface} must be resumable from its own locked read");
             Assert.AreEqual(lockAction.Contract, lockAction.CompletionCheck.Contract,
                 $"{surface}'s completion check must read the same contract the lock writes");
         }
@@ -505,7 +582,9 @@ public class UT_LiveDeployCommand
                 100_000,
                 programVKey,
                 1001,
-                FraudReplayDomain)
+                FraudReplayDomain,
+                GatewayProgramVKey,
+                GatewayReplayDomain)
             .Single(item => item.Name == "VerifierRegistry.LockGovernance");
 
         Assert.IsNotNull(action.CompletionCheck);
@@ -529,6 +608,8 @@ public class UT_LiveDeployCommand
             programVKey,
             1001,
             FraudReplayDomain,
+            GatewayProgramVKey,
+            GatewayReplayDomain,
             2,
             2).ToDictionary(check => check.Name, StringComparer.Ordinal);
 
@@ -581,6 +662,18 @@ public class UT_LiveDeployCommand
                 LiveDeployCommand.RestrictedExecutorSemanticId)));
         await smokes["SettlementManager.GetMessageRouter"]
             .RunAsync(new StubRpcClient(HashResult(hashes["MessageRouter"])));
+        await smokes["MessageRouter.GetGlobalRootVerifier"]
+            .RunAsync(new StubRpcClient(HashResult(hashes["Sp1Groth16Verifier"])));
+        await smokes["MessageRouter.GetGlobalRootProofSystem"]
+            .RunAsync(new StubRpcClient(IntegerResult(1)));
+        await smokes["MessageRouter.GetGlobalRootAggregationBackend"]
+            .RunAsync(new StubRpcClient(IntegerResult(0xC2)));
+        await smokes["MessageRouter.GetGlobalRootVerificationKeyId"]
+            .RunAsync(new StubRpcClient(Hash256Result(GatewayProgramVKey)));
+        await smokes["MessageRouter.GetGlobalRootReplayDomain"]
+            .RunAsync(new StubRpcClient(Hash256Result(GatewayReplayDomain)));
+        await smokes["MessageRouter.IsGlobalRootGovernanceLocked"]
+            .RunAsync(new StubRpcClient(BooleanResult(true)));
         await smokes["SettlementManager.GetGovernanceController"]
             .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
         await smokes["SettlementManager.IsGovernanceLocked"]
@@ -618,6 +711,8 @@ public class UT_LiveDeployCommand
             new UInt256(AsymmetricProgramVKey),
             1001,
             FraudReplayDomain,
+            GatewayProgramVKey,
+            GatewayReplayDomain,
             2,
             2).ToDictionary(check => check.Name, StringComparer.Ordinal);
 
@@ -639,6 +734,12 @@ public class UT_LiveDeployCommand
             ["RestrictedExecutionFraudVerifier.GetReplayDomain"] = Hash256Result(UInt256.Zero),
             ["RestrictedExecutionFraudVerifier.GetExecutorSemanticId"] = Hash256Result(UInt256.Zero),
             ["SettlementManager.GetMessageRouter"] = HashResult(UInt160.Zero),
+            ["MessageRouter.GetGlobalRootVerifier"] = HashResult(UInt160.Zero),
+            ["MessageRouter.GetGlobalRootProofSystem"] = IntegerResult(0),
+            ["MessageRouter.GetGlobalRootAggregationBackend"] = IntegerResult(0xFE),
+            ["MessageRouter.GetGlobalRootVerificationKeyId"] = Hash256Result(UInt256.Zero),
+            ["MessageRouter.GetGlobalRootReplayDomain"] = Hash256Result(UInt256.Zero),
+            ["MessageRouter.IsGlobalRootGovernanceLocked"] = BooleanResult(false),
             ["SettlementManager.GetGovernanceController"] = HashResult(UInt160.Zero),
             ["SettlementManager.IsGovernanceLocked"] = BooleanResult(false),
             ["OptimisticChallenge.GetGovernanceController"] = HashResult(UInt160.Zero),

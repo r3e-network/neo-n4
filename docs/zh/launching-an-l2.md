@@ -676,13 +676,21 @@ dotnet run --project tools/Neo.Hub.Deploy -- deploy-testnet \
     --l2-chain-id 1099 \
     --sp1-program-vkey <32-byte-raw-vkey-or-file> \
     --fraud-replay-domain <32-byte-non-zero-domain> \
+    --gateway-program-vkey <32-byte-raw-vkey-or-file> \
+    --gateway-replay-domain <32-byte-non-zero-domain> \
     --governance-council <pubkey1,pubkey2,pubkey3> \
     --governance-threshold 2 \
     --emergency-council <separate-account-or-script-hash>
 ```
 
 live deployer 拒绝隐式 1-of-1 治理，并把 council 数量与 threshold 写入部署证据报告，
-再在 smoke 阶段从链上读回校验。
+再在 smoke 阶段从链上读回校验。`--gateway-program-vkey` / `--gateway-replay-domain`
+是编译后的 Gateway guest program 的 32 字节 verifying key 与它的 replay domain，也就是
+Gateway host 发布时使用的同一组值 —— 即
+`GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, …)`
+的 `verificationKeyId` 与 `replayDomain` 参数。deployer 会把它们注册为 `MessageRouter`
+的 global-root profile 并读回校验，因此按报告里那组 tuple 配置的 Gateway host
+不可能被 Router 的治理门禁拒绝。
 
 bundle 的 `Invocations` 数组就是你钱包的部署脚本 —— 每条对应一次
 `ContractManagement.Deploy` 调用,按序执行。每条带 `Name`、对应 `.nef` +
@@ -695,6 +703,9 @@ bundle 的 "PostDeployActions" 段浮现在所有合约部署后必须跑的接�
 `SettlementManager.SetGovernanceController` 加不可逆的
 `SettlementManager.LockGovernance` 移除热钱包改线/直接回滚权、
 `SettlementManager.SetMessageRouter(MessageRouter)` 闭合 Gateway contract witness，
+`MessageRouter` 的 `SetGovernanceController` + `SetGlobalRootVerifier` + 不可逆
+`LockGlobalRootGovernance` 链（跨链 finality relay 是否可用取决于它——没有这把锁时
+`publishGlobalRoot` 连第一次发布都会拒绝），
 `OptimisticChallenge`/`MpcCommitteeVerifier`/`ExternalBridgeRegistry` 的
 `SetGovernanceController` + `LockGovernance` 配对（冻结谁可证明欺诈、哪个委员会可为外来存款
 出证、以及每条外链路由到哪个 verifier），以及按 fraud
@@ -838,7 +849,11 @@ constituentRoot,count,backend,proofSystem,vkId,replayDomain,proof)`。`reference
 重新检查当前 finality/Gateway 准入，从 finalized records 重建两棵 roots，推进每链不可回退
 watermark，再原子调用 Router。部署后必须 readback MessageRouter 构造参数中的
 SettlementManager 绑定与 `SettlementManager.GetMessageRouter`；直接调用 Router 应因 witness
-检查失败。
+检查失败。此外，`MessageRouter.publishGlobalRoot` 在 `LockGlobalRootGovernance` 执行前会拒绝
+第一次发布，因此 `deploy-testnet` 会用 Gateway host 发布时同一组值——proof system
+（SP1 = `1`）、aggregation backend（`0xC2` recursive）、verification-key id 与 replay
+domain——注册并锁定该 profile。加锁之后更换 profile 只能走 council 批准的
+`SetGlobalRootVerifierViaProposal`。
 
 它实际证明的是：排序器先把规范 `NEO4EXEC` 与完整 pre-state `NEO4STW1` 交给
 SHA-256 锁定的 `neo-zkvm-executor`。该 native binary 与 SP1 guest 调用同一份

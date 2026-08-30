@@ -27,7 +27,7 @@ CLI、telemetry、RPC）—— 并把它们驱动起来：构建、运行、插�
 | Track | 子系统 | 落点 |
 | --- | --- | --- |
 | T1 | `external/neo-riscv-vm`（PolkaVM host + guest + 适配器插件） | §3、§4 |
-| T2 | `bridge/neo-zkvm-{guest,host}`、`neo-zkvm-executor` 钉扎、`Sp1SettlementExecutionStack`、`NeoHub.Sp1Groth16Verifier` | §5 V3、§7 |
+| T2 | `bridge/neo-zkvm-{guest,host}`、`neo-zkvm-executor` 钉扎、`Sp1SettlementExecutionStack`、`NeoHub.Sp1Groth16Verifier` | §5 V3、V7、§7 |
 | T3 | `NeoHub.SharedBridge` / `ExternalBridgeEscrow` / `MpcCommitteeVerifier` / `VerifierRegistry`、外部 EVM + Solana 程序、`L2NativeContracts.cs` | §5 V5、§7 |
 | T4 | `Neo.L2.Batch`、`Neo.Plugins.L2Batch`、`Neo.L2.State`、`Neo.Plugins.L2DA` | §4 H15、§6 |
 | T5 | `NeoHub.SettlementManager` / `OptimisticChallenge` / `ForcedInclusion` / `Censorship` | §3 C4、§4 H16、H19、§5 V5、§6 |
@@ -48,6 +48,8 @@ artifact？* 在 RISC-V 路径上，答案是否定的，而这正是本报告�
 | `mdbook build`（仓库根 `book.toml`，`src = "docs"`） | exit 0 |
 | `NEO_RISCV_NATIVE_TESTS=1` RISC-V native 测试套件 | 10 个测试在本地执行并通过 |
 | batch / state / DA 套件（5 个项目） | `Neo.L2.Batch` 68/68 · `Neo.Plugins.L2Batch` 65 通过 + 1 跳过 · `Neo.L2.State` 120/120 · `Neo.Plugins.L2DA` 109/109 · `Neo.L2.Abstractions` 79 通过 + 1 跳过 — 全部 exit 0 |
+| §10 第 4 项落地后的 `dotnet test tests/Neo.Hub.Deploy.UnitTests` | 115 通过、0 失败（在上面那 113 个之外新增两个 Gateway 解析器测试） |
+| `dotnet test Neo.L2.sln`，两次，在 §10 第 1–4 项之后 | 第一次：总计 2,897，**1 个失败** —— §5 V7，而失败发生在那一分支根本未触碰的项目里；第二次：总计 2,897，0 失败、5 跳过，exit 0 |
 
 那两处跳过属于 §5 V4 那一类的自我跳过，不是失败。这五个项目由 track 上报的计数被独立复现，
 且完全吻合。（`V4` 已在本分支修好，时间在这张表记录之后：那两个项目现在是
@@ -291,6 +293,67 @@ VM 测试 exercised（`UT_MessageRouter_Vm.cs:118`、`:296`），而这恰恰是
 修复：把 `LockGlobalRootGovernance` 排进 `LiveDeployCommand` 中其他锁的旁边，把它加入 CLI 的 plan
 文本，并把冒烟过程扩展到一次端到端的 `PublishGatewayGlobalRoot`。
 
+**状态 —— 本分支已修，但对建议的修复做了一处有意偏离。** 部署器现在把这三步 bootstrap 作为
+post-deploy 步骤 `:894-900` 执行，位于 `SettlementManager.SetMessageRouter`（`:892`）与
+`ChainRegistry.LockGovernance`（`:901`）之间：`MessageRouter.SetGovernanceController` →
+`SetGlobalRootVerifier` → `LockGlobalRootGovernance`。每一步都带一个读回完成检查
+（`getGovernanceController`、`getGlobalRootVerifier`、`isGlobalRootGovernanceLocked`），因此崩溃后重跑
+只会跳过已经生效的那几步，而不是重新签发 owner 交易。
+
+这个顺序不是风格选择，而是合约强制的：`SetGovernanceController:329` 与 `SetGlobalRootVerifier:315`
+都断言 `!IsGlobalRootGovernanceLocked()`，而 `LockGlobalRootGovernance:341-343` 同时断言 controller
+非零 *且* verifier 已配置。所以先加锁必然 fault，而没有 controller 就加锁会以
+`"wire GovernanceController before locking"` fault。这与 `UT_MessageRouter_Vm.cs:109-119`
+（`ConfigureAndLockGateway`）在测试里早已使用的序列完全一致 —— 只是部署器从来没被告知过。
+
+profile 的 verifier 是 `Sp1Groth16Verifier`，不是 `ContractZkVerifier`，因为
+`PublishGlobalRoot:286-296` 派发的是 `verifyZkProof(byte,byte[],byte[],byte[])`，而
+`ContractZkVerifier` 暴露的是另一套 ABI。`proofSystem` 是 SP1（`1`），backend 是 `0xC2`，即
+`Sp1GatewayProofProver` 盖上的那个递归 Gateway backend；`tools/Neo.Hub.Deploy` 并不引用 gateway
+插件，所以这个字面量只能像 `ProofSystemSp1` 与 `ProofTypeZk` 一样在本地配对。
+
+把接线修好之后浮出第二个缺口：这组 profile 无法在仓库内推导。Gateway guest program 的 vkey 与
+replay domain 是在 `GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain,
+verificationKeyId, …)` 由运维者提供的，而且哪都没有持久化，于是 `deploy-testnet` 新增两个必填开关 ——
+`--gateway-program-vkey` 与 `--gateway-replay-domain` —— 它们与 SP1/fraud 参数共用既有解析器
+（`ParseProgramVKey`、`ParseRequiredReplayDomain`），以 `gatewayProgramVKeyRaw` /
+`gatewayReplayDomain` / `gatewayAggregationBackend` 写入部署报告，并按 raw 字节序打印，便于运维者把
+同一串 hex 贴给 Gateway host。补文档时顺带发现 `--sp1-program-vkey` 自写成之日就是必填、却从未出现在
+`Program.cs` 的用法文本里，这次一并补上。
+
+偏离之处在于：冒烟过程**没有**尝试端到端的 `PublishGatewayGlobalRoot`。那需要一份真实的 SP1 递归聚合
+证明 —— 也就是把编译好的 guest ELF 和一个活的证明器放进部署路径 —— 因此冒烟改为读回全部被比较的
+表面（`:984-989`）：verifier 哈希、`getGlobalRootProofSystem`、`getGlobalRootAggregationBackend`、
+`getGlobalRootVerificationKeyId`、`getGlobalRootReplayDomain` 与 `isGlobalRootGovernanceLocked`。
+这六项正是 `PublishGlobalRoot:269-278` 在派发前逐一断言的值，所以按报告里那组 tuple 配置的 Gateway
+host 不可能再被治理门禁拒绝。这一半是被执行过的、不是推断出来的：
+`UT_MessageRouter_Vm.PublishGlobalRoot_BindsEpochRootConstituentsBackendDomainAndProof:383`
+先经 `ConfigureAndLockGateway` 锁定 profile，随后对携带精确已注册 tuple 的发布断言 `IsTrue`，
+并对该 tuple 每一个被改错的元素断言 fault。冒烟仍未覆盖的是*证明本身* —— 真实 Gateway 聚合上的
+`verifyZkProof` —— 那部分由 gateway 一侧（`Sp1GatewayProofProver` 的再验证、VM 测试）覆盖，而不是
+这里。把这条边界写下来是有意义的：六次读回证明 profile 正确，并不证明发布一定会成功。
+
+`plan` 同样把这三步作为提示输出（`ScaffoldPlan.cs`，以 MessageRouter + GovernanceController +
+Sp1Groth16Verifier 三者都在为前提），带上 `GATEWAY_PROGRAM_VKEY_REPLACE_ME` /
+`GATEWAY_REPLAY_DOMAIN_REPLACE_ME` 占位，并指向加锁后轮换用的 `SetGlobalRootVerifierViaProposal`，
+于是 plan 文本与真实序列保持同一顺序；`PostDeployActions` 因此从 41 变 44，
+`PostDeployActions_DefaultPlan_EmitsAllWiringHints` 的位置化尾部也随之重编号。
+
+测试：两个新增解析器测试（`ParseGatewayProgramVKey_*`、`ParseRequiredGatewayReplayDomain_*`）断言
+共用的 helper 报出的是 **Gateway** 那个开关名而不是 SP1 的；H12 那条“凡接了 controller 的表面都必须
+上锁”的循环被推广为接受 MessageRouter 那个不同名字的门禁，而不是把它豁免掉。顺序测试把新增三步钉成
+连续、且紧邻 `ChainRegistry.LockGovernance` 之前，并逐字节断言 `setGlobalRootVerifier` 的脚本。
+反向冒烟测试新增六条不匹配条目，其中一条是 pass-through backend `0xFE`。
+`tests/Neo.Hub.Deploy.UnitTests` 为 115/115（此前 113，+2 个解析器测试），
+`tests/NeoHub.Contracts.VmTests` 保持 573/573，因为没有改动任何合约源码。整解决方案计数见 §10 第 4 项。
+
+一个值得保留的度量注记：本次改动之后第一次全解决方案运行报告了唯一一处失败，位置在
+`tests/Neo.L2.Proving.UnitTests` —— `ProveAsync_TamperedExecutionSemantic_IsRejected` 期望
+`InvalidDataException` 却捕获到 `IOException`（`The process cannot access the file
+'…f0712…proof.result.json' because it is being used by another process`），来自
+`AtomicFileQueueTransport.ReadBoundedPathAsync:265`。该项目与本分支无关，且单独运行时 3/3 通过。
+见 §5 V7。
+
 ### H18 — `rollup` 模板发出 Optimistic commitment，而部署只注册了 ZK verifier [E1]
 
 `tools/Neo.Stack.Cli/Commands/TemplateCatalog.cs:30-36` 把 `rollup` 做成**第一个**模板 ——
@@ -532,6 +595,54 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
 此后那道既有的反射测试就会让它保持诚实。长期：增加一道扫描发射点上字符串字面量的检查，
 因为目前的完备性测试遍历的是*常量*，所以在结构上就看不见那段绕开了登记表的代码。
 这才是这一发现可泛化的那一半 —— 一道以登记表为键的完备性检查，检测不到一个绕过它的调用方。
+
+### V7 — SP1 队列的“先查存在、再读内容”窗口不容忍任何共享冲突，而逃逸出的异常是无类型的 [E1]
+
+这处是在度量 H17 时撞见的，不是刻意去找的。Windows 上连续两次全解决方案运行：第一次报
+`2,897 总计 / 1 失败`，第二次报 `2,897 / 0`。失败出现在 `tests/Neo.L2.Proving.UnitTests`，
+而那条分支根本没碰这个项目：
+
+```
+Failed ProveAsync_TamperedExecutionSemantic_IsRejected [60 ms]
+  Assertion failed. Expected exception of exact type InvalidDataException but caught IOException.
+  System.IO.IOException: The process cannot access the file
+  '…\neo-n4-batch-prover-tests\f73f636e…\f07120bf…78d5c.proof.result.json'
+  because it is being used by another process.
+    at AtomicFileQueueTransport.ReadBoundedPathAsync (AtomicFileQueueTransport.cs:265)
+    at Sp1BatchProofProver.ReadAndValidateResultAsync (Sp1BatchProofProver.cs:208)
+```
+
+复现率是量出来的，不是猜的：全解决方案两次运行里出现一次；而单独运行
+`tests/Neo.L2.Proving.UnitTests` 是 `3/3` 通过 —— 这是争用的特征，不是逻辑的特征。
+
+允许它发生的代码形状是一个没有容忍度的 check-then-use 窗口。`ProveAsync` 先等结果文件出现
+（`Sp1BatchProofProver.cs:154`），然后才去读它（`AtomicFileQueueTransport.cs:249-269`）；
+`ReadBoundedPathAsync` 把*缺失*（`:256-258`）、*超限*（`:262-264`）与*读取期间被改动*（`:266-268`）
+都转成 `InvalidDataException`，但 `:265` 那次 `File.ReadAllBytesAsync` 恰好落在所有这些守卫之外，
+于是那一瞬间的共享冲突会以裸 `IOException` 逃逸。在 Windows 上这个窗口是真实的：此处的写入方使用
+`FileShare.None`（`:137`、`:294`）并以 `File.Move` 就位（`:106`），而一个刚被改名进临时目录的文件
+可能短时间被过滤驱动持有（在 38 个程序集并行运行下，通常就是杀毒软件）。仓库自己也承认这一点，
+因为共享冲突在其它四处早已被捕获后重试或吞掉 ——
+
+```
+$ git grep -n "catch (IOException" -- src
+src/Neo.L2.Executor/Witness/Sp1StatefulBatchExecutor.cs:437:  catch (IOException) { }
+src/Neo.L2.Proving/RiscVZk/AtomicFileQueueTransport.cs:108:   catch (IOException) when (File.Exists(path))
+src/Neo.L2.Proving/RiscVZk/AtomicFileQueueTransport.cs:147:   catch (IOException) when (stopwatch.Elapsed < _resultTimeout)
+src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:377:       catch (IOException) when (File.Exists(path))
+```
+
+—— 其中两处就在同一个 transport 里，位于它的写入与获取发布锁的路径上。所以读路径缺的不是没人想到
+的容忍度，而是既有惯例唯一没被应用到的那个位置；而逃逸出的异常，也正是该 transport 自身
+`InvalidDataException` 约定之外的唯一一类。
+
+后果是有界的，且值得说准：这是一个*瞬态*变成一个*类型化失败缺口*，不是一次被证明的结算中断。
+测试之所以能抓到它，只因为它断言的是精确异常类型而不是“某个异常”。修复：把既有的重试惯例应用到
+`ReadBoundedPathAsync` 的那次读取上（文件此时已被确认存在，所以这是等待，不是语义变更），并明确
+决定重试耗尽后的 `IOException` 是否归入协议的 `InvalidDataException` 家族。
+`src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:415-432` 提供了一个结构完全相同的 helper ——
+同样的 `File.Exists` 检查、同样无守卫的 `File.ReadAllBytesAsync`（在 `:429`）—— 所以无论答案是哪个，
+两处读取都应保持一致。
 
 ## 6. Medium / Low 发现（本轮新增）
 
@@ -808,7 +919,13 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
    （§5 V4）。重新可见的是 40 个测试、而不是 27 个 —— 27 只是其中一个项目的份额。
 3. `H16` —— **已在当前分支完成**：`FinalizeBatch` 在 `SettlementManagerContract.cs:509-510`
    断言 `isActive`，而 `RevertBatch` 刻意保持无守卫，两个 VM 测试随之落地（§4 H16 状态）。
-4. `H17` —— 把 `LockGlobalRootGovernance` 接进 `LiveDeployCommand` + CLI plan 文本 + 冒烟步骤。
+4. `H17` —— **已在本分支完成**：`LiveDeployCommand` 现在在 `SettlementManager.SetMessageRouter` 与
+   `ChainRegistry.LockGovernance` 之间执行 `MessageRouter.SetGovernanceController` →
+   `SetGlobalRootVerifier` → `LockGlobalRootGovernance`，每步带读回完成检查，冒烟新增六次读回，
+   而不是建议里那次端到端发布（§4 H17 状态）。`deploy-testnet` 新增两个必填开关 ——
+   `--gateway-program-vkey`、`--gateway-replay-domain` —— 因为 Gateway profile 这组值由运维者提供、
+   且没有任何地方持久化。部署测试 115/115、`NeoHub.Contracts.VmTests` 573/573，
+   整解决方案 38 个程序集 / 2,897 个测试 / 0 失败 / 5 跳过（H16 那次的 2,895 加两个解析器测试）。
 5. `H19` —— 在 `ForcedInclusion._deploy` 里施加 `[60, 86400]` 这条边界，并补上那个把 `uint`
    溢出方向钉住的 VM 测试。
 6. `V6` —— 把 `L2BatchPlugin.cs:477` 的那个字面量提升为一个 `MetricNames` 常量 + 一条目录条目；
@@ -831,6 +948,10 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
 14. `H1` —— 针对 `Committed` 采用 `StopPlugin` + 重试；需要先补上 `OnBlockCommitted`
     的测试覆盖（§6，“OnBlockCommitted 没有测试”那条）。
 15. `C2` / `V5` —— 受位置绑定的验证，外加去掉 `UT_SharedBridge_Vm` 的 mock。
+16. `V7` —— 重试惯例在 `AtomicFileQueueTransport.cs:108`/`:147` 已然存在；需要决定的是读路径是否
+    获得同样的有界等待重试，*以及*重试耗尽后的 `IOException` 是否包装进协议的
+    `InvalidDataException` 家族。一个答案，同时应用到两处读取点
+    （`AtomicFileQueueTransport.cs:265`、`Sp1GatewayProofProver.cs:429`）。
 
 ## 11. 本轮未验证
 

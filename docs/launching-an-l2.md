@@ -885,6 +885,8 @@ dotnet run --project tools/Neo.Hub.Deploy -- deploy-testnet \
     --l2-chain-id 1099 \
     --sp1-program-vkey <32-byte-raw-vkey-or-file> \
     --fraud-replay-domain <32-byte-non-zero-domain> \
+    --gateway-program-vkey <32-byte-raw-vkey-or-file> \
+    --gateway-replay-domain <32-byte-non-zero-domain> \
     --governance-council <pubkey1,pubkey2,pubkey3> \
     --governance-threshold 2 \
     --emergency-council <separate-account-or-script-hash>
@@ -892,6 +894,12 @@ dotnet run --project tools/Neo.Hub.Deploy -- deploy-testnet \
 
 The live deployer rejects implicit 1-of-1 governance. It writes the exact council count and
 threshold into the deployment evidence report and reads both values back during smoke checks.
+`--gateway-program-vkey` / `--gateway-replay-domain` are the compiled Gateway guest program's
+32 verifying-key bytes and its replay domain — the same values the Gateway host publishes, i.e.
+the `verificationKeyId` and `replayDomain` arguments of
+`GatewayHostComposition.OpenSp1(chainDir, gatewayVk, signer, replayDomain, vk, …)`. The deployer
+registers them as the `MessageRouter` global-root profile and reads them back, so a Gateway host
+configured with the reported tuple cannot be rejected by the Router's governance gate.
 
 The bundle's `Invocations` array is your wallet's deploy script — one
 `ContractManagement.Deploy` call per entry, in order. Each entry has a
@@ -906,6 +914,9 @@ bond↔challenge cycle, `ChainRegistry.SetGovernanceController` to enable
 §16.1 admission policy, `SettlementManager.SetGovernanceController` plus the irreversible
 `SettlementManager.LockGovernance` to remove hot-wallet rewiring/direct rollback,
 `SettlementManager.SetMessageRouter(MessageRouter)` to close the Gateway contract-witness path,
+the `MessageRouter` `SetGovernanceController` + `SetGlobalRootVerifier` + irreversible
+`LockGlobalRootGovernance` chain that makes cross-chain finality relay usable (`publishGlobalRoot`
+refuses its first publication while that lock is absent),
 the `OptimisticChallenge`/`MpcCommitteeVerifier`/`ExternalBridgeRegistry`
 `SetGovernanceController` + `LockGovernance` pairs that freeze who may prove a fraud, which
 committee may attest a foreign deposit, and which verifier a foreign chain routes to, and
@@ -1080,6 +1091,11 @@ SettlementManager revalidates current finality/Gateway admission, reconstructs b
 stored finalized records, advances non-revertible per-chain watermarks, and atomically invokes
 Router. Verify post-deploy readback of both MessageRouter's SettlementManager constructor binding
 and `SettlementManager.GetMessageRouter`; a direct Router call is expected to fail witness checks.
+`MessageRouter.publishGlobalRoot` additionally refuses its first publication until
+`LockGlobalRootGovernance` has run, so `deploy-testnet` registers and locks the profile with the
+same proof system (SP1 = `1`), aggregation backend (`0xC2` recursive), verification-key id and
+replay domain the Gateway host publishes. After the lock, changing that profile requires
+`SetGlobalRootVerifierViaProposal` with council approval.
 
 What it actually proves: the sequencer first invokes the SHA-256-pinned
 `neo-zkvm-executor` with canonical `NEO4EXEC` and complete pre-state `NEO4STW1`.

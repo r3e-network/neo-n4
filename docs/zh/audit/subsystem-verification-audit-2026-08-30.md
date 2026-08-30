@@ -27,7 +27,7 @@ CLI、telemetry、RPC）—— 并把它们驱动起来：构建、运行、插�
 | Track | 子系统 | 落点 |
 | --- | --- | --- |
 | T1 | `external/neo-riscv-vm`（PolkaVM host + guest + 适配器插件） | §3、§4 |
-| T2 | `bridge/neo-zkvm-{guest,host}`、`neo-zkvm-executor` 钉扎、`Sp1SettlementExecutionStack`、`NeoHub.Sp1Groth16Verifier` | §5 V3、V7、§7 |
+| T2 | `bridge/neo-zkvm-{guest,host}`、`neo-zkvm-executor` 钉扎、`Sp1SettlementExecutionStack`、`NeoHub.Sp1Groth16Verifier` | §5 V3、V7、V8、§7 |
 | T3 | `NeoHub.SharedBridge` / `ExternalBridgeEscrow` / `MpcCommitteeVerifier` / `VerifierRegistry`、外部 EVM + Solana 程序、`L2NativeContracts.cs` | §5 V5、§7 |
 | T4 | `Neo.L2.Batch`、`Neo.Plugins.L2Batch`、`Neo.L2.State`、`Neo.Plugins.L2DA` | §4 H15、§6 |
 | T5 | `NeoHub.SettlementManager` / `OptimisticChallenge` / `ForcedInclusion` / `Censorship` | §3 C4、§4 H16、H19、§5 V5、§6 |
@@ -50,6 +50,9 @@ artifact？* 在 RISC-V 路径上，答案是否定的，而这正是本报告�
 | batch / state / DA 套件（5 个项目） | `Neo.L2.Batch` 68/68 · `Neo.Plugins.L2Batch` 65 通过 + 1 跳过 · `Neo.L2.State` 120/120 · `Neo.Plugins.L2DA` 109/109 · `Neo.L2.Abstractions` 79 通过 + 1 跳过 — 全部 exit 0 |
 | §10 第 4 项落地后的 `dotnet test tests/Neo.Hub.Deploy.UnitTests` | 115 通过、0 失败（在上面那 113 个之外新增两个 Gateway 解析器测试） |
 | `dotnet test Neo.L2.sln`，两次，在 §10 第 1–4 项之后 | 第一次：总计 2,897，**1 个失败** —— §5 V7，而失败发生在那一分支根本未触碰的项目里；第二次：总计 2,897，0 失败、5 跳过，exit 0 |
+| §10 第 5 项落地后的 `dotnet test tests/NeoHub.Contracts.VmTests` | 575 通过、0 失败（`UT_ForcedInclusion_Vm` 17/17） |
+| `dotnet test Neo.L2.sln`，在 §10 第 5 项之后 | 38 个程序集，总计 2,899，0 失败、5 跳过，exit 0 |
+| 为 §5 V8 对照的 `cargo audit --file Cargo.lock` 与 Dependabot API | audit：`found: false, count: 0`，exit 0 —— 而同一份 lockfile 上挂着 3 条 open 告警，其中一条 High |
 
 那两处跳过属于 §5 V4 那一类的自我跳过，不是失败。这五个项目由 track 上报的计数被独立复现，
 且完全吻合。（`V4` 已在本分支修好，时间在这张表记录之后：那两个项目现在是
@@ -371,7 +374,8 @@ Sp1Groth16Verifier 三者都在为前提），带上 `GATEWAY_PROGRAM_VKEY_REPLA
 
 ### H19 — 反审查截止期在 owner 路径上有界，在 deploy 路径上无界 [E2]
 
-`ForcedInclusion` 只存储一个全局的 `deadlineSeconds`，并在为每条条目盖章时读取它：
+`ForcedInclusion` 只存储一个全局的 `deadlineSeconds`，并在为每条条目盖章时读取它。下面这段摘录
+引用的是修复前的源码及其修复前行号；其后正文里的每一处引用都已针对修复后的文件重新核对过。
 
 ```
 ForcedInclusionContract.cs:130-133   _deploy: deadline = (uint)(BigInteger)arr[2]; Assert(deadline > 0, "deadline must be positive")
@@ -380,16 +384,16 @@ ForcedInclusionContract.cs:373-374   enqueuedAt = (uint)(Runtime.Time / 1000u); 
 ```
 
 于是同一个数值在 owner 改动它时会被做范围检查，而在部署器设置它时不做检查。仅由部署期那一个
-字段就派生出两个后果，而究竟适用哪一个，取决于 NCCS 如何编译 `:374` 处的那个 `uint` 加法 ——
+字段就派生出两个后果，而究竟适用哪一个，取决于 NCCS 如何编译 `:389` 处的那个 `uint` 加法 ——
 本轮无法从源码判定这一点，所以它是作为一处需要 VM 测试来落定的危害来陈述的，而不是一个已被证实
 的行为：
 
 - 如果该算术会饱和，或者这个数值本身就很大，那么审查窗口实际上永远不会到期，而
   `ReportCensorship` 的全部意义 —— 也就是 §17 那个 escape hatch，它让任何人都有可能证明某个
-  sequencer 正在无视 L1 队列并据此暂停该链（`:496` `if (nowSec < deadline)
-  return false;`，然后 `:503` `pauseChain`）—— 在一条部署时把截止期写错的链上就是失效的。
+  sequencer 正在无视 L1 队列并据此暂停该链（`:511` `if (nowSec < deadline)
+  return false;`，然后 `:518` `pauseChain`）—— 在一条部署时把截止期写错的链上就是失效的。
   部署数据里的一个 `uint` 字段静默地关掉了整条反审查保证，而 `IsProductionReady()` 并不检查它
-  （`:254-266` 既没有 pauser 也没有截止期边界）。
+  （`:269-281` 既没有 pauser 也没有截止期边界）。
 - 如果这次加法按 mod 2³² 回绕，存储下来的截止期就会落在过去，每一条条目都可被立即举报，
   而任何无需许可的调用方都能随意 `pauseChain`。
 
@@ -397,10 +401,42 @@ ForcedInclusionContract.cs:373-374   enqueuedAt = (uint)(Runtime.Time / 1000u); 
 `[60, 86400]` 边界，并补上那个把溢出行为钉住的 VM 测试。
 
 这里真正健全的部分同样值得说清楚，以免该发现被过度解读：单个条目的截止期一旦写入就不可变更。
-nonce 严格递增（`:369-370`），每次 enqueue 恰好一处 `Put`，而整个合约里不存在任何更新路径，
+nonce 严格递增（`:384-385`），每次 enqueue 恰好一处 `Put`，而整个合约里不存在任何更新路径，
 所以一个搞审查的 sequencer **无法**靠续期截止期来推迟一次强制包含 —— 这一设计里那个经典的逃逸
-手段在此是缺席的。`ReportCensorship` 同样对每条条目只生效一次（`:498` 设置一个
-`reportedKey`），而 `:496` 处的比较在相等时即算作已到期，这正是一个截止期应有的方向。
+手段在此是缺席的。`ReportCensorship` 同样对每条条目只生效一次（`:513` 设置一个
+`reportedKey`），而 `:511` 处的比较在相等时即算作已到期，这正是一个截止期应有的方向。
+
+**状态 —— 已在本分支修复，而该发现拒绝猜测的那个问题现在有了结论。** `_deploy` 施加了与
+`SetDeadlineSeconds` 原本已强制的同一个 `[60, 86400]` 窗口
+（`ForcedInclusionContract.cs:140-146`），并且两处守卫现在读同一对常量
+（`MinDeadlineSeconds` / `MaxDeadlineSeconds`，`:70` 与 `:73`），因此这两处不可能再次各自漂移。
+
+那个 VM 测试是以测量、而不是以阅读 NCCS 的方式落定这段算术的：**数值按 mod 2³² 截断，而虚拟机会
+halt。** 一次在合法最大截止期下的对照 enqueue 存下 `1,468,681,716`；同一次 enqueue 先推进
+`4,294,880,900` 秒后存下 `1,468,595,320`；两个存储字段之差恰好等于推进量，而这只可能在
+`(uint)(Runtime.Time / 1000u)`（`:388`）与 `enqueuedAt + deadline`（`:389`）都截断、都不检查时成立。
+`EnqueueDeadlineSum_TruncatesModuloTwoTo32InsteadOfFaulting` 把这个关系钉住了。
+
+因此上面两个危害分支都是活的，分界在于数值大小，而不在于 NCCS 发射了哪条指令：一个仍在上限之内
+的越界值（`100,000,000`）会让审查窗口实际上永远到不了期、`ReportCensorship` 失效；而一个连 2³²
+都装不下的值（`3,000,000,000`）会把存储的截止期回绕到 1984 年，使每一条条目都可被立即举报，并把
+一次无需许可的 `pauseChain` 交给第一个调用方。同样是这个截断，说明了上界为什么就是让整个问题够不
+着的那道防线：只要 `deadline ≤ 86400`，`enqueuedAt + deadline < 2³²` 在一条链 2106 年之前的全部
+生命周期内都成立，因此不需要更多改动，而这个测试的存在是为了记录残留，不是为了守住它。
+
+对树内任何调用方都不是破坏性变更，因为没有人提供第三个部署元素。部署器只传两个
+（`artifacts/local-deployment-rehearsal/*/hub/deploy-bundle.json` 里的
+`resolvedDeployData: ["OWNER_REPLACE_ME", <settlement manager>]`），于是生效的是
+`DefaultDeadlineSeconds = 7200`（`:63`）—— 落在窗口之内 —— 而没有任何 `.json` 模板或 C# 调用方
+传递截止期。
+
+负向对照，好让这里的 [E1] 断言名副其实：只把被跟踪的产物
+（`TestingArtifacts/NeoHubForcedInclusion.artifacts.cs`）回退到修复前的 NEF，新的部署测试就会
+失败并点名截止期 `1`。所以这道守卫是在链上执行，而不是在 C# 里执行。重新发射只改变了正好两行
+（`Manifest` 与 `Nef` 两个属性），而 ABI 的名字集合与 `HEAD` 完全一致。
+
+`UT_ForcedInclusion_Vm` 17/17（原为 15）、`NeoHub.Contracts.VmTests` 575/575、全解决方案
+38 个程序集 / 2,899 个测试 / 0 失败 / 5 跳过（即 H17 那一轮的 2,897 加上这里的两个）。
 
 ## 5. 验证完整性发现
 
@@ -644,6 +680,156 @@ src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:377:       catch (IOException
 同样的 `File.Exists` 检查、同样无守卫的 `File.ReadAllBytesAsync`（在 `:429`）—— 所以无论答案是哪个，
 两处读取都应保持一致。
 
+### V8 — CI 里唯一那道 Rust 依赖门禁看不见 Dependabot 报出的那些公告，而其中 High 那一条是活的 [E1 门禁盲区 + 可达性]
+
+GitHub 上这个仓库有三条 open 的 Dependabot 告警。三条都是 Rust，三条都出自*同一份* `Cargo.lock`，
+并且三条都是同一天建立的：
+
+```
+$ gh api "repos/r3e-network/neo-n4/dependabot/alerts?state=open"
+3 | high | p3-challenger  | < 0.4.3        | first patched 0.4.3 | GHSA-vj64-rjf3-w3v7  | created 2026-07-15
+2 | low  | p3-symmetric   | <= 0.5.2       | no patch            | GHSA-3g92-f9ch-qjcm  | created 2026-07-15
+1 | low  | lru            | >=0.9.0,<0.16.3| first patched 0.16.3| GHSA-rhfx-m35p-ff5j  | created 2026-07-15
+```
+
+其中两条早已有书面结论：`docs/audit/sp1-transitive-advisories-2026-08-28.md` 评估了
+`p3-challenger` 与 `lru`，记录了 RustSec 没有对应条目因此 CI 门禁保持绿色，把修复方案指明为一次
+协同的 SP1 升级而不是 lockfile bump，并引用了那次被关闭的 Dependabot sp1-6.3.1 尝试（PR #23，
+4 个检查失败）。那份笔记是有用的工作，本发现不复述它。V8 补充的是那份笔记在 2026-08-28 还无法说出的
+四件事，每一件都是在这里对着被钉扎的源码量出来的，而不是推断出来的：challenger 公告的*两个*机制里
+究竟哪一个在 `0.3.3-succinct` 这个 fork 里仍然成立（那份笔记明确拒绝猜，称该 backport
+“not publicly recorded”）；这次升级的具体目标发布版本；对 `p3-symmetric` 的评估（那份笔记完全没覆盖）；
+以及接受风险台账上的一处缺口，在本节末尾点出。
+
+这个仓库对“我们的 Rust 依赖审计过了吗？”的回答是一个 CI job：
+
+```
+$ grep -n "cargo audit" .github/workflows/build.yml
+590:      - name: cargo audit (production Rust lockfiles)
+600:          for lockfile in \
+601-            Cargo.lock \
+...
+607-            cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0258 --json
+```
+
+那个循环从 `Cargo.lock` 开始 —— 正是 Dependabot 点名的那份 manifest —— 而在本地对着当天的
+advisory 数据库它是通过的：
+
+```
+$ cargo audit --file Cargo.lock --json | head -c 300
+{"database":{"advisory-count":1226,"last-updated":"2026-08-29T08:11:09+02:00"},
+ "lockfile":{"dependency-count":614},"vulnerabilities":{"found":false,"count":0,"list":[]}
+```
+
+所以那盏绿色的 `cargo audit` 对这三条公告不构成任何证据：这个 job 读的是 RustSec，Dependabot 读的
+是 GitHub Advisory Database，而针对 `p3-challenger` 这两个数据库给出了矛盾的答案。这又是 §5 那个形状
+—— 一道因为与它所声称要断言的性质无关的原因而变绿的检查 —— 只是这里有一点值得单列的区别：与其他
+V 类发现不同，这里没有任何东西是写错的。仓库其实已经刻意地承载过一次同类的不一致，带着解释性注释和
+一条针对 `RUSTSEC-2026-0258` 的 `--ignore`（`build.yml:592-599`）。区别在于 h2 那一例是被披露的，
+而这一例是看不见的。
+
+**这条 High 不是噪音，而一次针对本树的 grep 会把它错误地排除。** 公告标题里点名了
+`MultiField32Challenger`，而它在仓库里的全部命中都只是审计文档：
+
+```
+$ git grep -ln "MultiField32Challenger"
+docs/audit/sp1-transitive-advisories-2026-08-28.md      ← 以及本报告；没有 .rs，也没有 .cs
+$ sed -n '6p' ~/.cargo/…/slop-challenger-6.2.1/src/lib.rs
+pub use p3_challenger::*;
+```
+
+被点名的这个类型是在一个改名后的 crate 之下被整体再导出的（`slop-challenger` → `slop_*` 系列），
+并且正是捆绑的 SP1 路径所证明的那批递归配置的 transcript challenger：
+
+```
+~/.cargo/…/slop-basefold-6.2.1/src/config.rs:13,50   MultiField32Challenger<F, Bn254Fr, OuterPerm, …>
+~/.cargo/…/slop-bn254-6.2.1/src/lib.rs:17,75,104     type Challenger = MultiField32Challenger<…>
+Cargo.lock:2718                                       p3-challenger 0.3.3-succinct
+```
+
+**在被钉扎的这一对参数上，什么成立、什么不成立。** 公告正文描述的是较新的 Plonky3 代码
+（`reduce_32`、`num_f_elms = PF::bits() / 64`）；被钉扎的 fork 并不是那一版，所以标题里的两个断言
+必须分别对着真正交付的代码来核对：
+
+- *挑战值熵损失* —— **不成立。** 被钉扎的 `num_f_elms` 是
+  `PF::bits() / F::bits() / 2`（`p3-challenger-0.3.3-succinct/src/multi_field_challenger.rs:47`），
+  在 BN254 这一对参数上等于 4 个 2⁶⁴ 基的 limb = 256 位，因此 `split_32`（`:77`）覆盖了完整的
+  254 位域元素。公告里那个 3-limb 版本（192 位）就做不到。
+- *transcript 可延展性* —— **成立。** `duplexing()` 通过 `reduce_31` 吸收
+  `input_buffer.chunks(num_duplex_elms)`（`:66-67`、
+  `p3-field-0.3.3-succinct/src/helpers.rs:134`），既不记录 chunk 长度，而 `sample()` 又会把手上
+  那截不完整的 buffer 直接 duplex 掉（`:172-175`）。于是末尾一个零观测吸收后的状态与根本没有那个
+  观测时相同：海绵的输入不是单射的，只差若干末尾零元素的两条 transcript 会采样出同样的结果。
+
+这是那条活的代码路径上一个真实的性质，而它的后果的边界就是 transcript 可延展性一贯的边界：它让一个
+prover 能在不改变挑战值的前提下改写自己的 public inputs，这对任何把 transcript 或其承诺的 public
+inputs 当作唯一的东西来说都是有意义的。它不是一个伪造证明的结果，我也没有尝试针对结算路径构造一个
+—— 剩下的问题是 N4 侧是否有消费者依赖 batch 或 Gateway sidecar 之间 transcript/proof-input 的唯一性，
+那是对 `AtomicFileQueueTransport` 与 sidecar 绑定的分析，不是对这个 crate 的分析。
+
+**修复路径现在有了名字。** 08-28 那份笔记正确地得出被钉扎的图里没有任何版本能表达这个修复，并且要求
+“a release whose dependency graph pins `p3-challenger >= 0.4.3`”，但没有指出这样一次发布存在。它存在 ——
+当前的 `slop-challenger` 正好要求那个已修复的构建：
+
+```
+$ curl -s https://crates.io/api/v1/crates/slop-challenger/6.5.0/dependencies | grep -A1 p3-challenger
+"crate_id":"p3-challenger"  "req":"=0.4.3-succinct"
+```
+
+但 `slop-challenger 6.2.1` 要求的是 `0.3.3-succinct`（即 `^0.3.3-succinct`），而本仓库以精确版本钉扎
+这条工具链，涉及仓内三份 manifest 加那份被 vendor 的 workspace：
+
+```
+bridge/neo-zkvm-host/Cargo.toml:31,50          sp1-sdk = { version = "=6.2.1", … }
+bridge/neo-zkvm-gateway-host/Cargo.toml:28,36  sp1-sdk = { version = "=6.2.1", … }
+external/neo-zkvm/Cargo.toml:27                sp1-sdk = { version = "=6.2.1", … }   (submodule)
+```
+
+因此要关掉这条 High，需要一次 SP1 6.2.1 → 6.5.0 的发布 bump，而这次 bump 是贴着规范的工作，
+不是依赖刷新：`doc.md:372` 把“SP1 6.2.1 compressed proof”写成了需求文本，`AGENTS.md`、
+`ARCHITECTURE.md` 与 `IMPLEMENTATION_STATUS.md:266-267` 都点名 6.2.1，build script 从单一的 Docker ELF
+快照嵌入 SHA-256/VK，而 `NeoHub.Sp1Groth16Verifier` 是一个不可变的、兼容 SP1 v6.1 的 wrapper，通过
+BN254 interop 验证。以上每一项都要针对 6.5.0 重新确立，而被 vendor 的 submodule 住在
+`r3e-network/neo-zkvm`（它当前的 gitlink 已经在一条 `codex/rustsec-2026-refresh` 分支上），
+所以这是一个跨仓变更。另外还要注意：即便完成了这样的 bump，解析出来的版本会是 `0.4.3-succinct`，
+而它在 semver 里排在 `0.4.3` *之前*（更小）—— Dependabot 之后是否会关掉这条告警，这里没有验证，
+必须去查，不能假设。
+
+`lru` 那条不需要新分析：`lru 0.12.5` 确实由 `sp1-prover 6.2.1` 引入
+（`[dependencies.lru] version = "0.12.4"`），而该需求之内不存在已修补的发布 —— 这也正是 08-28
+那份笔记已经得出的结论。
+
+`p3-symmetric` 是仓库从未评估过的那一条，而我对它的第一遍判断以一种有教益的方向错了：把公告的包名
+对着一个从标题里猜出来的符号去 grep，会显得那个脆弱构造在 `0.3.3-succinct` 里不存在。它并不是不存在。
+公告针对的是 `PaddingFreeSponge::hash_iter`，它在处理最后一个不完整的 block 时把状态里的旧元素留在
+原地，而被钉扎的这个 crate 里两个海绵变体都在，且都还没修：
+
+```
+$ grep -n "pub struct" ~/.cargo/…/p3-symmetric-0.3.3-succinct/src/sponge.rs
+15:pub struct PaddingFreeSponge<P, const WIDTH: usize, const RATE: usize, const OUT: usize>
+52:pub struct MultiField32PaddingFreeSponge<
+$ grep -rn "Pad10Sponge" ~/.cargo/…/p3-symmetric-0.3.3-succinct/src/     # → no matches
+```
+
+`Pad10Sponge` 是上游修复的那一半，所以被钉扎的 fork 携带着脆弱的行为。它是可达的，并且在 BN254 配置
+里是活的 —— 该配置把 `type Hasher` 设为 `MultiField32PaddingFreeSponge<…>`
+（`slop-bn254-6.2.1/src/lib.rs:83`）。收窄它的是这段话，出自公告自己的 impact 一节、而不是这里现编的
+说辞：*“在待哈希元素数量事先已知且固定的场合（多数 STARK 即是如此），该方法是抗碰撞的。这个脆弱性
+只在恶意用户能够操纵待哈希元素数量时才适用。”* 在本树里，prover 栈中两处 `hash_iter` 调用点分别是
+`slop-merkle-tree-6.2.1/src/p3sync.rs:137`（哈希一个固定的字面量数组）与
+`slop-merkle-tree-6.2.1/src/tcs.rs:146`（为一次 FRI 批量 decommitment 哈希
+`vec![claimed_values_slices]`，其长度跟随 query 形状）。SP1 的对抗方能否操纵*那个*长度，是唯一没查的
+问题，而我没有去追：这个 crate 只在运维者一侧，而 08-28 那份笔记的威胁模型本就把恶意运维者放在这条
+信任边界上 —— alert #3 自己的 impact 陈述也落在同一处。Low、可达、在被钉扎的图里无法修补，
+修复方案与另外两条相同。
+
+接受风险的台账里还有一处缺口，而它正是本 §5 反复撞见的那一类。
+`.github/dependabot.yml:26-35` 为 cargo 生态忽略了 `lru` 与 `p3-challenger`，指向那份笔记，
+其声明的目的是让 security-update jobs 不再失败。这一点做到了 —— 但同样合理地，任何人都会把那段
+配置读成“这两条已经处理了”。它们并没有关闭。今天 Security 标签页里三条告警全部仍是 open，
+距其建立已六周，而且再加一条 ignore 也不会关掉它们：`ignore` 抑制的是拉取请求，不是告警。
+书面的接受风险决定与可见的告警状态互相矛盾，而读过那份笔记之外的人只能看见后者。
+
 ## 6. Medium / Low 发现（本轮新增）
 
 - **`SealedBatch` 丢弃了 batch 的消息那一侧** [E1]。`BatchBuilder.AddWithdrawal`、
@@ -746,6 +932,24 @@ src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:377:       catch (IOException
   默认就会执行（`:57`），且发生在 `:861-862` 的 `ChainRegistry.LockGovernance` *之前*。
   残余的那一半 —— `RegisterPauser` / `RevokePauser` 在锁之后仍然存活 —— 已经记录在 §7.1 中，
   而且才是值得修的那一项，因为它意味着在部署器已经宣告治理终局之后，暂停权限仍然可由 owner 改写。
+- **`docs/zh/CHANGELOG.md` 承诺了一项它并没有执行的同步** [E1 已计数]。它自己的文件头就写着这条规则
+  （`:4`：英文文档发生结构、命令、路径、接口、合约数量、测试证据或安全结论变更时，本中文版本必须同步
+  更新），而本地化闸门正是为守住这一对文件而写的 —— 但这条闸门断言的只是一个对应文件*存在*：
+
+  ```
+  $ grep -c "2026-08" docs/zh/CHANGELOG.md
+  0
+  $ git log --oneline -1 -- docs/zh/CHANGELOG.md
+  a647886d Stabilize the coverage gate (#30) [skip ci]
+  ```
+
+  这份中文文件里没有晚于 2026-07-15 的内容，而 `CHANGELOG.md` 在 `master` 上于 2026-08-28 → 2026-08-30
+  之间新增了九条带日期的条目。其中的 `C1`、`H12`、`C4`、`H16`、`H17` 这些安全与测试证据记录，恰好就是
+  它自己那条规则点名为必须的类别，而本分支新增的两条（`H19`、`V8`）一落地就会把同一个缺口进一步扩大。
+  于是中文读者被书面告知：这份文件会跟踪安全结论；而它已经连续六周没有跟踪过任何一条。修复方式是一个
+  关于“哪一份产物才是真的”的决策：要么回填内容、并让一条测试在两者之间比对条目标题，要么从文件头删掉
+  这句承诺、把这份文件按它本来的样子标注 —— 一份过时的摘要。保持现状是唯一一个选择：它让一条被文档记录
+  的不变式始终为假，同时让一个绿色的测试把这一对文件认证为“已同步”。
 
 ## 7. 本轮重新核实的既有发现状态
 
@@ -926,8 +1130,12 @@ src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:377:       catch (IOException
    `--gateway-program-vkey`、`--gateway-replay-domain` —— 因为 Gateway profile 这组值由运维者提供、
    且没有任何地方持久化。部署测试 115/115、`NeoHub.Contracts.VmTests` 573/573，
    整解决方案 38 个程序集 / 2,897 个测试 / 0 失败 / 5 跳过（H16 那次的 2,895 加两个解析器测试）。
-5. `H19` —— 在 `ForcedInclusion._deploy` 里施加 `[60, 86400]` 这条边界，并补上那个把 `uint`
-   溢出方向钉住的 VM 测试。
+5. `H19` —— **已在本分支完成**：`_deploy` 现在通过 `SetDeadlineSeconds` 所用的同一对常量强制
+   `[60, 86400]` 窗口，而该发现拒绝去猜的那个 `uint` 溢出方向是量出来的、不是假设出来的 ——
+   在一台会 halt 的 VM 之后是 mod 2³² 截断。`UT_ForcedInclusion_Vm` 17/17、
+   `NeoHub.Contracts.VmTests` 575/575、全解决方案 38 个程序集 / 2,899 个测试 / 0 失败 /
+   5 跳过（H17 那次的 2,897 加上这两个）。负向对照：只回退被跟踪的产物就能让新的部署测试点名
+   截止期 `1` 而失败。见 §4 H19 的状态段。
 6. `V6` —— 把 `L2BatchPlugin.cs:477` 的那个字面量提升为一个 `MetricNames` 常量 + 一条目录条目；
    可选地再加上那道本可以捕获它的发射点字面量扫描。
 7. §7.1 —— 为 `SetOwner`、`RegisterPauser`/`RevokePauser`、`SetWindowSeconds`、
@@ -952,6 +1160,21 @@ src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:377:       catch (IOException
     获得同样的有界等待重试，*以及*重试耗尽后的 `IOException` 是否包装进协议的
     `InvalidDataException` 家族。一个答案，同时应用到两处读取点
     （`AtomicFileQueueTransport.cs:265`、`Sp1GatewayProofProver.cs:429`）。
+17. `V8` —— SP1 的传递依赖公告。要决策的不是“修还是不修”：图内的修复并不存在。要决策的是是否现在就
+    排期 SP1 6.2.1 → 6.5.0 的 bump —— 08-28 那份笔记已把它界定为一次 VK 重钉 + guest 重建 +
+    `SP1_STATEFUL_NEO_VM_V1` 语义 ID 轮换，横跨两份仓内 manifest 与 `r3e-network/neo-zkvm`
+    submodule —— 还是继续维持那份在运维者信任模型下书面接受的姿态。有两个不必等待该决定的小动作，
+    也不该等：把 `p3-symmetric` 写成书面评估（今天没人评估过，本节是第一遍），
+    以及把 `.github/dependabot.yml:26-35` 与 Security 标签页对齐 —— 那里的 `ignore` 抑制的是更新
+    PR、不是告警，所以三条全都还开着，而那段注释读起来像是已解决。
+18. `finalizeIfPastWindow` 在整个树内没有任何驱动 —— 既不在 off-chain 侧，也不在合约间调用侧
+    （§4 H16 的 blast-radius 那段）。这使得它是 `finalizeBatch` 唯一调用方
+    （`OptimisticChallengeContract.cs:791`），而它本身只能由一笔外部手工构造的 L1 交易触达；于是
+    一条 Optimistic 链终局化的频率就等于“有人记得去调用它”的频率，而依赖已终局化 root 的提款
+    继承这一点。要决策的是归属：由 `Neo.Plugins.L2Settlement` 挂一个截止期定时器、交给既有的
+    challenge orchestrator、还是明确写成一条运维手册步骤 —— 最后这一项需要
+    `docs/launching-an-l2.md` 把它说清楚。选一个；“合约暴露了这个方法”不是一个能撑住一条有着
+    7 天窗口的主网的答案。
 
 ## 11. 本轮未验证
 
@@ -981,7 +1204,15 @@ src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:377:       catch (IOException
   而非被跑到。
 - `ForcedInclusionContract.cs:374` 处那个 `uint` 加法的 NCCS 编译语义 —— 回绕、饱和还是 FAULT ——
   未被确定，所以 `H19` 把两个分支都并列陈述、而不挑定其中之一。一道 VM 测试即可了结。
+  **同日了结** —— `EnqueueDeadlineSum_TruncatesModuloTwoTo32InsteadOfFaulting` 量到的是 halt 在后面的
+  mod 2³² 截断，而 §4 H19 的状态段记录了这让哪些仍然成立。
 - telemetry 与 RPC 表面是通过对源码和文档做计数 grep 验证的（§5 V6、§9），而不是通过从一台运行中的
   节点抓取 live 的 `/metrics` 端点。如果该端点与目录在运行时出现分岔，本轮看不见。
 - `docs/telemetry.md:214-226` 那段样例 exposition 是与导出器的渲染规则做比对的，
   比对方式是阅读 `PrometheusExporter.cs`，而不是生成真实输出。
+- `V8` 有意停在两件它点得出名、却在此处结不了的事上。`slop-merkle-tree-6.2.1/src/tcs.rs:146` 被哈希的
+  claimed-value 数量能否被 SP1 的对抗方操纵 —— 这是唯一能把 `p3-symmetric` 从 Low 抬到“有点意思”的
+  前提条件 —— 需要对 SP1 递归的 query 形状做一次阅读，而不是对本仓库的阅读。而一次 SP1 6.5.0 的 bump
+  究竟会不会真的关掉 GHSA-vj64-rjf3-w3v7，这里没有尝试：依赖图会解析到 `0.4.3-succinct`，
+  它在 semver 里排在 `0.4.3` 之下，所以这条告警有可能活过自己的修复。两件事都是可以回答的，
+  但都不是在这里能回答的。

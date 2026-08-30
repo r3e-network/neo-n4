@@ -358,4 +358,61 @@ public class UT_ForcedInclusion_Vm
             "a valid permissionless report must not bypass governance attribution");
         Assert.IsFalse(fi.IsCensorshipSlashed(ChainId, 1));
     }
+
+    [TestMethod]
+    public void DeployDeadlineSeconds_RejectsEveryValueTheOwnerSetterRefuses()
+    {
+        NeoHubForcedInclusion DeployWith(uint value)
+        {
+            var engine = new TestEngine(true);
+            return engine.Deploy<NeoHubForcedInclusion>(
+                NeoHubForcedInclusion.Nef, NeoHubForcedInclusion.Manifest,
+                new object[] { engine.Sender, engine.Sender, (BigInteger)value });
+        }
+
+        foreach (var rejected in new[] { 0u, 1u, 59u, 86401u, uint.MaxValue })
+        {
+            var value = rejected;
+            Assert.ThrowsExactly<TestException>(
+                () => DeployWith(value),
+                $"deploy must refuse the deadline {value} that SetDeadlineSeconds already refuses");
+        }
+
+        foreach (var accepted in new[] { 60u, 86400u })
+        {
+            var fi = DeployWith(accepted);
+            Assert.AreEqual(new BigInteger(accepted), fi.DeadlineSeconds);
+        }
+    }
+
+    [TestMethod]
+    public void EnqueueDeadlineSum_TruncatesModuloTwoTo32InsteadOfFaulting()
+    {
+        // The deploy bound is load-bearing because this sum is not checked: past 2^32-1 the entry
+        // is stored with a deadline in the past, which reportCensorship can act on immediately.
+        const uint AdvanceSeconds = 4_294_880_900;
+        const uint DeadlineAtLimit = 86400;
+
+        static uint StoredDeadline(TestEngine engine, bool advance)
+        {
+            var fi = Deploy(engine, wireEnforcement: false);
+            fi.DeadlineSeconds = DeadlineAtLimit;
+            if (advance)
+                engine.PersistingBlock.Advance(TimeSpan.FromMilliseconds((ulong)AdvanceSeconds * 1000UL));
+            var nonce = (ulong)fi.EnqueueForcedTransaction(ChainId, ForcedTransaction, ForcedTransactionHash)!;
+            var entry = fi.GetEntry(ChainId, nonce);
+            return BitConverter.ToUInt32(entry, entry.Length - 4);
+        }
+
+        var inRange = StoredDeadline(new TestEngine(true), advance: false);
+
+        var overflowed = StoredDeadline(new TestEngine(true), advance: true);
+        Assert.AreEqual(
+            (uint)((inRange + (ulong)AdvanceSeconds) % 0x1_0000_0000UL),
+            overflowed,
+            "the enqueue deadline is truncated modulo 2^32, not rejected");
+        Assert.IsTrue(
+            overflowed < inRange,
+            "a wrapped deadline lands in the past while the VM still halts");
+    }
 }

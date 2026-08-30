@@ -737,6 +737,13 @@ public class OptimisticChallengeContract : SmartContract
         Storage.Put(AcceptedFraudKey(chainId, batchNumber), challenger);
         Storage.Put(ConsumedClaimKey(claimId), new byte[] { 1 });
 
+        // The accepted-fraud marker is what keeps FinalizeIfPastWindow shut; the window keys carry
+        // no recovery value once fraud is proven. Clearing them here is what lets the corrected
+        // resubmit SubmitBatch invites after a revert reach OpenWindow instead of faulting
+        // "window already open" and wedging the chain permanently.
+        Storage.Delete(deadlineKey);
+        Storage.Delete(SequencerKey(chainId, batchNumber));
+
         var sm = (UInt160)(Storage.Get(new byte[] { KeySettlementManager }) ?? throw new Exception("sm unset"));
         Contract.Call(sm, "revertBatch", CallFlags.All, new object[] { chainId, batchNumber });
 

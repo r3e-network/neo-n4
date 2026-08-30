@@ -554,6 +554,88 @@ public class UT_OptimisticChallenge_Vm
         Assert.AreEqual(UInt160.Zero, slashes[0].Beneficiary);
     }
 
+    // ---- accepted challenge must not wedge the chain (audit C4) -------------------------------
+
+    [TestMethod]
+    public void Challenge_AcceptedProof_ConsumesWindow_SoResubmitCanReArm()
+    {
+        // SettlementManager.SubmitBatch explicitly invites a corrected resubmit of a reverted slot,
+        // which calls OpenWindow for the same (chainId, batchNumber). While the accepted challenge
+        // left the window keys behind, that call faulted "window already open" and the chain could
+        // never advance again.
+        var engine = new TestEngine(true);
+        var smHash = Hash('5');
+        var sbHash = Hash('8');
+        var verifier = Hash('a');
+        var oc = Deploy(engine, smHash, sbHash);
+        WireSm(engine, smHash);
+        WireBond(engine, sbHash, 1000);
+        WireVerifier(engine, verifier, verdict: true, settlementManager: smHash);
+        oc.RegisterPermissionlessFraudProfile(ChainId, verifier, ExecutorSemanticId, ReplayDomain);
+        var firstDeadline = oc.OpenWindow(ChainId, BatchNum, Sequencer)!;
+
+        oc.Challenge(ChainId, BatchNum, engine.Sender, V4Proof(), verifier);
+
+        Assert.AreEqual((BigInteger)0, oc.GetDeadline(ChainId, BatchNum)!,
+            "an accepted challenge must consume the deadline");
+        Assert.IsFalse(oc.IsWindowOpen(ChainId, BatchNum, (uint)firstDeadline)!.Value,
+            "the stale window must not read as open at its own deadline");
+
+        var reArmed = oc.OpenWindow(ChainId, BatchNum, Sequencer)!;
+        Assert.IsTrue(reArmed.Value > 0, "the corrected resubmit must be able to open a fresh window");
+    }
+
+    [TestMethod]
+    public void Challenge_AcceptedProof_ReArmedWindow_StillRejectsSecondChallenge()
+    {
+        // Clearing the window must not turn a proven-fraudulent batch into a re-challengeable one:
+        // the accepted-fraud marker, not the window, is the durable rail. A distinct claimId skips the
+        // earlier "claim already consumed" guard so this pins the batch-level guard.
+        var engine = new TestEngine(true);
+        var smHash = Hash('5');
+        var sbHash = Hash('8');
+        var verifier = Hash('a');
+        var oc = Deploy(engine, smHash, sbHash);
+        WireSm(engine, smHash);
+        WireBond(engine, sbHash, 1000);
+        WireVerifier(engine, verifier, verdict: true, settlementManager: smHash);
+        oc.RegisterPermissionlessFraudProfile(ChainId, verifier, ExecutorSemanticId, ReplayDomain);
+        oc.OpenWindow(ChainId, BatchNum, Sequencer);
+        oc.Challenge(ChainId, BatchNum, engine.Sender, V4Proof(), verifier);
+        oc.OpenWindow(ChainId, BatchNum, Sequencer);
+
+        var ex = Assert.ThrowsExactly<TestException>(() =>
+            oc.Challenge(ChainId, BatchNum, engine.Sender,
+                V4Proof(claimId: UInt256.Parse("0x" + new string('b', 64))), verifier),
+            "a re-armed window must not allow a second accepted challenge on the same batch");
+        StringAssert.Contains(ex.Message, "already accepted");
+    }
+
+    [TestMethod]
+    public void Challenge_AcceptedProof_ReArmedWindow_StillCannotFinalize()
+    {
+        // The alternative fix — letting OpenWindow overwrite an expired window — would also re-open
+        // finalize for batches left un-finalized. This pins that the chosen fix did not do that: the
+        // challenged batch stays un-finalizable across the fresh window.
+        var engine = new TestEngine(true);
+        var smHash = Hash('5');
+        var sbHash = Hash('8');
+        var verifier = Hash('a');
+        var oc = Deploy(engine, smHash, sbHash);
+        WireSm(engine, smHash);
+        WireBond(engine, sbHash, 1000);
+        WireVerifier(engine, verifier, verdict: true, settlementManager: smHash);
+        oc.RegisterPermissionlessFraudProfile(ChainId, verifier, ExecutorSemanticId, ReplayDomain);
+        oc.OpenWindow(ChainId, BatchNum, Sequencer);
+        oc.Challenge(ChainId, BatchNum, engine.Sender, V4Proof(), verifier);
+        oc.OpenWindow(ChainId, BatchNum, Sequencer);
+
+        engine.PersistingBlock.Advance(TimeSpan.FromSeconds(DefaultWindow + 10));
+        var ex = Assert.ThrowsExactly<TestException>(() => oc.FinalizeIfPastWindow(ChainId, BatchNum),
+            "a challenged batch must never finalize, even behind a re-armed window");
+        StringAssert.Contains(ex.Message, "batch was challenged");
+    }
+
     [TestMethod]
     public void Challenge_RejectedProof_DoesNotAccept_NorBlockFinalize()
     {

@@ -5,15 +5,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — C4: an accepted fraud proof no longer wedges the chain it just proved fraud on — 2026-08-30
+
+- `contracts/NeoHub.OptimisticChallenge/OptimisticChallengeContract.cs`: a successful `Challenge`
+  consumed nothing. `OpenWindow` writes the deadline and responsible sequencer for
+  `(chainId, batchNumber)` and refuses a second write (`"window already open"`), and those two keys
+  were deleted in exactly one place — `FinalizeIfPastWindow`, the one path an accepted challenge
+  closes permanently through its `AcceptedFraudKey` assertion. Meanwhile
+  `SettlementManager.SubmitBatch` invites a corrected resubmit of the reverted slot and re-opens that
+  window, so the resubmit faulted, and `batchNumber == latest + 1` left no other slot reachable. One
+  legitimate, correctly-verified fraud proof therefore ended every future advance of an optimistic
+  chain, with no admin path to clear the stale window. `Challenge` now deletes both keys in the same
+  state-transition block that writes the accepted-fraud marker, before the external `revertBatch`.
+- The accepted-fraud marker is untouched and remains the durable record, so a re-armed window still
+  cannot be re-challenged (`"already accepted"`, pinned with a distinct `claimId` so the batch-level
+  guard is the decider) and a challenged batch still cannot finalize behind a fresh window. That is
+  what separates this from the weaker alternative of letting `OpenWindow` overwrite an expired window,
+  which would also have re-opened finalize for batches that were merely left un-finalized.
+- Three VM tests land with it: `Challenge_AcceptedProof_ConsumesWindow_SoResubmitCanReArm`,
+  `..._ReArmedWindow_StillRejectsSecondChallenge`, `..._ReArmedWindow_StillCannotFinalize`. Negative
+  control ran: with the contract source reverted and its NEF re-emitted by the pinned nccs 3.9.1, all
+  three fail on-chain with `ABORTMSG is executed. Reason: window already open` — the wedge is now
+  executed evidence, not an inference across two contracts.
+- Wire format unchanged: NEF bytes and method offsets moved, ABI name set identical (95 entries), no
+  storage-layout or encoding change, so no paired on-chain/off-chain encoding was touched.
+  `tests/NeoHub.Contracts.VmTests` 571/571, fresh-manifest gate 19/19 under
+  `NEO_N4_REQUIRE_FRESH_MANIFESTS=1`, full solution 2,893 tests / 0 failed / 45 skipped.
+- Remaining gap: `UT_SettlementManager_Vm.cs:185` mocks `OptimisticChallenge`, so no test yet deploys
+  both contracts real and runs `SubmitBatch`'s own resubmit branch.
+- This unblocks `H18` (audit §10 item 8): the deployer/template verifier mismatch was masking it.
+
 ### Audit — execution-based subsystem verification across seven tracks — 2026-08-30
 
 - New report: `docs/audit/subsystem-verification-audit-2026-08-30.md`
   (中文: `docs/zh/audit/subsystem-verification-audit-2026-08-30.md`). Where the 2026-08-29 audit read
   and cross-checked, this pass builds, runs and instruments, and asks of each subsystem whether the
   artifact a green checkmark ran on is the artifact the source describes.
-- `C4` (new Critical, unfixed): a successful fraud proof leaves `OptimisticChallenge`'s window key in
-  place, so the corrected resubmit that `SubmitBatch` invites faults at `"window already open"` and
-  the optimistic chain can never advance again. `C3` (new Critical, unfixed): the PolkaVM guest blob
+- `C4` (new Critical, since fixed the same day — see the entry above): a successful fraud proof leaves
+  `OptimisticChallenge`'s window key in place, so the corrected resubmit that `SubmitBatch` invites
+  faults at `"window already open"` and the optimistic chain can never advance again.
+  `C3` (new Critical, unfixed): the PolkaVM guest blob
   every RISC-V test executes predates three rounds of guest-side hardening, and no gate can tell.
 - New Highs `H14`–`H19` and a verification-integrity class `V1`–`V6` (CI's required SP1 check asserts
   the heavy lanes were skipped; the payout path's Merkle verifier is mocked in the test meant to catch

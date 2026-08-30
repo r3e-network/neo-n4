@@ -129,7 +129,8 @@ public class UT_SettlementManager_Vm
         Func<byte>? securityLevelProvider = null,
         Func<byte>? daModeProvider = null,
         Func<byte, bool>? daValidation = null,
-        Func<uint, UInt256>? genesisStateRootProvider = null)
+        Func<uint, UInt256>? genesisStateRootProvider = null,
+        Func<bool>? isActiveProvider = null)
     {
         engine.Fee = 100_000_000_000L;
         var owner = engine.Sender;
@@ -141,7 +142,8 @@ public class UT_SettlementManager_Vm
 
         engine.FromHash<NeoHubChainRegistry>(crHash, m =>
         {
-            m.Setup(c => c.IsActive(It.IsAny<BigInteger?>())).Returns(true);
+            m.Setup(c => c.IsActive(It.IsAny<BigInteger?>()))
+                .Returns(() => isActiveProvider?.Invoke() ?? true);
             m.Setup(c => c.GetSecurityLevel(It.IsAny<BigInteger?>()))
                 .Returns(() => (BigInteger)(securityLevelProvider?.Invoke() ?? securityLevel));
             m.Setup(c => c.GetDAMode(It.IsAny<BigInteger?>()))
@@ -604,6 +606,51 @@ public class UT_SettlementManager_Vm
         Assert.AreEqual(new UInt256(R(0x06)), sm.GetL2ToL1MessageRoot(ChainId, 1));
         Assert.AreEqual(new UInt256(R(0x07)), sm.GetL2ToL2MessageRoot(ChainId, 1));
         Assert.AreEqual(new UInt256(R(0x03)), sm.GetFinalizedTxRoot(ChainId, 1));
+    }
+
+    [TestMethod]
+    public void FinalizeBatch_RejectsPausedChain()
+    {
+        var engine = new TestEngine(true);
+        var active = true;
+        var sm = Deploy(engine, isActiveProvider: () => active);
+        var (c1, l1, blk) = BuildCommitment(batch: 1, preState: GenesisState, postState: R(0xA1), withdrawalRoot: R(0x51));
+        sm.SubmitBatch(c1, l1, blk);
+        var rootBefore = sm.GetCanonicalStateRoot(ChainId);
+
+        // ChainRegistry.PauseChain flips exactly this byte, so a paused chain must stop here too:
+        // FinalizeBatch is the only writer of canonicalRoot/latestFinalized, and SharedBridge
+        // payouts commit to that root.
+        active = false;
+        var ex = Assert.ThrowsExactly<TestException>(() => sm.FinalizeBatch(ChainId, 1),
+            "H16: a paused chain must not keep advancing the canonical root");
+        StringAssert.Contains(ex.Message, "chain inactive");
+        Assert.AreEqual((BigInteger)1, sm.GetBatchStatus(ChainId, 1), "rejected batch must stay Pending(1)");
+        Assert.AreEqual(rootBefore, sm.GetCanonicalStateRoot(ChainId), "rejected finalize must not move the root");
+
+        active = true;
+        sm.FinalizeBatch(ChainId, 1);
+        Assert.AreEqual((BigInteger)3, sm.GetBatchStatus(ChainId, 1), "resuming must let the same batch finalize");
+    }
+
+    [TestMethod]
+    public void RevertBatch_StillWorksOnPausedChain()
+    {
+        var engine = new TestEngine(true);
+        var active = true;
+        var sm = Deploy(engine, isActiveProvider: () => active);
+        var (c1, l1, blk) = BuildCommitment(batch: 1, preState: GenesisState, postState: R(0xA1), withdrawalRoot: R(0x51));
+        sm.SubmitBatch(c1, l1, blk);
+        sm.FinalizeBatch(ChainId, 1);
+
+        // The asymmetry is the point: pausing halts progress, never recovery. A reverted head has
+        // to rewind even while paused, or the one incident-response action that undoes a wrong root
+        // becomes impossible at exactly the moment it is needed.
+        active = false;
+        sm.RevertBatch(ChainId, 1);
+        Assert.AreEqual((BigInteger)4, sm.GetBatchStatus(ChainId, 1), "batch 1 must be Reverted(4)");
+        Assert.AreEqual((BigInteger)0, sm.GetLatestFinalizedBatch(ChainId), "latestFinalized must rewind");
+        Assert.AreEqual(GenesisStateRoot, sm.GetCanonicalStateRoot(ChainId), "canonical root must rewind to genesis");
     }
 
     [TestMethod]

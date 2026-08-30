@@ -257,6 +257,35 @@ commit to. An operator who pauses a chain during an incident gets a UI state, no
 assert `isActive` in `FinalizeBatch` (and `RevertBatch` stays callable while paused, or recovery is
 impossible), and add the VM test that pauses then attempts both.
 
+**Status — fixed on this branch, and re-tiered to [E1].** `FinalizeBatch` now asserts the same byte
+`SubmitBatch` does (`SettlementManagerContract.cs:509-510`), reusing the `chainRegistry` handle the
+function already loads for its security-level revalidation, so the pause costs one read-only
+cross-contract call and adds no storage slot. `isActive` therefore occurs **twice** in the file as of
+this change; the "exactly once" reading above stands as the audit-time state. `RevertBatch:551`
+deliberately keeps no guard, which is the asymmetry the fix had to preserve — a paused chain must
+still be revertible, or the one action that undoes a wrong root becomes impossible exactly when it is
+needed.
+
+The blast radius turned out to be smaller than the finding assumed, and that is worth recording
+because it bounds the risk of the change. `finalizeBatch` has exactly one caller in-repo,
+`OptimisticChallenge.FinalizeIfPastWindow:791`, and that caller deletes `deadlineKey` and
+`SequencerKey` *before* the external call — so a fault rolls the deletion back atomically and the
+finalization is simply retryable once `ResumeChain` runs. This is not a second `C4`: pausing cannot
+strand a batch. `finalizeIfPastWindow` itself has no off-chain driver at all (zero hits under `src/`
+and `tools/`), so the guard changes only the path the VM tests execute.
+
+Two tests land with it: `FinalizeBatch_RejectsPausedChain` asserts the fault message rather than just
+the exception type, then resumes and finalizes the same batch so the pause cannot be terminal; and
+`RevertBatch_StillWorksOnPausedChain` pins the unguarded recovery path. The negative control
+distinguishes them, and it is the reason the second test is worth having: with the contract source
+reverted and its NEF re-emitted by the pinned `nccs` 3.9.1, `FinalizeBatch_RejectsPausedChain` fails
+with `Expected exception of exact type TestException but no exception was thrown` — the paused chain
+finalizing, executed rather than read — while the revert test passes on both builds, which is what a
+guard-absence test must do. The regenerated artifact moved its NEF bytes and method offsets and left
+the 103-entry ABI name set intact. `tests/NeoHub.Contracts.VmTests` is 573/573 with 0 skipped, and the
+full solution is 2,895 tests, 0 failed, 5 skipped — §5 V4's 2,893 plus these two, with the skip count
+unchanged, which is the arithmetic that confirms nothing else moved.
+
 ### H17 — The documented Gateway global-root path faults on every deployment the deployer produces [E1]
 
 `MessageRouter.PublishGlobalRoot` refuses a *first* publication unless global-root governance is
@@ -667,7 +696,7 @@ finding — a completeness check keyed on a registry cannot detect a caller that
 | `H1` plugin exceptions stop the node | **Open**, upgraded to [E1] | `L2BatchPlugin.cs:479 throw;`, `Plugin.cs:74` default, zero `ExceptionPolicy` overrides in `src/` |
 | `H6` decorative off-chain binary pin | **Open**, now [E1] with a derived-digest test and no negative test (§5 V3) | `UT_Sp1StatefulBatchExecutor.cs:318` |
 | `H12` governance locks on trust roots | **Fixed** for the three roots this branch covered; the pattern is still incomplete elsewhere (§7.1) | `ChainRegistryContract.cs:158-168,172-181,389` |
-| `H13` kill-switch covers 1 of 3 asset contracts | **Open**, plus the per-chain variant (§4 H16) | `SubmitBatch:330-331` vs `FinalizeBatch:479-533` |
+| `H13` kill-switch covers 1 of 3 asset contracts | **Open** for the global flag; its per-chain variant (§4 H16) is **Fixed** (this branch) | audit-time `SubmitBatch:330-331` vs `FinalizeBatch:479-533`; `FinalizeBatch` now asserts `isActive` at `:509-510` |
 | `H2` FI deadline < challenge window it pauses | **Re-confirmed** | `ForcedInclusionContract.cs:195` bounds `[60, 86400]` while `OptimisticChallengeContract.cs:246` allows `[60, 7*86400]` — a 7-day window with a 24 h deadline lets `ReportCensorship:503` pause a still-challengeable batch. §4 H19 is the mirror-image half: the *deploy-time* field skips the bound entirely |
 | `H3` escape hatch needs hand wiring | **Half-refuted** | `LiveDeployCommand.cs:801-802` now registers + read-back-verifies the pauser before `LockGovernance` (`:861-862`); only the `IsProductionReady()` assertion remains open (`ForcedInclusionContract.cs:254-266`) — see §6 |
 | `§3.1` Windows self-skips | **Fixed** (this branch) | repo-wide skipped 45 → 5 on the same 2,893 tests; `tests/Shared/RepoRoot.cs` replaces the 5-level walk at 33 sites in 10 files, and the six affected projects each report `Skipped: 0` (§5 V4) |
@@ -846,7 +875,8 @@ Split by whether it can land now.
    optimistic chain into a permanently stuck one.
 2. `V4` — **done on this branch**: the evidence-file walk is replaced by `tests/Shared/RepoRoot.cs` at
    all 33 sites (§5 V4). Un-hid 40 tests, not 27 — the 27 was one project's share.
-3. `H16` — assert `isActive` in `FinalizeBatch` + two VM tests.
+3. `H16` — **done on this branch**: `FinalizeBatch` asserts `isActive` at `SettlementManagerContract.cs:509-510`
+   while `RevertBatch` deliberately stays unguarded, and the two VM tests landed with it (§4 H16 status).
 4. `H17` — wire `LockGlobalRootGovernance` into `LiveDeployCommand` + CLI plan text + smoke step.
 5. `H19` — apply the `[60, 86400]` bound in `ForcedInclusion._deploy`, and add the VM test that pins
    the `uint` overflow direction.

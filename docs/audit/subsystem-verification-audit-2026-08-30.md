@@ -1119,13 +1119,13 @@ disagree, and only the alert state is legible to someone who has not read the no
 | `C2` `MerkleTree.Verify` not position-bound | **Open** — and the same shape is in both contract folds (§5 V5), unobservable because the payout test stubs the verifier | `SettlementManagerContract.cs:989-1012`, `:1115-1134` |
 | `H1` plugin exceptions stop the node | **Open**, upgraded to [E1] | `L2BatchPlugin.cs:479 throw;`, `Plugin.cs:74` default, zero `ExceptionPolicy` overrides in `src/` |
 | `H6` decorative off-chain binary pin | **Open**, now [E1] with a derived-digest test and no negative test (§5 V3) | `UT_Sp1StatefulBatchExecutor.cs:318` |
-| `H12` governance locks on trust roots | **Fixed** for the three roots this branch covered; the pattern is still incomplete elsewhere (§7.1) | `ChainRegistryContract.cs:158-168,172-181,389` |
+| `H12` governance locks on trust roots | **Fixed** for the three roots this branch covered; §7.1's two `contracts/` residuals were closed on the follow-up branch, leaving only the native-contract surface | `ChainRegistryContract.cs:158-168,172-181,389` |
 | `H13` kill-switch covers 1 of 3 asset contracts | **Open** for the global flag; its per-chain variant (§4 H16) is **Fixed** (this branch) | audit-time `SubmitBatch:330-331` vs `FinalizeBatch:479-533`; `FinalizeBatch` now asserts `isActive` at `:509-510` |
 | `H2` FI deadline < challenge window it pauses | **Re-confirmed** | `ForcedInclusionContract.cs:209` bounds `[60, 86400]` while `OptimisticChallengeContract.cs:246` allows `[60, 7*86400]` — a 7-day window with a 24 h deadline lets `ReportCensorship:518` pause a still-challengeable batch. §4 H19 is the mirror-image half: the *deploy-time* field skips the bound entirely |
 | `H3` escape hatch needs hand wiring | **Half-refuted** | `LiveDeployCommand.cs:801-802` now registers + read-back-verifies the pauser before `LockGovernance` (`:861-862`); only the `IsProductionReady()` assertion remains open (`ForcedInclusionContract.cs:254-266`) — see §6 |
 | `§3.1` Windows self-skips | **Fixed** (this branch) | repo-wide skipped 45 → 5 on the same 2,893 tests; `tests/Shared/RepoRoot.cs` replaces the 5-level walk at 33 sites in 10 files, and the six affected projects each report `Skipped: 0` (§5 V4) |
 | `A4` non-reproducible VM artifacts | **Open** | unchanged; the artifact set still has two compiler stamps |
-| Governance completeness | **Partially open** | see §7.1 |
+| Governance completeness | **Closed for `contracts/`**; open for the ten native L2 contracts | see §7.1 — every owner-rewritable post-launch surface in the deployable suite is now either lock-guarded with a payload-bound twin, or carries a recorded reason for not being (`SetOwner`, `PauseChain`/`ResumeChain`, `RegisterChain`'s new-chainId asymmetry) |
 
 ### 7.1 Lock pattern: correct where implemented, still absent on four surfaces
 
@@ -1141,6 +1141,98 @@ rewrite an *existing* chain while still admitting new chainIds, which is the rig
 - `L2NativeContracts.cs` — zero occurrences of `LockGovernance` / `IsGovernanceLocked`; the ten
   native L2 contracts have no lock concept at all, which is a core-fork decision (`r3e/neo-n4-core`)
   rather than a `contracts/` one.
+
+**Status — the two `contracts/` bullets are fixed on this branch, `SetOwner` is refuted, and the
+native-contract bullet stays open.** The first three bullets are listed as line numbers as of the
+audit pass; the fixes are at `ChainRegistryContract.cs` `RegisterPauser:207` /
+`RegisterPauserViaProposal:221` / `RevokePauser:231` / `RevokePauserViaProposal:244` /
+`RequireApprovedProposal:489`, and at `OptimisticChallengeContract.cs` `SetWindowSeconds:253` /
+`SetWindowSecondsViaProposal:266` / `SetChallengerRewardBps:289` /
+`SetChallengerRewardBpsViaProposal:301` / `RequireApprovedProposal:509`.
+
+The shape is the one `H12` established and `ExternalBridgeRegistry` already used: the instant path
+keeps its witness check and adds `Assert(!IsGovernanceLocked(), "… use XViaProposal")`, and every
+guard gets a twin rather than a freeze. A freeze was the smaller diff and is the wrong one — the
+capabilities at stake are exactly the ones an operator needs *after* launch (retiring a compromised
+pauser, raising a window stuck at its 60-second floor, cutting a bounty that is being farmed),
+and a lock that strands them converts a governance hole into an availability incident.
+
+Two consequences of that shape are load-bearing and both are now tested rather than asserted in
+prose.
+
+Bounds live in the apply step (`WriteWindowSeconds:272`, `WriteChallengerRewardBps:307`,
+`WritePauser:250`), *after* the gate has written its consumption marker. NeoVM journals storage per
+transaction, so a fault discards the marker with everything else and a mis-valued vote is not
+destroyed: `SetChallengerRewardBpsViaProposal_KeepsBounds_AndDoesNotBurnAFaultedProposal` shows bps
+`0` and `10001` faulting and then bps `500` applying under the *same* proposal id `51`. The reverse
+order would have made every rejected application a council re-vote.
+
+`ChainRegistry` consumes proposal ids from one namespace (`PrefixConsumedProposal = 0x06`), shared by
+the config path and both pauser paths. That is deliberately stricter than one namespace per surface:
+an id the council spent on a chain config can never be re-spent on a pauser, so "one proposal, one
+application" holds contract-wide instead of per-method.
+`UpdateChainViaProposal_StillApplies_AndSharesTheConsumedNamespace` pins both halves — a
+`RegisterPauserViaProposal` under the id that just applied a config must fault.
+
+`SetOwner:150-157` stays witness-only, and the finding's ask to guard it is **refuted**, not
+deferred. `UT_ContractManifestInvariants.cs:81` (`OwnerManagedContracts_ExposeOwnershipTransfer`)
+requires every owner-managed contract — `NeoHub.ChainRegistry` is in that set at `:85` — to expose
+`setOwner`, and names the reason at `:116`: "so governance can rotate compromised or deprecated owner
+keys". Guarding it post-lock denies an attacker nothing the compromise did not already grant, since
+the only party who can call it is the party holding the owner witness, while removing the one
+documented recovery path out of that state. The escalation surfaces were the parameters a locked
+owner could rewrite silently — verifier route, window, bounty, pauser set, chain config — and those
+are all closed now.
+
+Also unchanged by decision: `PauseChain` / `ResumeChain` stay independent of the lock. They are the
+mitigation `H16` protects, not a capability the lock should freeze; `RegisterChain` keeps its
+new-chainId asymmetry for the same reason. The fourth bullet is unaffected by this branch — re-checked
+this pass, `L2NativeContracts.cs` still has zero occurrences of either symbol, and that stays a
+`r3e/neo-n4-core` decision.
+
+The deployer is provably not stranded: `RegisterPauser(forcedInclusion)` is plan step
+`ScaffoldPlan.cs:380`, before the lock at `:523`, and `LiveDeployCommand` already registers and
+read-back-verifies the pauser before `LockGovernance` (§7's `H3` row). `SetWindowSeconds` and
+`SetChallengerRewardBps` are called nowhere after a lock in-tree, so no path this branch guards is a
+path the operator still needs to run instantly. Both plan descriptions were stale after the change
+and now name the surfaces they freeze (`ScaffoldPlan.cs:430` for the window/bounty, `:523` for the
+pauser set).
+
+`doc.md` is deliberately untouched. Its `ChainRegistry` core-method list (`:185-192`) never
+enumerated the pauser surface or the lock at all, and no occurrence of the window or bounty setters
+exists anywhere in the spec — so nothing here contradicts it. What the spec *does* prescribe for
+post-lock governance (`:1133-1138`, for escrow) is exactly the pattern reused: approved + timelocked,
+action bytes bound to every argument, proposal id consumable once. This is a hardening that follows
+the spec, not a spec change.
+
+Evidence: `NeoHub.Contracts.VmTests` **584/584** (was 575 — nine new tests: seven in
+`UT_ChainRegistry_Vm`, two in `UT_OptimisticChallenge_Vm`). Negative control executed with three
+reverts applied at once — the two `ChainRegistry` pauser guards, the two `OptimisticChallenge`
+window/bounty guards, and `ChainRegistry`'s payload-binding assert — after re-emitting both NEFs:
+**6 failures, 578 passed, 0 skipped**, and each failure is attributable to exactly one reverted group
+(`PauserSurface_RevertsOnceGovernanceLocked` to the pauser guards;
+`LockGovernance_…_FreezeTheRest` and `SetWindowSecondsViaProposal_…_AndSurvivesLock` to the
+window guard; `RegisterPauserViaProposal_PayloadMismatch_Faults`,
+`PauserViaProposal_BindsVotedPauser_Replays_AndSurvivesLock` and
+`UpdateChainViaProposal_StillApplies_AndSharesTheConsumedNamespace` to the binding). Nothing outside
+the new tests failed, which is the point: no prior test was pinning this behaviour, because none of
+these paths could previously fault. Sources restored, artifacts re-emitted, and the tracked files
+proved byte-identical to a fresh `nccs` compilation of the restored sources. Full solution on this
+branch: **38 assemblies / 2,910 tests / 0 failed / 5 skipped** — item 6's 2,901 plus these nine, with
+the same five environment-gated skips (`Neo.L2.Sdk` 3, `Neo.Plugins.L2Metrics` 1,
+`Neo.L2.Executor` 1). `UT_ContractManifestInvariants` under `NEO_N4_REQUIRE_FRESH_MANIFESTS=1` is
+14/14 — after this gate correctly refused three contracts whose `bin/sc/*.manifest.json` predated the
+source that this branch (and `H19` before it) had edited. Recompiling them is a local-only act, `bin/`
+is gitignored, and the refreshed ChainRegistry manifest grew 4,773 → 5,391 bytes by acquiring
+`registerPauserViaProposal`, `revokePauserViaProposal` and `buildRegisterPauserAction` — an
+independent cross-check that the tracked artifact's new ABI matches a real compilation rather than a
+hand-edged file.
+
+One finding surfaced by the work rather than by the audit pass: `UpdateChainViaProposal` and
+`BuildUpdateChainAction` reached this branch with **no VM tests and no off-chain driver**. The
+contract had a payload-bound council path that nothing had ever executed — its binding, its bounds
+and its consumption were all unverified until `UpdateChainViaProposal_StillApplies_AndSharesTheConsumedNamespace`
+ran it. That is the `V`-class gap in this report's own terms, in a file the report had already read.
 
 ## 8. Corrections
 
@@ -1321,8 +1413,17 @@ Split by whether it can land now.
    that would have caught the bypass, negative-controlled by reverting `L2BatchPlugin.cs:477` alone.
    `Neo.L2.Telemetry.UnitTests` 117/117, full solution 38 assemblies / 2,901 tests / 0 failed /
    5 skipped (item 5's 2,899 plus these two). See §5 V6's status block.
-7. §7.1 — add lock guards to `SetOwner`, `RegisterPauser`/`RevokePauser`, `SetWindowSeconds`,
-   `SetChallengerRewardBps` (mechanical; mirrors `RegisterChain`).
+7. §7.1 — **done for the `contracts/` half, with one ask refuted**: `RegisterPauser`,
+   `RevokePauser`, `SetWindowSeconds` and `SetChallengerRewardBps` are lock-guarded and each got a
+   payload-bound `*ViaProposal` twin sharing its contract's existing gate and single consumed-proposal
+   namespace. `SetOwner` is **refuted**: `UT_ContractManifestInvariants.cs:81,85,116` requires it
+   precisely so a compromised owner key can be rotated, and a post-lock guard denies an attacker
+   nothing the witness they already hold does not give them — the reason is recorded rather than
+   dropped. The `L2NativeContracts` bullet stays open as a `r3e/neo-n4-core` decision.
+   `NeoHub.Contracts.VmTests` 575 → **584/584**, full solution 38 assemblies / **2,910 tests** / 0
+   failed / 5 skipped, `UT_ContractManifestInvariants` 14/14 under the freshness gate. Negative
+   control: three reverts with the NEFs re-emitted produce 6 failures / 578 passed / 0 skipped, each
+   attributable to one reverted group. See §7.1's status block.
 8. `H18` — reconcile `TemplateCatalog.cs:32` with the verifier the deployer registers. Last, after
    `C4`.
 9. `V2` (partial) — correct `BatchSerializer.cs:12-14` and `AGENTS.md`'s `ChainMode.L2RiscV` claim, or

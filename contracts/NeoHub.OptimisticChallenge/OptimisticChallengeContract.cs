@@ -239,20 +239,73 @@ public class OptimisticChallengeContract : SmartContract
         return raw == null ? DefaultChallengerRewardBps : (ushort)(uint)(BigInteger)raw;
     }
 
-    /// <summary>Update challenge window. Owner only.</summary>
+    /// <summary>
+    /// Update challenge window. Owner only — the instant path exists for bring-up: once
+    /// <see cref="LockGovernance"/> has run the only way to change the window is
+    /// <see cref="SetWindowSecondsViaProposal"/>.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §16, §17. The window is the time an attacker needs to be caught, so an
+    /// owner-only setter that survives launch makes the lock cosmetic: shrinking it to the 60 s
+    /// floor finalizes batches before any honest challenger can notice and react, which is the
+    /// same outcome as removing the challenge contract entirely.
+    /// </remarks>
     public static void SetWindowSeconds(uint seconds)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use SetWindowSecondsViaProposal");
+        WriteWindowSeconds(seconds);
+    }
+
+    /// <summary>
+    /// §16 council-veto path for <see cref="SetWindowSeconds"/>, bound to the exact value via
+    /// <see cref="BuildSetWindowSecondsAction"/> so the council votes on the number that gets
+    /// written. Anyone may submit; authority is the proposal's approval state.
+    /// </summary>
+    public static void SetWindowSecondsViaProposal(uint seconds, ulong proposalId)
+    {
+        RequireApprovedProposal(proposalId, BuildSetWindowSecondsAction(seconds));
+        WriteWindowSeconds(seconds);
+    }
+
+    private static void WriteWindowSeconds(uint seconds)
+    {
         ExecutionEngine.Assert(seconds >= 60 && seconds <= 7 * 86400, "window out of bounds [60s, 7d]");
         var old = GetWindowSeconds();
         Storage.Put(new byte[] { KeyChallengeWindowSeconds }, (BigInteger)seconds);
         OnWindowSecondsChanged(old, seconds);
     }
 
-    /// <summary>Update challenger reward. Owner only.</summary>
+    /// <summary>
+    /// Update challenger reward. Owner only — the instant path exists for bring-up; after
+    /// <see cref="LockGovernance"/> use <see cref="SetChallengerRewardBpsViaProposal"/>.
+    /// </summary>
+    /// <remarks>
+    /// Cutting the bounty to a nominal value is the quieter half of the window-shrink attack
+    /// above: the challenge still exists, but challengers stop paying for it. The same bounds
+    /// apply on both paths, so the council route cannot widen them either.
+    /// </remarks>
     public static void SetChallengerRewardBps(ushort bps)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use SetChallengerRewardBpsViaProposal");
+        WriteChallengerRewardBps(bps);
+    }
+
+    /// <summary>
+    /// §16 council-veto path for <see cref="SetChallengerRewardBps"/>, bound to the exact value
+    /// via <see cref="BuildChallengerRewardBpsAction"/>.
+    /// </summary>
+    public static void SetChallengerRewardBpsViaProposal(ushort bps, ulong proposalId)
+    {
+        RequireApprovedProposal(proposalId, BuildChallengerRewardBpsAction(bps));
+        WriteChallengerRewardBps(bps);
+    }
+
+    private static void WriteChallengerRewardBps(ushort bps)
+    {
         ExecutionEngine.Assert(bps > 0 && bps <= BasisPointsTotal, "bps out of (0, 10000]");
         var old = GetChallengerRewardBps();
         Storage.Put(new byte[] { KeyChallengerRewardBps }, (BigInteger)bps);
@@ -536,6 +589,37 @@ public class OptimisticChallengeContract : SmartContract
         return BuildAction(ActionTagRegisterPermissionlessFraudProfile, body);
     }
 
+    /// <summary>
+    /// Canonical encoding for a "set challenge window" action — what the council votes on for
+    /// <see cref="SetWindowSecondsViaProposal"/>. Layout:
+    /// <c>"neo4-gov:setWindowSeconds" || seconds(4B LE)</c> = 29 bytes. The value is bound so an
+    /// approved "raise the window" proposal cannot be applied as a shrink.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildSetWindowSecondsAction(uint seconds)
+    {
+        var body = new byte[4];
+        body[0] = (byte)seconds;
+        body[1] = (byte)(seconds >> 8);
+        body[2] = (byte)(seconds >> 16);
+        body[3] = (byte)(seconds >> 24);
+        return BuildAction(ActionTagSetWindowSeconds, body);
+    }
+
+    /// <summary>
+    /// Canonical encoding for a "set challenger reward" action — what the council votes on for
+    /// <see cref="SetChallengerRewardBpsViaProposal"/>. Layout:
+    /// <c>"neo4-gov:setChallengerRewardBps" || bps(2B LE)</c> = 33 bytes.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildChallengerRewardBpsAction(ushort bps)
+    {
+        var body = new byte[2];
+        body[0] = (byte)bps;
+        body[1] = (byte)(bps >> 8);
+        return BuildAction(ActionTagSetChallengerRewardBps, body);
+    }
+
     private static readonly byte[] ActionTagRegisterFraudVerifier = new byte[]
     {
         (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
@@ -563,6 +647,24 @@ public class OptimisticChallengeContract : SmartContract
         (byte)'o', (byte)'n', (byte)'l', (byte)'e', (byte)'s', (byte)'s',
         (byte)'F', (byte)'r', (byte)'a', (byte)'u', (byte)'d',
         (byte)'P', (byte)'r', (byte)'o', (byte)'f', (byte)'i', (byte)'l', (byte)'e'
+    };
+
+    private static readonly byte[] ActionTagSetWindowSeconds = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'s', (byte)'e', (byte)'t', (byte)'W', (byte)'i', (byte)'n', (byte)'d', (byte)'o',
+        (byte)'w', (byte)'S', (byte)'e', (byte)'c', (byte)'o', (byte)'n', (byte)'d', (byte)'s'
+    };
+
+    private static readonly byte[] ActionTagSetChallengerRewardBps = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'s', (byte)'e', (byte)'t', (byte)'C', (byte)'h', (byte)'a', (byte)'l', (byte)'l',
+        (byte)'e', (byte)'n', (byte)'g', (byte)'e', (byte)'r',
+        (byte)'R', (byte)'e', (byte)'w', (byte)'a', (byte)'r', (byte)'d',
+        (byte)'B', (byte)'p', (byte)'s'
     };
 
     private static byte[] ConsumedProposalKey(ulong proposalId)

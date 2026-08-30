@@ -216,4 +216,217 @@ public class UT_ChainRegistry_Vm
         Assert.IsTrue(reg.IsGovernanceLocked);
         Assert.AreEqual(original, reg.GovernanceController);
     }
+
+    // ── §7.1 pauser surface: instant paths close at the lock, council paths stay open ──────────
+
+    private static readonly UInt160 PauserA = UInt160.Parse("0x" + new string('a', 40));
+    private static readonly UInt160 PauserB = UInt160.Parse("0x" + new string('b', 40));
+    private static readonly UInt160 GovHash = UInt160.Parse("0x" + new string('7', 40));
+
+    /// <summary>Wire a GovernanceController mock whose two read-only proposal checks answer
+    /// <paramref name="approved"/> and <paramref name="payloadMatches"/> independently, so a test can
+    /// pin the council-approval gate and the payload-binding gate separately.</summary>
+    private static void WireGc(TestEngine engine, bool approved = true, bool payloadMatches = true) =>
+        engine.FromHash<NeoHubGovernanceController>(GovHash, m =>
+        {
+            m.Setup(g => g.IsApprovedAndTimelocked(It.IsAny<BigInteger?>())).Returns(approved);
+            m.Setup(g => g.MatchesProposalPayload(It.IsAny<BigInteger?>(), It.IsAny<byte[]?>()))
+                .Returns(payloadMatches);
+        }, checkExistence: false);
+
+    /// <summary>Wire a GovernanceController mock that approves only the listed action bytes. This is
+    /// what makes a payload-binding test mean something: any other action faults the gate.</summary>
+    private static void WireGcBound(TestEngine engine, params byte[][] votedActions) =>
+        engine.FromHash<NeoHubGovernanceController>(GovHash, m =>
+        {
+            m.Setup(g => g.IsApprovedAndTimelocked(It.IsAny<BigInteger?>())).Returns(true);
+            m.Setup(g => g.MatchesProposalPayload(It.IsAny<BigInteger?>(),
+                    It.Is<byte[]?>(a => MatchesAny(a, votedActions))))
+                .Returns(true);
+        }, checkExistence: false);
+
+    // Outside the Moq predicate, which is compiled as an expression tree and cannot carry a loop.
+    private static bool MatchesAny(byte[]? actual, byte[][] votedActions)
+    {
+        if (actual is null) return false;
+        foreach (var voted in votedActions)
+            if (actual.SequenceEqual(voted)) return true;
+        return false;
+    }
+
+    private static void LockWithGovernance(NeoHubChainRegistry reg)
+    {
+        reg.GovernanceController = GovHash;
+        reg.LockGovernance();
+    }
+
+    [TestMethod]
+    public void PauserSurface_RevertsOnceGovernanceLocked()
+    {
+        var engine = new TestEngine(true);
+        var reg = Deploy(engine); // owner == engine.Sender
+        reg.RegisterPauser(PauserA);
+        Assert.IsTrue(reg.IsPauser(PauserA)!.Value, "instant path is open before the lock");
+
+        LockWithGovernance(reg);
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterPauser(PauserB),
+            "a locked owner must not be able to add a chain pauser");
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RevokePauser(PauserA),
+            "a locked owner must not be able to revoke the honest pauser either");
+        Assert.IsFalse(reg.IsPauser(PauserB)!.Value, "rejected register must not touch the set");
+        Assert.IsTrue(reg.IsPauser(PauserA)!.Value, "rejected revoke must not touch the set");
+    }
+
+    [TestMethod]
+    public void RegisterPauserViaProposal_RequiresGcWired()
+    {
+        var engine = new TestEngine(true);
+        var reg = Deploy(engine); // GC not wired
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterPauserViaProposal(PauserA, 1),
+            "the council path needs a GovernanceController to consult");
+        Assert.IsFalse(reg.IsPauser(PauserA)!.Value);
+    }
+
+    [TestMethod]
+    public void RegisterPauserViaProposal_NotApproved_Faults()
+    {
+        var engine = new TestEngine(true);
+        WireGc(engine, approved: false, payloadMatches: true);
+        var reg = Deploy(engine);
+        reg.GovernanceController = GovHash;
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterPauserViaProposal(PauserA, 1),
+            "an un-approved / un-timelocked proposal must not authorize a pauser");
+        Assert.IsFalse(reg.IsPauser(PauserA)!.Value, "rejected proposal must not set state");
+    }
+
+    [TestMethod]
+    public void RegisterPauserViaProposal_PayloadMismatch_Faults()
+    {
+        // Approved + timelocked, but the council voted on different bytes: the blank-check defense.
+        var engine = new TestEngine(true);
+        WireGc(engine, approved: true, payloadMatches: false);
+        var reg = Deploy(engine);
+        reg.GovernanceController = GovHash;
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterPauserViaProposal(PauserA, 1),
+            "a proposal whose payload does not match the action args must be rejected");
+        Assert.IsFalse(reg.IsPauser(PauserA)!.Value);
+    }
+
+    [TestMethod]
+    public void PauserViaProposal_BindsVotedPauser_Replays_AndSurvivesLock()
+    {
+        var engine = new TestEngine(true);
+        var reg = Deploy(engine);
+        WireGcBound(engine,
+            reg.BuildRegisterPauserAction(PauserA)!,
+            reg.BuildRevokePauserAction(PauserA)!,
+            reg.BuildRegisterPauserAction(PauserB)!);
+        reg.GovernanceController = GovHash;
+
+        // A vote bound to PauserA cannot admit PauserC, and a fresh id grants nothing by itself.
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterPauserViaProposal(UInt160.Parse("0x" + new string('c', 40)), 10),
+            "an id the council never spent on this pauser is not authority");
+
+        reg.RegisterPauserViaProposal(PauserA, 11);
+        Assert.IsTrue(reg.IsPauser(PauserA)!.Value,
+            "an approved + bound proposal must authorize the pauser");
+
+        // One proposal, one application — and the consumed namespace is shared across the pauser
+        // actions, so a spent register vote cannot be re-spent as a revoke. Both calls below present
+        // payloads the council did approve, so only consumption can fault them.
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterPauserViaProposal(PauserA, 11), "a consumed proposal cannot be replayed");
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RevokePauserViaProposal(PauserA, 11),
+            "a consumed proposal cannot be re-spent on a different action");
+
+        // The lock closes the instant paths but must not strand incident response: retiring a
+        // compromised pauser is exactly what the council path is for.
+        LockWithGovernance(reg);
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RevokePauser(PauserA), "instant revoke stays closed after locking");
+        reg.RevokePauserViaProposal(PauserA, 12);
+        Assert.IsFalse(reg.IsPauser(PauserA)!.Value,
+            "the council must be able to retire a pauser once governance is locked");
+        reg.RegisterPauserViaProposal(PauserB, 13);
+        Assert.IsTrue(reg.IsPauser(PauserB)!.Value,
+            "the council must be able to admit a replacement pauser once governance is locked");
+    }
+
+    [TestMethod]
+    public void UpdateChainViaProposal_StillApplies_AndSharesTheConsumedNamespace()
+    {
+        var engine = new TestEngine(true);
+        var reg = Deploy(engine);
+        var original = BuildConfig(1001, daMode: 0);
+        var updated = BuildConfig(1001, daMode: 1);
+        reg.RegisterChain(1001, original, GenesisStateRoot);
+        WireGcBound(engine, reg.BuildUpdateChainAction(1001, updated)!);
+        reg.GovernanceController = GovHash;
+
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.UpdateChainViaProposal(1001, original, 20),
+            "the refactor must not have loosened payload binding");
+        CollectionAssert.AreEqual(original, reg.GetChainConfig(1001));
+
+        reg.UpdateChainViaProposal(1001, updated, 21);
+        CollectionAssert.AreEqual(updated, reg.GetChainConfig(1001),
+            "an approved + bound config proposal must apply");
+
+        // 21 was spent by the config path. The shared consumed namespace is what stops that same
+        // council vote from also authorizing an unrelated pauser admission.
+        Assert.ThrowsExactly<Neo.SmartContract.Testing.Exceptions.TestException>(
+            () => reg.RegisterPauserViaProposal(PauserA, 21),
+            "one proposal id must be spendable exactly once across every *ViaProposal path");
+        Assert.IsFalse(reg.IsPauser(PauserA)!.Value);
+    }
+
+    [TestMethod]
+    public void BuildPauserActions_UseCanonicalTagEncoding()
+    {
+        var reg = Deploy();
+        var pauserBytes = PauserA.GetSpan().ToArray();
+
+        // The tags are hand-built byte arrays on-chain, so the only thing that catches a mistyped
+        // spelling is comparing them against the off-chain ASCII the council actually signs.
+        CollectionAssert.AreEqual(Concat(
+            System.Text.Encoding.ASCII.GetBytes("neo4-gov:registerPauser"), pauserBytes),
+            reg.BuildRegisterPauserAction(PauserA)!,
+            "registerPauser action must be tag||pauser (43B)");
+        CollectionAssert.AreEqual(Concat(
+            System.Text.Encoding.ASCII.GetBytes("neo4-gov:revokePauser"), pauserBytes),
+            reg.BuildRevokePauserAction(PauserA)!,
+            "revokePauser action must be tag||pauser (41B)");
+
+        Assert.IsFalse(reg.BuildRegisterPauserAction(PauserA)!.AsSpan()
+                .SequenceEqual(reg.BuildRevokePauserAction(PauserA)!),
+            "a vote to add must never be executable as a vote to remove");
+        Assert.IsFalse(reg.BuildRegisterPauserAction(PauserA)!.AsSpan()
+                .SequenceEqual(reg.BuildRegisterPauserAction(PauserB)!),
+            "the voted pauser must participate in the binding");
+    }
+
+    private static byte[] Concat(params byte[][] parts)
+    {
+        var total = 0;
+        foreach (var part in parts) total += part.Length;
+        var buf = new byte[total];
+        var pos = 0;
+        foreach (var part in parts)
+        {
+            Array.Copy(part, 0, buf, pos, part.Length);
+            pos += part.Length;
+        }
+        return buf;
+    }
 }

@@ -5,6 +5,55 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — §7.1: the production lock now covers the pauser set and the fraud-proof economics — 2026-08-31
+
+- `LockGovernance()` froze less than its own description claimed. After the irreversible lock, an
+  owner key could still `RegisterPauser` / `RevokePauser` on `ChainRegistry` — rewriting the set of
+  contracts able to pause a chain, which is precisely the mechanism `H16` protects — and could still
+  `SetWindowSeconds` / `SetChallengerRewardBps` on `OptimisticChallenge`, i.e. shorten the time an
+  attacker needs to be caught and cut the reward for catching them. Audit §7.1 listed four such
+  surfaces; these two are now closed.
+- Each instant path keeps its witness check and gains `Assert(!IsGovernanceLocked(), …)` plus a
+  payload-bound council twin that reuses the contract's existing `RequireApprovedProposal` gate:
+  `RegisterPauserViaProposal` / `RevokePauserViaProposal` (`ChainRegistryContract.cs:221`, `:244`) and
+  `SetWindowSecondsViaProposal` / `SetChallengerRewardBpsViaProposal`
+  (`OptimisticChallengeContract.cs:266`, `:301`), with `buildRegisterPauserAction`,
+  `buildRevokePauserAction`, `buildSetWindowSecondsAction` and `buildChallengerRewardBpsAction`
+  published so a proposer can commit the exact bytes the council must sign. A freeze was the smaller
+  diff and the wrong one: retiring a compromised pauser, raising a window pinned at its 60-second
+  floor and cutting a farmed bounty are the actions launch day *after* the lock exists.
+- Two properties of the shape are now tests rather than arguments. Bounds live in the apply step
+  behind the gate's consumption marker, so a fault discards the marker with the rest of the
+  transaction's journal and a mis-valued vote is not destroyed — bps `0` and `10001` fault, then `500`
+  applies under the same proposal id `51`. And `ChainRegistry` consumes ids from one shared namespace
+  (`PrefixConsumedProposal = 0x06`), so an id the council spent on a chain config can never be re-spent
+  on a pauser — contract-wide single-use instead of per-method.
+- **Operator-visible change:** on a deployment that has already run `LockGovernance()`, those four
+  instant setters now fault. The council paths above are the replacement, and the deploy sequence is
+  unaffected (`RegisterPauser(forcedInclusion)` is plan step `ScaffoldPlan.cs:380`, before the lock at
+  `:523`, and `SetWindowSeconds` / `SetChallengerRewardBps` are called nowhere post-lock in-tree). One
+  further behavior change came from factoring the writes: `RevokePauser` now shares the instant path's
+  `IsValid && !IsZero` check, so revoking a zero or invalid hash faults instead of deleting nothing and
+  emitting the event anyway. `SetOwner` deliberately stays witness-only: the ask to guard it is refuted —
+  `UT_ContractManifestInvariants.cs:81,85,116` requires it exactly so a compromised owner key can be
+  rotated, and a post-lock guard denies an attacker nothing the witness they hold does not already
+  grant. `PauseChain` / `ResumeChain` stay lock-independent for the mirror-image reason: they are the
+  mitigation, not the capability.
+- Found while doing it: `UpdateChainViaProposal` and `BuildUpdateChainAction` had **no VM tests and no
+  off-chain driver** — a payload-bound council path whose binding, bounds and consumption nothing had
+  ever executed. It is now exercised, and `ScaffoldPlan.cs:430` / `:523` name the surfaces their locks
+  actually freeze.
+- Tests: `NeoHub.Contracts.VmTests` 575 → **584/584** (seven new in `UT_ChainRegistry_Vm`, two in
+  `UT_OptimisticChallenge_Vm`), full solution 38 assemblies / **2,910 tests** / 0 failed / 5 skipped,
+  and `UT_ContractManifestInvariants` 14/14 under `NEO_N4_REQUIRE_FRESH_MANIFESTS=1`. Negative control
+  with all three reverts applied and both NEFs re-emitted: **6 failures / 578 passed / 0 skipped**, each
+  attributable to exactly one reverted group, nothing collateral. Both tracked artifacts were then
+  proved byte-identical to a fresh `nccs` compilation of the restored sources.
+- Docs: audit §7.1 status block, the §7 `H12` and governance-completeness rows, and §10 item 7, with
+  `docs/zh/audit/subsystem-verification-audit-2026-08-30.md` mirrored to the same structure. `doc.md`
+  is unchanged on purpose: it never enumerated these setters, and the pattern applied is the one it
+  already prescribes for post-lock governance at `:1133-1138`.
+
 ### Fixed — V6: the one metric that skipped the registry was on the crash path — 2026-08-30
 
 - `L2BatchPlugin.cs:477` emitted `l2_batch_on_block_committed_error` as a raw string literal, so

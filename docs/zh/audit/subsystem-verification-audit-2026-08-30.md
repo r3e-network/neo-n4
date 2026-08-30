@@ -146,6 +146,27 @@ accepted-fraud 标记才是那份持久记录，仅凭它就足以让 `FinalizeI
 optimistic verifier 修好了 `H18` —— 也就是 §10 所推荐的那个修复 —— 它就会在 CLI 称之为
 "the safe default" 的那个模板上变成活的。先修 `C4`，再修 `H18`，并把重新提交的那道测试与两者一起落地。
 
+**状态 —— 已在本分支修复，并重新定级为 [E1]。** `Challenge` 现在会在写入 accepted-fraud 标记的
+同一个状态变更块里删掉 `deadlineKey` 与 `SequencerKey`（`OptimisticChallengeContract.cs:744-745`），
+位置在外部 `revertBatch` 调用之前。三道 VM 测试覆盖了这次改动、以及它绝不能削弱的两道闸：
+`Challenge_AcceptedProof_ConsumesWindow_SoResubmitCanReArm`、
+`Challenge_AcceptedProof_ReArmedWindow_StillRejectsSecondChallenge`（故意换一个不同的 `claimId`，
+好让做决定的那道闸是批级别的 `"already accepted"`，而不是更早的那道 claim 闸）、以及
+`Challenge_AcceptedProof_ReArmedWindow_StillCannotFinalize`（在全新的窗口背后，accepted 标记依然关着
+`FinalizeIfPastWindow`，这正是本修复与"让 `OpenWindow` 覆盖过期窗口"那个更弱方案的区分点）。
+
+挣到这一层级的是反向对照：把合约源码还原、并用钉住的 `nccs` 3.9.1 重新发射它的 NEF 之后，三道测试
+全部以 `ABORTMSG is executed. Reason: window already open` 失败。这就是把死锁在链上跑了出来，
+而不是从四个断言里推断出来，因此上文的 [E2] 标记作为审计当时的状态保留在此、并于此处作废。
+带上修复后，`tests/NeoHub.Contracts.VmTests` 是 571/571，fresh-manifest 门在
+`NEO_N4_REQUIRE_FRESH_MANIFESTS=1` 下 19/19 通过，整个解决方案 2,893 道测试 0 失败、45 跳过
+（27 个来自 `Neo.Plugins.L2Settlement`、9 个来自 `Neo.L2.IntegrationTests` 的 env 门、其余 9 个零散
+—— 即 §5 V4 与 §11 所记录的那些，本次修复没有新增任何一个）。
+
+仍然不存在的是"两份真合约"的测试：`UT_SettlementManager_Vm.cs:185` 把 `OptimisticChallenge` 接成了
+mock，所以 `SubmitBatch` 自己的那条重新提交分支，只是通过这些测试直接发起的 `OpenWindow` 调用被
+间接触及。该发现所点名的 `SubmitBatch:391-395` 那条跨合约接缝，因此仍停留在 [E2]。
+
 ## 4. High
 
 ### H14 — 两个 profile 中的 `panic = "abort"` 使每一处 FFI panic 边界都成为死代码 [E1]
@@ -699,7 +720,8 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
 
 **可以落在当前治理分支中的（小、局部、可测）：**
 
-1. `C4` —— 在一次挑战成功时清掉那两个窗口键，并把 提交 → 挑战 → 重新提交 的 VM 测试与它一起落地。
+1. `C4` —— **已在本分支完成**：一次挑战成功时那两个窗口键会被清掉，提交 → 挑战 → 重新提交 的 VM
+   测试也与它一起落地（见 §3 的 C4 状态段）。
    这是两份报告里最便宜的一个 Critical，而且它门控着下面的 `H18` 修复：不带着这一条就去修
    模板与部署器之间的不匹配，只会把一条坏掉的 optimistic 链变成一条永久卡死的链。
 2. `V4` —— 修复证据文件的路径向上回溯（一行；立刻让 27 个测试重新可见）。
@@ -743,6 +765,10 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
   那些环境变量门控未被满足，因此 live-L1 路径在此仍未被执行。
 - `C4` 没有 VM 复现：那个死锁是四个被我从头读到尾、横跨两份合约的断言，而
   提交 → 挑战 → 重新提交 这个序列从未被执行过。它正因如此被标为 [E2]。
+  **同日作废** —— 这个序列如今会在 `UT_OptimisticChallenge_Vm` 里真实运行，并且抽掉修复就会失败
+  （见 §3 的 C4 状态段）。仍然成立的那一半是：没有任何测试把 `SettlementManager` 与
+  `OptimisticChallenge` 作为两份真合约一起部署，所以 `SubmitBatch` 的那条重新提交分支依旧只是被读到，
+  而非被跑到。
 - `ForcedInclusionContract.cs:374` 处那个 `uint` 加法的 NCCS 编译语义 —— 回绕、饱和还是 FAULT ——
   未被确定，所以 `H19` 把两个分支都并列陈述、而不挑定其中之一。一道 VM 测试即可了结。
 - telemetry 与 RPC 表面是通过对源码和文档做计数 grep 验证的（§5 V6、§9），而不是通过从一台运行中的

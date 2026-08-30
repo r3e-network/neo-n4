@@ -157,6 +157,31 @@ higher-priority failure. The moment someone repairs `H18` by registering the opt
 the fix §10 recommends — this becomes live on the template the CLI calls "the safe default". Fix
 `C4` first, then `H18`, and land the resubmit test with both.
 
+**Status — fixed on this branch, and re-tiered to [E1].** `Challenge` now deletes `deadlineKey` and
+`SequencerKey` in the same state-transition block that writes the accepted-fraud marker
+(`OptimisticChallengeContract.cs:744-745`), before the external `revertBatch`. Three VM tests cover
+the change and the two rails it must not weaken:
+`Challenge_AcceptedProof_ConsumesWindow_SoResubmitCanReArm`,
+`Challenge_AcceptedProof_ReArmedWindow_StillRejectsSecondChallenge` (a distinct `claimId` so the
+batch-level `"already accepted"` guard is the decider, not the earlier claim guard) and
+`Challenge_AcceptedProof_ReArmedWindow_StillCannotFinalize` (the accepted marker still closes
+`FinalizeIfPastWindow` behind the fresh window, which is what separates this fix from the weaker
+"let `OpenWindow` overwrite" alternative).
+
+The negative control is what earns the tier: with the contract source reverted and its NEF re-emitted
+by the pinned `nccs` 3.9.1, all three fail with `ABORTMSG is executed. Reason: window already open`.
+That is the wedge executed on-chain rather than inferred from four assertions, so the [E2] marking
+above stands as the audit-time state and is retired here. With the fix in,
+`tests/NeoHub.Contracts.VmTests` is 571/571, the fresh-manifest gate passes 19/19 under
+`NEO_N4_REQUIRE_FRESH_MANIFESTS=1`, and the full solution is 2,893 tests with 0 failed and 45 skipped
+(27 `Neo.Plugins.L2Settlement` + 9 `Neo.L2.IntegrationTests` env gates + 9 scattered — the §5 V4 and
+§11 classes, none introduced by this fix).
+
+What still does not exist is a two-real-contract test: `UT_SettlementManager_Vm.cs:185` wires
+`OptimisticChallenge` as a mock, so `SubmitBatch`'s own resubmit branch is exercised only through the
+`OpenWindow` call these tests make directly. The cross-contract seam that the finding names in
+`SubmitBatch:391-395` therefore remains [E2].
+
 ## 4. High
 
 ### H14 — `panic = "abort"` in both profiles makes every FFI panic boundary dead code [E1]
@@ -756,8 +781,8 @@ Split by whether it can land now.
 
 **Can land in the current governance branch (small, local, testable):**
 
-1. `C4` — clear the window keys when a challenge succeeds, and land the
-   submit → challenge → resubmit VM test with it. Cheapest Critical in either report, and it gates
+1. `C4` — **done on this branch**: the window keys are cleared when a challenge succeeds and the
+   submit → challenge → resubmit VM test landed with it (§3 C4 status). Cheapest Critical in either report, and it gates
    the `H18` fix below: repairing the template/deployer mismatch without this turns a broken
    optimistic chain into a permanently stuck one.
 2. `V4` — fix the evidence-file path walk (one line; un-hides 27 tests immediately).
@@ -805,6 +830,9 @@ Split by whether it can land now.
   satisfied, so live-L1 paths remain unexercised here.
 - `C4` has no VM repro: the wedge is four assertions read end to end across two contracts, and the
   submit → challenge → resubmit sequence has never been executed. It is marked [E2] for that reason.
+  **Superseded the same day** — the sequence now runs in `UT_OptimisticChallenge_Vm` and fails without
+  the fix (§3 C4 status). The part that survives: no test deploys `SettlementManager` and
+  `OptimisticChallenge` as two real contracts, so `SubmitBatch`'s resubmit branch is still read, not run.
 - The NCCS compilation semantics of the `uint` addition at `ForcedInclusionContract.cs:374` — wrap,
   saturate or fault — were not determined, so `H19` states both branches instead of picking one. A
   single VM test settles it.

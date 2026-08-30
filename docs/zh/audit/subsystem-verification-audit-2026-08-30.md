@@ -632,6 +632,41 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
 因为目前的完备性测试遍历的是*常量*，所以在结构上就看不见那段绕开了登记表的代码。
 这才是这一发现可泛化的那一半 —— 一道以登记表为键的完备性检查，检测不到一个绕过它的调用方。
 
+**状态 —— 在本分支上已修复，两半都是。** `MetricNames.BatchOnBlockCommittedError =
+"l2.batch.on_block_committed_error"` 现在位于 Batch 分组里，`MetricCatalog.Descriptions` 有它那句
+描述，而 `L2BatchPlugin.cs:477` 传的是常量。登记表是 40 个常量与 40 个条目，而那两道既有的反射测试
+—— 此前各自遍历 39 个名字 —— 现在遍历 40 个，并在两个方向上都仍然通过。
+
+这次提升可以证明不是一次运维者可见的改名，而且这个说法现在是一条测试、不再是一段论证。导出器在
+渲染时做 `.` → `_` 映射（`PrometheusExporter.cs:15` 记录，`:129` 实现），并给 counter 追加 `_total`
+（`:39`），所以唯一变化的是存储用的键：裸字面量与带点号的常量都渲染成
+`l2_batch_on_block_committed_error_total`。
+`PrometheusExporter_BatchErrorCounter_RendersTheSameSeriesAsTheLiteral` 把这结论的两半都钉住了 ——
+`# HELP` 行现在带的是目录里那句话而不是 `"L2 telemetry metric"` 这个占位符，样本行带的是系列名 ——
+于是将来改这个常量会弄坏一条测试，而不是一块仪表盘。
+
+长期那一半是同一个类里的 `EmissionSites_UseMetricNamesConstants_NotRawLiterals`。它遍历 `src/` 与
+`tools/` 下每个 `.cs` 文件，寻找第一个实参是字面量的发射调用 ——
+`(Safe)?(IncrementCounter|SetGauge|RecordSummary|Observe)` 后面越过任意 `@`/`$` 字符串前缀紧跟 `"`
+—— 失败时列出 `file:line`。两处细节使它可信而非装饰性的。它通过 `V4` 新增的 `RepoRoot` 探测来定位
+仓库根，所以不会像固定层数的 `".."` 遍历那样在 Windows 的 `win-x64/` 输出段上自我跳过；它还排除
+`bin/`、`obj/` 与 `//` 注释行，因为生成副本和散文都不是发射点。
+
+负控制是实测的，不是假设的：只把 `L2BatchPlugin.cs:477` 还原成字面量，这一条测试就会失败，报
+`Metric emitted with a string literal bypasses MetricNames and its catalog guard — declare a constant
+instead: src\Neo.Plugins.L2Batch\L2BatchPlugin.cs:477`。把常量还原后，
+`Neo.L2.Telemetry.UnitTests` 回到 **117/117**（加这两条测试之前是 115），
+`Neo.Plugins.L2Batch.UnitTests` 66/66，`CurrentDocumentation_*` 那八条 8/8。同一分支上的全解决方案：
+**38 个程序集 / 2,901 个测试 / 0 失败 / 5 跳过** —— 即 §10 第 5 项的 2,899 加上这两条，
+且本次运行 `V7` 的 SP1 队列竞态没有复现。
+`docs/telemetry.md` 在 Batch 下新增了那行目录条目，而“Adding a new metric”的第 3 步现在直说：
+发射点上出现字面量本身就是一次构建失败；`docs/zh/telemetry.md` 同步了这两处。
+
+这道守卫的边界，说清楚而不留白：它读的是源码文本，所以它看见的是字面量、不是值。
+一个在别处拼装到变量里再传进来的名字仍然逃得过它，任何不在这份方法名清单里的发射辅助函数也一样。
+但这是一块严格小于本次所修的那块盲区的盲区 —— 这道守卫的全部要点在于：绕过登记表的*默认*做法
+就是在调用点直接打一个字符串，而这条路现在会让构建失败。
+
 ### V7 — SP1 队列的“先查存在、再读内容”窗口不容忍任何共享冲突，而逃逸出的异常是无类型的 [E1]
 
 这处是在度量 H17 时撞见的，不是刻意去找的。Windows 上连续两次全解决方案运行：第一次报
@@ -1168,8 +1203,12 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
    `NeoHub.Contracts.VmTests` 575/575、全解决方案 38 个程序集 / 2,899 个测试 / 0 失败 /
    5 跳过（H17 那次的 2,897 加上这两个）。负向对照：只回退被跟踪的产物就能让新的部署测试点名
    截止期 `1` 而失败。见 §4 H19 的状态段。
-6. `V6` —— 把 `L2BatchPlugin.cs:477` 的那个字面量提升为一个 `MetricNames` 常量 + 一条目录条目；
-   可选地再加上那道本可以捕获它的发射点字面量扫描。
+6. `V6` —— **已在本分支完成，两半都是。**那个字面量现在是 `MetricNames.BatchOnBlockCommittedError`
+   并带有它的 `MetricCatalog` 条目，因此导出的系列名不变、且由一条测试钉住；而
+   `EmissionSites_UseMetricNamesConstants_NotRawLiterals` 就是那道本该捕获这次绕过的扫描，
+   负向对照是只回退 `L2BatchPlugin.cs:477` 做出来的。`Neo.L2.Telemetry.UnitTests` 117/117、
+   全解决方案 38 个程序集 / 2,901 个测试 / 0 失败 / 5 跳过（第 5 项的 2,899 加上这两条）。
+   见 §5 V6 的状态段。
 7. §7.1 —— 为 `SetOwner`、`RegisterPauser`/`RevokePauser`、`SetWindowSeconds`、
    `SetChallengerRewardBps` 增加锁守卫（机械性；照 `RegisterChain` 复刻）。
 8. `H18` —— 把 `TemplateCatalog.cs:32` 与部署器注册的 verifier 对齐。放在最后，在 `C4` 之后。

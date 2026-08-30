@@ -691,6 +691,45 @@ emission sites for string literals, because the current completeness test walks 
 structurally unable to see code that skips the registry. That is the generalizable half of this
 finding — a completeness check keyed on a registry cannot detect a caller that bypasses it.
 
+**Status — fixed on this branch, both halves.** `MetricNames.BatchOnBlockCommittedError =
+"l2.batch.on_block_committed_error"` now sits in the Batch group, `MetricCatalog.Descriptions` carries
+its sentence, and `L2BatchPlugin.cs:477` passes the constant. The registry is 40 constants and 40
+entries, and the two existing reflection tests — which had been walked by 39 names each — now walk 40
+and still pass in both directions.
+
+The promotion is provably not an operator-visible rename, and that claim is now a test rather than an
+argument. The exporter maps `.` → `_` at format time (`PrometheusExporter.cs:15`, implemented `:129`)
+and appends `_total` to counters (`:39`), so the stored key is the only thing that changed: the raw
+literal and the dotted constant both render as `l2_batch_on_block_committed_error_total`.
+`PrometheusExporter_BatchErrorCounter_RendersTheSameSeriesAsTheLiteral` pins both halves of that — the
+`# HELP` line now carrying the catalog sentence instead of the `"L2 telemetry metric"` placeholder, and
+the sample line carrying the series name — so a future rename of the constant breaks a test instead of
+a dashboard.
+
+The durable half is `EmissionSites_UseMetricNamesConstants_NotRawLiterals` in the same class. It walks
+every `.cs` file under `src/` and `tools/` for an emission call whose first argument is a literal —
+`(Safe)?(IncrementCounter|SetGauge|RecordSummary|Observe)` followed by `"` through any `@`/`$` string
+prefix — and fails listing `file:line`. Two details make it trustworthy rather than decorative. It
+resolves the tree through the `RepoRoot` probe added by `V4`, so it cannot self-skip on the Windows
+`win-x64/` output segment the way a fixed-count `".."` walk does; and it excludes `bin/`, `obj/` and
+`//` comment lines, since neither generated copies nor prose are emission sites.
+
+Negative control executed, not assumed: reverting only `L2BatchPlugin.cs:477` to the literal fails that
+one test with `Metric emitted with a string literal bypasses MetricNames and its catalog guard —
+declare a constant instead: src\Neo.Plugins.L2Batch\L2BatchPlugin.cs:477`. Restoring the constant
+returns `Neo.L2.Telemetry.UnitTests` to **117/117** (115 before these two tests), with
+`Neo.Plugins.L2Batch.UnitTests` 66/66 and the eight `CurrentDocumentation_*` tests 8/8. Full solution on
+the same branch: **38 assemblies / 2,901 tests / 0 failed / 5 skipped** — §10 item 5's 2,899 plus these
+two, with `V7`'s SP1-queue race not reproducing on this run. `docs/telemetry.md` gained the catalog line
+under Batch and step 3 of "Adding a new metric" now says plainly that a literal at an emission site is
+itself a build failure; `docs/zh/telemetry.md` mirrors both.
+
+The limit of the guard, stated rather than left implicit: it reads source text, so it sees literals and
+not values. A name assembled in a variable and passed in one hop away still escapes it, as does any
+emission helper this pattern set does not name. That is a strictly smaller blind spot than the one being
+closed here — the guard's whole point is that the *default* way to skip the registry was to type a
+string at the call site, and that route now fails the build.
+
 ### V7 — The SP1 queue's existence-then-read window tolerates no sharing violation, and the escaping exception is untyped [E1]
 
 Found while measuring H17, not while looking for it. Two consecutive full-solution runs on Windows:
@@ -1276,8 +1315,12 @@ Split by whether it can land now.
    `NeoHub.Contracts.VmTests` 575/575, full solution 38 assemblies / 2,899 tests / 0 failed /
    5 skipped (the H17 run's 2,897 plus these two). Negative control: reverting only the tracked
    artifact fails the new deploy test naming deadline `1`. See §4 H19's status block.
-6. `V6` — promote `L2BatchPlugin.cs:477`'s literal to a `MetricNames` constant + catalog entry;
-   optionally add the emission-site literal scan that would have caught it.
+6. `V6` — **done on this branch, both halves.** The literal is now
+   `MetricNames.BatchOnBlockCommittedError` with its `MetricCatalog` entry, so the exported series name is
+   unchanged and pinned by a test; and `EmissionSites_UseMetricNamesConstants_NotRawLiterals` is the scan
+   that would have caught the bypass, negative-controlled by reverting `L2BatchPlugin.cs:477` alone.
+   `Neo.L2.Telemetry.UnitTests` 117/117, full solution 38 assemblies / 2,901 tests / 0 failed /
+   5 skipped (item 5's 2,899 plus these two). See §5 V6's status block.
 7. §7.1 — add lock guards to `SetOwner`, `RegisterPauser`/`RevokePauser`, `SetWindowSeconds`,
    `SetChallengerRewardBps` (mechanical; mirrors `RegisterChain`).
 8. `H18` — reconcile `TemplateCatalog.cs:32` with the verifier the deployer registers. Last, after

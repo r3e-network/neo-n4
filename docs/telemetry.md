@@ -133,6 +133,7 @@ the test suite enforces this via reflection.
 - `l2.batch.seal_latency_ms` — histogram — Wall-clock milliseconds spent sealing each batch
 - `l2.batch.tx_count` — gauge — Transactions in the most recently sealed batch
 - `l2.batch.subscriber_failures` — counter — Per-subscriber failures dispatching `OnBatchSealed` (one buggy listener can't destabilize block import)
+- `l2.batch.on_block_committed_error` — counter — Times L2Batch's `OnBlockCommitted` handler threw; the exception is rethrown into the Neo plugin loop, so a rising value means block import is being interrupted
 
 ### Settlement (`Neo.Plugins.L2Settlement`)
 
@@ -232,7 +233,10 @@ l2_batch_seal_latency_ms_max 3.21
 2. Add a description to `MetricCatalog.Descriptions`.
    The reflection-based completeness test in `Neo.L2.Telemetry.UnitTests`
    fails the build if you forget step 2.
-3. Emit from the relevant component via `_metrics.IncrementCounter / RecordHistogram / SetGauge`.
+3. Emit from the relevant component via `_metrics.IncrementCounter / RecordHistogram / SetGauge`,
+   passing the `MetricNames` constant. A string literal at an emission site fails a separate
+   guard in the same test class: the completeness test above walks constants, so it cannot see
+   a caller that skips the registry.
 4. Add a test using `InMemoryMetrics` that asserts the value flows through.
 
 ## Disabling telemetry

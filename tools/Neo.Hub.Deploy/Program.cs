@@ -43,7 +43,10 @@ internal static class Program
               plan --plan <path> --output <path>  Topologically sort + resolve a plan; emit a deploy bundle.
               verify --plan <path> --rpc <url>    Confirm each plan step's nef + manifest exist on disk (exit 2 on any missing).
               deploy-testnet --rpc <url> --expected-network <magic> --l2-chain-id <id>
+                             --sp1-program-vkey <.proof.vk path or 64-hex-bytes>
                              --fraud-replay-domain <64-hex-bytes>
+                             --gateway-program-vkey <.proof.vk path or 64-hex-bytes>
+                             --gateway-replay-domain <64-hex-bytes>
                              --governance-council <pubkey1,pubkey2,...>
                              --governance-threshold <m>
                              --emergency-council <address-or-hash>

@@ -520,9 +520,10 @@ public class UT_DeployPlanner
         // 4 external-bridge governance/setup pointers + 2 payout-route hints +
         // 1 escrow freeze + 4 Phase-C slash/member-binding hints +
         // 2 bridge committee + dispatch-table freezes (H12) +
-        // 4 SettlementManager dependency hints + 2 registry/settlement freezes +
-        // 1 MessageRouter filter hint = 41.
-        Assert.AreEqual(41, actions.Count);
+        // 4 SettlementManager dependency hints + 3 MessageRouter Gateway trust-root hints +
+        // 2 registry/settlement freezes +
+        // 1 MessageRouter filter hint = 44.
+        Assert.AreEqual(44, actions.Count);
 
         // 1. SequencerBond.RegisterSlasher(OptimisticChallenge) — Phase-3 cycle-break.
         StringAssert.Contains(actions[0], "SequencerBond.RegisterSlasher");
@@ -654,11 +655,20 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[36], "SettlementManager.SetOptimisticChallenge");
         StringAssert.Contains(actions[37], "SettlementManager.SetMessageRouter");
         StringAssert.Contains(actions[37], "MessageRouter");
-        StringAssert.Contains(actions[38], "ChainRegistry.LockGovernance");
-        StringAssert.Contains(actions[38], "proposal-bound council approval");
-        StringAssert.Contains(actions[39], "SettlementManager.LockGovernance");
-        StringAssert.Contains(actions[39], "RevertBatchViaProposal");
-        StringAssert.Contains(actions[40], "MessageRouter.SetL1TxFilter");
+        StringAssert.Contains(actions[38], "MessageRouter.SetGovernanceController");
+        StringAssert.Contains(actions[38], "SetGlobalRootVerifierViaProposal");
+        StringAssert.Contains(actions[39], "MessageRouter.SetGlobalRootVerifier");
+        StringAssert.Contains(actions[39], "Sp1Groth16Verifier");
+        StringAssert.Contains(actions[39], "0xC2");
+        StringAssert.Contains(actions[39], "GATEWAY_PROGRAM_VKEY_REPLACE_ME");
+        StringAssert.Contains(actions[39], "GATEWAY_REPLAY_DOMAIN_REPLACE_ME");
+        StringAssert.Contains(actions[40], "MessageRouter.LockGlobalRootGovernance");
+        StringAssert.Contains(actions[40], "publishGlobalRoot refuses a first publication");
+        StringAssert.Contains(actions[41], "ChainRegistry.LockGovernance");
+        StringAssert.Contains(actions[41], "proposal-bound council approval");
+        StringAssert.Contains(actions[42], "SettlementManager.LockGovernance");
+        StringAssert.Contains(actions[42], "RevertBatchViaProposal");
+        StringAssert.Contains(actions[43], "MessageRouter.SetL1TxFilter");
     }
 
     [TestMethod]

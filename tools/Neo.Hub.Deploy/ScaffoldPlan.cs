@@ -512,6 +512,12 @@ public static class ScaffoldPlan
         {
             yield return $"{sm.Name}.SetMessageRouter({messageRouter.Name})  # make Gateway publication validate finalized L1 constituents and enter MessageRouter with the canonical contract witness atomically";
         }
+        if (messageRouter is not null && gc is not null && sp1Groth16Verifier is not null)
+        {
+            yield return $"{messageRouter.Name}.SetGovernanceController({gc.Name})  # the Router refuses to lock its Gateway proof profile until this controller is wired, so post-lock rotation must go through SetGlobalRootVerifierViaProposal";
+            yield return $"{messageRouter.Name}.SetGlobalRootVerifier({sp1Groth16Verifier.Name}, ProofSystem.Sp1=1, RecursiveAggregationBackend=0xC2, GATEWAY_PROGRAM_VKEY_REPLACE_ME, GATEWAY_REPLAY_DOMAIN_REPLACE_ME)  # bind the exact tuple the Gateway host will present: the recursive Gateway backend id, the Gateway guest program vkey, and its replay domain";
+            yield return $"{messageRouter.Name}.LockGlobalRootGovernance()  # irreversible production gate: publishGlobalRoot refuses a first publication until this lock exists, so an unwired Router makes Phase-5 cross-chain finality relay inoperable; afterwards the profile rotates only by proposal";
+        }
         if (chainReg is not null && gc is not null)
         {
             yield return $"{chainReg.Name}.LockGovernance()  # irreversible production gate: freeze the ChainRegistry controller and disable instant owner config replacement; future updates require exact proposal-bound council approval";

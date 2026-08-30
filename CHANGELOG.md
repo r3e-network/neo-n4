@@ -5,6 +5,56 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — H17: cross-chain finality relay is now deployable, not just documented — 2026-08-30
+
+- `MessageRouter.PublishGlobalRoot` refuses its *first* publication unless global-root governance is
+  locked (`MessageRouterContract.cs:269-270`), and `LockGlobalRootGovernance` (`:338`) had zero callers
+  anywhere in the product — none in `tools/Neo.Hub.Deploy`, none in `Neo.Stack.Cli`, none in
+  `L2NativeContracts.cs`. It was exercised only by VM tests that call it directly, which is why the
+  suite stayed green while `docs/launching-an-l2.md` instructed operators to submit a call that faults
+  on every deployment the deployer produces.
+- The deployer now performs the bootstrap as three post-deploy steps (`LiveDeployCommand.cs:894-900`),
+  between `SettlementManager.SetMessageRouter` and `ChainRegistry.LockGovernance`:
+  `MessageRouter.SetGovernanceController` → `SetGlobalRootVerifier` → `LockGlobalRootGovernance`. The
+  order is enforced by the contract rather than chosen — `SetGovernanceController:329` and
+  `SetGlobalRootVerifier:315` both assert `!IsGlobalRootGovernanceLocked()`, while
+  `LockGlobalRootGovernance:341-343` requires a non-zero controller *and* a configured verifier — and it
+  is the same sequence `UT_MessageRouter_Vm.cs:109-119` already used. Each step carries a read-back
+  completion check, so a crash-resumed run skips exactly the calls already applied.
+- The profile verifier is `Sp1Groth16Verifier`, not `ContractZkVerifier`, because
+  `PublishGlobalRoot:286-296` dispatches `verifyZkProof(byte,byte[],byte[],byte[])`. `proofSystem` is
+  SP1 (`1`) and the backend is `0xC2`, the recursive Gateway backend `Sp1GatewayProofProver` stamps;
+  `tools/Neo.Hub.Deploy` does not reference the gateway plugin, so the literal is paired locally as
+  `ProofSystemSp1` and `ProofTypeZk` already are.
+- Wiring it exposed a second gap: the profile cannot be derived in-repo. The Gateway guest vkey and
+  replay domain are operator-supplied at `GatewayHostComposition.OpenSp1` and persisted nowhere, so
+  `deploy-testnet` gained two required switches — `--gateway-program-vkey`, `--gateway-replay-domain` —
+  sharing the existing `ParseProgramVKey` / `ParseRequiredReplayDomain` helpers, printed in raw byte
+  order, and recorded in the deployment report as `gatewayProgramVKeyRaw` / `gatewayReplayDomain` /
+  `gatewayAggregationBackend`. The usage text in `Program.cs` also gained `--sp1-program-vkey`, which
+  the tool had required since it was written without ever listing it.
+- The smoke pass reads back all six compared values (`:984-989`) instead of attempting the end-to-end
+  `PublishGatewayGlobalRoot` the audit suggested, because that would need a compiled guest ELF and a
+  live recursive prover inside the deploy path. Those six are exactly what `PublishGlobalRoot:269-278`
+  asserts before dispatch, so a Gateway host configured with the reported tuple can no longer be
+  rejected by the governance gate; what stays uncovered is the aggregate *proof* itself, which is
+  covered gateway-side rather than here.
+- `plan` emits the same three steps as `PostDeployActions` hints with
+  `GATEWAY_PROGRAM_VKEY_REPLACE_ME` / `GATEWAY_REPLAY_DOMAIN_REPLACE_ME` placeholders and a pointer to
+  `SetGlobalRootVerifierViaProposal` for post-lock rotation, keeping plan text and live sequence in one
+  order. The hint count went 41 → 44.
+- Tests: two new parser tests assert the shared helpers name the **Gateway** switch; the H12
+  "every wired surface is also locked" loop was generalized to accept MessageRouter's differently named
+  gate instead of exempting it; the ordering test pins the three steps as contiguous and asserts the
+  `setGlobalRootVerifier` script byte-for-byte; the negative smoke test adds six mismatched entries,
+  including the pass-through backend `0xFE`. `tests/Neo.Hub.Deploy.UnitTests` 115/115,
+  `NeoHub.Contracts.VmTests` 573/573 (no contract source changed), full solution 38 assemblies, 2,897
+  tests, 0 failed, 5 skipped. One of two full-solution runs failed once in the untouched
+  `Neo.L2.Proving.UnitTests` on a Windows file-sharing race — recorded as audit §5 V7, not fixed here.
+- Docs: `docs/launching-an-l2.md` deploy-step switches, `PostDeployActions` paragraph and the
+  `PublishGatewayGlobalRoot` section; audit §4 H17 status block, new §5 V7, §2 gate table, §10 items 4
+  and 16. Chinese mirrors carried to the same structure.
+
 ### Fixed — H16: pausing a chain now halts finalization, not only its intake — 2026-08-30
 
 - `SettlementManager.FinalizeBatch` never consulted `ChainRegistry.isActive`, so `PauseChain` — the

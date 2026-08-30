@@ -762,9 +762,10 @@ Dependabot sp1-6.3.1 attempt (PR #23, 4 failing checks). That note is good work 
 not restate it. What V8 adds is four things the note could not say on 2026-08-28, each measured here
 against the pinned source rather than inferred: which of the challenger advisory's *two* mechanisms
 actually survives in the `0.3.3-succinct` fork (the note explicitly declined to guess, calling the
-backport "not publicly recorded"); the *concrete* target release for the upgrade; an assessment of
-`p3-symmetric`, which is not covered there at all; and one loose end in the accepted-risk bookkeeping,
-flagged at the end of this section.
+backport "not publicly recorded"); that no SP1 release carries the fix, which is also the correction of
+a claim this section first published and then measured wrong (see "The fix path has no name", below);
+an assessment of `p3-symmetric`, which is not covered there at all; and one loose end in the
+accepted-risk bookkeeping, flagged at the end of this section.
 
 The repository's answer to "are our Rust dependencies audited?" is one CI job:
 
@@ -835,34 +836,67 @@ question is whether any N4 consumer relies on transcript/proof-input uniqueness 
 Gateway sidecars, which is an analysis of `AtomicFileQueueTransport` and the sidecar binding, not of the
 crate.
 
-**The fix path now has a name.** The 08-28 note correctly concluded that no version inside the pinned
-graph can express the fix, and asked for "a release whose dependency graph pins `p3-challenger >= 0.4.3`"
-without identifying one. It exists — the current `slop-challenger` requires exactly the patched build:
+**The fix path has no name.** The 08-28 note correctly concluded that no version inside the pinned graph
+can express the fix, and asked for "a release whose dependency graph pins `p3-challenger >= 0.4.3`"
+without identifying one. The first version of this section answered that question, and the answer was a
+release:
 
 ```
 $ curl -s https://crates.io/api/v1/crates/slop-challenger/6.5.0/dependencies | grep -A1 p3-challenger
 "crate_id":"p3-challenger"  "req":"=0.4.3-succinct"
 ```
 
-but `slop-challenger 6.2.1` requires `0.3.3-succinct` (i.e. `^0.3.3-succinct`), and this repo pins the
-toolchain by exact version in three in-repo manifests plus the vendored workspace:
+That answer was wrong, and *how* it was wrong is the finding. `0.4.3-succinct` is a fork tag, not
+upstream Plonky3's `0.4.3`, and the tag bump never carried the security change. Hashing the two files
+the advisory names, across every build in question:
 
 ```
-bridge/neo-zkvm-host/Cargo.toml:31,50          sp1-sdk = { version = "=6.2.1", … }
-bridge/neo-zkvm-gateway-host/Cargo.toml:28,36  sp1-sdk = { version = "=6.2.1", … }
-external/neo-zkvm/Cargo.toml:27                sp1-sdk = { version = "=6.2.1", … }   (submodule)
+$ sha256sum …/p3-challenger-{0.3.3-succinct,0.4.3-succinct,0.4.3}/src/multi_field_challenger.rs
+f0f8351c60f76364…   0.3.3-succinct     ← what SP1 6.2.1 pins
+f0f8351c60f76364…   0.4.3-succinct     ← what SP1 6.2.2 and 6.5.0 pin — identical
+b6dfd6ca82fb2ec5…   0.4.3 (upstream)   ← patched: 623 lines, absorb/squeeze radices split
+
+$ sha256sum …/p3-field-{0.3.3-succinct,0.4.3-succinct}/src/helpers.rs
+e28cb64e3b73b567…   0.3.3-succinct
+e28cb64e3b73b567…   0.4.3-succinct     ← identical
 ```
 
-So closing the High means an SP1 6.2.1 → 6.5.0 release bump, and that bump is spec-adjacent work rather
-than a dependency refresh: `doc.md:372` pins "SP1 6.2.1 compressed proof" as the requirement text,
-`AGENTS.md`, `ARCHITECTURE.md` and `IMPLEMENTATION_STATUS.md:266-267` all name 6.2.1, the build scripts
-embed SHA-256/VK from one Docker ELF snapshot, and `NeoHub.Sp1Groth16Verifier` is an immutable
-SP1-v6.1-compatible wrapper verified through the BN254 interops. Every one of those has to be
-re-established against 6.5.0, and the vendored submodule lives in `r3e-network/neo-zkvm` (its current
-gitlink is already on a `codex/rustsec-2026-refresh` branch), so the change is cross-repo. Note also
-that even after such a bump the resolved version would be `0.4.3-succinct`, which sorts *below* `0.4.3`
-in semver — whether Dependabot then closes the alert is untested here and must be checked rather than
-assumed.
+Both files the advisory names are bit-for-bit the same across the fork bump. Everything established
+above under "What does and does not apply at the pinned pairing" therefore transfers unchanged to
+`0.4.3-succinct`: the transcript-malleability mechanism is live there too. And there is nothing higher to
+move to — `0.4.3-succinct` is the highest `-succinct` build of `p3-challenger` ever published, and
+`slop-challenger 6.5.0`, itself the newest, pins exactly it. **No SP1 release remediates
+GHSA-vj64-rjf3-w3v7.** The only builds that carry the fix are upstream `0.4.3` and `0.5.3`, which SP1
+cannot adopt while it consumes the Succinct fork. The remediation is not unscheduled; it is unavailable
+in this dependency graph, and the honest posture is the accepted-risk one the 08-28 note already took.
+
+One durable note for whoever does eventually bump, because the attempt found a trap the repo has never
+had to describe. `=6.2.2` pins the SDK, not the family: SP1's internal requirements are caret ranges, so
+moving the eight `sp1-sdk` / `sp1-zkvm` / `sp1-verifier` pins in
+`bridge/neo-zkvm-{guest,gateway-guest,host,gateway-host}/Cargo.toml` re-resolved the lock into a stack
+with `sp1-{sdk,prover,verifier,zkvm,recursion-gnark-ffi}` at 6.2.2 and **44 sibling crates — including
+`sp1-core-machine`, `sp1-core-executor` and `sp1-recursion-compiler` — at 6.5.0.** That combination has
+never been published or tested by SP1, and `sp1-release-gates` would have caught it only by failing
+against the derived ELF/VK pins. A uniform 6.2.2 lock is reachable (every `sp1-*` crate I checked on
+crates.io publishes 6.2.2) but only by pinning every family member, not by editing four manifests. That
+attempt is unwound — the branch carried no commit, and the working tree is back on `=6.2.1`.
+
+What a bump still costs, if it is ever scheduled for a reason other than these advisories, is unchanged
+from the scoping: `doc.md:372` pins "SP1 6.2.1 compressed proof" as the requirement text, `AGENTS.md`,
+`ARCHITECTURE.md` and `IMPLEMENTATION_STATUS.md:266-267` all name 6.2.1, the build scripts derive
+SHA-256/VK from one Docker ELF snapshot and panic on mismatch, and
+`NeoHub.Sp1Groth16Verifier` is an immutable SP1-v6.1-compatible wrapper verified through the BN254
+interops. Every one of those has to be re-established against the new release, the guest ELF can only be
+re-derived where Docker runs (this repo has no local Docker, so that loop is a `workflow_dispatch` of
+`sp1-release-gates`), and the vendored submodule lives in `r3e-network/neo-zkvm` — so the change is
+cross-repo. None of that work moves the vulnerable bytes.
+
+The semver question this section previously left open — `0.4.3-succinct` sorts *below* `0.4.3`, so does
+the alert survive its own fix? — is now moot, and worth closing rather than carrying. Because the bytes
+are identical, the alert outcome would be cosmetic either way: if Dependabot resolves `0.4.3-succinct`
+as satisfying `< 0.4.3` and closes the High, that dismissal is a **false green** on a code path this
+section has shown to be live and unchanged. Either result, the Security tab is not a usable signal for
+this dependency, which is the same gate-blindness the section opened with.
 
 The `lru` alert needs no new analysis: `lru 0.12.5` is pulled in by `sp1-prover 6.2.1`
 (`[dependencies.lru] version = "0.12.4"`), and no release inside that requirement is patched — which is
@@ -893,7 +927,10 @@ number of elements to be hashed."* In this tree the two `hash_iter` call sites i
 decommitment — a length that follows the query shape. Whether an SP1 adversary can steer *that* length
 is the one open question, and I did not chase it: the crate is operator-side only, and the 08-28 note's
 threat model already places a malicious operator on this boundary, which is where alert #3's own impact
-statement lands too. Low, reachable, unpatchable in-graph, same remediation as the other two.
+statement lands too. Low, reachable, and — like the challenger — unpatchable by any SP1 release:
+`p3-symmetric-0.4.3-succinct/src/sponge.rs` hashes `8398352ffe347f52…`, identical to the `0.3.3-succinct`
+file, and `Pad10Sponge` is absent from both. The fork bump carries no security change in this crate
+either.
 
 One loose end in the bookkeeping, and it is the kind this §5 keeps finding. `.github/dependabot.yml:26-35`
 ignores `lru` and `p3-challenger` for the cargo ecosystem, pointing at the note, and its stated purpose
@@ -1266,15 +1303,16 @@ Split by whether it can land now.
     the read path gets the same bounded wait-and-retry *and* whether an exhausted `IOException` is
     wrapped into the protocol's `InvalidDataException` family. One answer, applied to both read sites
     (`AtomicFileQueueTransport.cs:265`, `Sp1GatewayProofProver.cs:429`).
-17. `V8` — the SP1 transitive advisories. The decision is not "fix or not": the in-graph fix does not
-    exist. It is whether to schedule the SP1 6.2.1 → 6.5.0 bump now — which the 08-28 note already
-    scoped as a VK re-pin + guest rebuild + `SP1_STATEFUL_NEO_VM_V1` semantic-ID rotation across two
-    in-repo manifests and the `r3e-network/neo-zkvm` submodule — or to keep the documented
-    accepted-risk posture under the operator-trust model. Two cheap sub-actions do not need that
-    decision and should not wait for it: assess `p3-symmetric` in writing (unassessed today, and this
-    section is the first look), and reconcile `.github/dependabot.yml:26-35` with the Security tab —
-    its `ignore` block suppresses update PRs, not alerts, so all three stay open while the comment
-    reads as resolved.
+17. `V8` — **settled by measurement, and the answer is that nothing needs scheduling.** The SP1
+    6.2.1 → 6.5.0 bump this queue used to name as the fix does not fix anything: `0.4.3-succinct` and
+    `0.3.3-succinct` carry byte-identical copies of both files the advisory names, and `0.4.3-succinct`
+    is the highest `-succinct` build of `p3-challenger` that has ever existed (§5 V8). The High stays
+    open because it is unpatchable from this graph, not because work is pending. Two bookkeeping
+    actions remain, and neither rotates a pin: reconcile `.github/dependabot.yml:26-35` with the
+    Security tab (`ignore` suppresses update PRs, not alerts, so all three stay open while the comment
+    reads as resolved), and decide whether to ask Succinct to merge Plonky3's `0.4.3` challenger fix
+    into the fork. The third sub-action from the original item — assessing `p3-symmetric` in writing —
+    is done in §5 V8.
 18. `finalizeIfPastWindow` has no driver anywhere in-tree — neither off-chain nor contract-to-contract
     (§4 H16's blast-radius note). That makes it the sole caller of `finalizeBatch`
     (`OptimisticChallengeContract.cs:791`) reachable only by an externally crafted L1 transaction, so
@@ -1321,10 +1359,14 @@ Split by whether it can land now.
   diverge at runtime, this pass would not see it.
 - The `docs/telemetry.md:214-226` sample exposition was compared to the exporter's rendering rules by
   reading `PrometheusExporter.cs`, not by generating real output.
-- `V8` deliberately stops short of two things it could name but not settle. Whether the claimed-value
-  count hashed at `slop-merkle-tree-6.2.1/src/tcs.rs:146` is steerable by an SP1 adversary — the one
-  precondition that would raise `p3-symmetric` from Low to something interesting — needs a reading of
-  SP1's recursion query shape, not of this repository. And whether an SP1 6.5.0 bump would actually
-  close GHSA-vj64-rjf3-w3v7 was not tried: the graph would resolve to `0.4.3-succinct`, which semver
-  sorts below `0.4.3`, so the alert may survive its own fix. Both are answerable, and neither is
-  answerable from here.
+- `V8` still stops short of one thing it could name but not settle: whether the claimed-value count
+  hashed at `slop-merkle-tree-6.2.1/src/tcs.rs:146` is steerable by an SP1 adversary — the one
+  precondition that would raise `p3-symmetric` from Low to something interesting. That needs a reading
+  of SP1's recursion query shape, not of this repository.
+- The second question this bullet used to carry was "would an SP1 6.5.0 bump close
+  GHSA-vj64-rjf3-w3v7?" It has been settled, and settling it corrected a claim this same report had
+  already published: §5 V8 originally named that bump as the fix path. It is not — the fork tags differ
+  and the advisory's two source files do not (§5 V8). What was measured is the crate content; what was
+  *not* measured is Dependabot's own range semantics for a `-succinct` prerelease against `< 0.4.3`, so
+  the alert may still move on a bump. Given the identical bytes, that movement would carry no security
+  meaning either way, which is why it did not get chased down.

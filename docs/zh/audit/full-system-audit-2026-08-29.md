@@ -62,7 +62,7 @@ HEAD `728e630a` 处测得的仓库规模：103 个第一方 `.csproj`；1,138 �
 | SDK | TS、Python、Rust + 共享 `sdk/conformance/vectors/v1.json` | H7、§1（三套测试均已执行）、§7 |
 | Web explorer | `sdk/web-explorer/index.html`（317 行） | 已阅读；一次 `fetch`、零 `innerHTML`、无实质发现；**未**在浏览器中 exercised |
 | 运维工具 | 7 个 `tools/*` 项目（CLI、Devnet、Deploy、Explore、Faucet、Bridge、External-Bridge CLIs） | §5、§6、H13 的部署时序、§9 |
-| Samples / 参考执行器 | `samples/contracts/` 2 个（`CrossChainGreeter`、`WithdrawalDemo`）、`samples/executors/` 1 个 | §5（semantic-id 奇偶一致性）、§7 |
+| Samples / 参考执行器 | `samples/contracts/` 2 个（`CrossChainGreeter`、`WithdrawalDemo`）、`samples/executors/` 1 个 | §5（semantic-id parity）、§7 |
 | 测试清单 | 38 个项目 / 38 个已执行程序集 | §3.1（静默跳过缺陷）、§1 |
 | 持久化 | `Neo.L2.Persistence`（RocksDB）+ 原子 CAS 路径 | §5 确定性、§7（刻意的 async-`Put` 设计，已在 `TASKS.md` 中裁定） |
 | 文档 / 规范 / book | `doc.md`、`ARCHITECTURE.md`、`docs/`（含 `telemetry.md`、wire formats）、`book/`、`tools/manuscript`、`tools/docs` 生成器、zh 镜像 | §5/§6 的一致性行、§9 清扫；`mdbook build` 清洁（§1） |
@@ -182,10 +182,18 @@ Fix（任一即可，按优先级）：把这 40 处迁移到 `FindRepositoryRoo
 步骤中增加一次带 `--reject-skips` 的 `run_dotnet_filtered_tests.py` 运行；或去掉
 仅限 Windows 的 RID 注入。
 
-### 3.2 RISC-V 的“奇偶一致性”门禁从未在运行 — 一旦运行即通过 [E1]
+> **状态 —— 已于 2026-08-30 修复（在本报告写成之后）。** 落地的正是上面第一个选项：
+> `tests/Shared/RepoRoot.cs` 把 `FindRepositoryRoot()` 泛化成了一份共享辅助函数，`tests/` 下那 10 个文件
+> 里的 33 处向上回溯表达式现在都读它。全仓库跳过数在同样 2,893 道测试上从 45 降到 5，因此本节统计的
+> "40 test methods" 被证实恰好就是开始执行的那个数量。给下一位读者的两点数字说明：本节的 55 个跳过是在
+> §3.2 那 10 个 RISC-V 跳过被消除之前测得的，而 55 − 10 = 45 正是该节标题估算的 "~45"；至于
+> "across 11 files" 则多算了一个 —— 对修复前的提交重新统计是 10 个文件，因为守卫写在共享辅助函数里，
+> 使得“方法数”与“表达式数”本就不相等。完整测量见 2026-08-30 报告的 §5 V4。
+
+### 3.2 RISC-V 的“parity”门禁从未在运行 — 一旦运行即通过 [E1]
 
 10 个 `RealNative_*` 测试以 `DllNotFoundException: neo_riscv_host` 跳过。这是合理的
-环境门控，但它意味着有状态 RISC-V 执行器与 `ApplicationEngine` 的逐字节奇偶一致性
+环境门控，但它意味着有状态 RISC-V 执行器与 `ApplicationEngine` 的逐字节 parity
 未经验证。我把它构建了出来（在 `external/neo-riscv-vm` 中 `cargo build -p neo-riscv-host`，
 21.9s，`crate-type=["rlib","cdylib"]`），把 DLL 放到测试程序集旁边，得到
 **31 通过 / 0 跳过**。新获得验证的表面包括：
@@ -844,7 +852,7 @@ v1/v2 与 verifier 的 v3 路径从 `Challenge` 不可达（`:403-422`）。
    成本极低，而它让其余所有结论重新变得可信。
 8. **H2 / H3** — 把强制包含的截止期钳制到最大挑战窗口之上，并自注册 pauser，
    在 `IsProductionReady()` 中断言。
-9. **C2** — 为 `MerkleTree.Verify` 加位置绑定；增加随机化 Merkle 奇偶一致性测试
+9. **C2** — 为 `MerkleTree.Verify` 加位置绑定；增加随机化 Merkle parity 测试
    （今天只有固定的 `{1,2,3,4,5,7,8,15,16}` 形状与 4 个手写向量，
    且没有任何测试断言 `siblings.Count == depth(totalLeaves)` 或 bitmap/`LeafIndex` 一致性）。
 10. **合约证明/活性加固** — 在 `SettlementManager` 中为 `securityLevel ≥ 3` 要求

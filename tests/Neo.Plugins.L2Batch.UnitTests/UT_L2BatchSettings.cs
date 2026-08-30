@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Neo.L2.TestInfra;
 
 namespace Neo.Plugins.L2Batch.UnitTests;
 
@@ -87,10 +88,7 @@ public class UT_L2BatchSettings
     [TestMethod]
     public void FromChainDirectory_LiveDeployReport_LoadsChainId()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 

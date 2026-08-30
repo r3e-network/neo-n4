@@ -16,6 +16,7 @@ using Neo.Network.P2P.Payloads;
 using Neo.L2.SoftSeal.TestSupport;
 using Neo.Plugins.L2Rpc;
 using Neo.Wallets;
+using Neo.L2.TestInfra;
 
 namespace Neo.Plugins.L2Settlement.UnitTests;
 
@@ -26,10 +27,7 @@ public sealed class UT_ZkLocalHostComposition
     [TestMethod]
     public void Open_FromDeployReport_WiresZkStack()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 
@@ -517,10 +515,7 @@ public sealed class UT_ZkLocalHostComposition
     [TestMethod]
     public void SoftOffline_RecordingProductionDa_PublishAndAvailability()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 
@@ -609,10 +604,7 @@ public sealed class UT_ZkLocalHostComposition
     [TestMethod]
     public void Open_DeferredStartMetricsHttp_And_CreateRpcPlugin()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 
@@ -674,10 +666,7 @@ public sealed class UT_ZkLocalHostComposition
     [TestMethod]
     public async Task Open_StartMetricsHttp_ReadyzOk()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 
@@ -769,10 +758,7 @@ public sealed class UT_ZkLocalHostComposition
     [TestMethod]
     public void Open_OptimisticSettlementConfig_FailsClosed()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 
@@ -839,10 +825,7 @@ public sealed class UT_ZkLocalHostComposition
     [TestMethod]
     public void Open_MultisigSettlementConfig_FailsClosed()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 
@@ -910,10 +893,7 @@ public sealed class UT_ZkLocalHostComposition
     [TestMethod]
     public void Open_MissingBootstrapState_FailsClosed()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 

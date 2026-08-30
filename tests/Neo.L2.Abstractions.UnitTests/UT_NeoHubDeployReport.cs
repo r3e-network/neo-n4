@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Neo.L2.TestInfra;
 
 namespace Neo.L2.Abstractions.UnitTests;
 
@@ -739,10 +740,7 @@ public class UT_NeoHubDeployReport
     [TestMethod]
     public void Parse_RealTestnetEvidenceReport_IfPresent()
     {
-        var path = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var path = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(path))
             Assert.Inconclusive($"repo evidence file not found at {path}");
 

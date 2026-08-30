@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Audit — execution-based subsystem verification across seven tracks — 2026-08-30
+
+- New report: `docs/audit/subsystem-verification-audit-2026-08-30.md`
+  (中文: `docs/zh/audit/subsystem-verification-audit-2026-08-30.md`). Where the 2026-08-29 audit read
+  and cross-checked, this pass builds, runs and instruments, and asks of each subsystem whether the
+  artifact a green checkmark ran on is the artifact the source describes.
+- `C4` (new Critical, unfixed): a successful fraud proof leaves `OptimisticChallenge`'s window key in
+  place, so the corrected resubmit that `SubmitBatch` invites faults at `"window already open"` and
+  the optimistic chain can never advance again. `C3` (new Critical, unfixed): the PolkaVM guest blob
+  every RISC-V test executes predates three rounds of guest-side hardening, and no gate can tell.
+- New Highs `H14`–`H19` and a verification-integrity class `V1`–`V6` (CI's required SP1 check asserts
+  the heavy lanes were skipped; the payout path's Merkle verifier is mocked in the test meant to catch
+  a forged leaf; 27 settlement tests self-skip on Windows; the metric registry has one bypass, on the
+  `H1` crash path).
+- Prior status: `H2` re-confirmed; `H3` half-refuted (the deployer now registers and read-back-verifies
+  the forced-inclusion pauser before `LockGovernance`); `C1`/`H12` fixed on this branch; `C2`, `H1`,
+  `H6`, `H13` and `§3.1` still open.
+- No code, contract or encoding changed in this entry — findings and remediation order only.
+
 ### Fixed — C1: SharedBridge deposits and MessageRouter entries no longer collide in the batcher inbox — 2026-08-29
 
 - `src/Neo.L2.Messaging/L1MessageDrain.cs`: combined drains deduplicated on

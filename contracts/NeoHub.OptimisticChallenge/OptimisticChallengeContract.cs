@@ -40,6 +40,9 @@ public class OptimisticChallengeContract : SmartContract
     private const byte PrefixPermissionlessProfile = 0x07; // chain + verifier → semanticId || replayDomain || generation
     private const byte PrefixConsumedClaim = 0x08; // 0x08 + claimId(32B) → 1
     private const byte PrefixVerifierProfileGeneration = 0x09; // 0x09 + verifier(20B) → generation
+    private const byte KeyGovernanceController = 0x0A;  // → GovernanceController hash
+    private const byte PrefixConsumedProposal = 0x0B;   // 0x0B + proposalId(8B LE) → 1 (replay protection)
+    private const byte KeyGovernanceLocked = 0x0C;      // once set → instant owner Register*/Revoke paths disabled (one-way)
     private const byte KeySettlementManager = 0xFC;
     private const byte KeySequencerBond = 0xFD;
     private const byte KeyOwner = 0xFF;
@@ -108,6 +111,14 @@ public class OptimisticChallengeContract : SmartContract
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
 
+    /// <summary>Emitted when the GovernanceController address is changed.</summary>
+    [DisplayName("GovernanceControllerChanged")]
+    public static event Action<UInt160> OnGovernanceControllerChanged = default!;
+
+    /// <summary>Emitted the first time governance is locked. Re-locking is a no-op and does not re-emit.</summary>
+    [DisplayName("GovernanceLocked")]
+    public static event Action OnGovernanceLocked = default!;
+
     /// <summary>Set wiring on deploy.</summary>
     public static void _deploy(object data, bool update)
     {
@@ -145,6 +156,71 @@ public class OptimisticChallengeContract : SmartContract
         var oldOwner = GetOwner();
         Storage.Put(new byte[] { KeyOwner }, newOwner);
         OnOwnerChanged(oldOwner, newOwner);
+    }
+
+    /// <summary>Wire the GovernanceController contract hash that the
+    /// <c>*ViaProposal</c> paths consult for the §16 council-veto + timelock check.
+    /// Owner only — permanently frozen by <see cref="LockGovernance"/>.</summary>
+    public static void SetGovernanceController(UInt160 governanceController)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — controller is immutable; deploy a versioned challenge contract for migration");
+        ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
+            "invalid governance controller");
+        Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
+        OnGovernanceControllerChanged(governanceController);
+    }
+
+    /// <summary>Look up the wired GovernanceController hash, or <see cref="UInt160.Zero"/>
+    /// if not yet set.</summary>
+    [Safe]
+    public static UInt160 GetGovernanceController()
+    {
+        var raw = Storage.Get(new byte[] { KeyGovernanceController });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>
+    /// Permanently disable the instant owner-only fraud-verifier allowlist paths
+    /// (<see cref="RegisterFraudVerifier"/>, <see cref="RegisterPermissionlessFraudProfile"/>,
+    /// <see cref="RevokeFraudVerifier"/>) so every future change goes through the council
+    /// multisig + timelock (<see cref="RegisterFraudVerifierViaProposal"/>,
+    /// <see cref="RegisterPermissionlessFraudProfileViaProposal"/>,
+    /// <see cref="RevokeFraudVerifierViaProposal"/>). Owner only; one-way (there is no unlock);
+    /// idempotent. The GovernanceController must be wired first, and locking also permanently
+    /// freezes that controller hash — otherwise the owner could swap in an accept-all controller
+    /// and the council-veto path would be a formality.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §15, §17 and §16. Unlike the registries, this contract decides whether a
+    /// value-bearing batch is reverted: <see cref="Challenge"/> trusts the answer of any
+    /// allowlisted verifier and then slashes the sequencer's whole bond. An owner-only path that
+    /// survives production launch is therefore two separate attacks — register a yes-verifier to
+    /// drain honest sequencer bonds and revert valid batches, or revoke every verifier so no fraud
+    /// proof can ever be accepted and a fraudulent batch finalizes on timeout. Neither is possible
+    /// once this call has run, and the timelock on the proposal path gives honest challengers a
+    /// window to react to a council-approved verifier change before it takes effect.
+    /// </remarks>
+    public static void LockGovernance()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero,
+            "wire GovernanceController before locking — else no fraud verifier could ever be registered");
+        var key = new byte[] { KeyGovernanceLocked };
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnGovernanceLocked();
+        }
+    }
+
+    /// <summary>True once <see cref="LockGovernance"/> has been called — the instant owner
+    /// fraud-verifier allowlist paths are then permanently disabled.</summary>
+    [Safe]
+    public static bool IsGovernanceLocked()
+    {
+        return Storage.Get(new byte[] { KeyGovernanceLocked }) != null;
     }
 
     /// <summary>Configured challenge window in seconds.</summary>
@@ -187,7 +263,9 @@ public class OptimisticChallengeContract : SmartContract
     /// Add a fraud-verifier contract to the allowlist. Only allowlisted verifiers may be
     /// passed to <see cref="Challenge"/>. Owner-gated so an attacker can't drain bonds by
     /// deploying their own "yes-verifier" and feeding it through Challenge — the verifier
-    /// answer is trusted by this contract, so the verifier itself must be trusted.
+    /// answer is trusted by this contract, so the verifier itself must be trusted. The instant
+    /// path exists for bring-up only: once <see cref="LockGovernance"/> has run the only way
+    /// onto the allowlist is <see cref="RegisterFraudVerifierViaProposal"/>.
     /// </summary>
     /// <remarks>
     /// At deploy time the operator should register every shipped fraud verifier
@@ -206,6 +284,25 @@ public class OptimisticChallengeContract : SmartContract
     public static void RegisterFraudVerifier(UInt160 verifier)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use RegisterFraudVerifierViaProposal");
+        WriteFraudVerifier(verifier);
+    }
+
+    /// <summary>
+    /// §16 council-veto path for <see cref="RegisterFraudVerifier"/>: applies an allowlist
+    /// addition that a GovernanceController proposal has approved and timelocked. Anyone may
+    /// submit; the proof of authority is the proposal's approval state, not the caller's witness.
+    /// This is the only path left once <see cref="LockGovernance"/> has run.
+    /// </summary>
+    public static void RegisterFraudVerifierViaProposal(UInt160 verifier, ulong proposalId)
+    {
+        RequireApprovedProposal(proposalId, BuildRegisterFraudVerifierAction(verifier));
+        WriteFraudVerifier(verifier);
+    }
+
+    private static void WriteFraudVerifier(UInt160 verifier)
+    {
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
         BumpVerifierProfileGeneration(verifier);
         Storage.Put(ApprovedVerifierKey(verifier), new byte[] { 1 });
@@ -239,6 +336,35 @@ public class OptimisticChallengeContract : SmartContract
         UInt256 replayDomain)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use RegisterPermissionlessFraudProfileViaProposal");
+        WritePermissionlessFraudProfile(chainId, verifier, executorSemanticId, replayDomain);
+    }
+
+    /// <summary>
+    /// §16 council-veto path for <see cref="RegisterPermissionlessFraudProfile"/>. The council
+    /// votes on the exact <c>(chainId, verifier, executorSemanticId, replayDomain)</c> tuple via
+    /// <see cref="BuildRegisterPermissionlessFraudProfileAction"/>, so a timelocked proposal can
+    /// never be applied to a different chain or paired with a different verifier after the vote.
+    /// </summary>
+    public static void RegisterPermissionlessFraudProfileViaProposal(
+        uint chainId,
+        UInt160 verifier,
+        UInt256 executorSemanticId,
+        UInt256 replayDomain,
+        ulong proposalId)
+    {
+        RequireApprovedProposal(proposalId, BuildRegisterPermissionlessFraudProfileAction(
+            chainId, verifier, executorSemanticId, replayDomain));
+        WritePermissionlessFraudProfile(chainId, verifier, executorSemanticId, replayDomain);
+    }
+
+    private static void WritePermissionlessFraudProfile(
+        uint chainId,
+        UInt160 verifier,
+        UInt256 executorSemanticId,
+        UInt256 replayDomain)
+    {
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
         ExecutionEngine.Assert(!executorSemanticId.Equals(UInt256.Zero), "executor semantic id is zero");
@@ -290,14 +416,164 @@ public class OptimisticChallengeContract : SmartContract
         OnPermissionlessFraudProfileApproved(chainId, verifier, executorSemanticId, replayDomain);
     }
 
-    /// <summary>Remove a fraud-verifier from the allowlist. Owner-gated.</summary>
+    /// <summary>Remove a fraud-verifier from the allowlist. Owner-gated until
+    /// <see cref="LockGovernance"/> runs; the council path is
+    /// <see cref="RevokeFraudVerifierViaProposal"/>.</summary>
     public static void RevokeFraudVerifier(UInt160 verifier)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use RevokeFraudVerifierViaProposal");
+        DeleteFraudVerifier(verifier);
+    }
+
+    /// <summary>
+    /// §16 council-veto path for <see cref="RevokeFraudVerifier"/>. Revocation is the
+    /// denial-of-fraud-proof surface: with every verifier revoked, a proven-fraudulent batch
+    /// simply finalizes when its window expires, so this too must stay behind the council
+    /// multisig + timelock once production governance is locked.
+    /// </summary>
+    public static void RevokeFraudVerifierViaProposal(UInt160 verifier, ulong proposalId)
+    {
+        RequireApprovedProposal(proposalId, BuildRevokeFraudVerifierAction(verifier));
+        DeleteFraudVerifier(verifier);
+    }
+
+    private static void DeleteFraudVerifier(UInt160 verifier)
+    {
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier");
         BumpVerifierProfileGeneration(verifier);
         Storage.Delete(ApprovedVerifierKey(verifier));
         OnFraudVerifierRevoked(verifier);
+    }
+
+    /// <summary>
+    /// Shared §16 gate for the <c>*ViaProposal</c> paths: the proposal must be approved and
+    /// timelocked by the GovernanceController council, must not have been applied here already,
+    /// and its payload must be byte-identical to the action the caller is about to perform.
+    /// Consumption is written before the caller's state change so a fault rolls it back together.
+    /// </summary>
+    private static void RequireApprovedProposal(ulong proposalId, byte[] expectedAction)
+    {
+        var gc = GetGovernanceController();
+        ExecutionEngine.Assert(gc != UInt160.Zero,
+            "governance controller not wired — owner must call SetGovernanceController first");
+
+        var consumedKey = ConsumedProposalKey(proposalId);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+
+        var ok = (bool)Contract.Call(gc, "isApprovedAndTimelocked",
+            CallFlags.ReadOnly, new object[] { proposalId });
+        ExecutionEngine.Assert(ok,
+            "proposal not approved + timelocked (council multisig + timelock not satisfied)");
+
+        // Bind the voted payload to the action args. Without this, one approved proposal could be
+        // applied with ANY verifier / chain / semantic id — the council vote would be a blank
+        // check handed to whoever noticed it first.
+        var bound = (bool)Contract.Call(gc, "matchesProposalPayload",
+            CallFlags.ReadOnly, new object[] { proposalId, expectedAction });
+        ExecutionEngine.Assert(bound,
+            "proposal payload does not match action args (council voted on different bytes)");
+
+        Storage.Put(consumedKey, new byte[] { 1 });
+    }
+
+    private static byte[] BuildAction(byte[] tag, byte[] body)
+    {
+        var buf = new byte[tag.Length + body.Length];
+        for (var i = 0; i < tag.Length; i++) buf[i] = tag[i];
+        for (var i = 0; i < body.Length; i++) buf[tag.Length + i] = body[i];
+        return buf;
+    }
+
+    /// <summary>
+    /// Canonical encoding for a "register fraud verifier" action. Layout:
+    /// <c>"neo4-gov:registerFraudVerifier" || verifier(20B)</c> = 50 bytes.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildRegisterFraudVerifierAction(UInt160 verifier)
+    {
+        var verifierBytes = (byte[])verifier;
+        var body = new byte[20];
+        for (var i = 0; i < 20; i++) body[i] = verifierBytes[i];
+        return BuildAction(ActionTagRegisterFraudVerifier, body);
+    }
+
+    /// <summary>
+    /// Canonical encoding for a "revoke fraud verifier" action. Layout:
+    /// <c>"neo4-gov:revokeFraudVerifier" || verifier(20B)</c> = 48 bytes.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildRevokeFraudVerifierAction(UInt160 verifier)
+    {
+        var verifierBytes = (byte[])verifier;
+        var body = new byte[20];
+        for (var i = 0; i < 20; i++) body[i] = verifierBytes[i];
+        return BuildAction(ActionTagRevokeFraudVerifier, body);
+    }
+
+    /// <summary>
+    /// Canonical encoding for a "register permissionless fraud profile" action. Layout:
+    /// <c>"neo4-gov:registerPermissionlessFraudProfile" || chainId(4B LE) || verifier(20B) ||
+    /// executorSemanticId(32B) || replayDomain(32B)</c> = 131 bytes. Every field is bound because
+    /// this profile is what authorizes a value-bearing batch revert.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildRegisterPermissionlessFraudProfileAction(
+        uint chainId, UInt160 verifier, UInt256 executorSemanticId, UInt256 replayDomain)
+    {
+        var verifierBytes = (byte[])verifier;
+        var semanticBytes = (byte[])executorSemanticId;
+        var replayBytes = (byte[])replayDomain;
+        var body = new byte[4 + 20 + 32 + 32];
+        body[0] = (byte)chainId;
+        body[1] = (byte)(chainId >> 8);
+        body[2] = (byte)(chainId >> 16);
+        body[3] = (byte)(chainId >> 24);
+        for (var i = 0; i < 20; i++) body[4 + i] = verifierBytes[i];
+        for (var i = 0; i < 32; i++) body[24 + i] = semanticBytes[i];
+        for (var i = 0; i < 32; i++) body[56 + i] = replayBytes[i];
+        return BuildAction(ActionTagRegisterPermissionlessFraudProfile, body);
+    }
+
+    private static readonly byte[] ActionTagRegisterFraudVerifier = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'e', (byte)'g', (byte)'i', (byte)'s', (byte)'t', (byte)'e', (byte)'r',
+        (byte)'F', (byte)'r', (byte)'a', (byte)'u', (byte)'d',
+        (byte)'V', (byte)'e', (byte)'r', (byte)'i', (byte)'f', (byte)'i', (byte)'e', (byte)'r'
+    };
+
+    private static readonly byte[] ActionTagRevokeFraudVerifier = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'e', (byte)'v', (byte)'o', (byte)'k', (byte)'e',
+        (byte)'F', (byte)'r', (byte)'a', (byte)'u', (byte)'d',
+        (byte)'V', (byte)'e', (byte)'r', (byte)'i', (byte)'f', (byte)'i', (byte)'e', (byte)'r'
+    };
+
+    private static readonly byte[] ActionTagRegisterPermissionlessFraudProfile = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'e', (byte)'g', (byte)'i', (byte)'s', (byte)'t', (byte)'e', (byte)'r',
+        (byte)'P', (byte)'e', (byte)'r', (byte)'m', (byte)'i', (byte)'s', (byte)'s', (byte)'i',
+        (byte)'o', (byte)'n', (byte)'l', (byte)'e', (byte)'s', (byte)'s',
+        (byte)'F', (byte)'r', (byte)'a', (byte)'u', (byte)'d',
+        (byte)'P', (byte)'r', (byte)'o', (byte)'f', (byte)'i', (byte)'l', (byte)'e'
+    };
+
+    private static byte[] ConsumedProposalKey(ulong proposalId)
+    {
+        var k = new byte[1 + 8];
+        k[0] = PrefixConsumedProposal;
+        k[1] = (byte)proposalId; k[2] = (byte)(proposalId >> 8);
+        k[3] = (byte)(proposalId >> 16); k[4] = (byte)(proposalId >> 24);
+        k[5] = (byte)(proposalId >> 32); k[6] = (byte)(proposalId >> 40);
+        k[7] = (byte)(proposalId >> 48); k[8] = (byte)(proposalId >> 56);
+        return k;
     }
 
     /// <summary>True iff <paramref name="verifier"/> is on the fraud-verifier allowlist.</summary>

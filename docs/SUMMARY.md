@@ -77,6 +77,9 @@
 
 # Audit evidence
 
+- [Subsystem verification audit (2026-08-30)](./audit/subsystem-verification-audit-2026-08-30.md)
+- [Full system audit (2026-08-29)](./audit/full-system-audit-2026-08-29.md)
+- [SP1 transitive dependency advisories (2026-08-28)](./audit/sp1-transitive-advisories-2026-08-28.md)
 - [P0/P1/P2 audit closure ledger (2026-07-14)](./audit/p0-p1-p2-closure-2026-07-14.md)
 - [Comprehensive audit closure (2026-05-20)](./audit/comprehensive-audit-2026-05-20.md)
 - [Production readiness audit](./audit/production-readiness-audit.md)

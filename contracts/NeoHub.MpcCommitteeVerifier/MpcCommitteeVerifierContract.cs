@@ -47,6 +47,7 @@ public class MpcCommitteeVerifierContract : SmartContract
     /// the Phase-C <c>NeoHub.MpcCommitteeFraudVerifier</c> to slash a
     /// specific committee member's bond on equivocation.</summary>
     private const byte PrefixSignerMember = 0x05;
+    private const byte KeyGovernanceLocked = 0x06;     // once set → instant owner RegisterCommittee* is disabled (one-way)
     private const byte KeyOwner = 0xFF;
     private const int OffsetExternalChainId = 0;
     private const int OffsetDirection = 16;
@@ -72,6 +73,10 @@ public class MpcCommitteeVerifierContract : SmartContract
     /// <summary>Emitted when ownership is transferred.</summary>
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    /// <summary>Emitted once production governance is irreversibly locked.</summary>
+    [DisplayName("GovernanceLocked")]
+    public static event Action OnGovernanceLocked = default!;
 
     /// <summary>Set the initial owner.</summary>
     public static void _deploy(object data, bool update)
@@ -100,10 +105,13 @@ public class MpcCommitteeVerifierContract : SmartContract
         OnOwnerChanged(oldOwner, newOwner);
     }
 
-    /// <summary>Wire the GovernanceController contract hash.</summary>
+    /// <summary>Wire the GovernanceController contract hash. Owner only —
+    /// permanently frozen by <see cref="LockGovernance"/>.</summary>
     public static void SetGovernanceController(UInt160 governanceController)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — the controller hash is frozen");
         ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
             "invalid governance controller");
         Storage.Put(new byte[] { KeyGovernanceController }, governanceController);
@@ -119,7 +127,46 @@ public class MpcCommitteeVerifierContract : SmartContract
     }
 
     /// <summary>
-    /// Register (or replace) the committee for an external chain. Owner only.
+    /// Permanently disable the instant owner-only <see cref="RegisterCommittee"/> and
+    /// <see cref="RegisterCommitteeWithMembers"/> paths so every future committee binding must go
+    /// through the council multisig + timelock (<see cref="RegisterCommitteeViaProposal"/> /
+    /// <see cref="RegisterCommitteeWithMembersViaProposal"/>). Owner only; one-way (there is no
+    /// unlock); idempotent. The GovernanceController must be wired first, and locking also freezes
+    /// that controller hash — otherwise the owner could swap in an accept-all controller and the
+    /// proposal path would be a formality.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §11.3 (external bridges) and §16 (Governance). This contract holds the M-of-N
+    /// attestation keys for every foreign chain, so an owner call that survives production locking
+    /// is a direct way to install an attacker-chosen committee — the malicious committee can then
+    /// attest fraudulent inbound messages and no fraud proof can catch it, because the attacker
+    /// <em>is</em> the committee. <see cref="NeoHub.ExternalBridgeEscrow.ExternalBridgeEscrowContract.LockGovernance"/>
+    /// only freezes the escrow's <em>pointer to</em> the registry, never this committee table.
+    /// </remarks>
+    public static void LockGovernance()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero,
+            "wire GovernanceController before locking — else no committee could ever be rotated");
+        var key = new byte[] { KeyGovernanceLocked };
+        if (Storage.Get(key) == null)
+        {
+            Storage.Put(key, new byte[] { 1 });
+            OnGovernanceLocked();
+        }
+    }
+
+    /// <summary>True once <see cref="LockGovernance"/> has been called — the instant owner
+    /// committee-registration paths are then permanently disabled.</summary>
+    [Safe]
+    public static bool IsGovernanceLocked()
+    {
+        return Storage.Get(new byte[] { KeyGovernanceLocked }) != null;
+    }
+
+    /// <summary>
+    /// Register (or replace) the committee for an external chain. Owner only until
+    /// <see cref="LockGovernance"/> runs.
     /// </summary>
     /// <param name="externalChainId">Foreign chain id (must use 0xE0_xx_xx_xx prefix).</param>
     /// <param name="threshold">M (signatures required).</param>
@@ -130,6 +177,8 @@ public class MpcCommitteeVerifierContract : SmartContract
         uint externalChainId, byte threshold, byte curveTag, byte[] committeeBlob)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use RegisterCommitteeViaProposal");
         WriteCommittee(externalChainId, threshold, curveTag, committeeBlob);
     }
 
@@ -149,6 +198,8 @@ public class MpcCommitteeVerifierContract : SmartContract
         byte[] committeeBlob, byte[] memberBlob)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use RegisterCommitteeWithMembersViaProposal");
         WriteCommitteeWithMembers(externalChainId, threshold, curveTag, committeeBlob, memberBlob);
     }
 

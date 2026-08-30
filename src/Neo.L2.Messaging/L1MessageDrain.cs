@@ -7,9 +7,13 @@ namespace Neo.L2.Messaging;
 /// production sources (SharedBridge deposits, MessageRouter inbox, tests).
 /// </summary>
 /// <remarks>
-/// See doc.md §15.1 / §15.2. Every drain must fail closed on null results. Combined drains
-/// sort by <c>(SourceChainId, Nonce)</c> and reject colliding keys so two independent L1
-/// nonce spaces cannot silently overwrite each other under <c>sourceChainId = 0</c>.
+/// See doc.md §15.1 / §15.2. Every drain must fail closed on null results. SharedBridge deposits
+/// and MessageRouter inbox entries both arrive with <c>sourceChainId = 0</c> while advancing
+/// independent per-target-chain counters, and the L2 applies them through separate native
+/// contracts, so a combined drain may legitimately carry equal nonces from the two families.
+/// What it may not carry is the same message twice, two deposits claiming one
+/// <c>(sourceChainId, nonce)</c> slot, or an order that is not total — the merged sequence feeds
+/// <c>l1MessageHash</c>, so it must be reproducible across seal retries.
 /// </remarks>
 public static class L1MessageDrain
 {
@@ -104,24 +108,57 @@ public static class L1MessageDrain
         if (merged.Count == 0)
             return Array.Empty<CrossChainMessage>();
 
-        merged.Sort(static (a, b) =>
-        {
-            var chain = a.SourceChainId.CompareTo(b.SourceChainId);
-            return chain != 0 ? chain : a.Nonce.CompareTo(b.Nonce);
-        });
+        merged.Sort(Compare);
 
-        var seen = new HashSet<(uint, ulong)>();
+        var seenMessages = new HashSet<CrossChainMessage>();
+        var seenDepositSlots = new HashSet<(uint, ulong)>();
         for (var i = 0; i < merged.Count; i++)
         {
-            var key = (merged[i].SourceChainId, merged[i].Nonce);
-            if (!seen.Add(key))
+            var message = merged[i];
+            if (!seenMessages.Add(message))
                 throw new InvalidOperationException(
-                    $"duplicate L1 message key ({key.Item1},{key.Item2}) across combined drains — " +
-                    "SharedBridge deposit nonces and MessageRouter nonces must not collide under sourceChainId=0");
+                    $"duplicate L1 inbox message (sourceChainId={message.SourceChainId}, " +
+                    $"nonce={message.Nonce}, type={message.MessageType}) returned by combined drains");
+
+            // SharedBridge deposits and MessageRouter inbox entries both carry sourceChainId=0 but
+            // advance independent per-target-chain counters, and the L2 applies them through
+            // separate native contracts. Only the deposit slot is claimed by (sourceChainId, nonce).
+            if (message.MessageType == MessageType.Deposit
+                && !seenDepositSlots.Add((message.SourceChainId, message.Nonce)))
+                throw new InvalidOperationException(
+                    $"two distinct SharedBridge deposits claim slot ({message.SourceChainId}, " +
+                    $"{message.Nonce}) across combined drains");
         }
 
         if (merged.Count <= max)
             return merged;
         return merged.GetRange(0, max);
+    }
+
+    /// <summary>
+    /// Total ordering over the L1 inbox. <c>(SourceChainId, Nonce)</c> alone does not order a
+    /// combined drain, and <c>List.Sort</c> is unstable, so every remaining field participates
+    /// — otherwise two seals of identical inputs could emit different sequences and therefore
+    /// different <c>l1MessageHash</c> values.
+    /// </summary>
+    private static int Compare(CrossChainMessage a, CrossChainMessage b)
+    {
+        var byChain = a.SourceChainId.CompareTo(b.SourceChainId);
+        if (byChain != 0) return byChain;
+        var byNonce = a.Nonce.CompareTo(b.Nonce);
+        if (byNonce != 0) return byNonce;
+        var byTarget = a.TargetChainId.CompareTo(b.TargetChainId);
+        if (byTarget != 0) return byTarget;
+        var byType = a.MessageType.CompareTo(b.MessageType);
+        if (byType != 0) return byType;
+        var bySender = a.Sender.GetSpan().SequenceCompareTo(b.Sender.GetSpan());
+        if (bySender != 0) return bySender;
+        var byReceiver = a.Receiver.GetSpan().SequenceCompareTo(b.Receiver.GetSpan());
+        if (byReceiver != 0) return byReceiver;
+        var byPayload = a.Payload.Span.SequenceCompareTo(b.Payload.Span);
+        if (byPayload != 0) return byPayload;
+        // Two messages that tie on every field above are still distinct records if their hashes
+        // differ, and List.Sort is unstable — so the hash breaks the tie to keep one total order.
+        return a.MessageHash.GetSpan().SequenceCompareTo(b.MessageHash.GetSpan());
     }
 }

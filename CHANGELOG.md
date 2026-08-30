@@ -5,6 +5,77 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Audit — execution-based subsystem verification across seven tracks — 2026-08-30
+
+- New report: `docs/audit/subsystem-verification-audit-2026-08-30.md`
+  (中文: `docs/zh/audit/subsystem-verification-audit-2026-08-30.md`). Where the 2026-08-29 audit read
+  and cross-checked, this pass builds, runs and instruments, and asks of each subsystem whether the
+  artifact a green checkmark ran on is the artifact the source describes.
+- `C4` (new Critical, unfixed): a successful fraud proof leaves `OptimisticChallenge`'s window key in
+  place, so the corrected resubmit that `SubmitBatch` invites faults at `"window already open"` and
+  the optimistic chain can never advance again. `C3` (new Critical, unfixed): the PolkaVM guest blob
+  every RISC-V test executes predates three rounds of guest-side hardening, and no gate can tell.
+- New Highs `H14`–`H19` and a verification-integrity class `V1`–`V6` (CI's required SP1 check asserts
+  the heavy lanes were skipped; the payout path's Merkle verifier is mocked in the test meant to catch
+  a forged leaf; 27 settlement tests self-skip on Windows; the metric registry has one bypass, on the
+  `H1` crash path).
+- Prior status: `H2` re-confirmed; `H3` half-refuted (the deployer now registers and read-back-verifies
+  the forced-inclusion pauser before `LockGovernance`); `C1`/`H12` fixed on this branch; `C2`, `H1`,
+  `H6`, `H13` and `§3.1` still open.
+- No code, contract or encoding changed in this entry — findings and remediation order only.
+
+### Fixed — C1: SharedBridge deposits and MessageRouter entries no longer collide in the batcher inbox — 2026-08-29
+
+- `src/Neo.L2.Messaging/L1MessageDrain.cs`: combined drains deduplicated on
+  `(SourceChainId, Nonce)` only. Deposits and `EnqueueL1ToL2` messages both stamp
+  `sourceChainId = 0` while advancing independent per-target-chain counters, so the first deposit
+  and the first router message for any chain keyed identically and `Combine` threw — the batcher
+  stopped sealing and all deposits/withdrawals halted, an outcome any account could trigger for a
+  small GAS fee. Dedup is now two-part: identical messages are rejected via content equality
+  (`CrossChainMessage` already overrides `Equals`/`GetHashCode` by byte content), and the
+  `(sourceChainId, nonce)` slot claim is scoped to `MessageType.Deposit` — the only family whose
+  L2 consumer keys on that slot. Running deposits and the router together is now a supported
+  configuration rather than a chain halt.
+- Ordering: the merged sequence feeds `l1MessageHash`, so the comparator is now a total order over
+  every field (target chain, type, sender, receiver, payload, message hash). `(SourceChainId,
+  Nonce)` did not order a combined drain and `List.Sort` is unstable, so two seals of identical
+  inputs could previously emit different sequences.
+- Tests: `UT_L1MessageDrain` pins the previously-missing deposit+router combined-drain scenario
+  plus three regressions (two distinct deposits on one slot rejected, same message from two drains
+  rejected, tied-nonce order independent of drain order).
+- Wire/ABI unchanged (off-chain dedup/order only; no encoding or storage layout touched).
+
+### Security — H12: one-way `LockGovernance` on the three remaining owner-rewritable trust roots — 2026-08-29
+
+- Contracts: `OptimisticChallenge`, `ExternalBridgeRegistry` and `MpcCommitteeVerifier` now carry
+  the repo's irreversible-lock pattern (`LockGovernance()` refuses to lock before a
+  `GovernanceController` is wired, is one-way and idempotent, emits `GovernanceLocked`, and freezes
+  `SetGovernanceController` so the owner cannot swap in an accept-all controller after the fact).
+  Once locked, the instant owner paths are disabled: `RegisterFraudVerifier`,
+  `RegisterPermissionlessFraudProfile` and `RevokeFraudVerifier`; `RegisterVerifier` and its
+  `UpgradeVerifier` alias; `RegisterCommittee` and `RegisterCommitteeWithMembers`. Previously a
+  "locked" deployment left who may prove a fraud, who may attest a foreign deposit and the MPC
+  signing set replaceable forever by one owner call.
+- `OptimisticChallenge` had no §16 surface at all, so it gained one: `SetGovernanceController`,
+  the three proposal-gated twins (`RegisterFraudVerifierViaProposal`,
+  `RegisterPermissionlessFraudProfileViaProposal`, `RevokeFraudVerifierViaProposal`) with
+  per-`proposalId` replay protection, and `[Safe] Build*Action` helpers over the canonical
+  `"neo4-gov:<action>" || args` encoding. `ExternalBridgeRegistry` / `MpcCommitteeVerifier` already
+  exposed proposal variants and needed only the gate. Revocation is council-gated too, since an
+  instant revoke is a denial-of-fraud-proof path.
+- Locks are administration-only: fraud proving still runs against a locked deployment. VM tests
+  assert `Challenge` still slashes and blocks finalization post-lock, and that a valid secp256k1
+  committee attestation still verifies post-lock.
+- Deployer: `LiveDeployCommand` wires `OptimisticChallenge.SetGovernanceController` and calls all
+  three `LockGovernance()` actions (each with a read-back `CompletionCheck`, so resume is safe),
+  and smoke checks now assert all three report locked. `ScaffoldPlan` emits the matching operator
+  steps in order — OC lock strictly after the instant v4 profile registration, MPC/registry locks
+  after every per-chain registration hint — and `docs/launching-an-l2.md` states explicitly that
+  `ExternalBridgeEscrow.LockGovernance` freezes only the escrow's *pointer to* the registry.
+- Storage is additive (`KeyGovernanceController` / `PrefixConsumedProposal` / `KeyGovernanceLocked`
+  in `OptimisticChallenge`, `KeyGovernanceLocked` in the other two); no existing key layout or
+  byte format changed. Contract `.nef`/manifest artifacts regenerated.
+
 ### Security — document SP1 6.2.1 transitive advisories, quiet unfixable Dependabot jobs — 2026-08-28
 
 - Assessment: two GitHub-Advisory-Database-only findings flag transitives of the pinned

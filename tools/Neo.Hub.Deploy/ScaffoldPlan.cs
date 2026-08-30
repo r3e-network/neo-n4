@@ -404,6 +404,10 @@ public static class ScaffoldPlan
         {
             yield return $"{sm.Name}.SetGovernanceController({gc.Name})  # bind emergency batch rollback to exact §16 council proposals before the irreversible production lock";
         }
+        if (oc is not null && gc is not null)
+        {
+            yield return $"{oc.Name}.SetGovernanceController({gc.Name})  # enable the §16 council-veto fraud paths (RegisterFraudVerifierViaProposal, RegisterPermissionlessFraudProfileViaProposal, RevokeFraudVerifierViaProposal) before the irreversible production lock";
+        }
         if (contractZkVerifier is not null && sp1Groth16Verifier is not null)
         {
             yield return $"{contractZkVerifier.Name}.RegisterVerificationKey(ProofSystem.Sp1=1, PROGRAM_VKEY_REPLACE_ME, allowed=true)  # allow the audited SP1 program vkey emitted by the production prover";
@@ -420,6 +424,10 @@ public static class ScaffoldPlan
         {
             yield return $"{oc.Name}.RegisterPermissionlessFraudProfile(L2_CHAIN_ID_REPLACE_ME, {rexFraudVerifier.Name}, {rexFraudVerifier.Name}.GetExecutorSemanticId(), FRAUD_REPLAY_DOMAIN_REPLACE_ME)  # atomically approve and bind the only supported state-changing executable v4 profile";
             yield return "# Security boundary: v1/v2/v3 fraud payloads are advisory only and fail closed for state changes even with governance or owner witness; general NeoVM optimistic execution remains unsupported.";
+        }
+        if (oc is not null && gc is not null)
+        {
+            yield return $"{oc.Name}.LockGovernance()  # irreversible production gate: freeze the GovernanceController and disable instant owner allowlist add, v4 profile bind and revoke; an owner that could still revoke every verifier could make a fraudulent batch finalize unchallenged, so future changes require exact payload-bound timelocked proposals";
         }
 
         // ─── External-bridge wiring ──────────────────────────────────────
@@ -448,7 +456,7 @@ public static class ScaffoldPlan
             // Without this step the registry has no verifier registered
             // and ExternalBridgeEscrow.Receive reverts with "no verifier
             // registered for externalChainId" on first inbound message.
-            yield return $"# Per supported foreign chain (e.g. Eth=0xE0000001, Sepolia=0xE0000002): run `neo-external-bridge committee-blob` + `neo-external-bridge deploy-bundle` to register the committee on {mpcVerifier.Name} and bind it to {extRegistry.Name} via RegisterVerifier(externalChainId, mpcVerifier.Hash, bridgeKindMpc=1).";
+            yield return $"# Per supported foreign chain (e.g. Eth=0xE0000001, Sepolia=0xE0000002): run `neo-external-bridge committee-blob` + `neo-external-bridge deploy-bundle` to register the committee on {mpcVerifier.Name} and bind it to {extRegistry.Name} via RegisterVerifier(externalChainId, mpcVerifier.Hash, bridgeKindMpc=1). Both {mpcVerifier.Name} and {extRegistry.Name} are locked further down this plan, so onboard every chain you intend to support before those locks or use the ViaProposal variants afterwards.";
         }
         if (extEscrow is not null && l2PayoutAdapter is not null)
         {
@@ -479,6 +487,14 @@ public static class ScaffoldPlan
             // whose bond to slash. Without RegisterCommitteeWithMembers, it
             // refuses to slash even on valid equivocation proof.
             yield return $"# Per supported foreign chain: use {mpcVerifier.Name}.RegisterCommitteeWithMembers (NOT plain RegisterCommittee) so {fraudVerifier.Name} can identify which bond holder to slash on proven equivocation.";
+        }
+        if (mpcVerifier is not null && gc is not null)
+        {
+            yield return $"{mpcVerifier.Name}.LockGovernance()  # irreversible production gate: freeze the GovernanceController and disable instant owner committee replacement; this table holds the M-of-N keys that attest foreign deposits, and a swapped-in committee is un-falsifiable by fraud proof. Locking the escrow alone never covered this table, so it stayed rotatable by one owner call; future rotations require RegisterCommittee(WithMembers)ViaProposal with exact bound bytes";
+        }
+        if (extRegistry is not null && gc is not null)
+        {
+            yield return $"{extRegistry.Name}.LockGovernance()  # irreversible production gate: freeze the GovernanceController and disable instant owner writes to the externalChainId -> verifier dispatch table that escrow Receive routes through; future foreign chains require UpgradeVerifierViaProposal with exact bound bytes";
         }
         if (sm is not null && daRegistry is not null)
         {

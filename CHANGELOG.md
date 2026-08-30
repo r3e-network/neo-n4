@@ -51,11 +51,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   does not apply here (the fork's `num_f_elms` yields 4 limbs ≥ 254 bits, not the advisory's 3), while
   its *transcript malleability* half does (unchunked-length absorption through `reduce_31`, plus a
   partial-buffer duplex in `sample()`).
-- The fix now has a name: `slop-challenger 6.5.0` requires `p3-challenger = "=0.4.3-succinct"`. It is
-  not reachable by `cargo update` — `slop-challenger 6.2.1` requires `^0.3.3-succinct` and the repo pins
-  `sp1-sdk = "=6.2.1"` exactly in two in-repo manifests plus the vendored workspace, so this is an
-  SP1 6.2.1 → 6.5.0 release bump: VK re-pin, guest rebuild, semantic-ID rotation, cross-repo. §10 item 17
-  records it as a decision, alongside two cheap actions that do not need it.
+- There is no fix path, and **this bullet previously named one that does not exist.** It said the fix had
+  a name — an SP1 6.2.1 → 6.5.0 bump, because `slop-challenger 6.5.0` requires
+  `p3-challenger = "=0.4.3-succinct"`. Attempting that bump measured the claim and falsified it:
+  `0.4.3-succinct` and `0.3.3-succinct` have byte-identical `src/multi_field_challenger.rs`
+  (`f0f8351c60f76364…`) and `p3-field`'s `src/helpers.rs` (`e28cb64e3b73b567…`), while upstream `0.4.3`
+  is the patched build (`b6dfd6ca82fb2ec5…`, 623 lines against the fork's 199). `0.4.3-succinct` is the
+  highest `-succinct` build of `p3-challenger` ever published and the newest `slop-challenger` pins
+  exactly it, so **no SP1 release remediates GHSA-vj64-rjf3-w3v7** — the transcript-malleability
+  mechanism the bullet above establishes is live at both fork tags. Same for `p3-symmetric`: its
+  `sponge.rs` hashes identically across the two tags with `Pad10Sponge` absent from both. What it did
+  leave behind is a note for whoever bumps next: `=6.2.2` pins the SDK, not the family, because SP1's
+  internal requirements are carets — moving the eight in-repo `sp1-*` pins re-resolved 44 sibling
+  crates, `sp1-core-machine` among them, to 6.5.0. The bump is off the queue —
+  §10 item 17 now records it as settled rather than deferred.
 - Also newly assessed: `p3-symmetric` (never written up before) does carry the vulnerable
   `PaddingFreeSponge` / `MultiField32PaddingFreeSponge` and has no `Pad10Sponge`, so it is reachable,
   with the advisory's own fixed-arity caveat narrowing it to Low. And `.github/dependabot.yml`'s

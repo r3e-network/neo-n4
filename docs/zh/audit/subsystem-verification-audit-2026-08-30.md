@@ -698,7 +698,8 @@ $ gh api "repos/r3e-network/neo-n4/dependabot/alerts?state=open"
 4 个检查失败）。那份笔记是有用的工作，本发现不复述它。V8 补充的是那份笔记在 2026-08-28 还无法说出的
 四件事，每一件都是在这里对着被钉扎的源码量出来的，而不是推断出来的：challenger 公告的*两个*机制里
 究竟哪一个在 `0.3.3-succinct` 这个 fork 里仍然成立（那份笔记明确拒绝猜，称该 backport
-“not publicly recorded”）；这次升级的具体目标发布版本；对 `p3-symmetric` 的评估（那份笔记完全没覆盖）；
+“not publicly recorded”）；没有任何 SP1 发布版本带着这个修复，而这同时也是对本节自己先写下、后来量出
+是错的那个结论的更正（见下文的“修复路径没有名字”）；对 `p3-symmetric` 的评估（那份笔记完全没覆盖）；
 以及接受风险台账上的一处缺口，在本节末尾点出。
 
 这个仓库对“我们的 Rust 依赖审计过了吗？”的回答是一个 CI job：
@@ -767,33 +768,62 @@ inputs 当作唯一的东西来说都是有意义的。它不是一个伪造证�
 —— 剩下的问题是 N4 侧是否有消费者依赖 batch 或 Gateway sidecar 之间 transcript/proof-input 的唯一性，
 那是对 `AtomicFileQueueTransport` 与 sidecar 绑定的分析，不是对这个 crate 的分析。
 
-**修复路径现在有了名字。** 08-28 那份笔记正确地得出被钉扎的图里没有任何版本能表达这个修复，并且要求
-“a release whose dependency graph pins `p3-challenger >= 0.4.3`”，但没有指出这样一次发布存在。它存在 ——
-当前的 `slop-challenger` 正好要求那个已修复的构建：
+**修复路径没有名字。** 08-28 那份笔记正确地得出被钉扎的图里没有任何版本能表达这个修复，并且要求
+“a release whose dependency graph pins `p3-challenger >= 0.4.3`”，但没有指出这样一次发布存在。本节最早
+的那个版本回答了这个问题，而给出的回答是一次发布：
 
 ```
 $ curl -s https://crates.io/api/v1/crates/slop-challenger/6.5.0/dependencies | grep -A1 p3-challenger
 "crate_id":"p3-challenger"  "req":"=0.4.3-succinct"
 ```
 
-但 `slop-challenger 6.2.1` 要求的是 `0.3.3-succinct`（即 `^0.3.3-succinct`），而本仓库以精确版本钉扎
-这条工具链，涉及仓内三份 manifest 加那份被 vendor 的 workspace：
+那个回答是错的，而它*错在哪里*本身就是结论。`0.4.3-succinct` 是一个 fork 标签，不是 Plonky3 上游的
+`0.4.3`，而标签的这一跳从来没有带上那个安全变更。把公告点名的两个文件在所有相关构建上取哈希：
 
 ```
-bridge/neo-zkvm-host/Cargo.toml:31,50          sp1-sdk = { version = "=6.2.1", … }
-bridge/neo-zkvm-gateway-host/Cargo.toml:28,36  sp1-sdk = { version = "=6.2.1", … }
-external/neo-zkvm/Cargo.toml:27                sp1-sdk = { version = "=6.2.1", … }   (submodule)
+$ sha256sum …/p3-challenger-{0.3.3-succinct,0.4.3-succinct,0.4.3}/src/multi_field_challenger.rs
+f0f8351c60f76364…   0.3.3-succinct     ← SP1 6.2.1 钉扎的就是它
+f0f8351c60f76364…   0.4.3-succinct     ← SP1 6.2.2 与 6.5.0 钉扎的就是它 —— 完全一致
+b6dfd6ca82fb2ec5…   0.4.3（上游）      ← 已修复：623 行，absorb/squeeze 的进制被拆开
+
+$ sha256sum …/p3-field-{0.3.3-succinct,0.4.3-succinct}/src/helpers.rs
+e28cb64e3b73b567…   0.3.3-succinct
+e28cb64e3b73b567…   0.4.3-succinct     ← 完全一致
 ```
 
-因此要关掉这条 High，需要一次 SP1 6.2.1 → 6.5.0 的发布 bump，而这次 bump 是贴着规范的工作，
-不是依赖刷新：`doc.md:372` 把“SP1 6.2.1 compressed proof”写成了需求文本，`AGENTS.md`、
-`ARCHITECTURE.md` 与 `IMPLEMENTATION_STATUS.md:266-267` 都点名 6.2.1，build script 从单一的 Docker ELF
-快照嵌入 SHA-256/VK，而 `NeoHub.Sp1Groth16Verifier` 是一个不可变的、兼容 SP1 v6.1 的 wrapper，通过
-BN254 interop 验证。以上每一项都要针对 6.5.0 重新确立，而被 vendor 的 submodule 住在
-`r3e-network/neo-zkvm`（它当前的 gitlink 已经在一条 `codex/rustsec-2026-refresh` 分支上），
-所以这是一个跨仓变更。另外还要注意：即便完成了这样的 bump，解析出来的版本会是 `0.4.3-succinct`，
-而它在 semver 里排在 `0.4.3` *之前*（更小）—— Dependabot 之后是否会关掉这条告警，这里没有验证，
-必须去查，不能假设。
+公告点名的两个文件，在 fork 的这一次跳变上逐比特相同。因此上文“在被钉扎的配对上，哪些成立、哪些不
+成立”所确立的一切，原封不动地适用于 `0.4.3-succinct`：transcript 可延展那个机制在那里同样是活的。
+而且没有更高的地方可去 —— `0.4.3-succinct` 是 `p3-challenger` 有史以来发布过的最高的 `-succinct`
+构建，而 `slop-challenger 6.5.0`（它本身是最新的）正好钉扎它。**没有任何 SP1 发布版本修复
+GHSA-vj64-rjf3-w3v7。** 唯一带着修复的构建是上游的 `0.4.3` 与 `0.5.3`，而 SP1 只要还在用 Succinct
+的 fork 就拿不到它们。这个修复不是排期没排上，而是在这张依赖图里不可得；诚实的姿态就是 08-28 那份
+笔记已经采取的接受风险姿态。
+
+给将来真的去做 bump 的人留一条有用的记录，因为这次尝试暴露了一个本仓库从来不必描述的陷阱。
+`=6.2.2` 钉的是 SDK，不是整个家族：SP1 的内部需求是 caret 区间，所以把
+`bridge/neo-zkvm-{guest,gateway-guest,host,gateway-host}/Cargo.toml` 里的八个
+`sp1-sdk` / `sp1-zkvm` / `sp1-verifier` 钉扎改掉，会把 lockfile 重新解析成一个
+`sp1-{sdk,prover,verifier,zkvm,recursion-gnark-ffi}` 在 6.2.2、而 **44 个同级 crate —— 包括
+`sp1-core-machine`、`sp1-core-executor` 与 `sp1-recursion-compiler` —— 在 6.5.0** 的堆栈。
+这个组合 SP1 从未发布也从未测过，而 `sp1-release-gates` 只会在对着派生出的 ELF/VK 钉扎失败时才把它
+抓住。一份统一的 6.2.2 lock 是可达的（我在 crates.io 上逐一查过的每个 `sp1-*` crate 都发布了 6.2.2），
+但那要求把家族里每一个成员都钉住，而不是改四份 manifest。这次尝试已经撤销 —— 那条分支没有留下任何
+commit，工作树回到了 `=6.2.1`。
+
+如果将来出于这些公告以外的理由排期一次 bump，它的代价与这里的界定不变：`doc.md:372` 把
+“SP1 6.2.1 compressed proof”写成了需求文本，`AGENTS.md`、`ARCHITECTURE.md` 与
+`IMPLEMENTATION_STATUS.md:266-267` 都点名 6.2.1，build script 从单一的 Docker ELF 快照派生
+SHA-256/VK 并在不匹配时 panic，而 `NeoHub.Sp1Groth16Verifier` 是一个不可变的、兼容 SP1 v6.1 的
+wrapper，通过 BN254 interop 验证。以上每一项都要针对新版本重新确立，guest ELF 只能在有 Docker 的地方
+重新派生（本仓库本地没有 Docker，因此那个循环是一次 `sp1-release-gates` 的 `workflow_dispatch`），
+而被 vendor 的 submodule 住在 `r3e-network/neo-zkvm` —— 所以这是一个跨仓变更。这些工作没有一项会动到
+那些有漏洞的字节。
+
+本节此前留下的那个 semver 问题 —— `0.4.3-succinct` 在排序上*低于* `0.4.3`，那么告警会不会熬过它自己的
+修复？—— 现在已经无关紧要，而且值得就地结掉而不是继续背着。因为字节完全相同，告警的结果在任何一种
+情况下都只是表面现象：如果 Dependabot 把 `0.4.3-succinct` 判成满足 `< 0.4.3` 并关掉这条 High，那次
+关闭就是对一条本节已经证明“活着且从未改变”的代码路径的**假绿**。无论哪种结果，Security 标签页都不是
+这个依赖可用的信号 —— 这与本节开头讲的那个门禁盲区是同一件事。
 
 `lru` 那条不需要新分析：`lru 0.12.5` 确实由 `sp1-prover 6.2.1` 引入
 （`[dependencies.lru] version = "0.12.4"`），而该需求之内不存在已修补的发布 —— 这也正是 08-28
@@ -820,8 +850,10 @@ $ grep -rn "Pad10Sponge" ~/.cargo/…/p3-symmetric-0.3.3-succinct/src/     # →
 `slop-merkle-tree-6.2.1/src/tcs.rs:146`（为一次 FRI 批量 decommitment 哈希
 `vec![claimed_values_slices]`，其长度跟随 query 形状）。SP1 的对抗方能否操纵*那个*长度，是唯一没查的
 问题，而我没有去追：这个 crate 只在运维者一侧，而 08-28 那份笔记的威胁模型本就把恶意运维者放在这条
-信任边界上 —— alert #3 自己的 impact 陈述也落在同一处。Low、可达、在被钉扎的图里无法修补，
-修复方案与另外两条相同。
+信任边界上 —— alert #3 自己的 impact 陈述也落在同一处。Low、可达，而且 —— 与 challenger 一样 ——
+没有任何 SP1 发布版本能修补它：`p3-symmetric-0.4.3-succinct/src/sponge.rs` 的哈希是
+`8398352ffe347f52…`，与 `0.3.3-succinct` 的那份文件相同，而两个版本里都没有 `Pad10Sponge`。
+fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更。
 
 接受风险的台账里还有一处缺口，而它正是本 §5 反复撞见的那一类。
 `.github/dependabot.yml:26-35` 为 cargo 生态忽略了 `lru` 与 `p3-challenger`，指向那份笔记，
@@ -1160,13 +1192,14 @@ $ grep -rn "Pad10Sponge" ~/.cargo/…/p3-symmetric-0.3.3-succinct/src/     # →
     获得同样的有界等待重试，*以及*重试耗尽后的 `IOException` 是否包装进协议的
     `InvalidDataException` 家族。一个答案，同时应用到两处读取点
     （`AtomicFileQueueTransport.cs:265`、`Sp1GatewayProofProver.cs:429`）。
-17. `V8` —— SP1 的传递依赖公告。要决策的不是“修还是不修”：图内的修复并不存在。要决策的是是否现在就
-    排期 SP1 6.2.1 → 6.5.0 的 bump —— 08-28 那份笔记已把它界定为一次 VK 重钉 + guest 重建 +
-    `SP1_STATEFUL_NEO_VM_V1` 语义 ID 轮换，横跨两份仓内 manifest 与 `r3e-network/neo-zkvm`
-    submodule —— 还是继续维持那份在运维者信任模型下书面接受的姿态。有两个不必等待该决定的小动作，
-    也不该等：把 `p3-symmetric` 写成书面评估（今天没人评估过，本节是第一遍），
-    以及把 `.github/dependabot.yml:26-35` 与 Security 标签页对齐 —— 那里的 `ignore` 抑制的是更新
-    PR、不是告警，所以三条全都还开着，而那段注释读起来像是已解决。
+17. `V8` —— **已由测量结掉，而结论是没有任何东西需要排期。** 这条队列此前当作修复方案点名的那次
+    SP1 6.2.1 → 6.5.0 bump 什么都不修：`0.4.3-succinct` 与 `0.3.3-succinct` 带着公告点名的那两个文件
+    的逐字节相同副本，而 `0.4.3-succinct` 是 `p3-challenger` 有史以来发布过的最高的 `-succinct`
+    构建（§5 V8）。这条 High 继续开着，是因为它在这张依赖图里无法修补，不是因为还有工作没做。
+    剩下两个台账动作，都不需要轮换任何钉扎：把 `.github/dependabot.yml:26-35` 与 Security 标签页对齐
+    （`ignore` 抑制的是更新 PR、不是告警，所以三条全都还开着，而那段注释读起来像是已解决），
+    以及决定是否请 Succinct 把 Plonky3 的 `0.4.3` challenger 修复合进这个 fork。原条目里的第三个子动作
+    —— 把 `p3-symmetric` 写成书面评估 —— 已在 §5 V8 完成。
 18. `finalizeIfPastWindow` 在整个树内没有任何驱动 —— 既不在 off-chain 侧，也不在合约间调用侧
     （§4 H16 的 blast-radius 那段）。这使得它是 `finalizeBatch` 唯一调用方
     （`OptimisticChallengeContract.cs:791`），而它本身只能由一笔外部手工构造的 L1 交易触达；于是
@@ -1210,9 +1243,12 @@ $ grep -rn "Pad10Sponge" ~/.cargo/…/p3-symmetric-0.3.3-succinct/src/     # →
   节点抓取 live 的 `/metrics` 端点。如果该端点与目录在运行时出现分岔，本轮看不见。
 - `docs/telemetry.md:214-226` 那段样例 exposition 是与导出器的渲染规则做比对的，
   比对方式是阅读 `PrometheusExporter.cs`，而不是生成真实输出。
-- `V8` 有意停在两件它点得出名、却在此处结不了的事上。`slop-merkle-tree-6.2.1/src/tcs.rs:146` 被哈希的
+- `V8` 仍然停在一件它点得出名、却在此处结不了的事上：`slop-merkle-tree-6.2.1/src/tcs.rs:146` 被哈希的
   claimed-value 数量能否被 SP1 的对抗方操纵 —— 这是唯一能把 `p3-symmetric` 从 Low 抬到“有点意思”的
-  前提条件 —— 需要对 SP1 递归的 query 形状做一次阅读，而不是对本仓库的阅读。而一次 SP1 6.5.0 的 bump
-  究竟会不会真的关掉 GHSA-vj64-rjf3-w3v7，这里没有尝试：依赖图会解析到 `0.4.3-succinct`，
-  它在 semver 里排在 `0.4.3` 之下，所以这条告警有可能活过自己的修复。两件事都是可以回答的，
-  但都不是在这里能回答的。
+  前提条件 —— 需要对 SP1 递归的 query 形状做一次阅读，而不是对本仓库的阅读。
+- 这条 bullet 原本承载的第二个问题，即“一次 SP1 6.5.0 的 bump 究竟会不会关掉 GHSA-vj64-rjf3-w3v7”，
+  已经有了答案，而这个答案同时更正了本报告自己先前发布的一个论断：§5 V8 一度把那次 bump 写成修复路径。
+  它不是 —— fork 标签不同，而公告点名的那两个源文件也不同（§5 V8）。量出来的是 crate 的内容；
+  *没有*量的是 Dependabot 自己对 `< 0.4.3` 这个区间如何对待 `-succinct` 预发布版本，
+  所以这条告警在 bump 之后仍有可能变动。既然字节相同，那种变动无论朝哪个方向都没有安全含义，
+  这也是它没有继续被追下去的原因。

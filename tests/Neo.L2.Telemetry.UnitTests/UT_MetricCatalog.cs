@@ -1,3 +1,6 @@
+using System.Text.RegularExpressions;
+using Neo.L2.TestInfra;
+
 namespace Neo.L2.Telemetry.UnitTests;
 
 /// <summary>
@@ -101,4 +104,58 @@ public class UT_MetricCatalog
         // Real description, not the generic placeholder.
         StringAssert.Contains(output, "# HELP l2_batch_sealed_total Number of L2 batches sealed by the local sequencer");
     }
+
+    /// <remarks>
+    /// The two reflection guards above walk <see cref="MetricNames"/> constants, so they are
+    /// structurally unable to see a call site that skips the registry and passes a literal — which is
+    /// how <c>l2.batch.on_block_committed_error</c> shipped undocumented on the L2Batch crash path.
+    /// See docs/audit/subsystem-verification-audit-2026-08-30.md §5 V6.
+    /// </remarks>
+    [TestMethod]
+    public void EmissionSites_UseMetricNamesConstants_NotRawLiterals()
+    {
+        var literalFirstArgument = new Regex(
+            @"(Safe)?(IncrementCounter|SetGauge|RecordSummary|Observe)\s*\(\s*[@$]*""",
+            RegexOptions.CultureInvariant);
+
+        var offenders = new List<string>();
+        foreach (var folder in new[] { "src", "tools" })
+        {
+            foreach (var file in Directory.EnumerateFiles(
+                Path.Combine(RepoRoot.Directory, folder), "*.cs", SearchOption.AllDirectories))
+            {
+                if (IsBuildOutput(file)) continue;
+
+                var lines = File.ReadAllLines(file);
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    if (lines[i].TrimStart().StartsWith("//", StringComparison.Ordinal)) continue;
+                    if (!literalFirstArgument.IsMatch(lines[i])) continue;
+                    offenders.Add($"{Path.GetRelativePath(RepoRoot.Directory, file)}:{i + 1}");
+                }
+            }
+        }
+
+        Assert.AreEqual(0, offenders.Count,
+            "Metric emitted with a string literal bypasses MetricNames and its catalog guard — " +
+            $"declare a constant instead: {string.Join(", ", offenders)}");
+    }
+
+    [TestMethod]
+    public void PrometheusExporter_BatchErrorCounter_RendersTheSameSeriesAsTheLiteral()
+    {
+        var m = new InMemoryMetrics();
+        m.IncrementCounter(MetricNames.BatchOnBlockCommittedError, 1);
+
+        var output = PrometheusExporter.Format(m.Snapshot());
+
+        StringAssert.Contains(output,
+            "# HELP l2_batch_on_block_committed_error_total " +
+            "OnBlockCommitted handler runs in L2Batch that threw an exception");
+        StringAssert.Contains(output, "l2_batch_on_block_committed_error_total 1");
+    }
+
+    private static bool IsBuildOutput(string path) =>
+        path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+        path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
 }

@@ -20,6 +20,9 @@ public static class MetricNames
     /// <summary>Counter: number of times an OnBatchSealed subscriber threw an exception.</summary>
     public const string BatchSealedSubscriberFailures = "l2.batch.subscriber_failures";
 
+    /// <summary>Counter: number of times the L2Batch OnBlockCommitted handler threw an exception.</summary>
+    public const string BatchOnBlockCommittedError = "l2.batch.on_block_committed_error";
+
     // ---- Settlement ----
 
     /// <summary>Counter: batches submitted to NeoHub successfully.</summary>

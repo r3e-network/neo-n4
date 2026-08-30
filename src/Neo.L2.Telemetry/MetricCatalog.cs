@@ -33,6 +33,7 @@ public static class MetricCatalog
         [MetricNames.BatchSealLatencyMs] = "Wall-clock milliseconds spent sealing each batch",
         [MetricNames.BatchTxCount] = "Transactions in the most recently sealed batch",
         [MetricNames.BatchSealedSubscriberFailures] = "OnBatchSealed event subscribers that threw an exception",
+        [MetricNames.BatchOnBlockCommittedError] = "OnBlockCommitted handler runs in L2Batch that threw an exception",
 
         // Settlement
         [MetricNames.BatchesSubmitted] = "Batches submitted to NeoHub successfully",

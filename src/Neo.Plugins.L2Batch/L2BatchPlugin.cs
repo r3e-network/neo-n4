@@ -474,7 +474,7 @@ public sealed class L2BatchPlugin : Plugin
         }
         catch (Exception ex)
         {
-            _metrics.SafeIncrementCounter("l2_batch_on_block_committed_error");
+            _metrics.SafeIncrementCounter(MetricNames.BatchOnBlockCommittedError);
             Logs.RuntimeLogger.Error(ex, "L2Batch OnBlockCommitted handler failed");
             throw;
         }

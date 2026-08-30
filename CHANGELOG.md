@@ -5,6 +5,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — V6: the one metric that skipped the registry was on the crash path — 2026-08-30
+
+- `L2BatchPlugin.cs:477` emitted `l2_batch_on_block_committed_error` as a raw string literal, so
+  `MetricCatalog.GetHelp` fell through to its `"L2 telemetry metric"` placeholder and the one number an
+  operator would chart during an `OnBlockCommitted` failure — the path `H1` identifies as able to stop
+  the node — was documented nowhere. It is now `MetricNames.BatchOnBlockCommittedError`
+  (`"l2.batch.on_block_committed_error"`) with a catalog entry, taking the registry from 39 constants to
+  40, which the two existing reflection tests check in both directions.
+- Not an operator-visible rename, and that is now a test rather than an argument: the exporter maps
+  `.` → `_` at format time (`PrometheusExporter.cs:15`, implemented `:129`) and appends `_total` to
+  counters (`:39`), so both the old literal and the new constant render as
+  `l2_batch_on_block_committed_error_total`.
+  `PrometheusExporter_BatchErrorCounter_RendersTheSameSeriesAsTheLiteral` pins the HELP text and the
+  series name, so a future rename breaks a test instead of a dashboard.
+- The durable half is `EmissionSites_UseMetricNamesConstants_NotRawLiterals`, which scans every `.cs`
+  under `src/` and `tools/` for an emission call whose first argument is a literal and fails listing
+  `file:line`. The completeness tests above could never have caught this: they walk *constants*, so a
+  caller that skips the registry is invisible to them by construction. The new guard resolves the tree
+  through the `RepoRoot` probe added by `V4` — so it cannot self-skip on the Windows `win-x64/` output
+  segment — and excludes `bin/`, `obj/` and `//` lines. Negative control: reverting `:477` alone fails
+  it, naming `src\Neo.Plugins.L2Batch\L2BatchPlugin.cs:477`.
+- Its limit, stated: a source-text guard sees literals, not values, so a name assembled into a variable
+  one hop away still passes. The route it closes is the default one — typing a string at the call site.
+- Docs: `docs/telemetry.md` gained the catalog line under Batch, and step 3 of "Adding a new metric" now
+  says outright that a literal at an emission site is a build failure. Step 2's old promise — that the
+  reflection test "fails the build if you forget" — was precisely the blind spot, since forgetting the
+  constant entirely was the one thing it could not see. `docs/zh/telemetry.md` mirrors both.
+- Tests: `Neo.L2.Telemetry.UnitTests` 117/117 (was 115), `Neo.Plugins.L2Batch.UnitTests` 66/66, full
+  solution 38 assemblies / 2,901 tests / 0 failed / 5 skipped (H19's 2,899 plus these two).
+  Audit §5 V6 status block, §10 item 6, and the Chinese mirror carried to the same structure.
+
 ### Fixed — H19: the anti-censorship deadline is now bounded on the deploy path, not only on the owner path — 2026-08-30
 
 - `ForcedInclusion._deploy` accepted any `deadline > 0` while `SetDeadlineSeconds` enforced

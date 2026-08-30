@@ -119,6 +119,7 @@ metrics.Start();
 - `l2.batch.seal_latency_ms` — histogram — 每个批次封装耗时(墙钟毫秒)
 - `l2.batch.tx_count` — gauge — 最近一个封装批次的交易数
 - `l2.batch.subscriber_failures` — counter — 派发 `OnBatchSealed` 时各订阅者的失败数(一个有 bug 的监听者不会拖垮区块导入)
+- `l2.batch.on_block_committed_error` — counter — L2Batch 的 `OnBlockCommitted` 处理器抛异常的次数;该异常会重新抛进 Neo 插件循环,所以持续增长意味着区块导入正在被打断
 
 ### Settlement(`Neo.Plugins.L2Settlement`)
 
@@ -212,7 +213,9 @@ l2_batch_seal_latency_ms_max 3.21
 1. 在 `MetricNames` 加常量(例如 `public const string FooBar = "l2.foo.bar";`)。
 2. 在 `MetricCatalog.Descriptions` 加描述。
    `Neo.L2.Telemetry.UnitTests` 里基于反射的完整性测试会在你忘了第 2 步时让构建失败。
-3. 在相关组件里通过 `_metrics.IncrementCounter / RecordHistogram / SetGauge` 发出。
+3. 在相关组件里通过 `_metrics.IncrementCounter / RecordHistogram / SetGauge` 发出,
+   传入 `MetricNames` 常量。发出点上出现字符串字面量会被同一个测试类里的另一道
+   关卡拦下:上面的完整性测试遍历的是常量,看不见绕过注册表的调用点。
 4. 用 `InMemoryMetrics` 写一条测试,断言数值能流出来。
 
 ## 关掉可观测性

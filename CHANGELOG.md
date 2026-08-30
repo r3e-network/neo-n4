@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — V4: 40 tests that never executed on Windows now do — 2026-08-30
+
+- `tests/Shared/RepoRoot.cs` (new) resolves the repository root by walking ancestors of
+  `AppContext.BaseDirectory` until it finds `Neo.L2.sln`, and exposes the one evidence artifact the
+  composition tests read. The bug was arithmetic: `tests/Directory.Build.props` injects
+  `RuntimeIdentifier=win-x64` on Windows only, which adds a `win-x64/` segment under the output
+  directory, so the hand-written five-level `".."` walk in ten test files resolved
+  `docs/audit/testnet-deployment-20260716-live.json` to `tests\docs\audit\…`. Every reader guarded
+  with `Assert.Inconclusive`, so the tests reported "not found" forever — a green run on Windows that
+  had quietly stopped covering the deploy-report parser, the three settlement host compositions and the
+  quick-path integration, while the identical Linux run exercised them.
+- All 33 walk expressions (8/8/7/2/2/2/1/1/1/1 per file) now read `RepoRoot.LiveTestnetEvidence`. The
+  helper is delivered by a compile link in `tests/Directory.Build.props` rather than a project
+  reference, so each test assembly gets its own `internal` copy, no per-project duplicate drifts, and no
+  production project gains a test-only dependency.
+- Measured on one full-solution run: 2,893 tests, 0 failed, **skipped 45 → 5**. The unchanged total is
+  what shows the delta is re-enabled coverage rather than deleted tests. Each of the six affected
+  projects now reports `Skipped: 0` — `Neo.L2.Abstractions` 80, `Neo.L2.IntegrationTests` 40,
+  `Neo.Plugins.L2Batch` 66, `Neo.Plugins.L2Prover` 21, `Neo.Plugins.L2Settlement` 168,
+  `Neo.Stack.Cli` 189 — and this closes the 2026-08-29 report's `§3.1` estimate of "~45" as exact.
+- The guard is still a guard: hiding the evidence JSON re-skips
+  `Parse_RealTestnetEvidenceReport_IfPresent`, and its message now names
+  `D:\Git\neo-n4\docs\audit\testnet-deployment-20260716-live.json` — the correct path — where the
+  pre-fix message named the `tests\` one. With the file present the test passes on real assertions
+  (`L2ChainId == 20260716`, 24 contracts, the exact `ChainRegistry` hash), so this is the first Windows
+  run that actually compared the parser against the real evidence file.
+- Docs: audit §5 V4 status block, §2 footnote, §7 `§3.1` row → Fixed, §10 item 2 → done. §8 item 14
+  records a correction to this project's own published text: the C4 status paragraph called 9 of those
+  skips "env gates", but `Neo.L2.IntegrationTests` reads no environment variable at all and the two
+  variables it implied belong to `Neo.L2.Sdk.UnitTests`. §11 now enumerates all five skips that remain
+  and why each is legitimately deferred.
+- No production code, contract, wire format or encoding changed — test infrastructure and documentation.
+  `dotnet format Neo.L2.sln --verify-no-changes` clean.
+
 ### Fixed — C4: an accepted fraud proof no longer wedges the chain it just proved fraud on — 2026-08-30
 
 - `contracts/NeoHub.OptimisticChallenge/OptimisticChallengeContract.cs`: a successful `Challenge`
@@ -30,7 +64,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Wire format unchanged: NEF bytes and method offsets moved, ABI name set identical (95 entries), no
   storage-layout or encoding change, so no paired on-chain/off-chain encoding was touched.
   `tests/NeoHub.Contracts.VmTests` 571/571, fresh-manifest gate 19/19 under
-  `NEO_N4_REQUIRE_FRESH_MANIFESTS=1`, full solution 2,893 tests / 0 failed / 45 skipped.
+  `NEO_N4_REQUIRE_FRESH_MANIFESTS=1`, full solution 2,893 tests / 0 failed / 45 skipped (all 45
+  pre-existing — 40 of them the `V4` walk, now repaired, so the run above is at 5).
 - Remaining gap: `UT_SettlementManager_Vm.cs:185` mocks `OptimisticChallenge`, so no test yet deploys
   both contracts real and runs `SubmitBatch`'s own resubmit branch.
 - This unblocks `H18` (audit §10 item 8): the deployer/template verifier mismatch was masking it.
@@ -48,11 +83,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   every RISC-V test executes predates three rounds of guest-side hardening, and no gate can tell.
 - New Highs `H14`–`H19` and a verification-integrity class `V1`–`V6` (CI's required SP1 check asserts
   the heavy lanes were skipped; the payout path's Merkle verifier is mocked in the test meant to catch
-  a forged leaf; 27 settlement tests self-skip on Windows; the metric registry has one bypass, on the
+  a forged leaf; 27 settlement tests self-skip on Windows, since repaired the same day — see the entry
+  above, and the repository-wide figure turned out to be 45; the metric registry has one bypass, on the
   `H1` crash path).
 - Prior status: `H2` re-confirmed; `H3` half-refuted (the deployer now registers and read-back-verifies
   the forced-inclusion pauser before `LockGovernance`); `C1`/`H12` fixed on this branch; `C2`, `H1`,
-  `H6`, `H13` and `§3.1` still open.
+  `H6` and `H13` still open; `§3.1` fixed on this branch.
 - No code, contract or encoding changed in this entry — findings and remediation order only.
 
 ### Fixed — C1: SharedBridge deposits and MessageRouter entries no longer collide in the batcher inbox — 2026-08-29

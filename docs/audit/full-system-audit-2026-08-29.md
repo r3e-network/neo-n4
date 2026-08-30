@@ -183,6 +183,15 @@ Fix (any one, in order of preference): migrate the 40 sites to `FindRepositoryRo
 `--reject-skips` run of `run_dotnet_filtered_tests.py` to the main Test step; or drop the
 Windows-only RID injection.
 
+> **Status — remediated 2026-08-30 (after this report was written).** The first option above is what
+> landed: `tests/Shared/RepoRoot.cs` generalises `FindRepositoryRoot()`, and the 33 walk expressions in
+> 10 files under `tests/` now read it. Repository-wide skips went 45 → 5 on the same 2,893 tests, so the
+> "40 test methods" counted here is confirmed as exactly the number that started executing. Two numeric
+> notes for the next reader: this section's 55 skips were measured before §3.2's RISC-V gate was closed,
+> and 55 − 10 = 45 is the figure its own heading estimates as "~45"; while "across 11 files" is one high
+> — re-counting the pre-fix commit gives 10 files, because guards in shared helpers make the method and
+> expression counts differ. Full measurement is in the 2026-08-30 report's §5 V4.
+
 ### 3.2 The RISC-V "parity" gate was never running — and passes once run [E1]
 
 10 `RealNative_*` tests skipped with `DllNotFoundException: neo_riscv_host`. This is legitimate

@@ -50,7 +50,9 @@ artifact？* 在 RISC-V 路径上，答案是否定的，而这正是本报告�
 | batch / state / DA 套件（5 个项目） | `Neo.L2.Batch` 68/68 · `Neo.Plugins.L2Batch` 65 通过 + 1 跳过 · `Neo.L2.State` 120/120 · `Neo.Plugins.L2DA` 109/109 · `Neo.L2.Abstractions` 79 通过 + 1 跳过 — 全部 exit 0 |
 
 那两处跳过属于 §5 V4 那一类的自我跳过，不是失败。这五个项目由 track 上报的计数被独立复现，
-且完全吻合。
+且完全吻合。（`V4` 已在本分支修好，时间在这张表记录之后：那两个项目现在是
+`Neo.Plugins.L2Batch` 66/66 与 `Neo.L2.Abstractions` 80/80，`Skipped: 0` —— 每个项目各多出一个真正在
+跑的测试，因为原本跳过的那一个现在开始执行了。）
 
 至于 `master` 上的 CI，相关拓扑见 §5（V1）。
 
@@ -159,9 +161,12 @@ optimistic verifier 修好了 `H18` —— 也就是 §10 所推荐的那个修�
 全部以 `ABORTMSG is executed. Reason: window already open` 失败。这就是把死锁在链上跑了出来，
 而不是从四个断言里推断出来，因此上文的 [E2] 标记作为审计当时的状态保留在此、并于此处作废。
 带上修复后，`tests/NeoHub.Contracts.VmTests` 是 571/571，fresh-manifest 门在
-`NEO_N4_REQUIRE_FRESH_MANIFESTS=1` 下 19/19 通过，整个解决方案 2,893 道测试 0 失败、45 跳过
-（27 个来自 `Neo.Plugins.L2Settlement`、9 个来自 `Neo.L2.IntegrationTests` 的 env 门、其余 9 个零散
-—— 即 §5 V4 与 §11 所记录的那些，本次修复没有新增任何一个）。
+`NEO_N4_REQUIRE_FRESH_MANIFESTS=1` 下 19/19 通过，整个解决方案 2,893 道测试 0 失败、45 跳过。
+这 45 个没有一个是本次修复带来的，其中 40 个只发生在 Windows 上：即 §5 V4 的证据文件向上回溯
+（`Neo.Plugins.L2Settlement` 27 个、`Neo.L2.IntegrationTests` 9 个、另外四个项目共 4 个）。
+其余 5 个与平台无关，是真正的 env 门，§11 已逐一点名。本段最初把这 9 个 `IntegrationTests` 的跳过
+称作 "env 门"，那是错的 —— 见 §8 第 14 条。`V4` 已于同日修好；同一次全解决方案运行现在是 2,893
+道测试、0 失败、5 跳过。
 
 仍然不存在的是"两份真合约"的测试：`UT_SettlementManager_Vm.cs:185` 把 `OptimisticChallenge` 接成了
 mock，所以 `SubmitBatch` 自己的那条重新提交分支，只是通过这些测试直接发起的 `OpenWindow` 调用被
@@ -406,6 +411,45 @@ tests/Directory.Build.props:4-5   injects RuntimeIdentifier=win-x64 on Windows o
 修复只需要一个辅助函数 —— 通过向上探测 `Neo.L2.sln` 来解析仓库根目录 —— 并应用到全部十处。
 它不应等待 §10 中的任何决策。
 
+**状态 —— 已在本分支修复，而 §3.1 的 "~45" 如今是一个测出来的数字，不再是一个估计。**
+`tests/Shared/RepoRoot.cs` 通过一路向上遍历 `AppContext.BaseDirectory` 的祖先目录、直到找到
+`Neo.L2.sln` 来解析仓库根 —— 有没有 RID 子目录都成立 —— 并暴露测试所读取的那一个证据路径。
+它是在 `tests/Directory.Build.props` 里以编译链接
+（`<Compile Include="$(MSBuildThisFileDirectory)Shared/RepoRoot.cs" Link="Shared\RepoRoot.cs" />`）
+交付的，而不是项目引用，因此每个测试程序集各自拿到一份 `internal` 拷贝，没有任何生产项目会新增一个
+仅测试用的依赖。那 10 个文件里全部 33 处向上回溯表达式现在都读 `RepoRoot.LiveTestnetEvidence`；
+逐文件的处数依次为 8/8/7/2/2/2/1/1/1/1。
+
+测得的效果来自一次全解决方案运行（同样 2,893 道测试）：全仓库跳过数 **45 → 5**。受影响的六个项目
+现在都报告 `Skipped: 0` —— `Neo.L2.Abstractions` 80、`Neo.L2.IntegrationTests` 40、
+`Neo.Plugins.L2Batch` 66、`Neo.Plugins.L2Prover` 21、`Neo.Plugins.L2Settlement` 168、
+`Neo.Stack.Cli` 189 —— 于是 40 个在 Windows 上从未执行过的测试如今在跑，而且全部通过。
+总数 2,893 保持不变，这正是"差异来自被重新启用的覆盖面、而不是被删掉的测试"的证据。
+这把 §3.1 的 "~45" 收敛成了精确值，也补上了 §8 第 12 条记下的"总数从未被重新统计"那条局限。
+
+关于这个数字的两道交叉核对。2026-08-29 报告独立统计了受影响的面，写作
+"40 test methods across 11 files"，而它的测试方法数与这里测得的增量完全一致 —— 它的 55 个跳过，
+减去它自己 §3.2 记录为已经关闭的 10 个 RISC-V 跳过，正好是 45，也就是修复前的数字。它的文件数多算了
+一个：对修复前那个提交重新统计，得到 10 个文件、33 处向上回溯表达式。这两个数可以按项目对上 ——
+`Neo.Plugins.L2Settlement` 里 27 处表达式 ↔ 27 个测试，`Neo.L2.IntegrationTests` 里 2 ↔ 9
+（一处表达式在测试体 `UT_E2E_HostComposition_FromDeployReport.cs:47` 里，另一处在被其余八道测试调用的
+`ResolveDeployReportPath():3458` 里），其余四处站点各自 1 ↔ 1。而这道辅助函数是把仓库里本已存在的
+模式推广开来，而不是另造第三种：`tests/Neo.Hub.Deploy.UnitTests/UT_ProductionGapClosure.cs:706` 的
+`FindRepositoryRoot()`，加上 `NeoHub.Sp1Groth16Verifier.UnitTests` 里的三份私有副本，它们向上探测
+`Neo.L2.sln` 的方式与现在的 `RepoRoot` 完全一致。`tests/` 里已不再有任何手工上溯 —— 没有任何测试再用
+`AppContext.BaseDirectory` 拼接 `".."` 来构造仓库路径，那棵树里剩下的点号字面量只是喂给反向测试的路径
+穿越输入、以及脚手架命令所断言的那些相对 csproj 引用 —— 所以下一个需要读取仓库文件的测试，也没办法把
+这一类缺陷重新引进来了。
+
+守卫仍然是守卫 —— 这类修复最可能在这一点上被悄悄弄坏：把
+`docs/audit/testnet-deployment-20260716-live.json` 藏起来，
+`Parse_RealTestnetEvidenceReport_IfPresent` 就会再次跳过，而它的消息现在点名
+`D:\Git\neo-n4\docs\audit\testnet-deployment-20260716-live.json` —— 一条正确的路径 ——
+而修复前的消息点名的是 `D:\Git\neo-n4\tests\docs\audit\…`。把文件放回去，同一道测试报告 Passed，
+而且这不是一次空过的通过：它断言 `L2ChainId == 20260716`、`Contracts.Count == 24` 以及一字不差的
+`ChainRegistry` hash，所以这是 Windows 上第一次拿解析器去比对真实的证据文件。`dotnet format
+Neo.L2.sln --verify-no-changes` 干净。
+
 ### V5 — 兑付路径的 Merkle 验证器被 mock 掉了，恰在那个本应捕获伪造 leaf 的测试里 [E1]
 
 `tests/NeoHub.Contracts.VmTests/UT_SharedBridge_Vm.cs:69-72` 为每一个 SharedBridge 测试在 fixture
@@ -577,7 +621,7 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
 | `H13` kill-switch 覆盖 3 个资产合约中的 1 个 | **未修复**，外加按链的那个变体（§4 H16） | `SubmitBatch:330-331` 对比 `FinalizeBatch:479-533` |
 | `H2` FI 截止期短于它所暂停的挑战窗口 | **重新确认** | `ForcedInclusionContract.cs:195` 界定为 `[60, 86400]`，而 `OptimisticChallengeContract.cs:246` 允许 `[60, 7*86400]` —— 一个 7 天的窗口配上 24 小时的截止期，会让 `ReportCensorship:503` 暂停一个仍可被挑战的 batch。§4 H19 是它的镜像那一半：*部署期*那个字段完全跳过了这条边界 |
 | `H3` escape hatch 需要手工接线 | **一半被推翻** | `LiveDeployCommand.cs:801-802` 如今会在 `LockGovernance`（`:861-862`）之前注册该 pauser 并读回校验；只剩 `IsProductionReady()` 这条断言仍未落地（`ForcedInclusionContract.cs:254-266`）—— 见 §6 |
-| `§3.1` Windows 自我跳过 | **未修复**，根因现已精确（§5 V4） | 五层上溯 对比 `tests/Directory.Build.props:4-5` |
+| `§3.1` Windows 自我跳过 | **已修复**（本分支） | 同样 2,893 道测试下全仓库跳过 45 → 5；`tests/Shared/RepoRoot.cs` 在 10 个文件的 33 处替换了那五层上溯，受影响的六个项目现在都报告 `Skipped: 0`（§5 V4） |
 | `A4` 不可复现的 VM artifact | **未修复** | 未变；该 artifact 集合仍有两种编译器戳 |
 | 治理完备性 | **部分未修复** | 见 §7.1 |
 
@@ -661,6 +705,15 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
     不在 core 根目录的 `Blockchain.cs`。两处均已在上面修正。这趟扫描的残余局限：
     像 `:479` 这样的裸第二次提及不会被重新解析，仍然依赖上下文相邻关系本身是对的；
     而行形状检查能抓住落到空行上的 off-by-N，却抓不到落到另一条语句上的。
+14. 本报告在写到自己的修复时有一句话是错的，而把它暴露出来的正是修 `V4` 这件事。§3 的 C4 状态段
+    把全解决方案的 45 个跳过刻画成 "27 个 `Neo.Plugins.L2Settlement` + 9 个
+    `Neo.L2.IntegrationTests` 的 env 门 + 9 个零散"。其中只有 27 那个数字是对的。
+    `Neo.L2.IntegrationTests` 在其源码的任何位置都不读取环境变量，所以它那 9 个跳过与另外 31 个一样
+    都是 `V4` 的证据文件跳过；而那一段话暗示出的两个变量 `NEO_SDK_LIVE` / `NEO_N4_RPC_URL` 属于
+    `Neo.L2.Sdk.UnitTests` —— 一个从未出现在那句话里的另一个项目。测出来的分解是 40 个 `V4`
+    加 5 个 env 门，§11 现已把五个逐一点名。值得记下来的是这个归类错误本身：一条消息写着 "not found"
+    的跳过是证据问题、不是环境问题，而只读计数不读消息，让我把 40 个被静默停用的测试说成了主动谢绝
+    执行的测试。
 
 ## 9. 在执行验证下站得住的部分
 
@@ -684,7 +737,7 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
   一切，而 `:570-574` 要求 tx index 0 且 depth 为 0 的 proof，也就是单交易 batch。`Reject(…)`
   （`:684-687`）只发出一个事件并返回 `false` —— verifier 内部不会罚没任何 bond，
   因此一次超出作用域的 proof 让挑战者付出的是一笔交易，而不是他们的质押金。
-- SP1 Groth16 包装器、BN254 interop 奇偶一致性、充值/提取的 CEI 纪律，以及 state-root 生成器中的
+- SP1 Groth16 包装器、BN254 interop parity、充值/提取的 CEI 纪律，以及 state-root 生成器中的
   原子交接，都维持了 2026-08-29 的结论，且它们在本轮所运行的测试下都没有回归。
 - 挑战合约没有可供攻击的回合，因为链上根本不存在二分。它全部的按 batch 状态就是三个键 ——
   `:34-36` 那几个前缀，由 `BuildKey:873-881` 拼成 prefix ‖ chainId ‖ batchNumber，
@@ -724,7 +777,8 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
    测试也与它一起落地（见 §3 的 C4 状态段）。
    这是两份报告里最便宜的一个 Critical，而且它门控着下面的 `H18` 修复：不带着这一条就去修
    模板与部署器之间的不匹配，只会把一条坏掉的 optimistic 链变成一条永久卡死的链。
-2. `V4` —— 修复证据文件的路径向上回溯（一行；立刻让 27 个测试重新可见）。
+2. `V4` —— **已在本分支完成**：证据文件的向上回溯被 `tests/Shared/RepoRoot.cs` 在全部 33 处替换
+   （§5 V4）。重新可见的是 40 个测试、而不是 27 个 —— 27 只是其中一个项目的份额。
 3. `H16` —— 在 `FinalizeBatch` 中断言 `isActive` + 两个 VM 测试。
 4. `H17` —— 把 `LockGlobalRootGovernance` 接进 `LiveDeployCommand` + CLI plan 文本 + 冒烟步骤。
 5. `H19` —— 在 `ForcedInclusion._deploy` 里施加 `[60, 86400]` 这条边界，并补上那个把 `uint`
@@ -761,8 +815,15 @@ src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:477:  _metrics.SafeIncrementCounter("l2
   的常量成本占主导，且无法把 ≈5·S 的状态扫描与持久化分离开来；`BatchSealer.cs:258-261` 的秒表
   把持久化完全排除在外。
 - 经由 `Committed` 钩子的端到端重组：需要一个多节点环境。
-- 在 `NEO_SDK_LIVE` / `NEO_N4_RPC_URL` 之下的 `tests/Neo.L2.IntegrationTests`：
-  那些环境变量门控未被满足，因此 live-L1 路径在此仍未被执行。
+- `V4` 修好之后仍剩下五个跳过，它们全都是 env 门控，而这里一个都没有满足，所以那些通道仍未被执行：
+  3 个在 `tests/Neo.L2.Sdk.UnitTests/Conformance/UT_SdkConformance_Live.cs`
+  （`NEO_SDK_LIVE` / `NEO_N4_RPC_URL` / `NEO_SDK_LIVE_FIXTURE`，也就是 live-L1 路径），
+  1 个在 `tests/Neo.L2.Executor.UnitTests/UT_Sp1StatefulBatchExecutor.cs:303-305`
+  （`NEO_ZKVM_EXECUTOR` 必须指向一个真实的、被钉扎的执行器二进制），还有 1 个在
+  `tests/Neo.Plugins.L2Metrics.UnitTests/UT_L2MetricsPlugin.cs:338-341`，当主机的解析器对
+  `does-not-exist.invalid` 给出回答时它会自我跳过。特别要指出的是 `Neo.L2.IntegrationTests`
+  **根本没有** env 门控 —— 对该项目 `grep -c Environment.GetEnvironmentVariable` 的结果是 0 ——
+  所以它过去报告的那 9 个跳过完全属于 `V4`，而这正是 §3 C4 归错的那一类。
 - `C4` 没有 VM 复现：那个死锁是四个被我从头读到尾、横跨两份合约的断言，而
   提交 → 挑战 → 重新提交 这个序列从未被执行过。它正因如此被标为 [E2]。
   **同日作废** —— 这个序列如今会在 `UT_OptimisticChallenge_Vm` 里真实运行，并且抽掉修复就会失败

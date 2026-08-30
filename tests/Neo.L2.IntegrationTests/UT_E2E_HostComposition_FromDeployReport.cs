@@ -22,6 +22,7 @@ using Neo.Plugins.L2Gateway;
 using Neo.Plugins.L2Rpc;
 using Neo.Wallets;
 using Neo.L2.SoftSeal.TestSupport;
+using Neo.L2.TestInfra;
 
 namespace Neo.L2.IntegrationTests;
 
@@ -43,10 +44,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
     [TestMethod]
     public void MultisigHostComposition_OpensAllChainDirectoryFactories()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 
@@ -3458,10 +3456,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
     }
 
     private static string ResolveDeployReportPath() =>
-        Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        RepoRoot.LiveTestnetEvidence;
 
     private static void MaterializeChain(
         string chainDir,

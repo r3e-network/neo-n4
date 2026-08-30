@@ -5,6 +5,7 @@ using Neo;
 using Neo.Stack.Cli.Commands;
 using Neo.Wallets;
 using Neo.Wallets.NEP6;
+using Neo.L2.TestInfra;
 
 namespace Neo.Stack.Cli.UnitTests;
 
@@ -270,10 +271,7 @@ public class UT_QuickPathIntegration
     {
         // Documented post-testnet path: create-chain (zk) → init-l2 --from-deploy-report
         // → bootstrap-genesis → register-chain (auto genesis-manifest + report hashes).
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 

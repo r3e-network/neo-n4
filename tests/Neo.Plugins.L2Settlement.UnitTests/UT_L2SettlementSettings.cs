@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Neo.Wallets;
+using Neo.L2.TestInfra;
 
 namespace Neo.Plugins.L2Settlement.UnitTests;
 
@@ -319,10 +320,7 @@ public class UT_L2SettlementSettings
     [TestMethod]
     public void FromChainDirectory_LiveDeployReport_RoundTripsHeightsAndProofType()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 
@@ -385,10 +383,7 @@ public class UT_L2SettlementSettings
     [TestMethod]
     public void L1InboxFromChainDirectory_OpenAndWireBatch_FromLiveDeployReport()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 

@@ -9,6 +9,7 @@ using Neo.Network.P2P.Payloads;
 using Neo.Wallets;
 using System.Net;
 using System.Text;
+using Neo.L2.TestInfra;
 
 namespace Neo.Plugins.L2Settlement.UnitTests;
 
@@ -721,10 +722,7 @@ public class UT_L2SettlementProductionWiring
     public void WireProduction_FromChainDirectoryAndStoreLayout_UsesLiveDeployReport()
     {
         // Host composition path: materialize report → FromChainDirectory + StoreLayout → WireProduction.
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 
@@ -814,10 +812,7 @@ public class UT_L2SettlementProductionWiring
     [TestMethod]
     public void WireProductionFromLayout_BindsStoresCommitteeAndLegacyProfile()
     {
-        var reportPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "docs", "audit", "testnet-deployment-20260716-live.json"));
+        var reportPath = RepoRoot.LiveTestnetEvidence;
         if (!File.Exists(reportPath))
             Assert.Inconclusive($"repo evidence file not found at {reportPath}");
 

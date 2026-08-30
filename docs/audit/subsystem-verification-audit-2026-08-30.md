@@ -53,7 +53,10 @@ Executed locally on Windows (`win-x64`), all commands exit 0 unless stated:
 | Batch / state / DA suites (5 projects) | `Neo.L2.Batch` 68/68 · `Neo.Plugins.L2Batch` 65 pass + 1 skipped · `Neo.L2.State` 120/120 · `Neo.Plugins.L2DA` 109/109 · `Neo.L2.Abstractions` 79 pass + 1 skipped — all exit 0 |
 
 The two skips are self-skips of the §5 V4 class, not failures. Track-reported counts for these five
-projects were reproduced independently and matched exactly.
+projects were reproduced independently and matched exactly. (`V4` was repaired on this branch after
+this table was recorded: those two are now `Neo.Plugins.L2Batch` 66/66 and `Neo.L2.Abstractions` 80/80
+with `Skipped: 0` — the projects got one test bigger each, because the previously-skipping test now
+runs.)
 
 Against CI on `master`, the relevant topology is in §5 (V1).
 
@@ -173,9 +176,12 @@ by the pinned `nccs` 3.9.1, all three fail with `ABORTMSG is executed. Reason: w
 That is the wedge executed on-chain rather than inferred from four assertions, so the [E2] marking
 above stands as the audit-time state and is retired here. With the fix in,
 `tests/NeoHub.Contracts.VmTests` is 571/571, the fresh-manifest gate passes 19/19 under
-`NEO_N4_REQUIRE_FRESH_MANIFESTS=1`, and the full solution is 2,893 tests with 0 failed and 45 skipped
-(27 `Neo.Plugins.L2Settlement` + 9 `Neo.L2.IntegrationTests` env gates + 9 scattered — the §5 V4 and
-§11 classes, none introduced by this fix).
+`NEO_N4_REQUIRE_FRESH_MANIFESTS=1`, and the full solution is 2,893 tests with 0 failed and 45 skipped.
+None of the 45 came from this fix, and 40 of them were Windows-only: the §5 V4
+evidence-file walk (27 in `Neo.Plugins.L2Settlement`, 9 in `Neo.L2.IntegrationTests`, 4 in four other
+projects). The other 5 are platform-independent env gates, named in §11. This paragraph first
+labelled those 9 `IntegrationTests` skips "env gates", which was wrong — see §8 item 14. `V4` was
+repaired the same day; the same full-solution run is now 2,893 tests, 0 failed, 5 skipped.
 
 What still does not exist is a two-real-contract test: `UT_SettlementManager_Vm.cs:185` wires
 `OptimisticChallenge` as a mock, so `SubmitBatch`'s own resubmit branch is exercised only through the
@@ -437,6 +443,49 @@ lie.
 Fix is one helper — resolve the repo root by probing upward for `Neo.L2.sln` — applied at all ten
 sites. It should not wait on any decision in §10.
 
+**Status — fixed on this branch, and §3.1's "~45" is now a measured number rather than an estimate.**
+`tests/Shared/RepoRoot.cs` resolves the root once by walking ancestors of `AppContext.BaseDirectory`
+until it finds `Neo.L2.sln` — RID subdirectory or no RID subdirectory — and exposes the one evidence
+path the tests use. It is delivered by a compile link in `tests/Directory.Build.props`
+(`<Compile Include="$(MSBuildThisFileDirectory)Shared/RepoRoot.cs" Link="Shared\RepoRoot.cs" />`)
+rather than a project reference, so every test assembly gets its own `internal` copy and no production
+project gains a test-only dependency. All 33 walk expressions in the 10 files now read
+`RepoRoot.LiveTestnetEvidence`; the per-file site counts were 8/8/7/2/2/2/1/1/1/1.
+
+The measured effect, from one full-solution run of the same 2,893 tests: repository-wide skipped went
+**45 → 5**. Each of the six affected projects now reports `Skipped: 0` — `Neo.L2.Abstractions` 80,
+`Neo.L2.IntegrationTests` 40, `Neo.Plugins.L2Batch` 66, `Neo.Plugins.L2Prover` 21,
+`Neo.Plugins.L2Settlement` 168, `Neo.Stack.Cli` 189 — so 40 tests that had never executed on Windows
+now do, and all 40 pass. The 2,893 total is unchanged, which is what confirms the delta is re-enabled
+coverage rather than removed tests. That closes §3.1's "~45" as exact, and closes the "the total was
+never re-counted" limit recorded in §8 item 12.
+
+Two cross-checks on that number. The 2026-08-29 report counted the affected surface independently as
+"40 test methods across 11 files", and its method count is exactly the delta measured here — its 55
+skips minus the 10 RISC-V skips that its §3.2 records as already closed is 45, the pre-fix figure. Its
+file count was one high: re-counting the pre-fix commit gives 10 files containing 33 walk expressions.
+The two counts reconcile per project — 27 expressions ↔ 27 tests in `Neo.Plugins.L2Settlement`, 2 ↔ 9
+in `Neo.L2.IntegrationTests` (one walk in a test body at `UT_E2E_HostComposition_FromDeployReport.cs:47`
+and one in `ResolveDeployReportPath():3458`, which the other eight tests call), and 1 ↔ 1 at each of the
+four remaining sites.
+And the helper generalizes a pattern this repository already had rather than inventing a third one:
+`FindRepositoryRoot()` at `tests/Neo.Hub.Deploy.UnitTests/UT_ProductionGapClosure.cs:706`, plus three
+private copies in `NeoHub.Sp1Groth16Verifier.UnitTests`, all probe upward for `Neo.L2.sln` exactly as
+`RepoRoot` now does.
+`tests/` now contains no hand-written walk at all — no test builds a repository path out of
+`AppContext.BaseDirectory` plus `".."` any more, and the dot-dot literals left in that tree are
+traversal inputs fed to negative tests and the relative csproj references the scaffolder asserts on —
+so the class of defect cannot be reintroduced by the next test that needs a repo file.
+
+The guard is still a guard, which is the direction a fix like this can silently break: hiding
+`docs/audit/testnet-deployment-20260716-live.json` makes `Parse_RealTestnetEvidenceReport_IfPresent`
+skip again, and its message now names `D:\Git\neo-n4\docs\audit\testnet-deployment-20260716-live.json`
+— the correct path — where the pre-fix message named `D:\Git\neo-n4\tests\docs\audit\…`. With the file
+restored the same test reports Passed, and it is not a vacuous pass: it asserts
+`L2ChainId == 20260716`, `Contracts.Count == 24` and the exact `ChainRegistry` hash, so this is the
+first time a Windows run has compared the parser against the real evidence file. `dotnet format
+Neo.L2.sln --verify-no-changes` is clean.
+
 ### V5 — The payout path's Merkle verifier is mocked in the test that is supposed to catch a forged leaf [E1]
 
 `tests/NeoHub.Contracts.VmTests/UT_SharedBridge_Vm.cs:69-72` installs
@@ -621,7 +670,7 @@ finding — a completeness check keyed on a registry cannot detect a caller that
 | `H13` kill-switch covers 1 of 3 asset contracts | **Open**, plus the per-chain variant (§4 H16) | `SubmitBatch:330-331` vs `FinalizeBatch:479-533` |
 | `H2` FI deadline < challenge window it pauses | **Re-confirmed** | `ForcedInclusionContract.cs:195` bounds `[60, 86400]` while `OptimisticChallengeContract.cs:246` allows `[60, 7*86400]` — a 7-day window with a 24 h deadline lets `ReportCensorship:503` pause a still-challengeable batch. §4 H19 is the mirror-image half: the *deploy-time* field skips the bound entirely |
 | `H3` escape hatch needs hand wiring | **Half-refuted** | `LiveDeployCommand.cs:801-802` now registers + read-back-verifies the pauser before `LockGovernance` (`:861-862`); only the `IsProductionReady()` assertion remains open (`ForcedInclusionContract.cs:254-266`) — see §6 |
-| `§3.1` Windows self-skips | **Open**, root cause now exact (§5 V4) | 5-level walk vs `tests/Directory.Build.props:4-5` |
+| `§3.1` Windows self-skips | **Fixed** (this branch) | repo-wide skipped 45 → 5 on the same 2,893 tests; `tests/Shared/RepoRoot.cs` replaces the 5-level walk at 33 sites in 10 files, and the six affected projects each report `Skipped: 0` (§5 V4) |
 | `A4` non-reproducible VM artifacts | **Open** | unchanged; the artifact set still has two compiler stamps |
 | Governance completeness | **Partially open** | see §7.1 |
 
@@ -713,6 +762,16 @@ the file, not inferred.
     fixed above. Residual limits of the scan: bare second-mentions such as `:479` are not re-resolved
     and still depend on the prose adjacency being right, and the line-shape test catches an off-by-N
     that lands on a blank line but not one that lands on a different statement.
+14. A sentence this report published about its own fix was wrong, and fixing `V4` is what exposed it.
+    §3 C4's status paragraph characterised the full solution's 45 skips as "27 `Neo.Plugins.L2Settlement`
+    + 9 `Neo.L2.IntegrationTests` env gates + 9 scattered". Only the 27 was right. `Neo.L2.IntegrationTests`
+    reads no environment variable anywhere in its sources, so its 9 skips were `V4` evidence-file skips
+    like the other 31; and `NEO_SDK_LIVE` / `NEO_N4_RPC_URL` — the two variables that paragraph implied
+    gated that project — belong to `Neo.L2.Sdk.UnitTests`, a different project that was never in the
+    sentence. The measured breakdown is 40 `V4` + 5 env gates, and §11 now names all five. The
+    classification error is the interesting part: a skip whose message says "not found" is an evidence
+    problem, not an environment problem, and reading the counts without reading the messages let me
+    label 40 silently-disabled tests as deliberately-declined ones.
 
 ## 9. What held up under execution
 
@@ -785,7 +844,8 @@ Split by whether it can land now.
    submit → challenge → resubmit VM test landed with it (§3 C4 status). Cheapest Critical in either report, and it gates
    the `H18` fix below: repairing the template/deployer mismatch without this turns a broken
    optimistic chain into a permanently stuck one.
-2. `V4` — fix the evidence-file path walk (one line; un-hides 27 tests immediately).
+2. `V4` — **done on this branch**: the evidence-file walk is replaced by `tests/Shared/RepoRoot.cs` at
+   all 33 sites (§5 V4). Un-hid 40 tests, not 27 — the 27 was one project's share.
 3. `H16` — assert `isActive` in `FinalizeBatch` + two VM tests.
 4. `H17` — wire `LockGlobalRootGovernance` into `LiveDeployCommand` + CLI plan text + smoke step.
 5. `H19` — apply the `[60, 86400]` bound in `ForcedInclusion._deploy`, and add the VM test that pins
@@ -826,8 +886,16 @@ Split by whether it can land now.
   `state entries: 1`) show the per-batch constant cost dominating and cannot separate the ≈5·S state
   scans from persistence; `BatchSealer.cs:258-261`'s stopwatch excludes persistence entirely.
 - End-to-end reorg through the `Committed` hook: needs a multi-node setup.
-- `tests/Neo.L2.IntegrationTests` under `NEO_SDK_LIVE` / `NEO_N4_RPC_URL`: those env gates were not
-  satisfied, so live-L1 paths remain unexercised here.
+- The five skips that remain after `V4` was repaired are all env gates, and none of them was satisfied
+  here, so those lanes stay unexercised: 3 in
+  `tests/Neo.L2.Sdk.UnitTests/Conformance/UT_SdkConformance_Live.cs` (`NEO_SDK_LIVE` /
+  `NEO_N4_RPC_URL` / `NEO_SDK_LIVE_FIXTURE`, i.e. the live-L1 paths), 1 in
+  `tests/Neo.L2.Executor.UnitTests/UT_Sp1StatefulBatchExecutor.cs:303-305` (`NEO_ZKVM_EXECUTOR` must
+  point at a real pinned executor binary), and 1 in
+  `tests/Neo.Plugins.L2Metrics.UnitTests/UT_L2MetricsPlugin.cs:338-341`, which self-skips when the
+  host's resolver answers `does-not-exist.invalid`. Note in particular that `Neo.L2.IntegrationTests`
+  has **no** env gate at all — `grep -c Environment.GetEnvironmentVariable` over that project is 0 — so
+  the 9 skips it used to report were entirely `V4`, which is what §3 C4 mislabelled.
 - `C4` has no VM repro: the wedge is four assertions read end to end across two contracts, and the
   submit → challenge → resubmit sequence has never been executed. It is marked [E2] for that reason.
   **Superseded the same day** — the sequence now runs in `UT_OptimisticChallenge_Vm` and fails without

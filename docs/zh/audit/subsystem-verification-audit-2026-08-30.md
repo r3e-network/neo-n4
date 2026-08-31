@@ -1198,6 +1198,13 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   `Plugin.ExceptionPolicy` 默认为 `StopNode`
   （`external/neo/src/Neo/Plugins/Plugin.cs:74`），并且**没有**任何第一方覆写 —— 在 `src/` 下做
   源码作用域的 `ExceptionPolicy` grep 完全返回零结果，所以这适用于每一个 L2 插件，不只是 batcher。
+  **状态 —— 本分支已为 batcher 修复（2026-08-31）。** `L2BatchPlugin` 现在带着那次 grep 找不到的
+  覆写（`ExceptionPolicy => StopPlugin`），并且 commit 处理器在重新抛出之前，会先经持久的
+  persist/ack 路径重试一次待持久化的 sealed batch：恢复成功的瞬态故障根本到不了核心分派，
+  而存活下来的故障停掉的是插件、不是节点；下一个 commit 的恢复循环会从本地账本重读被跳过的区块。
+  那条普遍化按构造依然成立 —— 其余 L2 插件仍默认 `StopNode` —— 但它们没有一个像 batcher 的
+  待持久化 sealed batch 那样持有持久的逐 commit 状态，所以 H1 的宕服路径正是被收口的那条。
+  见 §10 第 14 条。
 - **`WithWriter` 会静默降级 DA profile** [E1]。
   `src/Neo.Plugins.L2DA/L2DAPlugin.cs:163-175` 无条件设置 `_profile = Development`（`:169`）并清除
   `_productionBackendOverridden`（`:174`）。这之所以要紧，是因为该插件其余部分是按 fail-closed
@@ -1254,6 +1261,13 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   只经由 `ProcessCommittedBlock` 钉住重试路径；没有任何测试引用 `OnBlockCommitted`，
   而 `InvokeCommitted` 出现在零个测试中。H1 的修复所依赖的那个恢复行为，
   是关键路径上被测最少的一段代码。
+  **状态 —— 本分支已修复（2026-08-31）。** 处理器的方法体现在经一个内部 `ProcessCommittedEvent`
+  接缝运行（与 `DispatchSealed` 建立的内部测试接缝是同一模式），四条新测试驱动它：被待持久化
+  batch 重试救回的 sink 故障不再向外传播；重试也失败（`FailBeforePersistCount = 2`）时重新抛出
+  原异常、待持久化 batch 仍被持有、两次尝试都出现在 sink 的日志里；禁用的设置不调用任何工作；
+  生效策略被断言为 `StopPlugin`。私有的两行委托与核心的 `InvokeCommitted` 分派本身在单测里
+  仍不可测 —— `NeoSystem` 的构造函数会孵化 Akka actor 系统、初始化区块链并遍历全局插件注册表
+  —— 这一点现在写在缺口原来的位置上：接缝覆盖了处理器自己执行的每一行代码。见 §10 第 14 条。
 - **强制包含接口文档化了一道任何代码都没有实现的闸门** [E1 counted]。
   `src/Neo.L2.ForcedInclusion/IForcedInclusionSource.cs:36-38` 关于 `HasOverdueEntryAsync` 写着
   "the batcher uses this to decide whether to halt finalization for censorship reasons"。
@@ -1367,7 +1381,7 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
 | --- | --- | --- |
 | `C1` deposit/router 收件箱相撞 | **已修复**（本分支） | `L1MessageDrain.cs` 中的两段式去重 + 全序，`UT_L1MessageDrain` 回归测试 |
 | `C2` `MerkleTree.Verify` 不受位置绑定 | **未修复** —— 而且同一个形状出现在两条合约折叠之中（§5 V5），由于兑付测试把 verifier 做了 stub，它不可被观察 | `SettlementManagerContract.cs:989-1012`、`:1115-1134` |
-| `H1` 插件异常会停止节点 | **未修复**，已提升为 [E1] | `L2BatchPlugin.cs:479 throw;`、`Plugin.cs:74` 默认值、`src/` 中零个 `ExceptionPolicy` 覆写 |
+| `H1` 插件异常会停止节点 | item-14 分支上**已为 batcher 修复**（2026-08-31）：`ExceptionPolicy => StopPlugin` 覆写 + 重新抛出前先重试一次待持久化 batch | `L2BatchPlugin.cs` 的覆写 + `ProcessCommittedEvent` 重试，4 条新测试；其余 L2 插件保持核心默认（没有需要保护的持久逐 commit 状态） |
 | `H6` 装饰性的链下二进制钉扎 | **未修复**，证据等级如今升到 [E1]，其测试的期望摘要由被测二进制自身派生，且没有反向测试（§5 V3） | `UT_Sp1StatefulBatchExecutor.cs:318` |
 | `H12` 信任根上的治理锁 | 就本分支覆盖的三根而言**已修复**；§7.1 中属于 `contracts/` 的两个残余已在后续分支上收口，只剩 native 合约那一面 | `ChainRegistryContract.cs:158-168,172-181,389` |
 | `H13` kill-switch 覆盖 3 个资产合约中的 1 个 | 全局标志**未修复**；它的按链变体（§4 H16）**已修复**（当前分支） | 审计时点为 `SubmitBatch:330-331` 对比 `FinalizeBatch:479-533`；`FinalizeBatch` 现在在 `:509-510` 断言 `isActive` |
@@ -1730,8 +1744,18 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
 12. `V1` —— 决定谁拥有定时的 SP1 dispatch（nightly 还是 merge queue），以及它失败时凭什么阻塞发布。
 13. `H15` —— 逐区块上下文的修复会触及 batcher↔executor 接缝，并且如果被持久化的头部馈入任何哈希，
     还会触及 state-root 编码。在“不要破坏字节格式”这条规则之下，它需要一个配套的规范决策。
-14. `H1` —— 针对 `Committed` 采用 `StopPlugin` + 重试；需要先补上 `OnBlockCommitted`
-    的测试覆盖（§6，“OnBlockCommitted 没有测试”那条）。
+14. `H1` —— **已在本分支定案（2026-08-31），并且是按发现自身要求的顺序：先补覆盖，再改策略。**
+    commit 处理器的方法体现在经一个内部 `ProcessCommittedEvent` 接缝运行（`DispatchSealed` 确立的
+    那种模式），配四条测试：被待持久化 batch 重试救回的 sink 故障不再向外传播；重试也失败
+    （`FailBeforePersistCount = 2`）时重新抛出原异常、待持久化 batch 仍被持有、两次尝试都在 sink
+    的日志里；禁用的设置不调用任何工作；生效策略被断言为 `StopPlugin`，而非核心默认。覆盖补齐后，
+    修复是两件事：`L2BatchPlugin` 覆写 `ExceptionPolicy => StopPlugin` —— 审计时那次 grep 说
+    `src/` 下不存在任何第一方覆写，如今有了 —— 而且处理器的 catch 路径在重新抛出之前，会先经
+    持久的 persist/ack 路径重试一次待持久化的 sealed batch：恢复成功的瞬态故障根本到不了核心
+    分派，存活下来的故障停掉的是插件、不是节点；下一个 commit 的恢复循环会从本地账本重读被跳过的
+    区块。那条普遍化（"这适用于每一个 L2 插件"）按构造依然成立 —— 只有 batcher 覆写了策略 ——
+    但其他插件没有一个像 batcher 的待持久化 sealed batch 那样持有持久的逐 commit 状态，所以
+    H1 的宕服路径正是被收口的那条。`Neo.Plugins.L2Batch.UnitTests` 70/70。
 15. `C2` / `V5` —— 受位置绑定的验证，外加去掉 `UT_SharedBridge_Vm` 的 mock。
 16. `V7` —— **本分支已定案（2026-08-31），两个决策各做一次、同时应用到两处读取点。** 读路径获得与
     写路径、获取发布锁路径同样的有界等待重试（2 秒窗口、50 毫秒间隔）；耗尽 `IOException` 的答案是

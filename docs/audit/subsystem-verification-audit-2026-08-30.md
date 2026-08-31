@@ -1322,6 +1322,14 @@ disagree, and only the alert state is legible to someone who has not read the no
   (`external/neo/src/Neo/Plugins/Plugin.cs:74`) with **no** first-party override — a source-scoped
   grep for `ExceptionPolicy` under `src/` returns nothing at all, so this applies to every L2
   plugin, not just the batcher.
+  **Status — fixed for the batcher on this branch (2026-08-31).** `L2BatchPlugin` now carries the
+  override the grep could not find (`ExceptionPolicy => StopPlugin`), and the commit handler retries
+  the pending sealed batch once through the durable persist/ack route before rethrowing, so a
+  recovered transient never reaches the core dispatch and a surviving fault stops the plugin, not the
+  node; the next commit's recovery loop re-reads the skipped block from the local ledger. The
+  generalization stays true by construction — the other L2 plugins still default to `StopNode` — but
+  none of them holds durable per-commit state the way the batcher's pending sealed batch does, so
+  H1's outage path is the one closed. See §10 item 14.
 - **`WithWriter` silently downgrades DA profile** [E1].
   `src/Neo.Plugins.L2DA/L2DAPlugin.cs:163-175` unconditionally sets `_profile = Development` (`:169`)
   and clears `_productionBackendOverridden` (`:174`). That matters because the rest of the plugin is
@@ -1382,6 +1390,15 @@ disagree, and only the alert state is legible to someone who has not read the no
   retry path only through `ProcessCommittedBlock`; no test references `OnBlockCommitted`, and
   `InvokeCommitted` appears in zero tests. The recovery behaviour that H1 depends on for its fix is
   the least-tested code on the critical path.
+  **Status — fixed on this branch (2026-08-31).** The handler's body now runs through an internal
+  `ProcessCommittedEvent` seam (the same internal-test-seam pattern `DispatchSealed` established),
+  and four new tests drive it: a sink fault recovered by the pending-batch retry does not propagate;
+  a retry that also fails rethrows the original exception with the pending batch still held and both
+  attempts visible in the sink's log; disabled settings invoke no work; and the effective policy is
+  asserted to be `StopPlugin`. The private two-line delegate and the core's `InvokeCommitted`
+  dispatch itself remain untestable without a `NeoSystem` (its constructor spawns the Akka system,
+  initializes the blockchain and iterates the global plugin registry), which is now stated where the
+  gap was — the seam covers everything the handler itself executes. See §10 item 14.
 - **The forced-inclusion interface documents a gate that no code implements** [E1 counted].
   `src/Neo.L2.ForcedInclusion/IForcedInclusionSource.cs:36-38` says of `HasOverdueEntryAsync` that
   "the batcher uses this to decide whether to halt finalization for censorship reasons". Nothing uses
@@ -1512,7 +1529,7 @@ disagree, and only the alert state is legible to someone who has not read the no
 | --- | --- | --- |
 | `C1` deposit/router inbox collision | **Fixed** (this branch) | two-part dedup + total order in `L1MessageDrain.cs`, `UT_L1MessageDrain` regressions |
 | `C2` `MerkleTree.Verify` not position-bound | **Open** — and the same shape is in both contract folds (§5 V5), unobservable because the payout test stubs the verifier | `SettlementManagerContract.cs:989-1012`, `:1115-1134` |
-| `H1` plugin exceptions stop the node | **Open**, upgraded to [E1] | `L2BatchPlugin.cs:479 throw;`, `Plugin.cs:74` default, zero `ExceptionPolicy` overrides in `src/` |
+| `H1` plugin exceptions stop the node | **Fixed** for the batcher on the item-14 branch (2026-08-31): `ExceptionPolicy => StopPlugin` override + one pending-batch retry before rethrow | `L2BatchPlugin.cs` override + `ProcessCommittedEvent` retry, 4 new tests; other L2 plugins keep the core default (no durable per-commit state to protect) |
 | `H6` decorative off-chain binary pin | **Open**, now [E1] with a derived-digest test and no negative test (§5 V3) | `UT_Sp1StatefulBatchExecutor.cs:318` |
 | `H12` governance locks on trust roots | **Fixed** for the three roots this branch covered; §7.1's two `contracts/` residuals were closed on the follow-up branch, leaving only the native-contract surface | `ChainRegistryContract.cs:158-168,172-181,389` |
 | `H13` kill-switch covers 1 of 3 asset contracts | **Open** for the global flag; its per-chain variant (§4 H16) is **Fixed** (this branch) | audit-time `SubmitBatch:330-331` vs `FinalizeBatch:479-533`; `FinalizeBatch` now asserts `isActive` at `:509-510` |
@@ -1927,8 +1944,22 @@ Split by whether it can land now.
 13. `H15` — the per-block context fix touches the batcher↔executor seam and, if the persisted header
     feeds any hash, the state-root encoding. Needs a paired spec decision under the "don't break byte
     formats" rule.
-14. `H1` — `StopPlugin` + retry for `Committed`; needs the `OnBlockCommitted` test coverage first
-    (§6, "OnBlockCommitted has no test").
+14. `H1` — **settled on this branch (2026-08-31), in the order the finding demanded: coverage first,
+    then the policy change.** The commit handler's body now runs through an internal
+    `ProcessCommittedEvent` seam (the pattern `DispatchSealed` established), with four tests: a sink
+    fault recovered by the pending-batch retry does not propagate; a retry that also fails
+    (`FailBeforePersistCount = 2`) rethrows the original exception with the pending batch still held
+    and both attempts in the sink's log; disabled settings invoke no work; and the effective policy
+    is asserted to be `StopPlugin`, not the core default. With that coverage in place the fix is two
+    pieces: `L2BatchPlugin` overrides `ExceptionPolicy => StopPlugin` — the first-party override the
+    audit-time grep said did not exist anywhere under `src/` — and the handler's catch path now
+    retries the pending sealed batch once through the durable persist/ack route before rethrowing, so
+    a recovered transient never reaches the core dispatch at all, and a fault that survives stops the
+    plugin instead of the node; the next commit's recovery loop re-reads the skipped block from the
+    local ledger. The finding's generalization ("this applies to every L2 plugin") remains true by
+    construction — only the batcher overrides the policy — but no other plugin holds durable
+    per-commit state the way the batcher's pending sealed batch does, so H1's outage path is the one
+    closed. `Neo.Plugins.L2Batch.UnitTests` 70/70.
 15. `C2` / `V5` — position-bound verification, plus un-mocking `UT_SharedBridge_Vm`.
 16. `V7` — **settled on this branch (2026-08-31), both decisions made once and applied to both read
     sites.** The read path gets the same bounded wait-and-retry the write and lock-acquisition paths

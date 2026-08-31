@@ -1539,6 +1539,14 @@ decision.
   well-formed. That is a composition-boundary observation rather than a defect — the fail-closed
   default (§9) is the right response to it — but it should be stated in `doc.md` §12 rather than left
   to be discovered by reading the throw at `L2DAPlugin.cs:134-136`.
+  **Status — stated on this branch (2026-09-01).** `doc.md` §12 now carries the composition
+  boundary as an explicit declaration: the built-in writers are semantic simulations (in-process,
+  not restart-durable, receipt kind `SemanticSimulation`), `MetricsEmittingProductionDAWriter` is
+  a metrics decorator over an injected inner writer rather than a backend, production
+  `NeoFS` / `External` / `DAC` chains require an operator-supplied `IDAWriter` adapter whose
+  availability/independence claims are the operator's responsibility, and the plugin's fail-closed
+  Production default — which refuses the built-in simulations — is named as the enforcement
+  point, so the guarantee no longer lives only in a throw site.
 - **The intra-batch nonce gate is scoped to the executor object, not the batch or the state** [E1].
   `_consumedNonces` is a `readonly HashSet<(UInt160, uint)>` on both executors
   (`src/Neo.L2.Executor/ApplicationEngineTransactionExecutor.cs:60`, `.Add:133`;
@@ -1562,6 +1570,13 @@ decision.
   `src/Neo.L2.Batch/StateWitnessV1.cs:133` sets `MaxEntries = 65_536` and `:305` rejects any witness
   above it, so a batch touching more than 64K state keys hard-faults on the durable-artifact path with
   no operator-facing documentation of the limit.
+  **Status — documented on this branch (2026-09-01).** `doc.md` §8.5 now states the `NEO4STW1`
+  bounds as a hard operator constraint (entries ≤ 65,536, contracts ≤ 4,096, 128 MiB encoded)
+  and rules out widening the constant to admit an over-ceiling batch — the batch must be split.
+  `MaxEntries`' XML doc says the same where the number lives, and the validation fault no longer
+  says only "entry count is invalid": the zero case and the overflow case split, and the overflow
+  message names the actual count, the ceiling and the split instruction — the text an operator
+  actually reads at fault time.
 - **`OnBlockCommitted` has no test** [E1]. `UT_L2BatchPlugin.cs:206`, `:229`, `:304`, `:351` pin the
   retry path only through `ProcessCommittedBlock`; no test references `OnBlockCommitted`, and
   `InvokeCommitted` appears in zero tests. The recovery behaviour that H1 depends on for its fix is
@@ -1594,6 +1609,14 @@ decision.
   describes is both absent and unnecessary — but an operator reading the interface would look for the
   wrong safety property and, worse, a future refactor could "restore" a halt that would stall healthy
   chains. Fix is doc-only: describe the prepend-and-drain guarantee that exists.
+  **Status — fixed on this branch (2026-09-01), doc-only as prescribed.**
+  `IForcedInclusionSource.HasOverdueEntryAsync`'s doc now names the real consumers —
+  `CensorshipDetector`'s advisory report (which an operator submits to `ReportCensorship`) and
+  the status/health surfaces — and states outright that finalization safety does not come from a
+  halt gate: the batcher drains at the start of every fresh batch, prepends the entries before
+  any transaction, and fails closed on a bad drain, so a censoring sequencer cannot skip a forced
+  transaction. The doc also warns the future refactor this finding feared against: a halt keyed
+  on this flag would stall healthy chains, so the absent mechanism must stay absent.
 - **The 2026-08-29 claim that the escape hatch "faults without manual pauser registration" is now
   refuted for the live deployer** [E1]. `ReportCensorship` pauses only through
   `ChainRegistryContract.cs:482-485` (`CheckWitness(owner) || IsPauser(callingScriptHash)`), and

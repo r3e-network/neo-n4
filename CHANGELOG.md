@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Docs — witness ceiling, forced-inclusion safety property, DA simulation boundary — 2026-09-01
+
+- §8.5 now states the `NEO4STW1` bounds as a hard operator constraint (65,536 entries,
+  4,096 contracts, 128 MiB encoded): a batch whose complete pre-state exceeds the entry bound
+  faults at witness validation and must be split, not the constant widened. `MaxEntries`' XML
+  doc repeats it, and the fault message no longer says only "entry count is invalid" — the
+  overflow branch names the actual count, the ceiling and the split instruction.
+- `IForcedInclusionSource.HasOverdueEntryAsync` documented a gate no code implements ("the
+  batcher uses this to decide whether to halt finalization"). Its doc now names the real
+  consumers (`CensorshipDetector`'s advisory report, status/health surfaces), states that
+  finalization safety comes from the prepend-and-drain guarantee — drain at every fresh batch
+  start, prepend before any transaction, fail closed on a bad drain — and warns that a halt
+  keyed on this flag would stall healthy chains, so the absent mechanism stays absent.
+- §12 now carries the composition boundary explicitly: every built-in `IDAWriter` is a semantic
+  simulation (in-process, not restart-durable, `SemanticSimulation` receipts),
+  `MetricsEmittingProductionDAWriter` is a metrics decorator rather than a backend, and
+  production `NeoFS` / `External` / `DAC` chains require an operator-supplied adapter, with the
+  plugin's fail-closed Production default named as the enforcement point.
+
 ### Fixed — exit policy: validate guards both directions, the CLI line names the window — 2026-09-01
 
 - `neo-stack validate` guarded only one direction of the `(exitModel, permissionlessExit)`

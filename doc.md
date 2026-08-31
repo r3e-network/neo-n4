@@ -822,6 +822,11 @@ execution trace
 
 N4 genesis 的 SP1 输入固定复用 `ProofWitnessArtifactV1`（`NEO4PWIT`），不得再创建第二套外层 witness。`ExecutionPayloadV1` 提供完整 canonical Neo Transaction、批次区间、L1 finalized height、时间戳、network 与 L1 message；`StateWitness` 的 `NEO4STW1` V1 提供有界且非空的完整 pre-state、合约 code/manifest 和固定协议参数。合约 descriptor 通过 `neo-n4/contract-binding/v1\0` 域绑定到 pre-state root。
 
+`NEO4STW1` 的边界是硬性运维约束：完整 pre-state 条目数 ≤ 65,536、合约数 ≤ 4,096、编码上限
+128 MiB。一个 batch 的完整 pre-state 超出条目边界时，witness 校验会 fail closed（fault，
+错误信息点名实际条目数、上限与"拆分 batch"的指示）；不得放宽常量去迁就这样的 batch，
+运营者必须把它拆小。
+
 `CanonicalReceiptV1` 固定为 105 bytes：`txHash[32] | success[1] | gasConsumed i64 LE[8] | storageDeltaHash[32] | eventsHash[32]`。`StorageDeltaHashV1` 以完整 raw key 排序，绑定 op 及 old/new presence+bytes；`EventsHashV1` 按执行顺序绑定 emitting script hash、UTF-8 name 和完整 `NEO4STK1` canonical stack state。两者空集合均为零 `UInt256`，非空分别使用 `neo-n4/storage-delta/v1\0` 与 `neo-n4/events/v1\0` 域。
 
 guest 必须先验证 pre-state root，再执行 `tx.Script`。`HALT` 提交 overlay/notifications；`FAULT` 生成失败 receipt 并回滚；transaction/witness/manifest adapter 解码错误终止整个批次。post-state root 只能由验证后的 pre-state 与实际 HALT overlay 重算，禁止用 receipt hash 折叠代替。未实现的 consensus syscall 必须 fail closed。
@@ -1236,6 +1241,14 @@ DAMode:
 
 Neo N4 的默认 / 推荐 DA 路径是 `DAMode.NeoFS`。`L1`、`External`、`DAC`
 仍保留为显式覆盖项，必须在 `ChainRegistry` 中如实标注。
+
+实现边界（组合边界声明，非缺陷）：本仓库内置的 `IDAWriter` —— 内存型 writer、
+`NeoFsLikeDAWriter`、`CommitteeAttestedDAWriter` —— 全部是语义模拟：它们不联系真实的
+NeoFS / DAC / 外部后端，也不具备重启耐久能力，receipt kind 标注为 `SemanticSimulation`；
+`MetricsEmittingProductionDAWriter` 只是包装注入内部 writer 的度量装饰器，不是后端。因此
+生产部署 `DAMode.NeoFS` / `External` / `DAC` 的链必须由运营者提供自己的 `IDAWriter` 适配器；
+适配器声明的可用性/独立性由运营者负责。插件默认 fail closed：Production 档会拒绝内置模拟
+writer 落地，`WithWriter` 注入仅面向开发/集成环境。
 
 ## 12.1 L1 DA
 

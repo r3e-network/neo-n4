@@ -21,6 +21,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Plonky3's `0.4.3` challenger fix into the `-succinct` fork; filing that ask is an external
   communication left to the maintainer's go.
 
+### Fixed — a batcher commit-handler fault now stops the plugin, not the node — 2026-08-31
+
+- §10 item 14 [E1] (`H1`): the core's default `ExceptionPolicy` for a `Blockchain.Committed`
+  handler exception is `StopNode`, so a transient sink or executor fault inside the batcher — the
+  same fault class the pending-batch retry exists for — killed the whole chain instead of one plugin.
+  `L2BatchPlugin` now carries the first-party override the audit-time grep proved did not exist
+  anywhere under `src/`: `ExceptionPolicy => StopPlugin`. The chain keeps importing blocks and the
+  pending sealed batch survives for operator retry.
+- Coverage landed first, in the order the finding demanded. The commit handler's body now runs
+  through an internal `ProcessCommittedEvent` seam, and its catch path counts the metric, retries the
+  pending sealed batch once through the durable persist/ack route, and rethrows only when that retry
+  cannot recover — a recovered transient never reaches the core dispatch at all, and the next
+  commit's recovery loop re-reads the skipped block from the local ledger.
+- Four new tests: a sink fault recovered by the pending-batch retry does not propagate; a retry that
+  also fails rethrows the original exception with the pending batch still held and both attempts in
+  the sink's log; disabled settings invoke no work; and the effective policy is asserted to be
+  `StopPlugin`. `Neo.Plugins.L2Batch.UnitTests` 70/70. Other L2 plugins keep the core default — none
+  of them holds durable per-commit state the way the batcher's pending sealed batch does.
+
 ### Fixed — SP1 queue reads now tolerate transient sharing violations and always fail typed — 2026-08-31
 
 - §10 item 16 [E1]: both SP1 file-queue read funnels read artifacts with a bare

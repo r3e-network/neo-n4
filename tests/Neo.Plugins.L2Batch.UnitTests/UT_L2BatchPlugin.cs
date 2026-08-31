@@ -318,6 +318,69 @@ public class UT_L2BatchPlugin
     }
 
     [TestMethod]
+    public void ProcessCommittedEvent_SinkFaultRecoveredByPendingRetry_DoesNotPropagate()
+    {
+        // The commit handler's own failure path: metric, one pending-batch retry, no rethrow —
+        // the core keeps the plugin running instead of stopping it or the node.
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        var sink = new DurableSink { FailBeforePersistOnce = true };
+        var metrics = new InMemoryMetrics();
+        plugin.WithMetrics(metrics);
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        plugin.ProcessCommittedEvent(() => plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs()));
+
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.BatchOnBlockCommittedError));
+        Assert.AreEqual(1, sink.PersistedBatches.Count);
+        Assert.AreEqual(1UL, sink.Checkpoint!.BatchNumber);
+        Assert.IsFalse(plugin.HasPendingSealedBatch);
+    }
+
+    [TestMethod]
+    public void ProcessCommittedEvent_RetryAlsoFails_RethrowsOriginalAndKeepsPending()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+        var sink = new DurableSink { FailBeforePersistCount = 2 };
+        var metrics = new InMemoryMetrics();
+        plugin.WithMetrics(metrics);
+        plugin.WithSealedBatchSink(sink, 1001);
+
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => plugin.ProcessCommittedEvent(() => plugin.ProcessCommittedBlock(1, 1000, 11, NoTxs())));
+
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.BatchOnBlockCommittedError));
+        CollectionAssert.AreEqual(new ulong[] { 1, 1 }, sink.AttemptedBatchNumbers.ToArray());
+        Assert.AreEqual(0, sink.PersistedBatches.Count);
+        Assert.IsTrue(plugin.HasPendingSealedBatch);
+    }
+
+    [TestMethod]
+    public void ProcessCommittedEvent_DisabledSettings_DoesNotInvokeWork()
+    {
+        using var plugin = new L2BatchPlugin(new L2BatchSettings
+        {
+            ChainId = 1001,
+            MaxBlocksPerBatch = 1,
+            MaxTransactionsPerBatch = 100,
+            MaxBatchAgeMillis = int.MaxValue,
+            Enabled = false,
+        });
+        var invoked = false;
+
+        plugin.ProcessCommittedEvent(() => invoked = true);
+
+        Assert.IsFalse(invoked);
+    }
+
+    [TestMethod]
+    public void ExceptionPolicy_IsStopPluginNotStopNode()
+    {
+        using var plugin = new L2BatchPlugin(OneBlockSettings());
+
+        Assert.AreEqual(UnhandledExceptionPolicy.StopPlugin, plugin.CommittedExceptionPolicy);
+    }
+
+    [TestMethod]
     public void WireL1MessageInbox_Deposits_ConfirmAfterDurableSeal()
     {
         // Functional completeness: Drain reserves → seal persists → ConfirmConsumed.
@@ -681,6 +744,7 @@ public class UT_L2BatchPlugin
     private sealed class DurableSink : ISealedBatchSink
     {
         public bool FailBeforePersistOnce { get; init; }
+        public int FailBeforePersistCount { get; init; }
         public bool FailAfterPersistOnce { get; init; }
         public SealedBatchCheckpoint? Checkpoint { get; set; }
         public int CheckpointReadCount { get; private set; }
@@ -691,6 +755,7 @@ public class UT_L2BatchPlugin
         public uint? LastTrackedForcedInclusionChainId { get; private set; }
 
         private bool _failedBefore;
+        private int _failuresBefore;
         private bool _failedAfter;
 
         public ValueTask<UInt256> GetInitialStateRootAsync(
@@ -709,6 +774,11 @@ public class UT_L2BatchPlugin
             if (FailBeforePersistOnce && !_failedBefore)
             {
                 _failedBefore = true;
+                throw new InvalidOperationException("sink unavailable before persistence");
+            }
+            if (_failuresBefore < FailBeforePersistCount)
+            {
+                _failuresBefore++;
                 throw new InvalidOperationException("sink unavailable before persistence");
             }
 

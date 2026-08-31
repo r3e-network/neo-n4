@@ -23,6 +23,15 @@
   年、use-after-free）lru 记录，在案告警是 `GHSA-rhfx-m35p-ff5j`。未轮换任何钉扎，ignore 集合
   不变；§10 第 17 条的第二个子动作（请 Succinct 把 Plonky3 0.4.3 challenger 修复合进 fork）已
   定案为"要问"，发起询问属外部沟通、留给维护者拍板。
+
+- 2026-08-31 batcher 的 commit 处理器故障现在停插件、不停节点：核心对 `Blockchain.Committed`
+  处理器异常的默认策略是 `StopNode`，batcher 内一次瞬态 sink/executor 故障会杀死整条链（审计
+  H1）。`L2BatchPlugin` 现在带上审计时 grep 证明全 `src/` 都不存在的那条第一方覆写
+  （`ExceptionPolicy => StopPlugin`），并且处理器在重新抛出之前先经持久 persist/ack 路径重试
+  一次待持久化的 sealed batch：恢复成功的瞬态故障到不了核心分派；覆盖先行，四条新测试
+  （救回不传播 / 重试也失败则重抛原异常且 batch 仍被持有 / 禁用不调用 / 策略为 `StopPlugin`），
+  `Neo.Plugins.L2Batch.UnitTests` 70/70。其余 L2 插件保持核心默认。
+
 - 2026-08-31 SP1 队列读路径容忍瞬态共享冲突并始终类型化失败：两个读漏斗
   （`AtomicFileQueueTransport.ReadBoundedPathAsync`、`Sp1GatewayProofProver.ReadBoundedFileAsync`）
   的裸 `File.ReadAllBytesAsync` 曾在全部类型化守卫之外，过滤驱动短暂持有刚改名的文件即以裸

@@ -407,6 +407,17 @@ public sealed class L2BatchPlugin : Plugin
     public override string Description =>
         "Seals immutable L2 execution batches for the Neo Elastic Network.";
 
+    /// <summary>
+    /// The core's default policy for a commit-handler exception is StopNode, which turns a
+    /// transient sink/executor fault inside this plugin into a chain-wide outage. This plugin
+    /// stops itself instead: the core marks it stopped, the chain keeps importing blocks, and
+    /// the pending sealed batch survives for operator retry.
+    /// </summary>
+    protected override UnhandledExceptionPolicy ExceptionPolicy => UnhandledExceptionPolicy.StopPlugin;
+
+    /// <summary>Plugin failure policy applied by the core dispatch (diagnostics / tests).</summary>
+    internal UnhandledExceptionPolicy CommittedExceptionPolicy => ExceptionPolicy;
+
     /// <summary>Construct and register the block-commit handler.</summary>
     public L2BatchPlugin()
     {
@@ -465,17 +476,43 @@ public sealed class L2BatchPlugin : Plugin
     /// <summary>Block-commit hook — entry point for batch accumulation.</summary>
     private void OnBlockCommitted(NeoSystem system, Block block)
     {
+        if (block is null) return;
+        ProcessCommittedEvent(() => RecoverAndProcessCommittedBlocks(system, block));
+    }
+
+    /// <summary>
+    /// Run one block-commit's work under the plugin's failure policy: count the failure, retry
+    /// the pending sealed batch once through the durable persist/ack path, and rethrow to the
+    /// core dispatch only when the retry cannot recover — at which point
+    /// <see cref="ExceptionPolicy"/> stops this plugin instead of the node.
+    /// </summary>
+    /// <remarks>
+    /// Internal so unit tests can drive the commit-failure path without spinning up a
+    /// NeoSystem; the production caller is the private <c>Blockchain.Committed</c> handler.
+    /// A successful retry skips this block's own processing: the next commit's recovery loop
+    /// re-reads it from the local ledger. See doc.md §7.2.
+    /// </remarks>
+    internal void ProcessCommittedEvent(Action commitWork)
+    {
+        ArgumentNullException.ThrowIfNull(commitWork);
         try
         {
             if (!_settings.Enabled) return;
-            if (block is null) return;
-
-            RecoverAndProcessCommittedBlocks(system, block);
+            commitWork();
         }
         catch (Exception ex)
         {
             _metrics.SafeIncrementCounter(MetricNames.BatchOnBlockCommittedError);
             Logs.RuntimeLogger.Error(ex, "L2Batch OnBlockCommitted handler failed");
+            try
+            {
+                if (TryRetryPendingSealedBatch()) return;
+            }
+            catch (Exception retryEx)
+            {
+                Logs.RuntimeLogger.Error(
+                    retryEx, "L2Batch pending-batch retry after commit failure also failed");
+            }
             throw;
         }
     }

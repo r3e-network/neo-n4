@@ -139,6 +139,8 @@ public class UT_CanonicalEncodingParity
         {
             ChainId = CanonicalEncodingVectors.ChainId,
             BatchNumber = CanonicalEncodingVectors.Batch,
+            FirstBlock = CanonicalEncodingVectors.FirstBlock,
+            LastBlock = CanonicalEncodingVectors.LastBlock,
             PreStateRoot = Root(CanonicalEncodingVectors.FillPreStateRoot),
             PostStateRoot = Root(CanonicalEncodingVectors.FillPostStateRoot),
             TxRoot = Root(CanonicalEncodingVectors.FillTxRoot),

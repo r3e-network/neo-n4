@@ -387,8 +387,8 @@ Gateway 的 SP1 路径使用独立 guest，不复用 batch execution guest。输
 
 每个递归 child 的 public values 固定为 `0x00 || batch.PublicInputHash`。child sidecar
 还必须携带 commitment 中缺失的 `l1MessageHash` 与 `blockContextHash`；Gateway guest
-使用 commitment 的 chain/batch/七个执行根/DA commitment 与这两个补充字段重建完整
-332-byte public inputs，并要求其 Hash256 等于 `batch.PublicInputHash`。child 必须是
+使用 commitment 的 chain/batch/firstBlock/lastBlock/七个执行根/DA commitment 与这两个补充字段重建完整
+348-byte public inputs，并要求其 Hash256 等于 `batch.PublicInputHash`。child 必须是
 SP1 6.2.1 compressed proof，并由 guest 内编译期锁定的 batch guest VK 验证；请求不得
 携带 VK、文件路径或 Groth16 child proof。Gateway guest 唯一允许 commit 的 public
 values 是 `0x00 || Hash256(binding170)`。
@@ -764,6 +764,8 @@ ZK proof 的 public inputs 应该包括：
 ```text
 chainId
 batchNumber
+firstBlock
+lastBlock
 preStateRoot
 postStateRoot
 txRoot

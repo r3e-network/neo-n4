@@ -5,6 +5,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — firstBlock/lastBlock are now bound into the public-inputs digest the settlement contract verifies — 2026-08-31
+
+- §6's block-range finding [E1]: the public-inputs preimage hashed `chainId ‖ batchNumber ‖ ten
+  roots` and left the header's `firstBlock`/`lastBlock` outside everything that covers
+  `publicInputHash` — the attestations/optimistic payloads whose preimage is exactly these bytes
+  (`AttestationProver.cs:36-40`, `OptimisticProver.cs:81-83`), every persisted witness artifact, the
+  SP1 proof's public input, and `SettlementManager.ComputePublicInputHash` itself, which reproduced
+  the same 332-byte formula on-chain. A commitment whose header misdescribed the block range its
+  state transition covers therefore settled identically: the range was metadata, not a commitment.
+- The fix grows the preimage 332 → 348 bytes: `firstBlock(8 LE) ‖ lastBlock(8 LE)` now sit between
+  `batchNumber` and the ten roots (`BatchSerializer.EncodePublicInputs`,
+  `src/Neo.L2.Batch/BatchSerializer.cs:217-248`), and the contract's
+  `ComputePublicInputHash` (`SettlementManagerContract.cs:453-...`) copies the contiguous header
+  bytes `0..27` plus the ten roots — so header layout and digest layout are one transformation
+  apart, verified by the VmTests parity suite against the deployed NEF. `doc.md` §8.3 states the new
+  field list.
+- Every consumer moved in the same change so no reader keeps the old formula: the Gateway guest's
+  supplement reconstruction (`bridge/neo-zkvm-gateway-guest/src/lib.rs`
+  `validate_public_input_supplements`, the one reader that rebuilds the preimage from commitment
+  bytes + l1MessageHash/blockContextHash), the SP1 host's expectation
+  (`bridge/neo-zkvm-host/src/bin/prove_batch.rs:1216`), the witness-artifact embed, the shared
+  golden vectors (`tests/Shared/CanonicalEncodingVectors.cs`), and the three committed hex fixtures
+  (regenerated; `stateful_batch_v1.hex`'s PI digest is now
+  `515c73cc9a52ca65dc6a103170057940b6aaf104eb1111145ff1ca5b6c894cc7`). Golden digests re-pinned:
+  shared-vector `publicInputHash` → `a56a616d15b7b5b4f7a2abf997f94be264c1bad1095a3b97992ff7e6af62e4e3`;
+  the witness-artifact ContentHash →
+  `c3fc234d57526f76a04f02fe3334dd5e1871e63c0e16d78684ec92757094671b` — the stale literal was the
+  single full-run failure after the encoder landed, the one-sided-change detector working as
+  designed.
+- The `SettlementManager` NEF was re-emitted with the pinned nccs (diff = Manifest JSON + NEF base64
+  lines only) and the VmTests parity suite (8 tests) runs the deployed contract against the new
+  preimage. Evidence: full solution 38 assemblies / **2,943 tests** / 0 failed / 5 skipped;
+  Rust on Windows: `neo-execution-core` 17/17, gateway-guest 13/13, guest 18/18. §11 records the
+  three dispatch-only pins (`vk_manifest.rs`, the Groth16 positive vector, the Gateway recursion VK)
+  that still describe the old formula until the Linux `sp1-release-gates` lane re-runs.
+
 ### Fixed — the devnet runner now settles with the proof kind its §16.2 label declares — 2026-08-31
 
 - H18's "left as found" list named the devnet: `tools/Neo.L2.Devnet/Program.cs:385,403` built

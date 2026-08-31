@@ -283,6 +283,8 @@ pub fn hash_block_context(context: &BatchBlockContext) -> UInt256 {
 pub fn hash_public_inputs(
     chain_id: u32,
     batch_number: u64,
+    first_block: u64,
+    last_block: u64,
     pre_state_root: &UInt256,
     post_state_root: &UInt256,
     tx_root: &UInt256,
@@ -294,9 +296,11 @@ pub fn hash_public_inputs(
     da_commitment: &UInt256,
     block_context_hash: &UInt256,
 ) -> UInt256 {
-    let mut bytes = Vec::with_capacity(332);
+    let mut bytes = Vec::with_capacity(348);
     bytes.extend_from_slice(&chain_id.to_le_bytes());
     bytes.extend_from_slice(&batch_number.to_le_bytes());
+    bytes.extend_from_slice(&first_block.to_le_bytes());
+    bytes.extend_from_slice(&last_block.to_le_bytes());
     for root in [
         pre_state_root,
         post_state_root,

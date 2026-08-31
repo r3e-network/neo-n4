@@ -19,9 +19,9 @@ namespace Neo.L2.Batch;
 /// durable witness artifact (<c>src/Neo.L2.Persistence/ProofWitnessStore.cs:1090-1091</c>), the
 /// equality check that gates execution
 /// (<c>src/Neo.L2.Executor/Witness/Sp1StatefulBatchExecutor.cs:271-272</c>), and the buffer the Rust
-/// side rebuilds byte-for-byte (<c>bridge/neo-execution-core/src/hashing.rs:297</c>). A change to it
-/// breaks the C# ↔ Rust prover ABI, the pinned VK, and every artifact already on disk — just not the
-/// contract's parser.
+/// side rebuilds byte-for-byte (<c>bridge/neo-execution-core/src/hashing.rs</c>) <em>and</em> the
+/// contract rebuilds from the header plus its two extra arguments — since the digest binds
+/// <c>firstBlock</c>/<c>lastBlock</c>, a change to it is a breaking on-chain change too.
 /// </para>
 /// <para>
 /// <b>L2BatchCommitment layout (321 + proofLen bytes):</b>
@@ -46,21 +46,23 @@ namespace Neo.L2.Batch;
 /// </code>
 /// </para>
 /// <para>
-/// <b>PublicInputs layout (332 bytes, fixed):</b>
+/// <b>PublicInputs layout (348 bytes, fixed):</b>
 /// <code>
 /// offset  size  field
 /// 0       4     chainId (uint32)
 /// 4       8     batchNumber (uint64)
-/// 12      32    preStateRoot
-/// 44      32    postStateRoot
-/// 76      32    txRoot
-/// 108     32    receiptRoot
-/// 140     32    withdrawalRoot
-/// 172     32    l2ToL1MessageRoot
-/// 204     32    l2ToL2MessageRoot
-/// 236     32    l1MessageHash
-/// 268     32    daCommitment
-/// 300     32    blockContextHash
+/// 12      8     firstBlock (uint64)
+/// 20      8     lastBlock (uint64)
+/// 28      32    preStateRoot
+/// 60      32    postStateRoot
+/// 92      32    txRoot
+/// 124     32    receiptRoot
+/// 156     32    withdrawalRoot
+/// 188     32    l2ToL1MessageRoot
+/// 220     32    l2ToL2MessageRoot
+/// 252     32    l1MessageHash
+/// 284     32    daCommitment
+/// 316     32    blockContextHash
 /// </code>
 /// </para>
 /// </remarks>
@@ -81,7 +83,7 @@ public static class BatchSerializer
     /// <summary>Total size of <see cref="PublicInputs"/> encoding (no varbytes).</summary>
     public const int PublicInputsSize =
         4 +              // ChainId
-        8 +              // BatchNumber
+        8 + 8 + 8 +      // BatchNumber, FirstBlock, LastBlock
         10 * 32;         // 10× UInt256 roots/hashes
 
     /// <summary>Encode <paramref name="commitment"/> to its canonical byte form.</summary>
@@ -232,6 +234,8 @@ public static class BatchSerializer
 
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(pos, 4), inputs.ChainId); pos += 4;
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), inputs.BatchNumber); pos += 8;
+        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), inputs.FirstBlock); pos += 8;
+        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), inputs.LastBlock); pos += 8;
 
         foreach (var root in new[] {
             inputs.PreStateRoot, inputs.PostStateRoot, inputs.TxRoot, inputs.ReceiptRoot,
@@ -254,6 +258,10 @@ public static class BatchSerializer
         var pos = 0;
         var chainId = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(pos, 4)); pos += 4;
         var batchNumber = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(pos, 8)); pos += 8;
+        var firstBlock = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(pos, 8)); pos += 8;
+        var lastBlock = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(pos, 8)); pos += 8;
+        if (lastBlock < firstBlock)
+            throw new InvalidDataException($"lastBlock ({lastBlock}) < firstBlock ({firstBlock}) in decoded public inputs");
 
         var preStateRoot = ReadUInt256(data, ref pos);
         var postStateRoot = ReadUInt256(data, ref pos);
@@ -270,6 +278,8 @@ public static class BatchSerializer
         {
             ChainId = chainId,
             BatchNumber = batchNumber,
+            FirstBlock = firstBlock,
+            LastBlock = lastBlock,
             PreStateRoot = preStateRoot,
             PostStateRoot = postStateRoot,
             TxRoot = txRoot,

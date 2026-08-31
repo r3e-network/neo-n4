@@ -132,7 +132,7 @@ pub fn prove(request_bytes: &[u8]) -> Result<ProofResult, String> {
 ///
 /// The sidecar carries the two public-input fields that are not present in
 /// `L2BatchCommitment` (`l1_message_hash` and `block_context_hash`). The Gateway guest
-/// reconstructs all 332 canonical public-input bytes, hashes them, and requires that hash
+/// reconstructs all 348 canonical public-input bytes, hashes them, and requires that hash
 /// to equal the public value of this recursively verified child proof.
 #[cfg(unix)]
 pub fn prove_compressed(request_bytes: &[u8]) -> Result<RecursiveChildProofResult, String> {
@@ -141,6 +141,8 @@ pub fn prove_compressed(request_bytes: &[u8]) -> Result<RecursiveChildProofResul
     let expected_public_input_hash = neo_execution_core::hash_public_inputs(
         artifact.public_inputs.chain_id,
         artifact.public_inputs.batch_number,
+        artifact.public_inputs.first_block,
+        artifact.public_inputs.last_block,
         &artifact.public_inputs.pre_state_root,
         &artifact.public_inputs.post_state_root,
         &artifact.public_inputs.tx_root,

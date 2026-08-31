@@ -85,10 +85,12 @@ public static class StateRootCalculator
         ArgumentNullException.ThrowIfNull(inputs.DACommitment);
         ArgumentNullException.ThrowIfNull(inputs.BlockContextHash);
         // Use the canonical encoding from BatchSerializer-equivalent layout.
-        Span<byte> buffer = stackalloc byte[4 + 8 + 10 * 32];
+        Span<byte> buffer = stackalloc byte[4 + 8 + 8 + 8 + 10 * 32];
         var pos = 0;
         BinaryPrimitives.WriteUInt32LittleEndian(buffer.Slice(pos, 4), inputs.ChainId); pos += 4;
         BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(pos, 8), inputs.BatchNumber); pos += 8;
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(pos, 8), inputs.FirstBlock); pos += 8;
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(pos, 8), inputs.LastBlock); pos += 8;
 
         foreach (var root in new[] {
             inputs.PreStateRoot, inputs.PostStateRoot, inputs.TxRoot, inputs.ReceiptRoot,

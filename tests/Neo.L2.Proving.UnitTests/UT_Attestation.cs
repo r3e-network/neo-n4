@@ -19,6 +19,8 @@ public class UT_Attestation
     {
         ChainId = 1001,
         BatchNumber = 7,
+        FirstBlock = 10,
+        LastBlock = 12,
         PreStateRoot = UInt256.Parse("0x" + new string('1', 64)),
         PostStateRoot = UInt256.Parse("0x" + new string('2', 64)),
         TxRoot = UInt256.Parse("0x" + new string('3', 64)),

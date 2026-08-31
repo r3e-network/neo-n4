@@ -412,6 +412,8 @@ internal static class Program
             {
                 ChainId = LocalChainId,
                 BatchNumber = (ulong)batchNum,
+                FirstBlock = (ulong)(100 * batchNum),
+                LastBlock = (ulong)(100 * batchNum + 50),
                 PreStateRoot = preStateRoot,
                 PostStateRoot = execResult.PostStateRoot,
                 TxRoot = execResult.TxRoot,

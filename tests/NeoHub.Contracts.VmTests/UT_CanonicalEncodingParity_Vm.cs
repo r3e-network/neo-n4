@@ -38,7 +38,7 @@ namespace NeoHub.Contracts.VmTests;
 public class UT_CanonicalEncodingParity_Vm
 {
     private const int CommitmentSize = 321;
-    private const int PublicInputsSize = 332;
+    private const int PublicInputsSize = 348;
     private const int ConfigSize = 91;
 
     // Commitment header offsets, copied independently of both BatchSerializer's writer and
@@ -89,6 +89,8 @@ public class UT_CanonicalEncodingParity_Vm
 
         PutInt(CanonicalEncodingVectors.ChainId);
         PutLong(CanonicalEncodingVectors.Batch);
+        PutLong(CanonicalEncodingVectors.FirstBlock);
+        PutLong(CanonicalEncodingVectors.LastBlock);
         PutRoot(CanonicalEncodingVectors.FillPreStateRoot);
         PutRoot(CanonicalEncodingVectors.FillPostStateRoot);
         PutRoot(CanonicalEncodingVectors.FillTxRoot);
@@ -213,8 +215,9 @@ public class UT_CanonicalEncodingParity_Vm
     /// <summary>
     /// Registers chain 1001 from the golden config vector and settles batch 1 from the golden
     /// commitment vector. Submitting is itself the assertion, through two independent on-chain checks:
-    /// <c>ComputePublicInputHash</c> rebuilds the 332-byte preimage from <em>its own</em> offsets —
-    /// header bytes 0..11 plus pre/post/tx/receipt/withdrawal/l2ToL1/l2ToL2/daCommitment, with the two
+    /// <c>ComputePublicInputHash</c> rebuilds the 348-byte preimage from <em>its own</em> offsets —
+    /// header bytes 0..27 (chain id, batch number, firstBlock, lastBlock) plus
+    /// pre/post/tx/receipt/withdrawal/l2ToL1/l2ToL2/daCommitment, with the two
     /// submit arguments interleaved — and faults unless that digest equals the header's offset-284
     /// field, which pins those eight root positions and the public-input order; and
     /// <c>IsProofTypeCompatible</c> reads the proof-type byte at offset 316 against the security level

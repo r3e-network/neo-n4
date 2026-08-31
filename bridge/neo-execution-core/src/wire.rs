@@ -882,6 +882,8 @@ fn read_public_inputs(reader: &mut Reader<'_>) -> Result<PublicInputs, Execution
     Ok(PublicInputs {
         chain_id: reader.read_u32()?,
         batch_number: reader.read_u64()?,
+        first_block: reader.read_u64()?,
+        last_block: reader.read_u64()?,
         pre_state_root: reader.read_fixed::<32>()?,
         post_state_root: reader.read_fixed::<32>()?,
         tx_root: reader.read_fixed::<32>()?,
@@ -898,6 +900,8 @@ fn read_public_inputs(reader: &mut Reader<'_>) -> Result<PublicInputs, Execution
 fn write_public_inputs(writer: &mut Writer, inputs: &PublicInputs) {
     writer.write_u32(inputs.chain_id);
     writer.write_u64(inputs.batch_number);
+    writer.write_u64(inputs.first_block);
+    writer.write_u64(inputs.last_block);
     writer.write_bytes(&inputs.pre_state_root);
     writer.write_bytes(&inputs.post_state_root);
     writer.write_bytes(&inputs.tx_root);
@@ -918,6 +922,8 @@ fn validate_public_input_claims(
 ) -> Result<(), ExecutionError> {
     if inputs.chain_id != payload.chain_id
         || inputs.batch_number != payload.batch_number
+        || inputs.first_block != payload.first_block
+        || inputs.last_block != payload.last_block
         || inputs.pre_state_root != payload.pre_state_root
         || inputs.post_state_root != result.post_state_root
         || inputs.tx_root != result.tx_root

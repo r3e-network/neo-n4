@@ -40,6 +40,8 @@ public class UT_PublicInputHashConsistencyCheck
         {
             ChainId = c.ChainId,
             BatchNumber = c.BatchNumber,
+            FirstBlock = c.FirstBlock,
+            LastBlock = c.LastBlock,
             PreStateRoot = c.PreStateRoot,
             PostStateRoot = c.PostStateRoot,
             TxRoot = c.TxRoot,
@@ -121,6 +123,8 @@ public class UT_PublicInputHashConsistencyCheck
         {
             ChainId = 1001,
             BatchNumber = 1,
+            FirstBlock = 10,
+            LastBlock = 19,
             PreStateRoot = H(0),
             PostStateRoot = H(1),
             TxRoot = H(2),

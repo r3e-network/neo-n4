@@ -208,13 +208,15 @@ pub fn validate_public_input_supplements(
         if supplement.len() != PUBLIC_INPUT_SUPPLEMENT_BYTES {
             return Err(GatewayError::InvalidPublicInputSupplement);
         }
-        let mut public_inputs = [0u8; 332];
+        let mut public_inputs = [0u8; 348];
         public_inputs[..4].copy_from_slice(&batch.chain_id.to_le_bytes());
         public_inputs[4..12].copy_from_slice(&batch.batch_number.to_le_bytes());
-        public_inputs[12..236].copy_from_slice(&batch.canonical_bytes[28..252]);
-        public_inputs[236..268].copy_from_slice(&supplement[..32]);
-        public_inputs[268..300].copy_from_slice(&batch.canonical_bytes[252..284]);
-        public_inputs[300..332].copy_from_slice(&supplement[32..]);
+        public_inputs[12..20].copy_from_slice(&batch.canonical_bytes[12..20]);
+        public_inputs[20..28].copy_from_slice(&batch.canonical_bytes[20..28]);
+        public_inputs[28..252].copy_from_slice(&batch.canonical_bytes[28..252]);
+        public_inputs[252..284].copy_from_slice(&supplement[..32]);
+        public_inputs[284..316].copy_from_slice(&batch.canonical_bytes[252..284]);
+        public_inputs[316..348].copy_from_slice(&supplement[32..]);
         if hash256(&public_inputs) != batch.public_input_hash {
             return Err(GatewayError::PublicInputHashMismatch);
         }
@@ -637,13 +639,15 @@ mod tests {
         let mut encoded = commitment(1, 7, 0x41, 0x00);
         let mut supplement = vec![0x91; PUBLIC_INPUT_SUPPLEMENT_BYTES];
         supplement[32..].fill(0xa1);
-        let mut public_inputs = [0u8; 332];
+        let mut public_inputs = [0u8; 348];
         public_inputs[..4].copy_from_slice(&1u32.to_le_bytes());
         public_inputs[4..12].copy_from_slice(&7u64.to_le_bytes());
-        public_inputs[12..236].copy_from_slice(&encoded[28..252]);
-        public_inputs[236..268].copy_from_slice(&supplement[..32]);
-        public_inputs[268..300].copy_from_slice(&encoded[252..284]);
-        public_inputs[300..].copy_from_slice(&supplement[32..]);
+        public_inputs[12..20].copy_from_slice(&encoded[12..20]);
+        public_inputs[20..28].copy_from_slice(&encoded[20..28]);
+        public_inputs[28..252].copy_from_slice(&encoded[28..252]);
+        public_inputs[252..284].copy_from_slice(&supplement[..32]);
+        public_inputs[284..316].copy_from_slice(&encoded[252..284]);
+        public_inputs[316..].copy_from_slice(&supplement[32..]);
         encoded[284..316].copy_from_slice(&hash256(&public_inputs));
 
         let parsed = parse_request(&request(&[encoded.clone()])).unwrap();

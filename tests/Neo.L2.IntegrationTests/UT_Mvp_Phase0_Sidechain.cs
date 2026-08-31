@@ -154,6 +154,8 @@ public class UT_Mvp_Phase0_Sidechain
         {
             ChainId = LocalChainId,
             BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 100,
             PreStateRoot = UInt256.Zero,
             PostStateRoot = execResult.PostStateRoot,
             TxRoot = execResult.TxRoot,

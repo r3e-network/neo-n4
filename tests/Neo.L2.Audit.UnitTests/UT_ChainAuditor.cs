@@ -133,6 +133,8 @@ public class UT_ChainAuditor
         {
             ChainId = 1001,
             BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = UInt256.Zero,
             PostStateRoot = H(1),
             TxRoot = UInt256.Zero,
@@ -166,6 +168,8 @@ public class UT_ChainAuditor
         {
             ChainId = 1001,
             BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = UInt256.Zero,
             PostStateRoot = H(1),
             TxRoot = UInt256.Zero,
@@ -244,6 +248,8 @@ public class UT_ChainAuditor
         {
             ChainId = 1,
             BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = UInt256.Zero,
             PostStateRoot = UInt256.Zero,
             TxRoot = UInt256.Zero,

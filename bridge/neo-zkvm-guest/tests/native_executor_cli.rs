@@ -88,6 +88,8 @@ impl PublicInputsHash for neo_execution_core::ProofWitnessArtifact {
         neo_execution_core::hash_public_inputs(
             self.public_inputs.chain_id,
             self.public_inputs.batch_number,
+            self.public_inputs.first_block,
+            self.public_inputs.last_block,
             &self.public_inputs.pre_state_root,
             &self.public_inputs.post_state_root,
             &self.public_inputs.tx_root,

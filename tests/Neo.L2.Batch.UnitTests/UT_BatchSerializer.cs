@@ -109,6 +109,8 @@ public class UT_BatchSerializer
         {
             ChainId = 1001,
             BatchNumber = 42,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = H('a'),
             PostStateRoot = H('b'),
             TxRoot = H('c'),
@@ -149,6 +151,8 @@ public class UT_BatchSerializer
         {
             ChainId = 1001,
             BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = null!,
             PostStateRoot = H('1'),
             TxRoot = H('2'),
@@ -276,6 +280,8 @@ public class UT_BatchSerializer
         {
             ChainId = 0xCAFEBABE,
             BatchNumber = 0xDEAD_BEEFUL,
+            FirstBlock = 0x1111_1111_1111_1111UL,
+            LastBlock = 0x2222_2222_2222_2222UL,
             PreStateRoot = H('a'),
             PostStateRoot = H('b'),
             TxRoot = H('c'),
@@ -289,11 +295,13 @@ public class UT_BatchSerializer
         };
         var bytes = BatchSerializer.EncodePublicInputs(inputs);
 
-        Assert.AreEqual(332, bytes.Length);
+        Assert.AreEqual(348, bytes.Length);
         Assert.AreEqual(0xCAFEBABEu, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(0, 4)));
         Assert.AreEqual(0xDEAD_BEEFUL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(4, 8)));
-        CollectionAssert.AreEqual(inputs.PreStateRoot.GetSpan().ToArray(), bytes[12..44]);
-        CollectionAssert.AreEqual(inputs.BlockContextHash.GetSpan().ToArray(), bytes[300..332]);
+        Assert.AreEqual(0x1111_1111_1111_1111UL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(12, 8)));
+        Assert.AreEqual(0x2222_2222_2222_2222UL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(20, 8)));
+        CollectionAssert.AreEqual(inputs.PreStateRoot.GetSpan().ToArray(), bytes[28..60]);
+        CollectionAssert.AreEqual(inputs.BlockContextHash.GetSpan().ToArray(), bytes[316..348]);
     }
 
     [TestMethod]

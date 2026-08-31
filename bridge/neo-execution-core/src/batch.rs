@@ -156,6 +156,8 @@ where
     let public_inputs = PublicInputs {
         chain_id: payload.chain_id,
         batch_number: payload.batch_number,
+        first_block: payload.first_block,
+        last_block: payload.last_block,
         pre_state_root: payload.pre_state_root,
         post_state_root: execution_result.post_state_root,
         tx_root: execution_result.tx_root,
@@ -170,6 +172,8 @@ where
     let public_input_hash = hash_public_inputs(
         public_inputs.chain_id,
         public_inputs.batch_number,
+        public_inputs.first_block,
+        public_inputs.last_block,
         &public_inputs.pre_state_root,
         &public_inputs.post_state_root,
         &public_inputs.tx_root,

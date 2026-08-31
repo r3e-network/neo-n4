@@ -662,6 +662,8 @@ jobs:
         run: cargo install polkatool --version 0.32.0 --locked
 
       - name: Regenerate guest.polkavm and fail on drift
+        env:
+          CARGO_NIGHTLY: cargo +nightly-2026-08-28
         run: |
           bash external/neo-riscv-vm/scripts/regenerate-guest-blob.sh
           git -C external/neo-riscv-vm diff --exit-code -- \

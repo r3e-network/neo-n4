@@ -324,7 +324,8 @@ For the bundled production profile, C# does not independently implement this fun
 runtime with canonical `NEO4EXEC` + complete pre-state `NEO4STW1`, validates canonical
 `NEO4EXR1`, and atomically commits its complete post-state. The resulting `NEO4PWIT` is then
 re-executed inside SP1. This closes execution/proof semantic drift for
-`Sp1StatefulNeoVmV1`; the separate PolkaVM `ChainMode.L2RiscV` profile requires its own
+`Sp1StatefulNeoVmV1`; the separate PolkaVM profile — selected by `--executor riscv` and labelled
+`vm: "neovm2-riscv"`, not by a `ChainMode` value — requires its own
 matching prover before it can claim the same validity guarantee.
 
 ### 5.2 Three-stage progression

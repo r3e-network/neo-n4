@@ -5,6 +5,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — V2 (docs half): `ChainMode.L2RiscV` never existed, and the public-inputs encoder is not an L1 ABI — 2026-08-31
+
+- Audit §10 item 9 asked whether to correct the docs or add the enum member. **The docs were wrong.**
+  Ten sites — `AGENTS.md`, `WHITEPAPER.md`, `docs/architecture-l2-lifecycle.md`,
+  `docs/architecture-walkthrough.md`, `docs/tech-stack-coverage.md` and each one's `docs/zh/` mirror —
+  described the PolkaVM execution profile as keyed on `ChainMode.L2RiscV`, a member
+  `src/Neo.L2.Abstractions/Models/ChainMode.cs` has never declared.
+- Three pieces of evidence settle it. `doc.md` §6 (476-486) lists exactly `L1Mode`, `SidechainMode`,
+  `L2RollupMode`, `L2ValidiumMode`; `doc.md:1343` selects the engine with `--vm neovm2-riscv`
+  *alongside* `--template rollup`, so the spec treats VM and mode as independent axes; and `ChainMode`
+  occupies no byte in the 91-byte `L2ChainConfigSerializer` format (offsets 84-90 are securityLevel,
+  daMode, gatewayEnabled, permissionlessExit, sequencerModel, exitModel, active) with
+  `ValidateChainConfigCommand` its only consumer. A fifth member would have wired nothing while making
+  a cosmetic label look like a dispatch key, so the prose now names the real selector: the devnet's
+  `--executor riscv` (`tools/Neo.L2.Devnet/DevnetArgs.cs:61-76`) and `vm: "neovm2-riscv"` in
+  `chain.config.json`.
+- `ChainMode`'s own `<summary>` asserted it "drives consensus, batching, settlement, and DA behavior";
+  it now states that it dispatches nothing and must not gain a member for a new VM profile. The same
+  over-claim in `src/Neo.L2.Batch/BatchSerializer.cs:12-14` — that the encoder produces "the byte
+  format that NeoHub's settlement contract reads" — held for the commitment header and not for the
+  332-byte public-inputs form, which is never transmitted: L1 sees only its digest at commitment
+  offset 284. The paragraph now names what that form *does* bind, at four re-read sites: the signed
+  preimage (`AttestationProver.cs:36-40`, `OptimisticProver.cs:81-83`), the durable artifact digest
+  (`ProofWitnessStore.cs:1090-1091`), the check that gates execution
+  (`Sp1StatefulBatchExecutor.cs:271-272`) and the buffer Rust rebuilds byte-for-byte
+  (`bridge/neo-execution-core/src/hashing.rs:297`).
+- One test fixture carried the same phantom value:
+  `tests/Neo.Stack.Cli.UnitTests/UT_BootstrapGenesisCommand.cs:36` set `"chainMode": "L2RiscV"` and
+  passed because nothing on the bootstrap path parses the key. It now carries `L2RollupMode`, the
+  value its own `zk-rollup` template emits.
+- Copy-paste discipline is replaced by two guards.
+  `CurrentDocumentation_NamesOnlyDeclaredChainModeMembers` walks every tracked
+  `.md`/`.cs`/`.json`/`.yaml`/`.yml`/`.toml` file and rejects both spellings of an undeclared label
+  (`ChainMode.<Member>` and `"chainMode": "<value>"`) against `Enum.GetNames<ChainMode>()`, exempting
+  only dated narrative and evidence whose stale labels are deliberate quotes: `docs/audit/**`,
+  `CHANGELOG.md`, `TASKS.md` and their `docs/zh/` mirrors. `Catalog_EveryTemplateNameADeclaredChainMode`
+  pins the four `TemplateCatalog` `ChainMode` strings — the one catalog field no earlier guard parsed.
+  Negative control: a line added to `README.md` produced both
+  `README.md:471 ChainMode.L2RiscV` and `README.md:471 "chainMode": "L2RiscV"`, and the guard had
+  already caught its own comment on its first run; `README.md` was restored byte-identical.
+- **Not closed, deliberately:** the half `V2` is named for. `tests/NeoHub.Contracts.VmTests` still has
+  zero `ProjectReference`s, so no test cross-executes the .NET encoders against the Rust reader —
+  audit §11's first bullet stands unchanged, and the pairing is still maintained by hand.
+- Tests: full solution 38 assemblies / **2,923 tests** / 0 failed / 5 skipped (two new `[TestMethod]`
+  methods over item 8's 2,921) — `Neo.Stack.Cli.UnitTests` 195 → 196, `Neo.Hub.Deploy.UnitTests`
+  115 → 116, and `NEO_N4_REQUIRE_FRESH_MANIFESTS=1 dotnet test tests/Neo.Hub.Deploy.UnitTests` is
+  116/116. `dotnet format --verify-no-changes` clean. No contract, encoding or runtime behaviour
+  changed.
+- Audit: §5 V2's status block and §10 item 9, mirrored into
+  `docs/zh/audit/subsystem-verification-audit-2026-08-30.md`.
+
 ### Fixed — H18: the `SecurityLevel ⇒ ProofType` table existed three times, and two of them were wrong — 2026-08-31
 
 - Audit §10 item 8 filed `H18` as "the `rollup` template emits Optimistic commitments against a

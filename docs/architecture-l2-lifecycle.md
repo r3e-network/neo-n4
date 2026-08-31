@@ -208,8 +208,9 @@ strings together three lower-level operations. What gets generated:
 
 The `MyChainExecutor` scaffold is a starting point for chains that need custom transaction
 semantics (e.g., an RWA chain with KYC checks or a DEX chain with built-in matching). The
-PolkaVM `ChainMode.L2RiscV` profile uses `RiscVTransactionExecutor` from
-`src/Neo.L2.Executor.RiscV/`; that profile is distinct from the bundled
+PolkaVM profile uses `RiscVTransactionExecutor` from
+`src/Neo.L2.Executor.RiscV/`, selected by the devnet's `--executor riscv` and labelled
+`vm: "neovm2-riscv"` in `chain.config.json`; that profile is distinct from the bundled
 `Sp1StatefulNeoVmV1` proof semantic and must not inherit its validity label without a matching
 prover. Production SP1 validity chains use `Sp1SettlementExecutionStack`, whose SHA-256-pinned
 native executor and SP1 guest share one runtime. The in-process

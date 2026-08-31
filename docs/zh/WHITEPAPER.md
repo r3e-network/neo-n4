@@ -281,7 +281,8 @@ Witness:有序 tx、合约字节码、storage 读 / 写路径、原生合约状�
 SHA-256 锁定、host-native 的同一 guest runtime 接收规范 `NEO4EXEC` + 完整 pre-state
 `NEO4STW1`，校验规范 `NEO4EXR1` 后原子提交完整 post-state；随后 SP1 在 zkVM 内
 重新执行形成的 `NEO4PWIT`。这关闭了 `Sp1StatefulNeoVmV1` 的执行/证明语义漂移；独立
-PolkaVM `ChainMode.L2RiscV` profile 只有接上匹配 prover 后才能声明同等 validity。
+PolkaVM profile（由 `--executor riscv` 选择、以 `vm: "neovm2-riscv"` 标注，而非
+`ChainMode` 取值）只有接上匹配 prover 后才能声明同等 validity。
 
 ### 5.2 三阶段演进
 

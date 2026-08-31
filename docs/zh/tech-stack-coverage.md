@@ -66,7 +66,8 @@
   `bridge/neo-execution-core/` + vendored `neo-vm-rs` stateful N4 V1 runtime；C# 在状态
   commit 前校验规范 `NEO4EXR1`，`bridge/neo-zkvm-host/` 再于 SP1 内重执行形成的
   `NEO4PWIT`。PolkaVM 路径(`external/neo-riscv-vm` + `Neo.L2.Executor.RiscV`)是独立
-  `ChainMode.L2RiscV` profile，没有匹配 prover 时不继承 SP1 validity。CI 同时门禁真实
+  profile（由 `--executor riscv` 选择、以 `vm: "neovm2-riscv"` 标注，而非 `ChainMode` 取值），
+  没有匹配 prover 时不继承 SP1 validity。CI 同时门禁真实
   terminal proof/tamper rejection 与非 ignored C#→release Rust native execution。
 - **DA writer(in-memory / NeoFS / L1 / DAC / RocksDB)** ✅ — `src/Neo.Plugins.L2DA/`(5 种实现)
 - **结算 RPC 客户端** ✅ — `src/Neo.L2.Settlement.Rpc/`

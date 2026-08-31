@@ -185,8 +185,9 @@ DA / 证明 / RPC / gateway / metrics)。
 </p>
 
 `MyChainExecutor` 脚手架是给需要自定义交易语义的链(例如 RWA 链带 KYC 检查、
-DEX 链内置撮合)的起步点。PolkaVM `ChainMode.L2RiscV` profile 使用
-`src/Neo.L2.Executor.RiscV/` 的 `RiscVTransactionExecutor`；它与内置
+DEX 链内置撮合)的起步点。PolkaVM profile 使用
+`src/Neo.L2.Executor.RiscV/` 的 `RiscVTransactionExecutor`，由 devnet 的 `--executor riscv`
+选择、并在 `chain.config.json` 中以 `vm: "neovm2-riscv"` 标注；它与内置
 `Sp1StatefulNeoVmV1` proof semantic 不同，没有匹配 prover 时不得继承其 validity 标签。
 生产 SP1 validity 链使用 `Sp1SettlementExecutionStack`，其 SHA-256 锁定 native executor
 与 SP1 guest 共享同一 runtime。进程内 `ApplicationEngineTransactionExecutor` 只作为

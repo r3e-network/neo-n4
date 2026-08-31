@@ -70,8 +70,9 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
   `bridge/neo-execution-core/` + vendored `neo-vm-rs` stateful N4 V1 runtime; C# validates
   canonical `NEO4EXR1` before state commit, and `bridge/neo-zkvm-host/` re-executes the resulting
   `NEO4PWIT` inside SP1. The PolkaVM path (`external/neo-riscv-vm` +
-  `Neo.L2.Executor.RiscV`) is a distinct `ChainMode.L2RiscV` execution profile and does not
-  inherit SP1 validity without a matching prover. Real terminal proof generation/verification,
+  `Neo.L2.Executor.RiscV`) is a distinct execution profile — selected by `--executor riscv` and
+  labelled `vm: "neovm2-riscv"`, not by a `ChainMode` value — and does not inherit SP1 validity
+  without a matching prover. Real terminal proof generation/verification,
   tamper rejection, and the non-ignored real C#→Rust native execution boundary are gated in CI.
 - **DA writers (in-memory / NeoFS / L1 / DAC / RocksDB)** ✅ — `src/Neo.Plugins.L2DA/` (5 implementations)
 - **Settlement RPC client** ✅ — `src/Neo.L2.Settlement.Rpc/`

@@ -33,7 +33,7 @@ public class UT_BootstrapGenesisCommand
               "chainId": {{chainId}},
               "template": "zk-rollup",
               "vm": "neovm2-riscv",
-              "chainMode": "L2RiscV",
+              "chainMode": "L2RollupMode",
               "daMode": "L1",
               "proofType": "Zk",
               "securityLevel": "Validity",

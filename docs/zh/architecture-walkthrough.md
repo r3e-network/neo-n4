@@ -71,7 +71,8 @@
   `bridge/neo-zkvm-host` 运行 `prove-batch daemon --watch <queue-dir>`，在 SP1 RISC-V
   guest 内用相同 `neo-execution-core` + vendored `neo-vm-rs` runtime 重新执行。
   `external/neo-riscv-vm` 与 `Neo.L2.Executor.RiscV` 是独立的 PolkaVM
-  `ChainMode.L2RiscV` profile，不能被静默当作同一 SP1 semantic；该路径只有接上匹配
+  profile（由 `--executor riscv` 选择、以 `vm: "neovm2-riscv"` 标注，而不是由
+  `ChainMode` 取值选择），不能被静默当作同一 SP1 semantic；该路径只有接上匹配
   proof profile 后才能声明 validity。`MockRiscVProver` 仍只供进程内测试。
 
 证明者输出进入 `L2BatchCommitment.Proof`,带匹配的 `ProofType`。

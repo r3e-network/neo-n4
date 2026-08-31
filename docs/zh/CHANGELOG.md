@@ -15,6 +15,19 @@
 
 ## 中文摘要
 
+- 2026-08-31 RISC-V guest blob 恢复新鲜，并由 CI 门禁保持：此前每一条 RISC-V 测试执行的
+  已提交 `guest.polkavm` 都落后 guest 源码三轮安全加固，且没有任何机制能发现；发布打包路径则
+  无条件重建 —— 测试认证一个二进制、发布的又是另一个。现 `build.yml` 在每个事件上运行
+  `riscv-guest-freshness` job：以 guest 源码重建 blob（nightly cargo + `polkatool 0.32.0
+  --locked`），`git diff --exit-code` 比对已提交字节，漂移即失败；该检查已加入 `master` 的
+  required contexts，漂移在 PR 时即被拦截。发布清单 §6（EN + zh）写明红/过期时的阻塞规则。
+  真实重生成双重印证了发现：已提交字节重建出不同的 SHA-256（`6a90a0af…` → `7bd373a1…`，确定性
+  可复现），且 guest 在当前 nightly 把 Rust 2024 `unsafe_op_in_unsafe_fn` 与未经 `unsafe()`
+  修饰的 `no_mangle`/`link_section` 属性升为硬错误后已完全无法编译。子模块分支
+  （`r3e-network/neo-riscv-vm` `ci/guest-blob-freshness`）等价修复 C ABI 内存内建函数与该属性、
+  重生成 blob，父 PR 更新 gitlink；`cargo test -p neo-riscv-host` 对新 blob 302/302 全绿，
+  含 47 项 opcode/parity 执行套件实跑。审计修复 (2)/(3) 有意不取，理由见审计 §3 C3 状态块。
+
 - 2026-08-31 SP1 队列读路径容忍瞬态共享冲突并始终类型化失败：两个读漏斗
   （`AtomicFileQueueTransport.ReadBoundedPathAsync`、`Sp1GatewayProofProver.ReadBoundedFileAsync`）
   的裸 `File.ReadAllBytesAsync` 曾在全部类型化守卫之外，过滤驱动短暂持有刚改名的文件即以裸

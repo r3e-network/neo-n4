@@ -117,6 +117,32 @@ assert it in a test, the way `Sp1StatefulBatchExecutor` asserts its executor dig
 `package-adapter-plugin.sh` either commit-verify or build into a staging copy rather than mutating
 the tracked source tree.
 
+**Status — settled on this branch (2026-08-31), by execution rather than read-only inference.**
+Fix (1) is implemented and wired: `build.yml` gains a `riscv-guest-freshness` job that runs on
+every event (not nightly-only — a PR that changes guest source without regenerating the blob is
+exactly the drift this must catch), rebuilds the blob with nightly cargo + `polkatool 0.32.0
+--locked`, and fails via `git diff --exit-code` on `guest.polkavm`; the check is added to
+`master`'s required contexts. The job's failure response is written into it and into the release
+checklist §6 (EN + zh): regenerate on the release-candidate commit and land the blob.
+
+Executing the regeneration surfaced two facts the audit only inferred. First, the drift is real
+by hash: the committed blob `efc3791`-era bytes (SHA-256 `6a90a0af…`) rebuild to `7bd373a1…` on
+the current toolchain, deterministic across two rebuilds. Second, the guest had become
+*unbuildable*: the current nightly (rustc 1.100.0-nightly `e457a7b0d`) promotes
+`unsafe_op_in_unsafe_fn` and untrusted `no_mangle`/`link_section` attributes to hard errors, so
+`regenerate-guest-blob.sh` failed before linking — under the old regime nothing would ever have
+reported that, because nothing ran it. The submodule branch fixes the four C-ABI memory
+intrinsics and the `link_section` attribute (semantics-preserving `unsafe {}` scoping), regenerates
+the blob, and pushes it as `ci/guest-blob-freshness` on `r3e-network/neo-riscv-vm`; the parent PR
+carries the gitlink bump. Verification: `cargo test -p neo-riscv-host` 302/302 green against the
+fresh blob, including the 47-test opcode/parity execution suite (107 s of real guest execution).
+
+Fixes (2) and (3) are deliberately not taken: a SHA-256 constant in a test duplicates the gate's
+detection while adding a manual constant bump to every regeneration — the exact friction that
+produced the original staleness — and the packaging-script staging change hardens a path that the
+gate now observes anyway. If the maintainers want defense-in-depth for out-of-CI runs, (2) can be
+revisited independently.
+
 ### C4 — A successful fraud proof permanently kills the chain it just protected [E2]
 
 `OpenWindow` refuses to re-arm a window that already exists, and the window key is written in one
@@ -1918,8 +1944,17 @@ Split by whether it can land now.
 
 **Needs a decision before code:**
 
-10. `C3` — guest-blob freshness gate. Requires a CI job that runs `regenerate-guest-blob.sh` (nightly
-    cargo + `polkatool 0.32.0`) and compares SHA-256, i.e. new CI capacity on the Rust lane.
+10. `C3` — **settled on this branch (2026-08-31): the gate exists, the blob is fresh, and the
+    guest builds again.** `build.yml`'s new `riscv-guest-freshness` job rebuilds `guest.polkavm`
+    from guest source on every event (nightly cargo + `polkatool 0.32.0 --locked`) and fails on
+    `git diff --exit-code` against the committed blob; it is a required context on `master`, so a
+    PR that edits guest source without regenerating is blocked at PR time rather than discovered
+    nightly. Regenerating for real showed the committed bytes were stale by hash
+    (`6a90a0af…` → `7bd373a1…`, deterministic) and that the guest had stopped compiling under the
+    current nightly's Rust 2024 hard errors — fixed on the `r3e-network/neo-riscv-vm`
+    `ci/guest-blob-freshness` branch (gitlink bumped here), with the host suite 302/302 green
+    against the fresh blob. Fixes (2)/(3) deliberately not taken; rationale in §3 C3's status
+    block.
 11. `H14` — removing `panic = "abort"` changes unwind semantics and possibly throughput on the guest
     hot path; needs a measurement, and it interacts with the SP1 re-execution profile.
 12. `V1` — decide who owns a scheduled SP1 dispatch (nightly or merge queue) and what blocks a release

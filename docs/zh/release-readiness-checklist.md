@@ -78,6 +78,11 @@ cargo test --release --locked -- --ignored --nocapture
   workflow，使三条 `sp1-release-gates` lane（workspace release、terminal batch proof、
   recursive Gateway proof）运行；汇总门禁随后要求每条 lane 成功。禁止 mock/dummy 证明；
   在 release dispatch 上跳过或不完整的真实证明步骤不能作为证据。
+- 确认 required `RISC-V guest blob freshness`（`riscv-guest-freshness`）为绿。该 job 用 guest
+  源码重建 `external/neo-riscv-vm` 已提交的 `guest.polkavm`（nightly cargo + polkatool 0.32.0），
+  任何漂移即失败。红或过期即阻塞发布：先在发布候选 commit 上运行
+  `scripts/regenerate-guest-blob.sh` 并落库重生成的 blob —— 测试里执行的运行时必须与
+  所发布源码构建出的运行时一致。
 - 要求 `SDK Conformance / Shared vectors (4 SDKs)` 通过，并手动触发
   `SDK Conformance`；手工 dispatch 会自动要求 live job 及其已配置凭据。保留离线与真实环境 JSON
   汇总，任何发现或执行零个真实环境测试的报告都必须拒绝。

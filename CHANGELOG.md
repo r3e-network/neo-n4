@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the RISC-V guest blob is fresh again, and a CI gate keeps it that way — 2026-08-31
+
+- §10 item 10 [E1] (`C3`): every RISC-V test executed a committed `guest.polkavm` that predates
+  three rounds of guest-side hardening, nothing could notice, and release packaging rebuilt the
+  blob unconditionally — tests certified one binary while shipping another. Now `build.yml` runs a
+  `riscv-guest-freshness` job on every event: it rebuilds the blob from guest source (nightly
+  cargo + `polkatool 0.32.0 --locked`) and fails on `git diff --exit-code` against the committed
+  bytes; the check joins `master`'s required contexts, so drift is blocked at PR time. The release
+  checklist §6 (EN + zh) states the blocking rule for a red or stale run.
+- Regenerating for real proved the finding twice over: the committed bytes rebuild to a different
+  SHA-256 (`6a90a0af…` → `7bd373a1…`, deterministic), and the guest had stopped compiling entirely —
+  the current nightly promotes Rust 2024 `unsafe_op_in_unsafe_fn` and untrusted
+  `no_mangle`/`link_section` attributes to hard errors. The submodule branch
+  (`r3e-network/neo-riscv-vm` `ci/guest-blob-freshness`) fixes the C-ABI memory intrinsics and the
+  attribute (semantics-preserving), regenerates the blob, and the parent PR bumps the gitlink.
+  `cargo test -p neo-riscv-host` is 302/302 green against the fresh blob, including the 47-test
+  opcode/parity execution suite running the real guest.
+- Audit-report fixes (2)/(3) — a SHA-256 test constant and packaging-script staging — were
+  deliberately not taken; the rationale is recorded in the audit's §3 C3 status block.
+
 ### Fixed — SP1 queue reads now tolerate transient sharing violations and always fail typed — 2026-08-31
 
 - §10 item 16 [E1]: both SP1 file-queue read funnels read artifacts with a bare

@@ -109,6 +109,27 @@ release 插件里包含一个刚刚编译出来的 guest，其测试套件从未
 就像 `Sp1StatefulBatchExecutor` 断言其执行器摘要那样；(3) 让 `package-adapter-plugin.sh`
 要么做提交校验，要么构建进一份暂存副本，而不是改动被跟踪的源码树。
 
+**状态 —— 本分支已定案（2026-08-31），且是靠执行、而非只读推断。** 修复 (1) 已实现并接线：
+`build.yml` 新增 `riscv-guest-freshness` job，在**每一个事件**上运行（而非仅 nightly —— "改了
+guest 源码却不重生成 blob" 的 PR 正是它必须当场拦下的漂移），用 nightly cargo +
+`polkatool 0.32.0 --locked` 重建 blob，并以 `git diff --exit-code` 比对 `guest.polkavm` 失败；
+该检查已加入 `master` 的 required contexts。失败时的响应写进了 job 注释与发布清单 §6
+（EN + zh）：在发布候选 commit 上重生成并落库。
+
+真正执行重生成，暴露出两个审计只能推断的事实。其一，漂移是真实的哈希级事实：`efc3791`
+时代的已提交字节（SHA-256 `6a90a0af…`）在当前工具链上重建为 `7bd373a1…`，两次重建确定性一致。
+其二，guest 已经**无法编译**：当前 nightly（rustc 1.100.0-nightly `e457a7b0d`）把
+`unsafe_op_in_unsafe_fn` 与未经 `unsafe()` 修饰的 `no_mangle`/`link_section` 属性升为硬错误，
+`regenerate-guest-blob.sh` 在链接前就失败 —— 在旧机制下永远没人会报告这件事，因为没有人运行它。
+子模块分支修复了四个 C ABI 内存内建函数与该 `link_section` 属性（等价的 `unsafe {}` 作用域收敛），
+重生成 blob，并以 `ci/guest-blob-freshness` 推送到 `r3e-network/neo-riscv-vm`；父仓库 PR 携带
+gitlink 更新。验证：`cargo test -p neo-riscv-host` 对新 blob 302/302 全绿，含 47 项
+opcode/parity 执行套件（107 秒真实 guest 执行）。
+
+修复 (2) 与 (3) 有意不取：测试内 SHA-256 常量重复了门禁的检测能力，还给每次重生成增加一次手工
+改常量 —— 恰是当初造成陈旧的摩擦；打包脚本的暂存副本改造加固的路径，如今门禁已在观察。若维护者
+想要 CI 之外的纵深防御，(2) 可独立重启。
+
 ### C4 — 一次成功的 fraud proof 会永久杀死它刚刚保护好的那条链 [E2]
 
 `OpenWindow` 拒绝为一个已经存在的窗口重新装载，而窗口键只在一处写入、也只在一处删除：
@@ -1723,8 +1744,15 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
 
 **需要先决策再写代码的：**
 
-10. `C3` —— guest-blob 新鲜度门禁。需要一个运行 `regenerate-guest-blob.sh`（nightly cargo +
-    `polkatool 0.32.0`）并比较 SHA-256 的 CI job，也就是 Rust 通道上新的 CI 容量。
+10. `C3` —— **本分支已定案（2026-08-31）：门禁已存在、blob 已刷新、guest 恢复可编译。**
+    `build.yml` 新增的 `riscv-guest-freshness` job 在每个事件上用 guest 源码重建
+    `guest.polkavm`（nightly cargo + `polkatool 0.32.0 --locked`），并以
+    `git diff --exit-code` 比对已提交 blob，漂移即失败；它已是 `master` 的 required context，
+    因此"改 guest 源码却不重生成"的 PR 在 PR 时即被拦截，而非等到 nightly 才被发现。真实重生成
+    证明已提交字节确实陈旧（`6a90a0af…` → `7bd373a1…`，确定性可复现），且 guest 在当前 nightly
+    的 Rust 2024 硬错误下已无法编译 —— 已在 `r3e-network/neo-riscv-vm` 的
+    `ci/guest-blob-freshness` 分支修复（gitlink 在本分支更新），host 套件对新 blob 302/302
+    全绿。修复 (2)/(3) 有意不取，理由见 §3 C3 的状态块。
 11. `H14` —— 移除 `panic = "abort"` 会改变展开语义，并可能改变 guest 热路径上的吞吐；
     需要一次测量，而且它与 SP1 再执行档相互影响。
 12. `V1` —— 决定谁拥有定时的 SP1 dispatch（nightly 还是 merge queue），以及它失败时凭什么阻塞发布。

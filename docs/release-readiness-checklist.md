@@ -83,6 +83,12 @@ Run this on a real Neo N4 devnet/testnet node set before production:
   lanes (workspace release, terminal batch proof, recursive Gateway proof) run; the aggregate
   gate then requires every lane to succeed. Mock/dummy proofs are forbidden, and a skipped or
   incomplete real-proof step on a release dispatch is not acceptable evidence.
+- Confirm the required `RISC-V guest blob freshness` (`riscv-guest-freshness`) is green. The job
+  rebuilds `external/neo-riscv-vm`'s committed `guest.polkavm` from its guest source (nightly
+  cargo + polkatool 0.32.0) and fails on any drift. A red or stale run blocks the release: run
+  `scripts/regenerate-guest-blob.sh` on the release-candidate commit and land the regenerated
+  blob first — the runtime that executes in tests must be the runtime built from the source
+  being released.
 - Require `SDK Conformance / Shared vectors (4 SDKs)` and manually dispatch
   `SDK Conformance`; manual dispatch automatically requires the live job and its configured
   credentials. Retain the offline and live JSON

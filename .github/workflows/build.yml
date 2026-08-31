@@ -616,6 +616,42 @@ jobs:
             cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0258 --json
           done
 
+  riscv-guest-freshness:
+    name: RISC-V guest blob freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Audit C3 (§10 item 10): neo-riscv-host embeds the committed
+    # guest.polkavm via include_bytes! (runtime_cache.rs) with no build.rs and
+    # nothing that ever compared it against the guest source that produces it
+    # — the blob certified by tests was months older than the source, and the
+    # release packaging rebuilt it unconditionally, so tests certified one
+    # binary while shipping another. This gate rebuilds the blob from source
+    # and fails when the committed one differs. A red run means: run
+    # external/neo-riscv-vm/scripts/regenerate-guest-blob.sh (nightly cargo +
+    # polkatool 0.32.0, its own conventions) and commit the regenerated blob.
+    # Nightly-toolchain codegen drift counts as drift too — the script has
+    # always produced the blob with a floating nightly, so regenerate on
+    # toolchain bumps the same way.
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Setup Rust (nightly, rust-src for -Zbuild-std)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Install pinned polkatool
+        run: cargo install polkatool --version 0.32.0 --locked
+
+      - name: Regenerate guest.polkavm and fail on drift
+        run: |
+          bash external/neo-riscv-vm/scripts/regenerate-guest-blob.sh
+          git -C external/neo-riscv-vm diff --exit-code -- \
+            crates/neo-riscv-guest-module/guest.polkavm
+
   sdk-typescript:
     name: TypeScript SDK
     runs-on: ubuntu-latest

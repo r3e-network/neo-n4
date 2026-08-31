@@ -1517,6 +1517,22 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   `ValidateChainConfigCommand.cs:178` 只防住一个方向的矛盾（`OperatorAssisted` + `true`）；镜像
   的一侧 `Permissionless` + `false` —— 链上声称最强退出保障、而配置字段却说需要运营者共同签署
   —— 干净通过。修复：一个同时覆盖两个方向的检查，并让 CLI 那一行写出窗口。
+  **状态 —— 已在本分支修复（2026-09-01），按该项自己的药方。**
+  `ValidateChainConfigCommand` 如今把镜像方向的矛盾也防住了 —— `exitModel=Permissionless`
+  + `permissionlessExit=false` 会以与 `OperatorAssisted` 一侧措辞对应的 fix-it 尾巴
+  （"flip permissionlessExit to true or change exitModel"）发出 `⚠`，两条检查共用同一段
+  点名两个方向的注释。面向运营者的投影有了单一事实来源：`TemplateCatalog.DescribeExitPolicy(
+  exitModel, permissionlessExit)` 替换了 `CreateChainCommand` 与 `ListTemplatesCommand` 里各自
+  的裸三元表达式，因此随附 `rollup` 模板的那一行现在读作 "permissionless initiation; exits
+  finalize only after the Delayed challenge window" —— 正是 `ExitModel.Delayed` 文档所称该模式
+  实质的那个窗口 —— 且两条命令从此无法各自漂移。钉扎证据：镜像方向警告测试、一个
+  相干配对对照（`Permissionless` + `true` 配可服务的 proof type 输出零 `⚠`）、一条目录守卫
+  （断言每个模板都属于四个相干 `(exitModel, permissionlessExit)` 配对之一）、
+  `DescribeExitPolicy` 的六组合钉扎（凡 `Delayed` 必写窗口；两个不相干投影各自点名矛盾）、
+  以及一条 `list-templates rollup` 行断言窗口文本。`Neo.Stack.Cli.UnitTests` 201/201。
+  按决策保留的开口：`InMemoryL2RpcStore.cs:117-119` 仍解析并丢弃该字段 —— RPC 链描述符继续
+  只从 `exitModel` 推导退出策略，因为给这个 bool 一个消费者属于 `doc.md` §16.2 的规格变更
+  （规格定义了字段，没有定义它的读取路径），且全部随附样本本就相干，无可观察变化。
 
 ## 7. 本轮重新核实的既有发现状态
 

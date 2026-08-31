@@ -78,4 +78,23 @@ internal static class TemplateCatalog
 
     /// <summary>Comma-separated list of valid template names — used in error messages.</summary>
     public static string ValidNames => string.Join(", ", All.Select(t => t.Name));
+
+    /// <summary>Project the (exitModel, permissionlessExit) pair into the operator-facing
+    /// exit-policy line, naming the challenge window whenever one applies.</summary>
+    /// <remarks>
+    /// doc.md §16.2: <c>ExitModel.Delayed</c> means user exit is permissionless but subject
+    /// to a fixed challenge window — the window is the substance of the mode, so a line that
+    /// prints only "permissionless" under-communicates it (audit §6, permissionlessExit item).
+    /// create-chain and list-templates share this projection so the two cannot drift.
+    /// </remarks>
+    public static string DescribeExitPolicy(string exitModel, bool permissionlessExit) =>
+        exitModel switch
+        {
+            "Permissionless" when permissionlessExit => "permissionless (no challenge window)",
+            "Permissionless" => "operator-gated — contradicts exitModel=Permissionless (validate warns)",
+            "Delayed" when permissionlessExit => "permissionless initiation; exits finalize only after the Delayed challenge window",
+            "Delayed" => "operator-gated; exits finalize only after the Delayed challenge window",
+            _ when permissionlessExit => "requires operator co-sign (exitModel=OperatorAssisted) — contradicts permissionlessExit=true (validate warns)",
+            _ => "operator-gated (requires operator co-sign)",
+        };
 }

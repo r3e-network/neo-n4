@@ -56,7 +56,7 @@ internal static class ListTemplatesCommand
         Console.WriteLine($"  sequencerModel = {t.SequencerModel}");
         Console.WriteLine($"  exitModel      = {t.ExitModel}");
         Console.WriteLine($"  gateway        = {(t.GatewayEnabled ? "enabled" : "disabled")}");
-        Console.WriteLine($"  exit policy    = {(t.PermissionlessExit ? "permissionless" : "operator-gated")}");
+        Console.WriteLine($"  exit policy    = {TemplateCatalog.DescribeExitPolicy(t.ExitModel, t.PermissionlessExit)}");
         Console.WriteLine();
         Console.WriteLine($"  Use case:");
         Console.WriteLine($"    {t.UseCase}");

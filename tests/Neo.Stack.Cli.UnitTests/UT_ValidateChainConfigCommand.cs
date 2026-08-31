@@ -470,6 +470,41 @@ public class UT_ValidateChainConfigCommand
     }
 
     [TestMethod]
+    public void Validate_CrossFieldWarning_PermissionlessExitWithFalse()
+    {
+        // The mirror direction the audit found unguarded: exitModel=Permissionless claims
+        // the strongest exit guarantee (no operator cooperation), while
+        // permissionlessExit=false says an operator must co-sign. Pre-fix this passed
+        // clean because the validator checked only OperatorAssisted+true.
+        var contradiction = ValidRollupConfig()
+            .Replace("\"exitModel\": \"Delayed\"", "\"exitModel\": \"Permissionless\"")
+            .Replace("\"permissionlessExit\": true", "\"permissionlessExit\": false");
+        var path = WriteConfig(contradiction);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc, "cross-field warning is informational, not fatal");
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "Permissionless contradicts permissionlessExit=false");
+        StringAssert.Contains(output, "flip permissionlessExit to true");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldNoWarning_PermissionlessExitWithTrue()
+    {
+        // exitModel=Permissionless + permissionlessExit=true is the coherent
+        // strongest-guarantee pairing (the sidechain template's) — no exit warning.
+        // proofType moves to Zk so the config is fully warning-free (the base rollup
+        // config's Optimistic proof carries its own documented unserved-route caveat).
+        var consistent = ValidRollupConfig()
+            .Replace("\"exitModel\": \"Delayed\"", "\"exitModel\": \"Permissionless\"")
+            .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Zk\"");
+        var path = WriteConfig(consistent);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc);
+        Assert.IsFalse(output.Contains("⚠"),
+            "Permissionless + permissionlessExit=true is coherent — no contradiction warning");
+    }
+
+    [TestMethod]
     public void Validate_AllShippedSamples_HaveNoCrossFieldWarnings()
     {
         // Templates ship as canonical references; if a future edit introduces a

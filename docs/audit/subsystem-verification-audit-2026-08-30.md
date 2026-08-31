@@ -1698,6 +1698,25 @@ decision.
   `Permissionless` + `false` — a chain claiming the strongest exit guarantee on-chain while its
   config field says an operator must co-sign — passes clean. Fix: one check over both directions,
   with the CLI line naming the window.
+  **Status — fixed on this branch (2026-09-01), the item's own prescription.**
+  `ValidateChainConfigCommand` now guards the mirror contradiction too — `exitModel=Permissionless`
+  + `permissionlessExit=false` warns with a fix-it tail ("flip permissionlessExit to true or change
+  exitModel") mirroring the `OperatorAssisted` case's wording, under one shared comment naming both
+  directions. The operator-facing projection got a single source of truth:
+  `TemplateCatalog.DescribeExitPolicy(exitModel, permissionlessExit)` replaces the bare ternary in
+  both `CreateChainCommand` and `ListTemplatesCommand`, so the shipped rollup line now reads
+  "permissionless initiation; exits finalize only after the Delayed challenge window" — the window
+  `ExitModel.Delayed`'s doc calls the substance of the mode — and the two commands cannot drift
+  apart again. Pinned by: the mirror-direction warning test, a coherent-pairing control
+  (`Permissionless` + `true` with a served proof type emits zero `⚠`), a catalog guard asserting
+  every template ships one of the four coherent `(exitModel, permissionlessExit)` pairs, a
+  six-combination pin over `DescribeExitPolicy` (the window named whenever `Delayed`; the two
+  incoherent projections name their own contradiction), and a rollup `list-templates` line
+  asserting the window text. `Neo.Stack.Cli.UnitTests` 201/201. What stays open by decision:
+  `InMemoryL2RpcStore.cs:117-119` still parses and discards the field — the RPC chain descriptor
+  keeps deriving exit policy from `exitModel` alone, because giving the bool a consumer is a
+  `doc.md` §16.2 spec change (the spec defines the field, not its read path), and every shipped
+  sample is already coherent, so nothing observable changes.
 
 ## 7. Status of prior findings re-checked this pass
 

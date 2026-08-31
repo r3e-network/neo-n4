@@ -161,6 +161,23 @@ written into the workflow comment and the release checklist §6 (EN + zh). A too
 a matching blob re-land now fails the gate by construction, which is the property a floating
 toolchain could never give.
 
+**Portability addendum (2026-08-31, from the gate's third red run).** With the toolchain pinned the
+gate still went red on CI — and correctly: the Linux runner's rebuild differed from the committed
+`2389ab52…` blob although source, polkatool and the date-stamped toolchain were identical to the
+local rebuild. Extracting string literals from the blob found the mechanism: `#[track_caller]`
+panic locations embed absolute build paths — `C:\Users\…\.cargo\git\checkouts\neo-vm-rs-…`,
+`…\.cargo\registry\src\…\num-bigint-0.4.6\src\…`, `…\.rustup\toolchains\nightly-2026-08-28-x86_64-pc-windows-msvc\…\library\…`
+— into rodata, so blob bytes tracked the producing machine's directories and OS, and no
+Windows-local regen could ever byte-match a Linux runner's. The fix lives in the submodule's regen
+script, not the workflow: `regenerate-guest-blob.sh` now passes `-Z location-detail=none`
+(nightly-only; the guest's `#[panic_handler]` formats `PanicInfo` into a diagnostics buffer, so the
+`panicked at <path>:<line>` prefix degrades to a pathless form, and no host test asserts on that
+text). The committed blob is now the path-free `d6959f30…` rebuild — zero path-like strings remain —
+verified deterministic across two runs and byte-identical from a second build directory; the gate's
+CI run is the OS-cross-check. That submodule commit also carries H14's host-profile unwind (see
+§4 H14's status block): the script owns `-C panic=abort` for the guest, and a compile-time guard
+test fails any future abort-profile regression.
+
 ### C4 — A successful fraud proof permanently kills the chain it just protected [E2]
 
 `OpenWindow` refuses to re-arm a window that already exists, and the window key is written in one
@@ -2023,7 +2040,13 @@ Split by whether it can land now.
     cross-toolchain drift (floating runner nightly vs pinned `nightly-2026-08-28`: same rustc
     hash, different bytes) and the pin responds to it — blob bytes track the whole date-stamped
     toolchain, so the pin is what makes rebuilds deterministic and a toolchain bump without a
-    matching blob re-land fails by construction. Fixes (2)/(3) deliberately not taken; rationale
+    matching blob re-land fails by construction. The gate's third red run revealed a second drift
+    axis: `#[track_caller]` panic locations embed the build machine's absolute paths into the
+    blob's rodata, so a Windows-local regen could never byte-match a Linux runner's; the submodule
+    regen script now passes `-Z location-detail=none`, the committed blob is the path-free
+    `d6959f30…` rebuild (byte-identical across two local directories, zero path strings), and
+    machine-independence is what makes the byte comparison meaningful across producers (details in
+    §3 C3's portability addendum). Fixes (2)/(3) deliberately not taken; rationale
     in §3 C3's status block.
 11. `H14` — removing `panic = "abort"` changes unwind semantics and possibly throughput on the guest
     hot path; needs a measurement, and it interacts with the SP1 re-execution profile.

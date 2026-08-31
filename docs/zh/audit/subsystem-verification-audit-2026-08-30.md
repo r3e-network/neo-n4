@@ -145,6 +145,21 @@ opcode/parity 执行套件（107 秒真实 guest 执行）。
 §6（EN + zh）。工具链升级而没有配套的 blob 重落地，如今按构造就会让门禁失败 —— 这是浮动工具链
 永远给不了的性质。
 
+**可移植性补记（2026-08-31，来自门禁的第三次红灯）。** 工具链钉住之后门禁在 CI 上依然变红 ——
+而且红得正确：Linux runner 的重建与已提交的 `2389ab52…` blob 不同，尽管源码、polkatool 与
+日期戳工具链和本地重建完全一致。从 blob 中提取字符串字面量找到了机理：`#[track_caller]` panic
+位置会把构建机的绝对路径 —— `C:\Users\…\.cargo\git\checkouts\neo-vm-rs-…`、
+`…\.cargo\registry\src\…\num-bigint-0.4.6\src\…`、`…\.rustup\toolchains\nightly-2026-08-28-x86_64-pc-windows-msvc\…\library\…`
+—— 烧进 rodata，于是 blob 字节追踪的是产出机器的目录与操作系统，Windows 本地的重新生成永远
+不可能与 Linux runner 字节一致。修复落在子模块的再生脚本里而非 workflow：
+`regenerate-guest-blob.sh` 现在传 `-Z location-detail=none`（仅 nightly 可用；guest 的
+`#[panic_handler]` 会把 `PanicInfo` 格式化进诊断缓冲，因此 `panicked at <路径>:<行>` 前缀退化为
+无路径形式，且没有任何 host 测试断言这段文本）。已提交的 blob 如今是不含路径的 `d6959f30…`
+重建 —— 不再残留任何路径类字符串 —— 已验证两次运行确定性一致、且从第二个构建目录再生字节完全
+相同；门禁的 CI 运行就是跨操作系统交叉验证。该子模块提交同时携带 H14 的 host profile 解除
+abort（见 §4 H14 状态块）：脚本为 guest 持有 `-C panic=abort`，编译期守卫测试拦下任何未来的
+abort-profile 回退。
+
 ### C4 — 一次成功的 fraud proof 会永久杀死它刚刚保护好的那条链 [E2]
 
 `OpenWindow` 拒绝为一个已经存在的窗口重新装载，而窗口键只在一处写入、也只在一处删除：
@@ -1809,7 +1824,11 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     host 套件对新 blob 302/302 全绿。门禁首次 CI 运行以红灯实证了跨工具链漂移（runner 浮动
     nightly 对钉住的 `nightly-2026-08-28`：rustc 哈希相同、字节不同），钉住正是对它的回应 ——
     blob 字节追踪整个日期戳工具链，钉住才使重建确定，且工具链升级而没有配套的 blob 重落地按
-    构造即失败。修复 (2)/(3) 有意不取，理由见 §3 C3 的状态块。
+    构造即失败。门禁的第三次红灯揭示了第二条漂移轴：`#[track_caller]` panic 位置会把构建机的
+    绝对路径烧进 blob 的 rodata，Windows 本地的重生成因此永远不可能与 Linux runner 字节一致；
+    子模块再生脚本现在传 `-Z location-detail=none`，已提交 blob 是无路径的 `d6959f30…` 重建
+    （两个本地目录字节完全一致、零路径字符串），机器无关性正是让跨产出方字节比对有意义的前提
+    （细节见 §3 C3 的可移植性补记）。修复 (2)/(3) 有意不取，理由见 §3 C3 的状态块。
 11. `H14` —— 移除 `panic = "abort"` 会改变展开语义，并可能改变 guest 热路径上的吞吐；
     需要一次测量，而且它与 SP1 再执行档相互影响。
 12. `V1` —— **已在本分支定案（2026-08-31）：nightly 排班拥有 SP1 dispatch，发布清单拥有阻塞规则。**

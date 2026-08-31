@@ -644,9 +644,16 @@ jobs:
     # first red run), so the pin is what makes the rebuild deterministic. The
     # action ref is pinned by commit SHA because the action repo carries no
     # date-stamped branches (a @nightly-<date> ref fails job setup); the
-    # toolchain input selects the dated nightly. To bump the toolchain: change
-    # the `toolchain` input below (and optionally the action SHA) and re-land
-    # the blob with the same pinned CARGO_NIGHTLY in one change.
+    # toolchain input selects the dated nightly. Blob bytes also used to track
+    # the build machine's directories: #[track_caller] panic locations embed
+    # absolute cargo/registry/rustup paths into the blob's rodata, so a blob
+    # produced on one OS could never byte-match another OS's regen (the
+    # gate's second red run). regenerate-guest-blob.sh now passes
+    # -Z location-detail=none, stripping those strings; regeneration is
+    # machine-independent, and the script — not this workflow — owns the
+    # flags. To bump the toolchain: change the `toolchain` input below (and
+    # optionally the action SHA) and re-land the blob with the same pinned
+    # CARGO_NIGHTLY in one change.
     steps:
       - uses: actions/checkout@v7
         with:

@@ -18,6 +18,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   heavy lanes stay skipped there, which is still what the required check asserts; the assertion is
   now exercised nightly instead of never. Merge-queue ownership was rejected: the repo does not use
   one, and per-PR heavy-lane runs multiply the resource cost the finding wanted kept.
+- The `CI gate helper self-tests` step pins `build.yml` text, so its assertions were updated with
+  the same change: the dual-event `if`, the dual-event bash branch, and — inverted from its old
+  "no schedule allowed" stance — a positive pin of the nightly cron. The PR/push-skipped invariant
+  (`test "$SP1_RELEASE_GATES_RESULT" = skipped`) remains asserted.
 - The other half of the decision is written into `docs/release-readiness-checklist.md` §6 (EN +
   zh): a failed or never-completed nightly blocks a release until a manual dispatch on the exact
   release-candidate commit passes all three lanes. The nightly makes the failure visible; the green

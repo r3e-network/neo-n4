@@ -15,6 +15,15 @@
 
 ## 中文摘要
 
+- 2026-08-31 Dependabot ignore 注释与其描述的告警状态对齐：cargo `ignore` 块的注释此前读起来像
+  "这两条已处理"，而 Security 标签页三条告警全部仍然 open —— `ignore` 抑制的是更新 PR、不是
+  告警。注释现在写明机制（告警以受追踪的接受风险保持 open）、点名全部三条在案 GHSA 及严重度、
+  指向两份文档，并解释 `p3-symmetric` 不在清单里的原因（无已修补版本，Dependabot 永远不会为它
+  发起更新 PR）。同时纠正一处引用：笔记所引的 lru 告警 id `GHSA-qqmc-hwqp-8g2w` 是另一条（2022
+  年、use-after-free）lru 记录，在案告警是 `GHSA-rhfx-m35p-ff5j`。未轮换任何钉扎，ignore 集合
+  不变；§10 第 17 条的第二个子动作（请 Succinct 把 Plonky3 0.4.3 challenger 修复合进 fork）已
+  定案为"要问"，发起询问属外部沟通、留给维护者拍板。
+
 - 2026-08-31 batcher 的 commit 处理器故障现在停插件、不停节点：核心对 `Blockchain.Committed`
   处理器异常的默认策略是 `StopNode`，batcher 内一次瞬态 sink/executor 故障会杀死整条链（审计
   H1）。`L2BatchPlugin` 现在带上审计时 grep 证明全 `src/` 都不存在的那条第一方覆写
@@ -22,6 +31,7 @@
   一次待持久化的 sealed batch：恢复成功的瞬态故障到不了核心分派；覆盖先行，四条新测试
   （救回不传播 / 重试也失败则重抛原异常且 batch 仍被持有 / 禁用不调用 / 策略为 `StopPlugin`），
   `Neo.Plugins.L2Batch.UnitTests` 70/70。其余 L2 插件保持核心默认。
+
 - 2026-08-31 SP1 队列读路径容忍瞬态共享冲突并始终类型化失败：两个读漏斗
   （`AtomicFileQueueTransport.ReadBoundedPathAsync`、`Sp1GatewayProofProver.ReadBoundedFileAsync`）
   的裸 `File.ReadAllBytesAsync` 曾在全部类型化守卫之外，过滤驱动短暂持有刚改名的文件即以裸

@@ -1301,6 +1301,19 @@ today, six weeks after they were filed, and a fourth ignore would not dismiss th
 suppresses pull requests, not alerts. The recorded accepted-risk decision and the visible alert state
 disagree, and only the alert state is legible to someone who has not read the note.
 
+**Status — reconciled on this branch (2026-08-31).** The ignore block's comment now states the
+mechanism plainly — `ignore` suppresses update PRs only, the alerts remain open as tracked accepted
+risk — names all three live GHSAs with severities (`GHSA-vj64-rjf3-w3v7` high, `GHSA-rhfx-m35p-ff5j`
+low, `GHSA-3g92-f9ch-qjcm` low, all re-verified open against the API on this branch's date), points at
+both documents, and explains the third alert's absence from the ignore list: `p3-symmetric` has no
+patched release, so Dependabot can never raise an update PR for it to suppress. The reconcile also
+corrected a citation the finding's own evidence made checkable: the 2026-08-28 note names the lru
+alert as `GHSA-qqmc-hwqp-8g2w`, but the advisory API shows that id is a different (2022,
+use-after-free) lru record — the live alert is `GHSA-rhfx-m35p-ff5j` (2026, `IterMut` violating
+stacked borrows, matching the note's `>= 0.9.0, < 0.16.3` range). The dated note stays as written;
+the correction lives here and in the config comment. §10 item 17 records the second sub-action's
+decision.
+
 ## 6. Medium / Low findings (new this pass)
 
 - **`SealedBatch` drops the message side of the batch** [E1]. `BatchBuilder.AddWithdrawal`,
@@ -1971,12 +1984,20 @@ Split by whether it can land now.
     6.2.1 → 6.5.0 bump this queue used to name as the fix does not fix anything: `0.4.3-succinct` and
     `0.3.3-succinct` carry byte-identical copies of both files the advisory names, and `0.4.3-succinct`
     is the highest `-succinct` build of `p3-challenger` that has ever existed (§5 V8). The High stays
-    open because it is unpatchable from this graph, not because work is pending. Two bookkeeping
-    actions remain, and neither rotates a pin: reconcile `.github/dependabot.yml:26-35` with the
-    Security tab (`ignore` suppresses update PRs, not alerts, so all three stay open while the comment
-    reads as resolved), and decide whether to ask Succinct to merge Plonky3's `0.4.3` challenger fix
-    into the fork. The third sub-action from the original item — assessing `p3-symmetric` in writing —
-    is done in §5 V8.
+    open because it is unpatchable from this graph, not because work is pending. Of the two bookkeeping
+    actions this item named, the first is **done on this branch (2026-08-31)**: the
+    `.github/dependabot.yml` ignore comment now states the mechanism plainly, names all three live
+    GHSAs, and corrects the note's stale lru citation — see §5 V8's status block. The second is
+    **decided: yes, ask Succinct** to merge Plonky3's `0.4.3` challenger fix into the `-succinct`
+    fork. The rationale: the one advisory mechanism measured to apply at the pinned pairing
+    (transcript malleability through the unmarked `duplexing` absorb, §5 V8) has a public upstream fix
+    that exists nowhere in the fork line, the fork is the only distribution channel for it (no
+    `-succinct` build newer than `0.4.3` has ever shipped), and the cost of asking is one message —
+    while the alternative, carrying the fix ourselves, means forking SP1's whole toolchain. The ask
+    itself is an external communication to `succinctlabs` (an issue or discussion on their repository
+    citing §5 V8's pinned-pairing measurement) and is deliberately not filed from this tree: that is
+    the maintainer's call to fire, not a silent agent action. The third sub-action from the original
+    item — assessing `p3-symmetric` in writing — is done in §5 V8.
 18. `finalizeIfPastWindow` driver — **settled on this branch (2026-08-31): ownership is
     `Neo.Plugins.L2Settlement`'s reconcile cadence, and the driver is implemented.** The chosen
     shape mirrors the forced-inclusion finalizer seam: `ISettlementWindowFinalizer` (Abstractions,

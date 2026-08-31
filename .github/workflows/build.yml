@@ -676,6 +676,17 @@ jobs:
           git -C external/neo-riscv-vm diff --exit-code -- \
             crates/neo-riscv-guest-module/guest.polkavm
 
+      # On drift, upload the CI-regenerated blob: landing it is how the gate
+      # goes green again, and diffing it against a locally produced blob is
+      # how environment-dependent bytes get diagnosed.
+      - name: Upload regenerated blob (on drift)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: guest-polkavm-regenerated
+          path: external/neo-riscv-vm/crates/neo-riscv-guest-module/guest.polkavm
+          if-no-files-found: error
+
   sdk-typescript:
     name: TypeScript SDK
     runs-on: ubuntu-latest

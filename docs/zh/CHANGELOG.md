@@ -18,15 +18,47 @@
 - 2026-08-31 RISC-V guest blob 恢复新鲜，并由 CI 门禁保持：此前每一条 RISC-V 测试执行的
   已提交 `guest.polkavm` 都落后 guest 源码三轮安全加固，且没有任何机制能发现；发布打包路径则
   无条件重建 —— 测试认证一个二进制、发布的又是另一个。现 `build.yml` 在每个事件上运行
-  `riscv-guest-freshness` job：以 guest 源码重建 blob（nightly cargo + `polkatool 0.32.0
-  --locked`），`git diff --exit-code` 比对已提交字节，漂移即失败；该检查已加入 `master` 的
-  required contexts，漂移在 PR 时即被拦截。发布清单 §6（EN + zh）写明红/过期时的阻塞规则。
-  真实重生成双重印证了发现：已提交字节重建出不同的 SHA-256（`6a90a0af…` → `7bd373a1…`，确定性
-  可复现），且 guest 在当前 nightly 把 Rust 2024 `unsafe_op_in_unsafe_fn` 与未经 `unsafe()`
-  修饰的 `no_mangle`/`link_section` 属性升为硬错误后已完全无法编译。子模块分支
+  `riscv-guest-freshness` job：以 guest 源码重建 blob（工具链钉在 `dtolnay/rust-toolchain@nightly-2026-08-28`
+  + `polkatool 0.32.0 --locked`），`git diff --exit-code` 比对已提交字节，漂移即失败；该检查已
+  加入 `master` 的 required contexts，漂移在 PR 时即被拦截。发布清单 §6（EN + zh）写明红/过期
+  时的阻塞规则。真实重生成双重印证了发现：已提交字节重建出不同的 SHA-256，且 guest 在当前
+  nightly 把 Rust 2024 `unsafe_op_in_unsafe_fn` 与未经 `unsafe()` 修饰的
+  `no_mangle`/`link_section` 属性升为硬错误后已完全无法编译。子模块分支
   （`r3e-network/neo-riscv-vm` `ci/guest-blob-freshness`）等价修复 C ABI 内存内建函数与该属性、
   重生成 blob，父 PR 更新 gitlink；`cargo test -p neo-riscv-host` 对新 blob 302/302 全绿，
-  含 47 项 opcode/parity 执行套件实跑。审计修复 (2)/(3) 有意不取，理由见审计 §3 C3 状态块。
+  含 47 项 opcode/parity 执行套件实跑。blob 字节追踪的是整个日期戳工具链而不只是 rustc 哈希：
+  浮动 nightly 的首次重生成（`7bd373a1…`）与钉住 `nightly-2026-08-28` 的重建（`2389ab52…`，两次
+  运行确定性一致）rustc 哈希相同、字节不同，且门禁首次 CI 运行即在 runner 浮动 nightly 上
+  实证了跨工具链漂移。门禁现钉住工具链 ref，升级流程写入 workflow：升级 `dtolnay/rust-toolchain`
+  ref 并用同一钉住的 `CARGO_NIGHTLY` 重新落地 blob，一次变更内完成。审计修复 (2)/(3) 有意不取，
+  理由见审计 §3 C3 状态块。
+- 2026-08-31 nightly SP1 release-gate dispatch，并把发布阻塞规则写成文字：唯一产出真实
+  batch 与递归 SP1 proof 的 CI job 此前仅限 `workflow_dispatch`，而必需检查 `sp1-host` 在其余
+  事件上断言重型 lane 为 `skipped` —— SP1 栈里的回归无法让作者看到的任何东西变红。定案：nightly
+  排班拥有该 dispatch（cron `47 3 * * *`），`sp1-release-gates` 的 `if` 与 `sp1-host` 的成功
+  断言均同样接受 `schedule`，沿用 sdk-conformance 的先例；PR/push 行为不变（重型 lane 仍
+  skipped），断言改为每晚被行使。merge queue 归属被否决（仓库不用它，且逐 PR 重跑会乘上资源
+  成本）。发布阻塞规则写入 `docs/release-readiness-checklist.md` §6（EN + zh）：nightly 失败或
+  从未成功即阻塞发布，直到发布候选 commit 上手动 dispatch 三条 lane 全绿。钉住 `build.yml` 文本的
+  CI 门禁自测同步更新：双事件 `if`、双事件 bash 分支，以及由"禁止 schedule"反转为正面钉住 nightly
+  cron；PR/push 下断言 `skipped` 的不变式保留。
+
+- 2026-08-31 Dependabot ignore 注释与其描述的告警状态对齐：cargo `ignore` 块的注释此前读起来像
+  "这两条已处理"，而 Security 标签页三条告警全部仍然 open —— `ignore` 抑制的是更新 PR、不是
+  告警。注释现在写明机制（告警以受追踪的接受风险保持 open）、点名全部三条在案 GHSA 及严重度、
+  指向两份文档，并解释 `p3-symmetric` 不在清单里的原因（无已修补版本，Dependabot 永远不会为它
+  发起更新 PR）。同时纠正一处引用：笔记所引的 lru 告警 id `GHSA-qqmc-hwqp-8g2w` 是另一条（2022
+  年、use-after-free）lru 记录，在案告警是 `GHSA-rhfx-m35p-ff5j`。未轮换任何钉扎，ignore 集合
+  不变；§10 第 17 条的第二个子动作（请 Succinct 把 Plonky3 0.4.3 challenger 修复合进 fork）已
+  定案为"要问"，发起询问属外部沟通、留给维护者拍板。
+
+- 2026-08-31 batcher 的 commit 处理器故障现在停插件、不停节点：核心对 `Blockchain.Committed`
+  处理器异常的默认策略是 `StopNode`，batcher 内一次瞬态 sink/executor 故障会杀死整条链（审计
+  H1）。`L2BatchPlugin` 现在带上审计时 grep 证明全 `src/` 都不存在的那条第一方覆写
+  （`ExceptionPolicy => StopPlugin`），并且处理器在重新抛出之前先经持久 persist/ack 路径重试
+  一次待持久化的 sealed batch：恢复成功的瞬态故障到不了核心分派；覆盖先行，四条新测试
+  （救回不传播 / 重试也失败则重抛原异常且 batch 仍被持有 / 禁用不调用 / 策略为 `StopPlugin`），
+  `Neo.Plugins.L2Batch.UnitTests` 70/70。其余 L2 插件保持核心默认。
 
 - 2026-08-31 SP1 队列读路径容忍瞬态共享冲突并始终类型化失败：两个读漏斗
   （`AtomicFileQueueTransport.ReadBoundedPathAsync`、`Sp1GatewayProofProver.ReadBoundedFileAsync`）

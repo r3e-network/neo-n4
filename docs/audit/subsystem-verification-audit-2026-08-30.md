@@ -120,8 +120,9 @@ the tracked source tree.
 **Status — settled on this branch (2026-08-31), by execution rather than read-only inference.**
 Fix (1) is implemented and wired: `build.yml` gains a `riscv-guest-freshness` job that runs on
 every event (not nightly-only — a PR that changes guest source without regenerating the blob is
-exactly the drift this must catch), rebuilds the blob with nightly cargo + `polkatool 0.32.0
---locked`, and fails via `git diff --exit-code` on `guest.polkavm`; the check is added to
+exactly the drift this must catch), rebuilds the blob with the toolchain pinned
+(`dtolnay/rust-toolchain@nightly-2026-08-28` + `polkatool 0.32.0 --locked`), and fails via
+`git diff --exit-code` on `guest.polkavm`; the check is added to
 `master`'s required contexts. The job's failure response is written into it and into the release
 checklist §6 (EN + zh): regenerate on the release-candidate commit and land the blob.
 
@@ -142,6 +143,20 @@ detection while adding a manual constant bump to every regeneration — the exac
 produced the original staleness — and the packaging-script staging change hardens a path that the
 gate now observes anyway. If the maintainers want defense-in-depth for out-of-CI runs, (2) can be
 revisited independently.
+
+**Pin addendum (2026-08-31, from the gate's own first red CI run).** The floating-nightly
+rebuild (`7bd373a1…`) was itself only stable per-toolchain: the gate's first CI run rebuilt
+`7bd373a1…`-era source on the runner's floating nightly (rustc `908501772`, 2026-08-30) to
+different bytes, and a local rebuild under the date-stamped `nightly-2026-08-28` — same rustc
+hash `e457a7b0d` as the floating toolchain, different cargo — produced a *third* byte string
+(`2389ab52…`, deterministic across two runs). Blob bytes track the whole date-stamped toolchain,
+not just the rustc hash, so the gate now pins it: CI runs
+`dtolnay/rust-toolchain@nightly-2026-08-28`, the committed blob is the `2389ab52…` rebuild under
+exactly that toolchain, and the bump procedure (bump the `dtolnay/rust-toolchain` ref and
+re-land the blob with the same pinned `CARGO_NIGHTLY` in one change) is written into the
+workflow comment and the release checklist §6 (EN + zh). A toolchain bump without a matching
+blob re-land now fails the gate by construction, which is the property a floating toolchain
+could never give.
 
 ### C4 — A successful fraud proof permanently kills the chain it just protected [E2]
 
@@ -664,6 +679,23 @@ implicated in that decision, and nothing about the toggle is a code defect — b
 only review control can be removed in one API call by the same identity that pushes to it is the same
 class of gate-that-checks-the-wrong-thing this section is about, and §10's remediation order should
 value it accordingly.
+
+**Status — decided and wired on this branch (2026-08-31): the nightly schedule owns the SP1
+dispatch, and the release checklist carries the blocking rule.** `build.yml` gains a nightly
+`schedule` trigger (cron `47 3 * * *`, staggered from `sdk-conformance`'s `37 3`), and the two
+places that keyed on `workflow_dispatch` alone now accept `schedule` the same way — the
+`sp1-release-gates` job's `if`, and the `sp1-host` aggregate's success assertion — following the
+precedent `sdk-conformance.yml:88` already set. On ordinary PRs and `master` pushes the envelope is
+unchanged: the heavy lanes still report `skipped`, which is still what the required check asserts.
+What changes is that the assertion is now exercised nightly: a regression in `bridge/neo-zkvm-host`
+or the Gateway recursion reddens the scheduled run within a day, with `sp1-host` itself failing —
+the required context no longer passes *because* the heavy lanes were absent. The release-blocking
+half of the decision lives in `docs/release-readiness-checklist.md` §6 (EN and zh): a failed or
+never-completed nightly blocks a release until a manual dispatch on the exact release-candidate
+commit passes all three lanes — the nightly makes the failure visible, and the green dispatch on
+the release commit is what releases it. A merge-queue-owned dispatch was rejected: this repository
+does not use merge queues, and per-PR heavy-lane runs would multiply the resource cost the finding
+explicitly wanted kept.
 
 ### V2 — The "off-chain ↔ on-chain encodings are paired" invariant has no cross-boundary test [E1]
 
@@ -1327,6 +1359,19 @@ today, six weeks after they were filed, and a fourth ignore would not dismiss th
 suppresses pull requests, not alerts. The recorded accepted-risk decision and the visible alert state
 disagree, and only the alert state is legible to someone who has not read the note.
 
+**Status — reconciled on this branch (2026-08-31).** The ignore block's comment now states the
+mechanism plainly — `ignore` suppresses update PRs only, the alerts remain open as tracked accepted
+risk — names all three live GHSAs with severities (`GHSA-vj64-rjf3-w3v7` high, `GHSA-rhfx-m35p-ff5j`
+low, `GHSA-3g92-f9ch-qjcm` low, all re-verified open against the API on this branch's date), points at
+both documents, and explains the third alert's absence from the ignore list: `p3-symmetric` has no
+patched release, so Dependabot can never raise an update PR for it to suppress. The reconcile also
+corrected a citation the finding's own evidence made checkable: the 2026-08-28 note names the lru
+alert as `GHSA-qqmc-hwqp-8g2w`, but the advisory API shows that id is a different (2022,
+use-after-free) lru record — the live alert is `GHSA-rhfx-m35p-ff5j` (2026, `IterMut` violating
+stacked borrows, matching the note's `>= 0.9.0, < 0.16.3` range). The dated note stays as written;
+the correction lives here and in the config comment. §10 item 17 records the second sub-action's
+decision.
+
 ## 6. Medium / Low findings (new this pass)
 
 - **`SealedBatch` drops the message side of the batch** [E1]. `BatchBuilder.AddWithdrawal`,
@@ -1348,6 +1393,14 @@ disagree, and only the alert state is legible to someone who has not read the no
   (`external/neo/src/Neo/Plugins/Plugin.cs:74`) with **no** first-party override — a source-scoped
   grep for `ExceptionPolicy` under `src/` returns nothing at all, so this applies to every L2
   plugin, not just the batcher.
+  **Status — fixed for the batcher on this branch (2026-08-31).** `L2BatchPlugin` now carries the
+  override the grep could not find (`ExceptionPolicy => StopPlugin`), and the commit handler retries
+  the pending sealed batch once through the durable persist/ack route before rethrowing, so a
+  recovered transient never reaches the core dispatch and a surviving fault stops the plugin, not the
+  node; the next commit's recovery loop re-reads the skipped block from the local ledger. The
+  generalization stays true by construction — the other L2 plugins still default to `StopNode` — but
+  none of them holds durable per-commit state the way the batcher's pending sealed batch does, so
+  H1's outage path is the one closed. See §10 item 14.
 - **`WithWriter` silently downgrades DA profile** [E1].
   `src/Neo.Plugins.L2DA/L2DAPlugin.cs:163-175` unconditionally sets `_profile = Development` (`:169`)
   and clears `_productionBackendOverridden` (`:174`). That matters because the rest of the plugin is
@@ -1408,6 +1461,15 @@ disagree, and only the alert state is legible to someone who has not read the no
   retry path only through `ProcessCommittedBlock`; no test references `OnBlockCommitted`, and
   `InvokeCommitted` appears in zero tests. The recovery behaviour that H1 depends on for its fix is
   the least-tested code on the critical path.
+  **Status — fixed on this branch (2026-08-31).** The handler's body now runs through an internal
+  `ProcessCommittedEvent` seam (the same internal-test-seam pattern `DispatchSealed` established),
+  and four new tests drive it: a sink fault recovered by the pending-batch retry does not propagate;
+  a retry that also fails rethrows the original exception with the pending batch still held and both
+  attempts visible in the sink's log; disabled settings invoke no work; and the effective policy is
+  asserted to be `StopPlugin`. The private two-line delegate and the core's `InvokeCommitted`
+  dispatch itself remain untestable without a `NeoSystem` (its constructor spawns the Akka system,
+  initializes the blockchain and iterates the global plugin registry), which is now stated where the
+  gap was — the seam covers everything the handler itself executes. See §10 item 14.
 - **The forced-inclusion interface documents a gate that no code implements** [E1 counted].
   `src/Neo.L2.ForcedInclusion/IForcedInclusionSource.cs:36-38` says of `HasOverdueEntryAsync` that
   "the batcher uses this to decide whether to halt finalization for censorship reasons". Nothing uses
@@ -1538,7 +1600,7 @@ disagree, and only the alert state is legible to someone who has not read the no
 | --- | --- | --- |
 | `C1` deposit/router inbox collision | **Fixed** (this branch) | two-part dedup + total order in `L1MessageDrain.cs`, `UT_L1MessageDrain` regressions |
 | `C2` `MerkleTree.Verify` not position-bound | **Open** — and the same shape is in both contract folds (§5 V5), unobservable because the payout test stubs the verifier | `SettlementManagerContract.cs:989-1012`, `:1115-1134` |
-| `H1` plugin exceptions stop the node | **Open**, upgraded to [E1] | `L2BatchPlugin.cs:479 throw;`, `Plugin.cs:74` default, zero `ExceptionPolicy` overrides in `src/` |
+| `H1` plugin exceptions stop the node | **Fixed** for the batcher on the item-14 branch (2026-08-31): `ExceptionPolicy => StopPlugin` override + one pending-batch retry before rethrow | `L2BatchPlugin.cs` override + `ProcessCommittedEvent` retry, 4 new tests; other L2 plugins keep the core default (no durable per-commit state to protect) |
 | `H6` decorative off-chain binary pin | **Open**, now [E1] with a derived-digest test and no negative test (§5 V3) | `UT_Sp1StatefulBatchExecutor.cs:318` |
 | `H12` governance locks on trust roots | **Fixed** for the three roots this branch covered; §7.1's two `contracts/` residuals were closed on the follow-up branch, leaving only the native-contract surface | `ChainRegistryContract.cs:158-168,172-181,389` |
 | `H13` kill-switch covers 1 of 3 asset contracts | **Open** for the global flag; its per-chain variant (§4 H16) is **Fixed** (this branch) | audit-time `SubmitBatch:330-331` vs `FinalizeBatch:479-533`; `FinalizeBatch` now asserts `isActive` at `:509-510` |
@@ -1946,24 +2008,51 @@ Split by whether it can land now.
 
 10. `C3` — **settled on this branch (2026-08-31): the gate exists, the blob is fresh, and the
     guest builds again.** `build.yml`'s new `riscv-guest-freshness` job rebuilds `guest.polkavm`
-    from guest source on every event (nightly cargo + `polkatool 0.32.0 --locked`) and fails on
-    `git diff --exit-code` against the committed blob; it is a required context on `master`, so a
-    PR that edits guest source without regenerating is blocked at PR time rather than discovered
-    nightly. Regenerating for real showed the committed bytes were stale by hash
-    (`6a90a0af…` → `7bd373a1…`, deterministic) and that the guest had stopped compiling under the
-    current nightly's Rust 2024 hard errors — fixed on the `r3e-network/neo-riscv-vm`
-    `ci/guest-blob-freshness` branch (gitlink bumped here), with the host suite 302/302 green
-    against the fresh blob. Fixes (2)/(3) deliberately not taken; rationale in §3 C3's status
-    block.
+    from guest source on every event (toolchain pinned to `dtolnay/rust-toolchain@nightly-2026-08-28`
+    + `polkatool 0.32.0 --locked`) and fails on `git diff --exit-code` against the committed blob;
+    it is a required context on `master`, so a PR that edits guest source without regenerating is
+    blocked at PR time rather than discovered nightly. Regenerating for real showed the committed
+    bytes were stale by hash (`6a90a0af…` → `2389ab52…` under the pinned toolchain) and that the
+    guest had stopped compiling under the current nightly's Rust 2024 hard errors — fixed on the
+    `r3e-network/neo-riscv-vm` `ci/guest-blob-freshness` branch (gitlink bumped here), with the
+    host suite 302/302 green against the fresh blob. The gate's first CI run red-demonstrated
+    cross-toolchain drift (floating runner nightly vs pinned `nightly-2026-08-28`: same rustc
+    hash, different bytes) and the pin responds to it — blob bytes track the whole date-stamped
+    toolchain, so the pin is what makes rebuilds deterministic and a toolchain bump without a
+    matching blob re-land fails by construction. Fixes (2)/(3) deliberately not taken; rationale
+    in §3 C3's status block.
 11. `H14` — removing `panic = "abort"` changes unwind semantics and possibly throughput on the guest
     hot path; needs a measurement, and it interacts with the SP1 re-execution profile.
-12. `V1` — decide who owns a scheduled SP1 dispatch (nightly or merge queue) and what blocks a release
-    when it fails.
+12. `V1` — **settled on this branch (2026-08-31): the nightly schedule owns the SP1 dispatch, and
+    the release checklist owns the blocking rule.** `build.yml` gains a nightly `schedule` trigger
+    and both `workflow_dispatch`-keyed places (`sp1-release-gates`'s `if`, `sp1-host`'s success
+    assertion) accept `schedule` identically, on the precedent `sdk-conformance.yml` already set;
+    PR/push behavior is byte-for-byte unchanged (heavy lanes skipped, which is still what the
+    required check asserts), while a real SP1 regression now reddens a scheduled run within a day
+    and fails `sp1-host` itself. The release-blocking rule is written into
+    `docs/release-readiness-checklist.md` §6 (EN + zh): a failed or never-completed nightly blocks a
+    release until a manual dispatch on the exact release-candidate commit passes all three lanes.
+    Merge-queue ownership was rejected — this repo does not use one, and per-PR heavy-lane runs
+    multiply the resource cost the finding wanted kept. See §5 V1's status block.
 13. `H15` — the per-block context fix touches the batcher↔executor seam and, if the persisted header
     feeds any hash, the state-root encoding. Needs a paired spec decision under the "don't break byte
     formats" rule.
-14. `H1` — `StopPlugin` + retry for `Committed`; needs the `OnBlockCommitted` test coverage first
-    (§6, "OnBlockCommitted has no test").
+14. `H1` — **settled on this branch (2026-08-31), in the order the finding demanded: coverage first,
+    then the policy change.** The commit handler's body now runs through an internal
+    `ProcessCommittedEvent` seam (the pattern `DispatchSealed` established), with four tests: a sink
+    fault recovered by the pending-batch retry does not propagate; a retry that also fails
+    (`FailBeforePersistCount = 2`) rethrows the original exception with the pending batch still held
+    and both attempts in the sink's log; disabled settings invoke no work; and the effective policy
+    is asserted to be `StopPlugin`, not the core default. With that coverage in place the fix is two
+    pieces: `L2BatchPlugin` overrides `ExceptionPolicy => StopPlugin` — the first-party override the
+    audit-time grep said did not exist anywhere under `src/` — and the handler's catch path now
+    retries the pending sealed batch once through the durable persist/ack route before rethrowing, so
+    a recovered transient never reaches the core dispatch at all, and a fault that survives stops the
+    plugin instead of the node; the next commit's recovery loop re-reads the skipped block from the
+    local ledger. The finding's generalization ("this applies to every L2 plugin") remains true by
+    construction — only the batcher overrides the policy — but no other plugin holds durable
+    per-commit state the way the batcher's pending sealed batch does, so H1's outage path is the one
+    closed. `Neo.Plugins.L2Batch.UnitTests` 70/70.
 15. `C2` / `V5` — position-bound verification, plus un-mocking `UT_SharedBridge_Vm`.
 16. `V7` — **settled on this branch (2026-08-31), both decisions made once and applied to both read
     sites.** The read path gets the same bounded wait-and-retry the write and lock-acquisition paths
@@ -1975,12 +2064,20 @@ Split by whether it can land now.
     6.2.1 → 6.5.0 bump this queue used to name as the fix does not fix anything: `0.4.3-succinct` and
     `0.3.3-succinct` carry byte-identical copies of both files the advisory names, and `0.4.3-succinct`
     is the highest `-succinct` build of `p3-challenger` that has ever existed (§5 V8). The High stays
-    open because it is unpatchable from this graph, not because work is pending. Two bookkeeping
-    actions remain, and neither rotates a pin: reconcile `.github/dependabot.yml:26-35` with the
-    Security tab (`ignore` suppresses update PRs, not alerts, so all three stay open while the comment
-    reads as resolved), and decide whether to ask Succinct to merge Plonky3's `0.4.3` challenger fix
-    into the fork. The third sub-action from the original item — assessing `p3-symmetric` in writing —
-    is done in §5 V8.
+    open because it is unpatchable from this graph, not because work is pending. Of the two bookkeeping
+    actions this item named, the first is **done on this branch (2026-08-31)**: the
+    `.github/dependabot.yml` ignore comment now states the mechanism plainly, names all three live
+    GHSAs, and corrects the note's stale lru citation — see §5 V8's status block. The second is
+    **decided: yes, ask Succinct** to merge Plonky3's `0.4.3` challenger fix into the `-succinct`
+    fork. The rationale: the one advisory mechanism measured to apply at the pinned pairing
+    (transcript malleability through the unmarked `duplexing` absorb, §5 V8) has a public upstream fix
+    that exists nowhere in the fork line, the fork is the only distribution channel for it (no
+    `-succinct` build newer than `0.4.3` has ever shipped), and the cost of asking is one message —
+    while the alternative, carrying the fix ourselves, means forking SP1's whole toolchain. The ask
+    itself is an external communication to `succinctlabs` (an issue or discussion on their repository
+    citing §5 V8's pinned-pairing measurement) and is deliberately not filed from this tree: that is
+    the maintainer's call to fire, not a silent agent action. The third sub-action from the original
+    item — assessing `p3-symmetric` in writing — is done in §5 V8.
 18. `finalizeIfPastWindow` driver — **settled on this branch (2026-08-31): ownership is
     `Neo.Plugins.L2Settlement`'s reconcile cadence, and the driver is implemented.** The chosen
     shape mirrors the forced-inclusion finalizer seam: `ISettlementWindowFinalizer` (Abstractions,

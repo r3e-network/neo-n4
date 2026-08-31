@@ -78,17 +78,25 @@ Run this on a real Neo N4 devnet/testnet node set before production:
 - Push the branch and require the expanded GitHub Actions workflow to pass.
 - Confirm the required `SP1 compatibility and manual release proof gate` (`sp1-host`) is green.
   On ordinary pull requests and `master` pushes that job only aggregates the fast .NET, contract,
-  and Rust compatibility lanes and must report the real-proof matrix as **skipped**. For a
-  release candidate, manually dispatch the `build` workflow so the three `sp1-release-gates`
-  lanes (workspace release, terminal batch proof, recursive Gateway proof) run; the aggregate
-  gate then requires every lane to succeed. Mock/dummy proofs are forbidden, and a skipped or
-  incomplete real-proof step on a release dispatch is not acceptable evidence.
+  and Rust compatibility lanes and must report the real-proof matrix as **skipped**. The nightly
+  schedule owns the real-proof dispatch (audit §10 item 12): the three `sp1-release-gates` lanes
+  (workspace release, terminal batch proof, recursive Gateway proof) run every night and the
+  aggregate gate requires every lane to succeed there, so a regression in the SP1 stack surfaces
+  within a day without anyone remembering to dispatch. For a release candidate, manually dispatch
+  the `build` workflow on the release-candidate commit; the aggregate gate then requires every lane
+  to succeed. Mock/dummy proofs are forbidden, and a skipped or incomplete real-proof step on a
+  release dispatch is not acceptable evidence.
+- Release blocking rule for a red or stale nightly: if the most recent scheduled `build` run has
+  `sp1-release-gates` failed (or no scheduled run has ever completed), the release is blocked until
+  a manual dispatch of `build` on the exact release-candidate commit passes all three lanes. The
+  nightly makes the failure visible; the green dispatch on the release commit is what releases it.
 - Confirm the required `RISC-V guest blob freshness` (`riscv-guest-freshness`) is green. The job
-  rebuilds `external/neo-riscv-vm`'s committed `guest.polkavm` from its guest source (nightly
-  cargo + polkatool 0.32.0) and fails on any drift. A red or stale run blocks the release: run
-  `scripts/regenerate-guest-blob.sh` on the release-candidate commit and land the regenerated
-  blob first — the runtime that executes in tests must be the runtime built from the source
-  being released.
+  rebuilds `external/neo-riscv-vm`'s committed `guest.polkavm` from its guest source with the
+  toolchain pinned (`dtolnay/rust-toolchain@nightly-2026-08-28` + polkatool 0.32.0) and fails on
+  any drift. A red or stale run blocks the release: run
+  `CARGO_NIGHTLY="cargo +nightly-2026-08-28" bash external/neo-riscv-vm/scripts/regenerate-guest-blob.sh`
+  on the release-candidate commit and land the regenerated blob first — the runtime that executes
+  in tests must be the runtime built from the source being released.
 - Require `SDK Conformance / Shared vectors (4 SDKs)` and manually dispatch
   `SDK Conformance`; manual dispatch automatically requires the live job and its configured
   credentials. Retain the offline and live JSON

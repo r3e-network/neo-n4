@@ -10,20 +10,84 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - §10 item 10 [E1] (`C3`): every RISC-V test executed a committed `guest.polkavm` that predates
   three rounds of guest-side hardening, nothing could notice, and release packaging rebuilt the
   blob unconditionally — tests certified one binary while shipping another. Now `build.yml` runs a
-  `riscv-guest-freshness` job on every event: it rebuilds the blob from guest source (nightly
-  cargo + `polkatool 0.32.0 --locked`) and fails on `git diff --exit-code` against the committed
-  bytes; the check joins `master`'s required contexts, so drift is blocked at PR time. The release
-  checklist §6 (EN + zh) states the blocking rule for a red or stale run.
+  `riscv-guest-freshness` job on every event: it rebuilds the blob from guest source with the
+  date-stamped toolchain pinned (`dtolnay/rust-toolchain@nightly-2026-08-28` + `polkatool 0.32.0
+  --locked`) and fails on `git diff --exit-code` against the committed bytes; the check joins
+  `master`'s required contexts, so drift is blocked at PR time. The release checklist §6 (EN + zh)
+  states the blocking rule for a red or stale run.
 - Regenerating for real proved the finding twice over: the committed bytes rebuild to a different
-  SHA-256 (`6a90a0af…` → `7bd373a1…`, deterministic), and the guest had stopped compiling entirely —
-  the current nightly promotes Rust 2024 `unsafe_op_in_unsafe_fn` and untrusted
-  `no_mangle`/`link_section` attributes to hard errors. The submodule branch
-  (`r3e-network/neo-riscv-vm` `ci/guest-blob-freshness`) fixes the C-ABI memory intrinsics and the
-  attribute (semantics-preserving), regenerates the blob, and the parent PR bumps the gitlink.
-  `cargo test -p neo-riscv-host` is 302/302 green against the fresh blob, including the 47-test
-  opcode/parity execution suite running the real guest.
+  SHA-256, and the guest had stopped compiling entirely — the current nightly promotes Rust 2024
+  `unsafe_op_in_unsafe_fn` and untrusted `no_mangle`/`link_section` attributes to hard errors. The
+  submodule branch (`r3e-network/neo-riscv-vm` `ci/guest-blob-freshness`) fixes the C-ABI memory
+  intrinsics and the attribute (semantics-preserving) and regenerates the blob; the parent PR bumps
+  the gitlink. `cargo test -p neo-riscv-host` is 302/302 green against the fresh blob, including
+  the 47-test opcode/parity execution suite running the real guest.
+- Blob bytes track the whole date-stamped toolchain, not just the rustc hash: the first regen
+  (floating nightly, `7bd373a1…`) differs from the pinned `nightly-2026-08-28` rebuild
+  (`2389ab52…`, deterministic across two runs) despite an identical rustc hash, and the gate's
+  first CI run red-demonstrated cross-toolchain drift on the runner's floating nightly. The gate
+  pins the toolchain ref, and the bump procedure is written into the workflow: bump the
+  `dtolnay/rust-toolchain` ref and re-land the blob with the same pinned `CARGO_NIGHTLY` in one
+  change.
 - Audit-report fixes (2)/(3) — a SHA-256 test constant and packaging-script staging — were
   deliberately not taken; the rationale is recorded in the audit's §3 C3 status block.
+
+### Added — a nightly SP1 release-gate dispatch, with the release-blocking rule written down — 2026-08-31
+
+- §10 item 12 [E1] (`V1`): the only CI job that produces real batch and recursive SP1 proofs was
+  `workflow_dispatch`-only, and the required `sp1-host` aggregate asserted the heavy lanes were
+  `skipped` on every other event — so a regression in `bridge/neo-zkvm-host` could not redden
+  anything an author sees, and the required check passed *because* of that absence. Decision: the
+  nightly schedule owns the dispatch. `build.yml` gains a `schedule` trigger (cron `47 3 * * *`,
+  staggered from sdk-conformance's `37 3`) and both `workflow_dispatch`-keyed places —
+  `sp1-release-gates`' `if` and `sp1-host`'s success assertion — now accept `schedule` identically,
+  following the precedent `sdk-conformance.yml` already set. PR and push behavior is unchanged: the
+  heavy lanes stay skipped there, which is still what the required check asserts; the assertion is
+  now exercised nightly instead of never. Merge-queue ownership was rejected: the repo does not use
+  one, and per-PR heavy-lane runs multiply the resource cost the finding wanted kept.
+- The `CI gate helper self-tests` step pins `build.yml` text, so its assertions were updated with
+  the same change: the dual-event `if`, the dual-event bash branch, and — inverted from its old
+  "no schedule allowed" stance — a positive pin of the nightly cron. The PR/push-skipped invariant
+  (`test "$SP1_RELEASE_GATES_RESULT" = skipped`) remains asserted.
+- The other half of the decision is written into `docs/release-readiness-checklist.md` §6 (EN +
+  zh): a failed or never-completed nightly blocks a release until a manual dispatch on the exact
+  release-candidate commit passes all three lanes. The nightly makes the failure visible; the green
+  dispatch on the release commit is what releases it.
+
+### Security — the Dependabot ignore comment now matches the alert state it describes — 2026-08-31
+
+- §10 item 17 [E1 gate-blindness]: the cargo `ignore` block's comment read as "these two are
+  handled" while all three advisory alerts stayed open in the Security tab — `ignore` suppresses
+  update PRs, not alerts, and only the alert state is legible to someone who has not read the
+  2026-08-28 note. The comment now states the mechanism plainly (alerts remain open as tracked
+  accepted risk), names all three live GHSAs with severities, points at both documents, and explains
+  why `p3-symmetric` is absent from the list (no patched release, so Dependabot can never raise an
+  update PR for it). No pin rotated; the ignore set is unchanged.
+- The reconcile also corrected a citation: the note's lru alert id (`GHSA-qqmc-hwqp-8g2w`) is a
+  different (2022, use-after-free) lru record — the live alert is `GHSA-rhfx-m35p-ff5j`. The dated
+  note stays as written; the correction is recorded in the audit report §5 V8 and the config comment.
+- The second sub-action of §10 item 17 is decided in the audit report: ask Succinct to merge
+  Plonky3's `0.4.3` challenger fix into the `-succinct` fork; filing that ask is an external
+  communication left to the maintainer's go.
+
+### Fixed — a batcher commit-handler fault now stops the plugin, not the node — 2026-08-31
+
+- §10 item 14 [E1] (`H1`): the core's default `ExceptionPolicy` for a `Blockchain.Committed`
+  handler exception is `StopNode`, so a transient sink or executor fault inside the batcher — the
+  same fault class the pending-batch retry exists for — killed the whole chain instead of one plugin.
+  `L2BatchPlugin` now carries the first-party override the audit-time grep proved did not exist
+  anywhere under `src/`: `ExceptionPolicy => StopPlugin`. The chain keeps importing blocks and the
+  pending sealed batch survives for operator retry.
+- Coverage landed first, in the order the finding demanded. The commit handler's body now runs
+  through an internal `ProcessCommittedEvent` seam, and its catch path counts the metric, retries the
+  pending sealed batch once through the durable persist/ack route, and rethrows only when that retry
+  cannot recover — a recovered transient never reaches the core dispatch at all, and the next
+  commit's recovery loop re-reads the skipped block from the local ledger.
+- Four new tests: a sink fault recovered by the pending-batch retry does not propagate; a retry that
+  also fails rethrows the original exception with the pending batch still held and both attempts in
+  the sink's log; disabled settings invoke no work; and the effective policy is asserted to be
+  `StopPlugin`. `Neo.Plugins.L2Batch.UnitTests` 70/70. Other L2 plugins keep the core default — none
+  of them holds durable per-commit state the way the batcher's pending sealed batch does.
 
 ### Fixed — SP1 queue reads now tolerate transient sharing violations and always fail typed — 2026-08-31
 

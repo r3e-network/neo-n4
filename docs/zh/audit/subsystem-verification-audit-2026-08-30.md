@@ -111,8 +111,9 @@ release 插件里包含一个刚刚编译出来的 guest，其测试套件从未
 
 **状态 —— 本分支已定案（2026-08-31），且是靠执行、而非只读推断。** 修复 (1) 已实现并接线：
 `build.yml` 新增 `riscv-guest-freshness` job，在**每一个事件**上运行（而非仅 nightly —— "改了
-guest 源码却不重生成 blob" 的 PR 正是它必须当场拦下的漂移），用 nightly cargo +
-`polkatool 0.32.0 --locked` 重建 blob，并以 `git diff --exit-code` 比对 `guest.polkavm` 失败；
+guest 源码却不重生成 blob" 的 PR 正是它必须当场拦下的漂移），用钉住日期戳的工具链
+（`dtolnay/rust-toolchain@nightly-2026-08-28` + `polkatool 0.32.0 --locked`）重建 blob，并以
+`git diff --exit-code` 比对 `guest.polkavm` 失败；
 该检查已加入 `master` 的 required contexts。失败时的响应写进了 job 注释与发布清单 §6
 （EN + zh）：在发布候选 commit 上重生成并落库。
 
@@ -129,6 +130,16 @@ opcode/parity 执行套件（107 秒真实 guest 执行）。
 修复 (2) 与 (3) 有意不取：测试内 SHA-256 常量重复了门禁的检测能力，还给每次重生成增加一次手工
 改常量 —— 恰是当初造成陈旧的摩擦；打包脚本的暂存副本改造加固的路径，如今门禁已在观察。若维护者
 想要 CI 之外的纵深防御，(2) 可独立重启。
+
+**钉住补记（2026-08-31，来自门禁自己的首次红 CI run）。** 浮动 nightly 的重建（`7bd373a1…`）
+本身只对单一工具链稳定：门禁首次 CI 运行在 runner 的浮动 nightly（rustc `908501772`，
+2026-08-30）上把 `7bd373a1…` 时代的源码重建成了不同的字节，而在日期戳 `nightly-2026-08-28`
+下的本地重建 —— rustc 哈希 `e457a7b0d` 与浮动工具链相同、cargo 不同 —— 产生了*第三种*字节串
+（`2389ab52…`，两次运行确定性一致）。blob 字节追踪的是整个日期戳工具链，而不只是 rustc 哈希，
+因此门禁现在把它钉住：CI 运行 `dtolnay/rust-toolchain@nightly-2026-08-28`，已提交的 blob 正是
+在该工具链下重建的 `2389ab52…` 字节，升级流程（升级 `dtolnay/rust-toolchain` ref 并用同一钉住的
+`CARGO_NIGHTLY` 在一次变更内重新落地 blob）写入 workflow 注释与发布清单 §6（EN + zh）。工具链
+升级而没有配套的 blob 重落地，如今按构造就会让门禁失败 —— 这是浮动工具链永远给不了的性质。
 
 ### C4 — 一次成功的 fraud proof 会永久杀死它刚刚保护好的那条链 [E2]
 
@@ -596,6 +607,19 @@ artifact；SP1 的执行与证明栈没有被任何把关它合并的检查执�
 再立刻打开，才落得下去。这个决定里没有任何 `V1`..`V6` 发现牵涉在内，这次开关本身也不是代码缺陷 ——
 但一条发布路径上唯一的审阅控制，能被推送它的同一个身份用一次 API 调用移除，这和本节所讲的
 “检查错了东西的门禁”是同一类问题，§10 的修复顺序应当据此给予权重。
+
+**状态 —— 本分支已定案并接线（2026-08-31）：nightly 排班拥有 SP1 dispatch，发布清单承载阻塞规则。**
+`build.yml` 新增 nightly `schedule` 触发（cron `47 3 * * *`，与 `sdk-conformance` 的 `37 3` 错开），
+而仅以 `workflow_dispatch` 为键的两处现在以同样方式接受 `schedule` —— `sp1-release-gates` job 的
+`if`，以及 `sp1-host` 聚合的成功断言 —— 沿用 `sdk-conformance.yml:88` 已确立的先例。普通 PR 与
+`master` push 上的资源上限逐字节不变：重型 lane 仍报告 `skipped`，这仍是被要求检查所断言的东西。
+改变的是这条断言如今每晚被行使一次：`bridge/neo-zkvm-host` 或 Gateway 递归栈里的一次真实回归会在
+一天内让排班 run 变红，且 `sp1-host` 自己随之失败 —— 必需 context 不再*因为*重型 lane 缺席而通过。
+决定的阻塞那一半写在 `docs/release-readiness-checklist.md` §6（EN 与 zh）：nightly 失败或从未成功
+即阻塞发布，直到在确切的发布候选 commit 上手动 dispatch 并通过全部三条 lane —— nightly 负责让
+失败可见，发布候选 commit 上的绿色 dispatch 才是解除阻塞的东西。由 merge queue 拥有 dispatch 的
+选项被否决：本仓库不使用 merge queue，而逐 PR 的重型 lane 运行会把该发现明确想保住的资源成本
+乘上去。
 
 ### V2 — "off-chain ↔ on-chain encodings are paired" 这一不变式没有任何跨边界测试 [E1]
 
@@ -1200,6 +1224,17 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
 距其建立已六周，而且再加一条 ignore 也不会关掉它们：`ignore` 抑制的是拉取请求，不是告警。
 书面的接受风险决定与可见的告警状态互相矛盾，而读过那份笔记之外的人只能看见后者。
 
+**状态 —— 本分支已对齐（2026-08-31）。** ignore 块的注释现在把机制写明 —— `ignore` 只抑制
+更新 PR，告警仍以受追踪的接受风险保持 open —— 点名全部三条在案 GHSA 及其严重度
+（`GHSA-vj64-rjf3-w3v7` high、`GHSA-rhfx-m35p-ff5j` low、`GHSA-3g92-f9ch-qjcm` low，均在本分支
+日期经 API 复验为 open），指向两份文档，并解释第三条告警为何不在 ignore 清单里：
+`p3-symmetric` 没有已修补版本，Dependabot 永远不会为它发起可被抑制的更新 PR。对齐还顺带纠正了
+一处该发现的证据本身即可核验的引用错误：2026-08-28 笔记把 lru 告警写作 `GHSA-qqmc-hwqp-8g2w`，
+而 advisory API 显示该 id 是另一条（2022 年、use-after-free）lru 记录 —— 在案的告警是
+`GHSA-rhfx-m35p-ff5j`（2026 年、`IterMut` 违反 stacked borrows，与笔记所引的
+`>= 0.9.0, < 0.16.3` 区间吻合）。那份带日期的笔记按原样保留；更正记录在此处与配置注释里。
+第二个子动作的决定记录在 §10 第 17 条。
+
 ## 6. Medium / Low 发现（本轮新增）
 
 - **`SealedBatch` 丢弃了 batch 的消息那一侧** [E1]。`BatchBuilder.AddWithdrawal`、
@@ -1219,6 +1254,13 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   `Plugin.ExceptionPolicy` 默认为 `StopNode`
   （`external/neo/src/Neo/Plugins/Plugin.cs:74`），并且**没有**任何第一方覆写 —— 在 `src/` 下做
   源码作用域的 `ExceptionPolicy` grep 完全返回零结果，所以这适用于每一个 L2 插件，不只是 batcher。
+  **状态 —— 本分支已为 batcher 修复（2026-08-31）。** `L2BatchPlugin` 现在带着那次 grep 找不到的
+  覆写（`ExceptionPolicy => StopPlugin`），并且 commit 处理器在重新抛出之前，会先经持久的
+  persist/ack 路径重试一次待持久化的 sealed batch：恢复成功的瞬态故障根本到不了核心分派，
+  而存活下来的故障停掉的是插件、不是节点；下一个 commit 的恢复循环会从本地账本重读被跳过的区块。
+  那条普遍化按构造依然成立 —— 其余 L2 插件仍默认 `StopNode` —— 但它们没有一个像 batcher 的
+  待持久化 sealed batch 那样持有持久的逐 commit 状态，所以 H1 的宕服路径正是被收口的那条。
+  见 §10 第 14 条。
 - **`WithWriter` 会静默降级 DA profile** [E1]。
   `src/Neo.Plugins.L2DA/L2DAPlugin.cs:163-175` 无条件设置 `_profile = Development`（`:169`）并清除
   `_productionBackendOverridden`（`:174`）。这之所以要紧，是因为该插件其余部分是按 fail-closed
@@ -1275,6 +1317,13 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   只经由 `ProcessCommittedBlock` 钉住重试路径；没有任何测试引用 `OnBlockCommitted`，
   而 `InvokeCommitted` 出现在零个测试中。H1 的修复所依赖的那个恢复行为，
   是关键路径上被测最少的一段代码。
+  **状态 —— 本分支已修复（2026-08-31）。** 处理器的方法体现在经一个内部 `ProcessCommittedEvent`
+  接缝运行（与 `DispatchSealed` 建立的内部测试接缝是同一模式），四条新测试驱动它：被待持久化
+  batch 重试救回的 sink 故障不再向外传播；重试也失败（`FailBeforePersistCount = 2`）时重新抛出
+  原异常、待持久化 batch 仍被持有、两次尝试都出现在 sink 的日志里；禁用的设置不调用任何工作；
+  生效策略被断言为 `StopPlugin`。私有的两行委托与核心的 `InvokeCommitted` 分派本身在单测里
+  仍不可测 —— `NeoSystem` 的构造函数会孵化 Akka actor 系统、初始化区块链并遍历全局插件注册表
+  —— 这一点现在写在缺口原来的位置上：接缝覆盖了处理器自己执行的每一行代码。见 §10 第 14 条。
 - **强制包含接口文档化了一道任何代码都没有实现的闸门** [E1 counted]。
   `src/Neo.L2.ForcedInclusion/IForcedInclusionSource.cs:36-38` 关于 `HasOverdueEntryAsync` 写着
   "the batcher uses this to decide whether to halt finalization for censorship reasons"。
@@ -1388,7 +1437,7 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
 | --- | --- | --- |
 | `C1` deposit/router 收件箱相撞 | **已修复**（本分支） | `L1MessageDrain.cs` 中的两段式去重 + 全序，`UT_L1MessageDrain` 回归测试 |
 | `C2` `MerkleTree.Verify` 不受位置绑定 | **未修复** —— 而且同一个形状出现在两条合约折叠之中（§5 V5），由于兑付测试把 verifier 做了 stub，它不可被观察 | `SettlementManagerContract.cs:989-1012`、`:1115-1134` |
-| `H1` 插件异常会停止节点 | **未修复**，已提升为 [E1] | `L2BatchPlugin.cs:479 throw;`、`Plugin.cs:74` 默认值、`src/` 中零个 `ExceptionPolicy` 覆写 |
+| `H1` 插件异常会停止节点 | item-14 分支上**已为 batcher 修复**（2026-08-31）：`ExceptionPolicy => StopPlugin` 覆写 + 重新抛出前先重试一次待持久化 batch | `L2BatchPlugin.cs` 的覆写 + `ProcessCommittedEvent` 重试，4 条新测试；其余 L2 插件保持核心默认（没有需要保护的持久逐 commit 状态） |
 | `H6` 装饰性的链下二进制钉扎 | **未修复**，证据等级如今升到 [E1]，其测试的期望摘要由被测二进制自身派生，且没有反向测试（§5 V3） | `UT_Sp1StatefulBatchExecutor.cs:318` |
 | `H12` 信任根上的治理锁 | 就本分支覆盖的三根而言**已修复**；§7.1 中属于 `contracts/` 的两个残余已在后续分支上收口，只剩 native 合约那一面 | `ChainRegistryContract.cs:158-168,172-181,389` |
 | `H13` kill-switch 覆盖 3 个资产合约中的 1 个 | 全局标志**未修复**；它的按链变体（§4 H16）**已修复**（当前分支） | 审计时点为 `SubmitBatch:330-331` 对比 `FinalizeBatch:479-533`；`FinalizeBatch` 现在在 `:509-510` 断言 `isActive` |
@@ -1746,20 +1795,41 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
 
 10. `C3` —— **本分支已定案（2026-08-31）：门禁已存在、blob 已刷新、guest 恢复可编译。**
     `build.yml` 新增的 `riscv-guest-freshness` job 在每个事件上用 guest 源码重建
-    `guest.polkavm`（nightly cargo + `polkatool 0.32.0 --locked`），并以
-    `git diff --exit-code` 比对已提交 blob，漂移即失败；它已是 `master` 的 required context，
-    因此"改 guest 源码却不重生成"的 PR 在 PR 时即被拦截，而非等到 nightly 才被发现。真实重生成
-    证明已提交字节确实陈旧（`6a90a0af…` → `7bd373a1…`，确定性可复现），且 guest 在当前 nightly
-    的 Rust 2024 硬错误下已无法编译 —— 已在 `r3e-network/neo-riscv-vm` 的
-    `ci/guest-blob-freshness` 分支修复（gitlink 在本分支更新），host 套件对新 blob 302/302
-    全绿。修复 (2)/(3) 有意不取，理由见 §3 C3 的状态块。
+    `guest.polkavm`（工具链钉在 `dtolnay/rust-toolchain@nightly-2026-08-28` +
+    `polkatool 0.32.0 --locked`），并以 `git diff --exit-code` 比对已提交 blob，漂移即失败；
+    它已是 `master` 的 required context，因此"改 guest 源码却不重生成"的 PR 在 PR 时即被拦截，
+    而非等到 nightly 才被发现。真实重生成证明已提交字节确实陈旧（在钉住工具链下
+    `6a90a0af…` → `2389ab52…`），且 guest 在当前 nightly 的 Rust 2024 硬错误下已无法编译 ——
+    已在 `r3e-network/neo-riscv-vm` 的 `ci/guest-blob-freshness` 分支修复（gitlink 在本分支更新），
+    host 套件对新 blob 302/302 全绿。门禁首次 CI 运行以红灯实证了跨工具链漂移（runner 浮动
+    nightly 对钉住的 `nightly-2026-08-28`：rustc 哈希相同、字节不同），钉住正是对它的回应 ——
+    blob 字节追踪整个日期戳工具链，钉住才使重建确定，且工具链升级而没有配套的 blob 重落地按
+    构造即失败。修复 (2)/(3) 有意不取，理由见 §3 C3 的状态块。
 11. `H14` —— 移除 `panic = "abort"` 会改变展开语义，并可能改变 guest 热路径上的吞吐；
     需要一次测量，而且它与 SP1 再执行档相互影响。
-12. `V1` —— 决定谁拥有定时的 SP1 dispatch（nightly 还是 merge queue），以及它失败时凭什么阻塞发布。
+12. `V1` —— **已在本分支定案（2026-08-31）：nightly 排班拥有 SP1 dispatch，发布清单拥有阻塞规则。**
+    `build.yml` 新增 nightly `schedule` 触发，且两处以 `workflow_dispatch` 为键的位置
+    （`sp1-release-gates` 的 `if`、`sp1-host` 的成功断言）以完全相同的方式接受 `schedule`，沿用
+    `sdk-conformance.yml` 已确立的先例；PR/push 行为逐字节不变（重型 lane skipped，这仍是必需
+    检查所断言的），而 SP1 栈里的真实回归如今会在一天内让某次排班 run 变红并使 `sp1-host` 自身
+    失败。发布阻塞规则写进 `docs/release-readiness-checklist.md` §6（EN + zh）：nightly 失败或
+    从未成功即阻塞发布，直到在确切的发布候选 commit 上手动 dispatch 并通过全部三条 lane。
+    merge queue 归属被否决 —— 本仓库不使用它，且逐 PR 的重型 lane 运行会把该发现想保住的资源
+    成本乘上去。见 §5 V1 的状态块。
 13. `H15` —— 逐区块上下文的修复会触及 batcher↔executor 接缝，并且如果被持久化的头部馈入任何哈希，
     还会触及 state-root 编码。在“不要破坏字节格式”这条规则之下，它需要一个配套的规范决策。
-14. `H1` —— 针对 `Committed` 采用 `StopPlugin` + 重试；需要先补上 `OnBlockCommitted`
-    的测试覆盖（§6，“OnBlockCommitted 没有测试”那条）。
+14. `H1` —— **已在本分支定案（2026-08-31），并且是按发现自身要求的顺序：先补覆盖，再改策略。**
+    commit 处理器的方法体现在经一个内部 `ProcessCommittedEvent` 接缝运行（`DispatchSealed` 确立的
+    那种模式），配四条测试：被待持久化 batch 重试救回的 sink 故障不再向外传播；重试也失败
+    （`FailBeforePersistCount = 2`）时重新抛出原异常、待持久化 batch 仍被持有、两次尝试都在 sink
+    的日志里；禁用的设置不调用任何工作；生效策略被断言为 `StopPlugin`，而非核心默认。覆盖补齐后，
+    修复是两件事：`L2BatchPlugin` 覆写 `ExceptionPolicy => StopPlugin` —— 审计时那次 grep 说
+    `src/` 下不存在任何第一方覆写，如今有了 —— 而且处理器的 catch 路径在重新抛出之前，会先经
+    持久的 persist/ack 路径重试一次待持久化的 sealed batch：恢复成功的瞬态故障根本到不了核心
+    分派，存活下来的故障停掉的是插件、不是节点；下一个 commit 的恢复循环会从本地账本重读被跳过的
+    区块。那条普遍化（"这适用于每一个 L2 插件"）按构造依然成立 —— 只有 batcher 覆写了策略 ——
+    但其他插件没有一个像 batcher 的待持久化 sealed batch 那样持有持久的逐 commit 状态，所以
+    H1 的宕服路径正是被收口的那条。`Neo.Plugins.L2Batch.UnitTests` 70/70。
 15. `C2` / `V5` —— 受位置绑定的验证，外加去掉 `UT_SharedBridge_Vm` 的 mock。
 16. `V7` —— **本分支已定案（2026-08-31），两个决策各做一次、同时应用到两处读取点。** 读路径获得与
     写路径、获取发布锁路径同样的有界等待重试（2 秒窗口、50 毫秒间隔）；耗尽 `IOException` 的答案是
@@ -1769,10 +1839,16 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     SP1 6.2.1 → 6.5.0 bump 什么都不修：`0.4.3-succinct` 与 `0.3.3-succinct` 带着公告点名的那两个文件
     的逐字节相同副本，而 `0.4.3-succinct` 是 `p3-challenger` 有史以来发布过的最高的 `-succinct`
     构建（§5 V8）。这条 High 继续开着，是因为它在这张依赖图里无法修补，不是因为还有工作没做。
-    剩下两个台账动作，都不需要轮换任何钉扎：把 `.github/dependabot.yml:26-35` 与 Security 标签页对齐
-    （`ignore` 抑制的是更新 PR、不是告警，所以三条全都还开着，而那段注释读起来像是已解决），
-    以及决定是否请 Succinct 把 Plonky3 的 `0.4.3` challenger 修复合进这个 fork。原条目里的第三个子动作
-    —— 把 `p3-symmetric` 写成书面评估 —— 已在 §5 V8 完成。
+    本条目点名的两个台账动作中，第一个**已在本分支完成（2026-08-31）**：`.github/dependabot.yml`
+    的 ignore 注释现在把机制写明、点名全部三条在案 GHSA、并纠正笔记里过期的 lru 引用 ——
+    见 §5 V8 的状态块。第二个**已定案：要问，请 Succinct 把 Plonky3 的 `0.4.3` challenger 修复
+    合进 `-succinct` fork**。理由：在钉扎配对上被测得成立的唯一公告机制（无长度标记的
+    `duplexing` 吸收导致的 transcript 可塑性，§5 V8）有一条公开的上游修复，而它在整条 fork 线上
+    都不存在；fork 是该修复唯一的分发渠道（比 `0.4.3` 更新的 `-succinct` 构建从未发布过）；而
+    询问的成本只是一条消息 —— 替代方案是自己携带修复，那意味着 fork SP1 的整套工具链。询问本身
+    是对 `succinctlabs` 的外部沟通（在其仓库以 issue/discussion 形式引用 §5 V8 的钉扎配对测量），
+    刻意不在本代码树内擅自发起：这是维护者要拍板去发的动作，不是智能体可以悄悄代做的。
+    原条目里的第三个子动作 —— 把 `p3-symmetric` 写成书面评估 —— 已在 §5 V8 完成。
 18. `finalizeIfPastWindow` 驱动 —— **已在本分支定案并实现（2026-08-31）：归属是
     `Neo.Plugins.L2Settlement` 的对账节奏，驱动已落地。** 形状复用 forced-inclusion finalizer
     的接缝模式：`ISettlementWindowFinalizer`（Abstractions，过期判定 + 终局化）、

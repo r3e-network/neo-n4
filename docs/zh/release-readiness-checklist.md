@@ -74,15 +74,22 @@ cargo test --release --locked -- --ignored --nocapture
 - 推送分支并要求扩展后的 GitHub Actions workflow 通过。
 - 确认 required `SP1 compatibility and manual release proof gate`（`sp1-host`）为绿。
   普通 PR 与 `master` push 上该 job 只汇总快速的 .NET、合约与 Rust 兼容性 lane，且必须把
-  真实证明矩阵报告为 **skipped**。发布候选时，通过 `workflow_dispatch` 手动触发 `build`
-  workflow，使三条 `sp1-release-gates` lane（workspace release、terminal batch proof、
-  recursive Gateway proof）运行；汇总门禁随后要求每条 lane 成功。禁止 mock/dummy 证明；
+  真实证明矩阵报告为 **skipped**。真实证明的定时 dispatch 由 nightly 排班拥有（审计 §10 第 12 条）：
+  三条 `sp1-release-gates` lane（workspace release、terminal batch proof、recursive Gateway
+  proof）每晚运行，汇总门禁要求每条 lane 成功，因此 SP1 栈里的回归会在一天内显形，而不必等
+  有人记起去 dispatch。发布候选时，在发布候选 commit 上通过 `workflow_dispatch` 手动触发
+  `build` workflow；汇总门禁随后要求每条 lane 成功。禁止 mock/dummy 证明；
   在 release dispatch 上跳过或不完整的真实证明步骤不能作为证据。
+- nightly 红灯或缺失时的发布阻塞规则：若最近一次排班 `build` run 的 `sp1-release-gates`
+  失败（或从未有过成功的排班 run），发布被阻塞，直到在确切的发布候选 commit 上手动 dispatch
+  `build` 并三条 lane 全部通过。nightly 负责让失败可见；发布候选 commit 上的绿色 dispatch
+  才是解除阻塞的东西。
 - 确认 required `RISC-V guest blob freshness`（`riscv-guest-freshness`）为绿。该 job 用 guest
-  源码重建 `external/neo-riscv-vm` 已提交的 `guest.polkavm`（nightly cargo + polkatool 0.32.0），
-  任何漂移即失败。红或过期即阻塞发布：先在发布候选 commit 上运行
-  `scripts/regenerate-guest-blob.sh` 并落库重生成的 blob —— 测试里执行的运行时必须与
-  所发布源码构建出的运行时一致。
+  源码重建 `external/neo-riscv-vm` 已提交的 `guest.polkavm`（工具链钉在
+  `dtolnay/rust-toolchain@nightly-2026-08-28` + polkatool 0.32.0），任何漂移即失败。红或过期
+  即阻塞发布：先在发布候选 commit 上运行
+  `CARGO_NIGHTLY="cargo +nightly-2026-08-28" bash external/neo-riscv-vm/scripts/regenerate-guest-blob.sh`
+  并落库重生成的 blob —— 测试里执行的运行时必须与所发布源码构建出的运行时一致。
 - 要求 `SDK Conformance / Shared vectors (4 SDKs)` 通过，并手动触发
   `SDK Conformance`；手工 dispatch 会自动要求 live job 及其已配置凭据。保留离线与真实环境 JSON
   汇总，任何发现或执行零个真实环境测试的报告都必须拒绝。

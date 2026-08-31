@@ -212,7 +212,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
         IMessageRouter? messageRouter = null,
         Func<uint>? l1FinalizedHeight = null,
         Func<UInt256>? sequencerCommitteeHash = null,
-        int? maxAutomaticRetries = null)
+        int? maxAutomaticRetries = null,
+        ISettlementWindowFinalizer? settlementWindowFinalizer = null)
     {
         ArgumentNullException.ThrowIfNull(batchPlugin);
         ArgumentNullException.ThrowIfNull(executor);
@@ -254,7 +255,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
             profile,
             _metrics,
             forcedInclusionFinalizer,
-            maxAutomaticRetries ?? 3);
+            maxAutomaticRetries ?? 3,
+            settlementWindowFinalizer);
         _pipeline = pipeline;
         try
         {
@@ -428,7 +430,8 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
                 effectiveRouter,
                 effectiveL1FinalizedHeight,
                 sequencerCommitteeHash,
-                maxAutomaticRetries);
+                maxAutomaticRetries,
+                composition.SettlementWindowFinalizer);
             _productionComposition = composition;
             return composition.ForcedInclusionSource;
         }

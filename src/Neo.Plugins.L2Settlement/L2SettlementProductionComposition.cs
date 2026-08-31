@@ -19,6 +19,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         RpcTransactionSender transactionSender,
         RpcSettlementClient settlementClient,
         RpcForcedInclusionFinalizationClient forcedInclusionFinalizer,
+        RpcSettlementWindowFinalizer? settlementWindowFinalizer,
         RpcForcedInclusionEventScanner forcedInclusionEventScanner,
         RpcForcedInclusionSource forcedInclusionSource,
         RpcSharedBridgeDepositSource? ownedDepositSource,
@@ -29,6 +30,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
         TransactionSender = transactionSender;
         SettlementClient = settlementClient;
         ForcedInclusionFinalizer = forcedInclusionFinalizer;
+        SettlementWindowFinalizer = settlementWindowFinalizer;
         ForcedInclusionEventScanner = forcedInclusionEventScanner;
         ForcedInclusionSource = forcedInclusionSource;
         OwnedDepositSource = ownedDepositSource;
@@ -44,6 +46,12 @@ internal sealed class L2SettlementProductionComposition : IDisposable
     internal RpcSettlementClient SettlementClient { get; }
 
     internal RpcForcedInclusionFinalizationClient ForcedInclusionFinalizer { get; }
+
+    /// <summary>
+    /// Challenge-window finalizer constructed from production config, when
+    /// OptimisticChallengeHash is configured. Null leaves window finalization out of band.
+    /// </summary>
+    internal RpcSettlementWindowFinalizer? SettlementWindowFinalizer { get; }
 
     internal RpcForcedInclusionEventScanner ForcedInclusionEventScanner { get; }
 
@@ -123,6 +131,12 @@ internal sealed class L2SettlementProductionComposition : IDisposable
                 transactionSender,
                 configuration.SettlementManagerHash,
                 configuration.ForcedInclusionHash);
+            var settlementWindowFinalizer = configuration.OptimisticChallengeHash is null
+                ? null
+                : new RpcSettlementWindowFinalizer(
+                    rpc,
+                    transactionSender,
+                    configuration.OptimisticChallengeHash);
             forcedInclusionEventScanner = new RpcForcedInclusionEventScanner(
                 rpc,
                 configuration.ForcedInclusionHash,
@@ -207,6 +221,7 @@ internal sealed class L2SettlementProductionComposition : IDisposable
                 transactionSender,
                 settlementClient,
                 forcedInclusionFinalizer,
+                settlementWindowFinalizer,
                 forcedInclusionEventScanner,
                 forcedInclusionSource,
                 ownedDepositSource,

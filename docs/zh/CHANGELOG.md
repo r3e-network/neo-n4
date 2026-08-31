@@ -15,6 +15,12 @@
 
 ## 中文摘要
 
+- 2026-08-31 结算对账节奏接管挑战窗口过期：`OptimisticChallenge.FinalizeIfPastWindow`
+  此前在树内没有任何调用方，Optimistic 链的终局化只能依赖"有人记得去调用"。归属定案为
+  `Neo.Plugins.L2Settlement` 的对账节奏：新增 `ISettlementWindowFinalizer` 能力接口，
+  pipeline 的 Challengeable 分支在链上截止期过后首次对账即提交终局化并持久记录
+  `SettlementFinalized`；生产接线由新的 `OptimisticChallengeHash` 配置键门控，留空保持
+  旧行为。无合约改动，`docs/launching-an-l2.md` 已写明归属。
 - 2026-08-31 结算摘要绑定块区间：public-inputs preimage 从 332 扩到 348 字节，
   `firstBlock`/`lastBlock` 进入 settlement 合约验证的摘要；合约与全部消费方（gateway guest
   重建、SP1 host、witness artifact、golden 向量、三份 hex fixture）同次迁移，SettlementManager

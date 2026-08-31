@@ -269,6 +269,12 @@ Zk 路由并随后一次性锁定 registry,所以对该 hub 提交 Optimistic �
 自己终结;经 `Challenge(chainId, batchNumber, challenger, fraudProofBytes,
 fraudVerifier)` 提交,把实际密码学校验委派给由 `fraudVerifier` 参数指定的合约。
 
+过期归属:`FinalizeIfPastWindow` 是无许可入口,但没人会「顺手」调用它 ——
+没有驱动时,过期批量会永远停在 `Challengeable`。结算插件的对账节奏是运维侧的
+归属方:在插件配置里设置 `OptimisticChallengeHash`,`WireProduction` 就会接上
+`RpcSettlementWindowFinalizer`,在链上截止期过后的首次对账时提交终局化调用。
+已接受的挑战会在终局化之前删除窗口,所以驱动不可能终局化一条被欺诈回滚的批量。
+
 这里记录两种面向生产的部署 profile：bundle 内置的受限 v4，以及运维者提供的
 自定义 executable v4；这不等同于已经通过独立审计或真实部署。默认 `neo-hub-deploy plan` 的 24 步生产 bundle 排除 v1/v2
 结构性审计 verifier，并用 `[SettlementManager, replayDomain]` 初始化受限执行 verifier；

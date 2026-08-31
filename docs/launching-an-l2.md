@@ -99,6 +99,8 @@ settlement. It consumes the plugin's `PluginConfiguration` and constructs one sh
 `MessageRouterHash` is set, it constructs an owned `RpcMessageRouter` with a durable
 `L1ToL2Enqueued` event scanner (unless the host passes an explicit `messageRouter`). Both
 are installed on the batcher via `WireL1MessageInbox` before the sealed-batch sink.
+When `OptimisticChallengeHash` is set, it constructs an `RpcSettlementWindowFinalizer`
+so the settlement reconcile cadence finalizes expired challenge windows.
 Forced-inclusion scanner, source, and finalizer are always wired as one production unit;
 custom/test DI remains available through `Wire(...)`.
 
@@ -113,6 +115,7 @@ Configure every production identity explicitly in
     "ExpectedNetwork": <l1-network-magic>,
     "SettlementManagerHash": "<real non-zero SettlementManager UInt160>",
     "ForcedInclusionHash": "<real non-zero ForcedInclusion UInt160>",
+    "OptimisticChallengeHash": "<real non-zero OptimisticChallenge UInt160>",
     "SharedBridgeHash": "<real non-zero SharedBridge UInt160>",
     "L2BridgeHash": "",
     "MessageRouterHash": "<real non-zero MessageRouter UInt160>",
@@ -124,6 +127,10 @@ Configure every production identity explicitly in
 
 Empty `L2BridgeHash` defaults to `NativeContract.L2Bridge.Hash` for N4 L2s.
 Empty `MessageRouterHash` leaves MessageRouter caller-supplied (or omitted).
+Empty `OptimisticChallengeHash` leaves challenge-window finalization to an out-of-band
+actor; when set, the settlement reconcile cadence submits the permissionless
+`FinalizeIfPastWindow` invocation once the on-chain window has expired, so optimistic
+batches reach `Finalized` without depending on an external driver.
 
 The checked-in sample intentionally leaves the network and contract hashes unset.
 Production wiring rejects missing or relative/non-HTTP endpoints, missing network magic,
@@ -434,6 +441,14 @@ a `Challengeable` batch can only be finalized by `OptimisticChallenge` itself, a
 submission via `Challenge(chainId, batchNumber, challenger, fraudProofBytes,
 fraudVerifier)` delegates the actual cryptographic check to a contract identified
 by the `fraudVerifier` argument.
+
+Expiry ownership: `FinalizeIfPastWindow` is permissionless but nobody calls it by
+accident — without a driver, expired batches stay `Challengeable` forever. The
+settlement plugin's reconcile cadence is the operator-side owner: configure
+`OptimisticChallengeHash` in the plugin config and `WireProduction` wires an
+`RpcSettlementWindowFinalizer` that submits the finalize invocation on the first
+reconciliation pass after the on-chain deadline passes. An accepted challenge deletes
+the window before finalize, so the driver cannot finalize a fraud-reverted batch.
 
 Two production-target deployment profiles are documented: the bundled restricted-v4
 profile and an operator-supplied custom executable-v4 profile. The default 24-step production bundle

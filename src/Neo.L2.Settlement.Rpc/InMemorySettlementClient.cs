@@ -23,16 +23,41 @@ namespace Neo.L2.Settlement.Rpc;
 /// <see cref="InvalidOperationException"/> because that's an attempted batch-number
 /// reuse and indicates a sequencer bug.
 /// </para>
+/// <para>
+/// Challenge windows: mirrors <c>OptimisticChallenge</c> — the window deadline
+/// (<c>clock() + <see cref="ChallengeWindowSeconds"/></c>) is recorded at submission
+/// (SettlementManager opens the window inside SubmitBatch), expiry is decided against the
+/// injected clock, and reaching a terminal state consumes the window. The clock defaults
+/// to the system UTC clock; tests inject a delegate for deterministic expiry.
+/// </para>
 /// </remarks>
-public sealed class InMemorySettlementClient : ISettlementClient, ISettlementTransactionStatusClient
+public sealed class InMemorySettlementClient
+    : ISettlementClient, ISettlementTransactionStatusClient, ISettlementWindowFinalizer
 {
+    /// <summary>Matches <c>OptimisticChallengeContract.DefaultWindowSeconds</c>.</summary>
+    public const uint DefaultChallengeWindowSeconds = 3600;
+
     private readonly ConcurrentDictionary<(uint ChainId, ulong BatchNumber), Entry> _batches = new();
     private readonly ConcurrentDictionary<uint, UInt256> _canonicalRoots = new();
+    private readonly ConcurrentDictionary<(uint ChainId, ulong BatchNumber), uint> _windowDeadlines = new();
+    private readonly Func<long> _unixSecondsClock;
 
     private sealed record Entry(L2BatchCommitment Commitment, UInt256 TxHash, BatchStatus Status);
 
     /// <summary>Number of batches currently tracked across all chains.</summary>
     public int BatchCount => _batches.Count;
+
+    /// <summary>
+    /// Challenge-window length applied when a batch is submitted. Governance-tunable
+    /// on-chain (<c>SetWindowSecondsViaProposal</c>); fixed here per client instance.
+    /// </summary>
+    public uint ChallengeWindowSeconds { get; set; } = DefaultChallengeWindowSeconds;
+
+    /// <summary>Construct with the system UTC clock, or an injected one for deterministic tests.</summary>
+    public InMemorySettlementClient(Func<long>? unixSecondsClock = null)
+    {
+        _unixSecondsClock = unixSecondsClock ?? (() => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+    }
 
     /// <inheritdoc />
     public ValueTask<UInt256> SubmitBatchAsync(
@@ -62,6 +87,10 @@ public sealed class InMemorySettlementClient : ISettlementClient, ISettlementTra
                     $"batch ({commitment.ChainId}, {commitment.BatchNumber}) already submitted with a different commitment — sequencer must not reuse batch numbers");
             return new ValueTask<UInt256>(existing.TxHash);
         }
+        // SettlementManager.SubmitBatch opens the OptimisticChallenge window inside the
+        // submission transaction, so the deadline anchors to submission time, not to the
+        // in-memory Pending → Challengeable promotion.
+        _windowDeadlines[key] = (uint)_unixSecondsClock() + ChallengeWindowSeconds;
         return new ValueTask<UInt256>(txHash);
     }
 
@@ -127,6 +156,10 @@ public sealed class InMemorySettlementClient : ISettlementClient, ISettlementTra
                 $"illegal transition {entry.Status} → {next} for batch ({chainId}, {batchNumber})");
 
         _batches[key] = entry with { Status = next };
+        // The contract deletes the window key on both terminal paths (finalize and
+        // accepted fraud), so reaching a terminal state here consumes the window too.
+        if (next is BatchStatus.Finalized or BatchStatus.Reverted)
+            _windowDeadlines.TryRemove(key, out _);
         // When a batch finalizes, monotonically bump the per-chain canonical state root.
         // Same iter-203 monotonicity rule as InMemoryL2RpcStore.Finalize: never regress
         // to an older root if a newer one was already finalized.
@@ -146,6 +179,47 @@ public sealed class InMemorySettlementClient : ISettlementClient, ISettlementTra
                         : prev;
                 });
         }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<bool> IsWindowExpiredAsync(
+        uint chainId,
+        ulong batchNumber,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Only a batch in the Challengeable state carries a live window in this model —
+        // the raw on-chain deadline can outlive the in-memory Pending promotion, and the
+        // pipeline only consults the finalizer for Challengeable batches anyway.
+        if (!_batches.TryGetValue((chainId, batchNumber), out var entry)
+            || entry.Status != BatchStatus.Challengeable
+            || !_windowDeadlines.TryGetValue((chainId, batchNumber), out var deadline))
+            return new ValueTask<bool>(false);
+        return new ValueTask<bool>(_unixSecondsClock() > deadline);
+    }
+
+    /// <inheritdoc />
+    public ValueTask FinalizeIfPastWindowAsync(
+        uint chainId,
+        ulong batchNumber,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_windowDeadlines.TryGetValue((chainId, batchNumber), out var deadline))
+        {
+            // Mirrors the on-chain "no open window" assert: the window was already
+            // consumed by finalization or an accepted challenge. The reconcile pass
+            // re-reads the batch status to observe which.
+            return ValueTask.CompletedTask;
+        }
+        if (_unixSecondsClock() <= deadline)
+        {
+            throw new InvalidOperationException(
+                $"challenge window still open for batch ({chainId}, {batchNumber}) — " +
+                "FinalizeIfPastWindow would fault on-chain");
+        }
+        AdvanceStatus(chainId, batchNumber, BatchStatus.Finalized);
+        return ValueTask.CompletedTask;
     }
 
     private ulong? FindBatchNumberFor(uint chainId, UInt256 root)

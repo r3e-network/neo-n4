@@ -23,6 +23,15 @@ public sealed class L2SettlementSettings
     public string ForcedInclusionHash { get; init; } = "";
 
     /// <summary>
+    /// Encoded NeoHub.OptimisticChallenge contract hash. When set, production wiring
+    /// constructs an <c>RpcSettlementWindowFinalizer</c> so the settlement reconcile
+    /// cadence finalizes expired challenge windows via the permissionless
+    /// <c>FinalizeIfPastWindow</c> entry point. Empty leaves window finalization to an
+    /// out-of-band actor.
+    /// </summary>
+    public string OptimisticChallengeHash { get; init; } = "";
+
+    /// <summary>
     /// Encoded NeoHub.SharedBridge contract hash. When set, production wiring constructs a
     /// durable <c>RpcSharedBridgeDepositSource</c> (unless the caller supplies one).
     /// </summary>
@@ -102,6 +111,7 @@ public sealed class L2SettlementSettings
             ExpectedNetwork = s.GetValue<uint?>("ExpectedNetwork"),
             SettlementManagerHash = s.GetValue<string>("SettlementManagerHash") ?? "",
             ForcedInclusionHash = s.GetValue<string>("ForcedInclusionHash") ?? "",
+            OptimisticChallengeHash = s.GetValue<string>("OptimisticChallengeHash") ?? "",
             SharedBridgeHash = s.GetValue<string>("SharedBridgeHash") ?? "",
             L2BridgeHash = s.GetValue<string>("L2BridgeHash") ?? "",
             MessageRouterHash = s.GetValue<string>("MessageRouterHash") ?? "",
@@ -235,6 +245,19 @@ public sealed class L2SettlementSettings
                     "MessageRouterHash must identify a distinct NeoHub contract");
         }
 
+        UInt160? optimisticChallengeHash = null;
+        if (!string.IsNullOrWhiteSpace(OptimisticChallengeHash))
+        {
+            optimisticChallengeHash = ParseNonZeroHash(
+                OptimisticChallengeHash, nameof(OptimisticChallengeHash));
+            if (optimisticChallengeHash.Equals(settlementManagerHash)
+                || optimisticChallengeHash.Equals(forcedInclusionHash)
+                || (sharedBridgeHash is not null && optimisticChallengeHash.Equals(sharedBridgeHash))
+                || (messageRouterHash is not null && optimisticChallengeHash.Equals(messageRouterHash)))
+                throw new InvalidDataException(
+                    "OptimisticChallengeHash must identify a distinct NeoHub contract");
+        }
+
         return new L2SettlementProductionConfiguration(
             chainId,
             endpoint,
@@ -243,7 +266,8 @@ public sealed class L2SettlementSettings
             forcedInclusionHash,
             sharedBridgeHash,
             l2BridgeHash,
-            messageRouterHash);
+            messageRouterHash,
+            optimisticChallengeHash);
     }
 
     private static UInt160 ParseNonZeroHash(string? raw, string settingName)
@@ -293,4 +317,5 @@ internal sealed record L2SettlementProductionConfiguration(
     UInt160 ForcedInclusionHash,
     UInt160? SharedBridgeHash,
     UInt160? L2BridgeHash,
-    UInt160? MessageRouterHash);
+    UInt160? MessageRouterHash,
+    UInt160? OptimisticChallengeHash);

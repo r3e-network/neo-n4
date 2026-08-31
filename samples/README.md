@@ -31,12 +31,16 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 \
 #                     sequencer=Centralized exit=Delayed gateway=False
 ```
 
-A `--config` run exercises the sample's §16.2 **label** surface only: the devnet
-runner builds Multisig commitments unconditionally
-(`tools/Neo.L2.Devnet/Program.cs`), so it never routes the declared `proofType`
-and does not prove that route exists on L1. `neo-stack validate <config>` is what
-checks a declared `proofType` against `SettlementManager.IsProofTypeCompatible`
-and against the routes the production bundle freezes.
+A `--config` run routes the sample's declared `proofType` through the shared
+`ProofRouting` table (`src/Neo.L2.Abstractions`): an incompatible
+`securityLevel`/`proofType` pair aborts the run with exit code 2, and the
+matching off-chain prover is wired — committee attestations for `Multisig`, a
+sequencer-signed optimistic payload for `Optimistic`, and `MockRiscVProver`
+for `Zk` (a preview stand-in; production Zk proofs are produced out-of-process
+by `bridge/neo-zkvm-host`). What the devnet still does not do is prove that a
+route exists on L1: `neo-stack validate <config>` checks the declared
+`proofType` against `SettlementManager.IsProofTypeCompatible` and against the
+routes the production bundle freezes.
 
 Each sample includes the `template`, `chainMode`, `vm`, and the §16.2 label
 dimensions. The four UInt160 hashes (`operator`, `verifier`, `bridgeAdapter`,

@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the devnet runner now settles with the proof kind its §16.2 label declares — 2026-08-31
+
+- H18's "left as found" list named the devnet: `tools/Neo.L2.Devnet/Program.cs:385,403` built
+  `AttestationProver` and Multisig commitments unconditionally, so a `--config` run exercised the
+  sample's label surface only (`samples/README.md` disclosed this) — and the no-config default was
+  worse than unexercised, because the default label is `SecurityLevel.Optimistic`, under which a
+  `ProofType.Multisig` commitment is a pairing the contract faults (`SettlementManager`
+  `.IsProofTypeCompatible`). The runner now reads the config's `proofType`
+  (`DevnetLabelOverrides.ReadFromConfig`, a missing or malformed value falling back to the floor
+  route `ProofRouting.AcceptedProofTypes` allows for the label), aborts an incompatible pairing
+  before building anything (exit code 2, `Program.cs:88-94`), and wires the route the kind names
+  (`Program.cs:132-150`): committee attestations for `Multisig` (`InMemorySignerSet`, threshold 3),
+  a sequencer-signed optimistic payload for `Optimistic`, and the disclosed `MockRiscVProver`
+  preview for `Zk` — production proving remains out-of-process via `bridge/neo-zkvm-host`. The
+  commitment's `ProofType` and the proof request's `Kind` take that same value (`:430`, `:448`), so
+  the printed label and the settled commitment can no longer disagree.
+- The default run changed route, and that is the finding's own lesson applied to the tool: the
+  no-config devnet now settles with `Optimistic` proofs instead of Multisig attestations. Four runs
+  verified on this branch — no-config → `route = Optimistic`, `verify=True`; `--config
+  samples/exchange-validium.config.json` → `route = Zk`, `verify=True`; `--config
+  samples/privacy-sidechain.config.json` → `route = Multisig` with three threshold-3 attestations,
+  `verify=True`; `securityLevel=Optimistic` with `proofType=Multisig` → the pairing error, exit 2.
+  `samples/README.md`'s paragraph now states the routing instead of disclosing the gap, and the
+  audit report's "left as found" list (EN + zh) records the closure.
+
 ### Added — V2 (cross-boundary half): the four canonical encodings are now pinned across .NET, the deployed contracts and Rust — 2026-08-31
 
 - `AGENTS.md`'s "off-chain ↔ on-chain encodings are paired" rule had no test behind it. Each side was

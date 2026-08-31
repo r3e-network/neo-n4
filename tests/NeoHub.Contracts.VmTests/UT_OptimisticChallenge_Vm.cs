@@ -159,6 +159,27 @@ public class UT_OptimisticChallenge_Vm
                 .Returns(payloadMatches);
         }, checkExistence: false);
 
+    /// <summary>Wire a GovernanceController mock that approves any proposal whose payload is one
+    /// of <paramref name="votedActions"/>. Unlike <see cref="WireGc"/> this cannot be satisfied by
+    /// any other bytes, so it pins value-binding rather than gate-order.</summary>
+    private static void WireGcBound(TestEngine engine, UInt160 gcHash, params byte[][] votedActions) =>
+        engine.FromHash<Mock_OptimisticChallenge_GovernanceController>(gcHash, m =>
+        {
+            m.Setup(c => c.IsApprovedAndTimelocked(It.IsAny<BigInteger?>())).Returns(true);
+            m.Setup(c => c.MatchesProposalPayload(It.IsAny<BigInteger?>(),
+                    It.Is<byte[]?>(a => BytesMatchAny(a, votedActions))))
+                .Returns(true);
+        }, checkExistence: false);
+
+    // Outside the Moq predicate, which is compiled as an expression tree and cannot carry a loop.
+    private static bool BytesMatchAny(byte[]? actual, byte[][] votedActions)
+    {
+        if (actual is null) return false;
+        foreach (var voted in votedActions)
+            if (actual.SequenceEqual(voted)) return true;
+        return false;
+    }
+
     private static byte[] V4Proof(
         UInt256? replayDomain = null,
         UInt256? executorSemanticId = null,
@@ -844,6 +865,15 @@ public class UT_OptimisticChallenge_Vm
             "instant revoke must revert once governance is locked — otherwise a locked owner " +
             "could still disable every fraud verifier");
 
+        // The challenge parameters are the same class of hazard: §7.1 found the lock left them
+        // owner-tunable. Both values below are in bounds, so only the lock guard can fault here.
+        Assert.ThrowsExactly<TestException>(() => oc.WindowSeconds = 120,
+            "instant window shrink must revert once governance is locked");
+        Assert.ThrowsExactly<TestException>(() => oc.ChallengerRewardBps = 500,
+            "instant bounty change must revert once governance is locked");
+        Assert.AreEqual((long)DefaultWindow, (long)oc.WindowSeconds!,
+            "the rejected window write changed nothing");
+
         // The controller hash is frozen too: swapping it for an accept-all contract would make the
         // council-veto path a formality.
         Assert.ThrowsExactly<TestException>(() => oc.GovernanceController = Hash('a'),
@@ -992,6 +1022,74 @@ public class UT_OptimisticChallenge_Vm
     }
 
     [TestMethod]
+    public void SetWindowSecondsViaProposal_BindsVotedValue_AndSurvivesLock()
+    {
+        var engine = new TestEngine(true);
+        var gc = Hash('c');
+        const uint voted = 7200;
+        const uint votedAgain = 86400;
+        WireGcBound(engine, gc,
+            Concat(System.Text.Encoding.ASCII.GetBytes("neo4-gov:setWindowSeconds"),
+                BitConverter.GetBytes(voted)),
+            Concat(System.Text.Encoding.ASCII.GetBytes("neo4-gov:setWindowSeconds"),
+                BitConverter.GetBytes(votedAgain)),
+            Concat(System.Text.Encoding.ASCII.GetBytes("neo4-gov:setChallengerRewardBps"),
+                BitConverter.GetBytes((ushort)500)));
+        var oc = Deploy(engine, Hash('5'), Hash('8'));
+        oc.GovernanceController = gc;
+
+        // The council voted to RAISE the window; anything else must not be applied under that vote.
+        Assert.ThrowsExactly<TestException>(() => oc.SetWindowSecondsViaProposal(60, 42),
+            "a shrink cannot be executed under a vote that bound a different value");
+        Assert.ThrowsExactly<TestException>(() => oc.SetWindowSecondsViaProposal(120, 44),
+            "a fresh proposal id is not authority — nobody voted on this value");
+        Assert.AreEqual((long)DefaultWindow, (long)oc.WindowSeconds!);
+
+        oc.SetWindowSecondsViaProposal(voted, 42);
+        Assert.AreEqual((long)voted, (long)oc.WindowSeconds!,
+            "an approved + value-bound proposal must be able to retune the window");
+
+        // One proposal, one application — and the consumed namespace is shared with every other
+        // council action, so a spent window vote cannot be re-spent on the bounty. Both calls below
+        // present payloads the council did approve, so only consumption can fault them.
+        Assert.ThrowsExactly<TestException>(() => oc.SetWindowSecondsViaProposal(voted, 42),
+            "a consumed proposal cannot be replayed");
+        Assert.ThrowsExactly<TestException>(() => oc.SetChallengerRewardBpsViaProposal(500, 42),
+            "a consumed proposal cannot be re-spent on a different action");
+
+        // The lock closes the instant path but must not strand retuning: this is the whole point of
+        // pairing a guard with a council twin.
+        oc.LockGovernance();
+        Assert.ThrowsExactly<TestException>(() => oc.WindowSeconds = 120,
+            "instant path stays closed after locking");
+        oc.SetWindowSecondsViaProposal(votedAgain, 43);
+        Assert.AreEqual((long)votedAgain, (long)oc.WindowSeconds!,
+            "the council path must remain available once governance is locked");
+    }
+
+    [TestMethod]
+    public void SetChallengerRewardBpsViaProposal_KeepsBounds_AndDoesNotBurnAFaultedProposal()
+    {
+        var engine = new TestEngine(true);
+        var gc = Hash('c');
+        WireGc(engine, gc); // both gates approve — only the bounds can fault here
+        var oc = Deploy(engine, Hash('5'), Hash('8'));
+        oc.GovernanceController = gc;
+
+        // The council route shares the setter's bounds, so §16 cannot widen the parameter range.
+        Assert.ThrowsExactly<TestException>(() => oc.SetChallengerRewardBpsViaProposal(0, 51),
+            "the council cannot zero the bounty either");
+        Assert.ThrowsExactly<TestException>(() => oc.SetChallengerRewardBpsViaProposal(10001, 51),
+            "the council cannot exceed the basis-points total");
+
+        // Consumption is written inside the faulting transaction, so a rejected application leaves
+        // the vote unspent rather than destroying the council's work.
+        oc.SetChallengerRewardBpsViaProposal(500, 51);
+        Assert.AreEqual(500, (long)oc.ChallengerRewardBps!,
+            "a proposal rejected for out-of-bounds values must stay spendable");
+    }
+
+    [TestMethod]
     public void BuildActions_UseCanonicalTagEncoding()
     {
         var engine = new TestEngine(true);
@@ -1022,6 +1120,22 @@ public class UT_OptimisticChallenge_Vm
 
         // Distinct tags keep a vote on one action from being replayable as another.
         Assert.IsFalse(register.AsSpan().SequenceEqual(revoke), "register and revoke actions must differ");
+
+        var window = oc.BuildSetWindowSecondsAction(7200)!;
+        CollectionAssert.AreEqual(Concat(
+            System.Text.Encoding.ASCII.GetBytes("neo4-gov:setWindowSeconds"),
+            BitConverter.GetBytes((uint)7200)), window,
+            "window action must be tag||seconds(4B LE) (29B)");
+
+        var bps = oc.BuildChallengerRewardBpsAction(500)!;
+        CollectionAssert.AreEqual(Concat(
+            System.Text.Encoding.ASCII.GetBytes("neo4-gov:setChallengerRewardBps"),
+            BitConverter.GetBytes((ushort)500)), bps,
+            "bounty action must be tag||bps(2B LE) (33B)");
+
+        Assert.IsFalse(window.AsSpan().SequenceEqual(bps), "window and bounty actions must differ");
+        Assert.IsFalse(window.AsSpan().SequenceEqual(oc.BuildSetWindowSecondsAction(60)!),
+            "the voted value must participate in the binding, not just the method name");
     }
 
     private static byte[] Concat(params byte[][] parts)

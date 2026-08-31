@@ -33,13 +33,17 @@ public class ChainRegistryContract : SmartContract
     /// <summary>Storage prefix for contracts authorized to pause a chain on proven censorship.</summary>
     private const byte PrefixPauser = 0x04;
 
-    /// <summary>Storage key for the one-way governance lock. Once set, the instant owner
-    /// <see cref="UpdateChain"/> path is disabled and config mutations must go through the
-    /// council-gated <see cref="UpdateChainViaProposal"/>.</summary>
+    /// <summary>Storage key for the one-way governance lock. Once set, every instant owner-only
+    /// mutation path in this contract (<see cref="UpdateChain"/>, <see cref="RegisterPauser"/>,
+    /// <see cref="RevokePauser"/>) reverts and those mutations must go through their
+    /// council-gated <c>*ViaProposal</c> twins.</summary>
     private const byte KeyGovernanceLocked = 0x05;
 
-    /// <summary>Storage prefix for consumed UpdateChain proposal ids (replay protection).</summary>
-    private const byte PrefixConsumedUpdateProposal = 0x06; // 0x06 + proposalId(8B) → 1
+    /// <summary>Storage prefix for consumed proposal ids (replay protection), shared by every
+    /// <c>*ViaProposal</c> path in this contract. One namespace is deliberate: a proposal the
+    /// council spent on one action can never be spent again on another, even though each action
+    /// also binds a distinct tag into the voted payload.</summary>
+    private const byte PrefixConsumedProposal = 0x06; // 0x06 + proposalId(8B LE) → 1
 
     /// <summary>Storage prefix for each chain's immutable authenticated genesis state root.</summary>
     private const byte PrefixGenesisStateRoot = 0x07; // 0x07 + chainId(4B) → UInt256
@@ -189,19 +193,70 @@ public class ChainRegistryContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
-    /// <summary>Owner-only: authorize a contract to pause chains after proving a protocol fault.</summary>
+    /// <summary>
+    /// Owner-only: authorize a contract to pause chains after proving a protocol fault. The
+    /// instant path exists for bring-up only — once <see cref="LockGovernance"/> has run the only
+    /// way onto the pauser set is <see cref="RegisterPauserViaProposal"/>.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §15.4, §16 and §17. An owner-witness-only pauser setter that survives production
+    /// launch is two attacks in one key: register a pauser to halt every chain at will, or revoke
+    /// the honest ones so a proven fault can no longer be stopped. Both are the mechanism §4 H16
+    /// describes, and neither is possible once the lock has run.
+    /// </remarks>
     public static void RegisterPauser(UInt160 pauser)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use RegisterPauserViaProposal");
+        WritePauser(pauser);
+    }
+
+    /// <summary>
+    /// §16 council-veto path for <see cref="RegisterPauser"/>: applies a pauser authorization that
+    /// a GovernanceController proposal has approved and timelocked, bound to the exact pauser hash
+    /// via <see cref="BuildRegisterPauserAction"/>. Anyone may submit; authority is the proposal's
+    /// approval state, not the caller's witness.
+    /// </summary>
+    public static void RegisterPauserViaProposal(UInt160 pauser, ulong proposalId)
+    {
+        RequireApprovedProposal(proposalId, BuildRegisterPauserAction(pauser));
+        WritePauser(pauser);
+    }
+
+    /// <summary>
+    /// Owner-only: revoke a chain-pauser contract. Instant path is bring-up only; after
+    /// <see cref="LockGovernance"/> use <see cref="RevokePauserViaProposal"/>.
+    /// </summary>
+    public static void RevokePauser(UInt160 pauser)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(),
+            "governance locked — instant owner path disabled; use RevokePauserViaProposal");
+        ClearPauser(pauser);
+    }
+
+    /// <summary>
+    /// §16 council-veto path for <see cref="RevokePauser"/>, bound to the exact pauser hash via
+    /// <see cref="BuildRevokePauserAction"/>. This is how a compromised or superseded pauser is
+    /// retired once the instant owner path is locked away.
+    /// </summary>
+    public static void RevokePauserViaProposal(UInt160 pauser, ulong proposalId)
+    {
+        RequireApprovedProposal(proposalId, BuildRevokePauserAction(pauser));
+        ClearPauser(pauser);
+    }
+
+    private static void WritePauser(UInt160 pauser)
+    {
         ExecutionEngine.Assert(pauser.IsValid && !pauser.IsZero, "invalid pauser");
         Storage.Put(PauserKey(pauser), new byte[] { 1 });
         OnPauserRegistered(pauser);
     }
 
-    /// <summary>Owner-only: revoke a chain-pauser contract.</summary>
-    public static void RevokePauser(UInt160 pauser)
+    private static void ClearPauser(UInt160 pauser)
     {
-        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(pauser.IsValid && !pauser.IsZero, "invalid pauser");
         Storage.Delete(PauserKey(pauser));
         OnPauserRevoked(pauser);
     }
@@ -348,49 +403,33 @@ public class ChainRegistryContract : SmartContract
     /// </summary>
     public static void UpdateChainViaProposal(uint chainId, byte[] configBytes, ulong proposalId)
     {
-        var gc = GetGovernanceController();
-        ExecutionEngine.Assert(gc != UInt160.Zero,
-            "governance controller not wired — owner must call SetGovernanceController first");
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
         ExecutionEngine.Assert(configBytes.Length == ConfigSize, "config size mismatch");
         ExecutionEngine.Assert(ReadChainId(configBytes) == chainId, "chainId mismatch");
         AssertSecurityConfigurationCompatible(configBytes);
         ExecutionEngine.Assert(Storage.Get(ConfigKey(chainId)) != null, "chain not registered");
 
-        var consumedKey = ConsumedUpdateProposalKey(proposalId);
-        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
-
-        var ok = (bool)Contract.Call(gc, "isApprovedAndTimelocked",
-            CallFlags.ReadOnly, new object[] { proposalId });
-        ExecutionEngine.Assert(ok,
-            "proposal not approved + timelocked (council multisig + timelock not satisfied)");
-
         // Bind the proposal payload to (chainId, configBytes) so an approved proposal can't be
         // applied with a different config than the council voted on.
-        var expectedAction = BuildUpdateChainAction(chainId, configBytes);
-        var bound = (bool)Contract.Call(gc, "matchesProposalPayload",
-            CallFlags.ReadOnly, new object[] { proposalId, expectedAction });
-        ExecutionEngine.Assert(bound,
-            "proposal payload does not match (chainId, configBytes) action args (council voted on different bytes)");
-
-        Storage.Put(consumedKey, new byte[] { 1 });
+        RequireApprovedProposal(proposalId, BuildUpdateChainAction(chainId, configBytes));
         Storage.Put(ConfigKey(chainId), configBytes);
         OnChainRegistered(chainId, configBytes);
     }
 
     /// <summary>
-    /// Permanently disable the instant owner-only <see cref="UpdateChain"/> path so chain
-    /// config mutations must go through the council multisig + timelock
-    /// (<see cref="UpdateChainViaProposal"/>). Owner only; one-way (there is no unlock).
-    /// Idempotent — re-locking is a no-op. The GovernanceController must be wired first
-    /// (<see cref="SetGovernanceController"/>) so the proposal path is usable once the instant
-    /// path is closed.
+    /// Permanently disable the instant owner-only mutation paths — <see cref="UpdateChain"/>,
+    /// <see cref="RegisterPauser"/> and <see cref="RevokePauser"/> — so those mutations must go
+    /// through the council multisig + timelock (<see cref="UpdateChainViaProposal"/>,
+    /// <see cref="RegisterPauserViaProposal"/>, <see cref="RevokePauserViaProposal"/>). Owner
+    /// only; one-way (there is no unlock). Idempotent — re-locking is a no-op. The
+    /// GovernanceController must be wired first (<see cref="SetGovernanceController"/>) so the
+    /// proposal paths are usable once the instant paths are closed.
     /// </summary>
     public static void LockGovernance()
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero,
-            "wire GovernanceController before locking — else no chain config could ever be updated");
+            "wire GovernanceController before locking — else no chain config or pauser could ever be changed");
         var key = new byte[] { KeyGovernanceLocked };
         if (Storage.Get(key) == null)
         {
@@ -400,7 +439,8 @@ public class ChainRegistryContract : SmartContract
     }
 
     /// <summary>True once <see cref="LockGovernance"/> has been called — the instant owner
-    /// <see cref="UpdateChain"/> path is then permanently disabled.</summary>
+    /// <see cref="UpdateChain"/>, <see cref="RegisterPauser"/> and <see cref="RevokePauser"/>
+    /// paths are then permanently disabled.</summary>
     [Safe]
     public static bool IsGovernanceLocked()
     {
@@ -419,15 +459,13 @@ public class ChainRegistryContract : SmartContract
     [Safe]
     public static byte[] BuildUpdateChainAction(uint chainId, byte[] configBytes)
     {
-        var tag = ActionTagUpdateChain;
-        var buf = new byte[tag.Length + 4 + configBytes.Length];
-        for (var i = 0; i < tag.Length; i++) buf[i] = tag[i];
-        buf[tag.Length] = (byte)chainId;
-        buf[tag.Length + 1] = (byte)(chainId >> 8);
-        buf[tag.Length + 2] = (byte)(chainId >> 16);
-        buf[tag.Length + 3] = (byte)(chainId >> 24);
-        for (var i = 0; i < configBytes.Length; i++) buf[tag.Length + 4 + i] = configBytes[i];
-        return buf;
+        var body = new byte[4 + configBytes.Length];
+        body[0] = (byte)chainId;
+        body[1] = (byte)(chainId >> 8);
+        body[2] = (byte)(chainId >> 16);
+        body[3] = (byte)(chainId >> 24);
+        for (var i = 0; i < configBytes.Length; i++) body[4 + i] = configBytes[i];
+        return BuildAction(ActionTagUpdateChain, body);
     }
 
     // ASCII bytes for the "neo4-gov:updateChain" action tag (20 bytes). Kept as a const
@@ -441,10 +479,97 @@ public class ChainRegistryContract : SmartContract
         (byte)'C', (byte)'h', (byte)'a', (byte)'i', (byte)'n'
     };
 
-    private static byte[] ConsumedUpdateProposalKey(ulong proposalId)
+    /// <summary>
+    /// Shared §16 gate for the <c>*ViaProposal</c> paths: the proposal must be approved and
+    /// timelocked by the GovernanceController council, must not have been applied here already,
+    /// and its payload must be byte-identical to the action the caller is about to perform.
+    /// Consumption is written before the caller's state change so a fault rolls it back together.
+    /// Same gate shape as <c>OptimisticChallenge.RequireApprovedProposal</c>.
+    /// </summary>
+    private static void RequireApprovedProposal(ulong proposalId, byte[] expectedAction)
+    {
+        var gc = GetGovernanceController();
+        ExecutionEngine.Assert(gc != UInt160.Zero,
+            "governance controller not wired — owner must call SetGovernanceController first");
+
+        var consumedKey = ConsumedProposalKey(proposalId);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+
+        var ok = (bool)Contract.Call(gc, "isApprovedAndTimelocked",
+            CallFlags.ReadOnly, new object[] { proposalId });
+        ExecutionEngine.Assert(ok,
+            "proposal not approved + timelocked (council multisig + timelock not satisfied)");
+
+        var bound = (bool)Contract.Call(gc, "matchesProposalPayload",
+            CallFlags.ReadOnly, new object[] { proposalId, expectedAction });
+        ExecutionEngine.Assert(bound,
+            "proposal payload does not match action args (council voted on different bytes)");
+
+        Storage.Put(consumedKey, new byte[] { 1 });
+    }
+
+    private static byte[] BuildAction(byte[] tag, byte[] body)
+    {
+        var buf = new byte[tag.Length + body.Length];
+        for (var i = 0; i < tag.Length; i++) buf[i] = tag[i];
+        for (var i = 0; i < body.Length; i++) buf[tag.Length + i] = body[i];
+        return buf;
+    }
+
+    /// <summary>
+    /// Canonical encoding for a "register pauser" action — what the council votes on for
+    /// <see cref="RegisterPauserViaProposal"/>. Layout:
+    /// <c>"neo4-gov:registerPauser" || pauser(20B)</c> = 43 bytes.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildRegisterPauserAction(UInt160 pauser)
+    {
+        return BuildPauserAction(ActionTagRegisterPauser, pauser);
+    }
+
+    /// <summary>
+    /// Canonical encoding for a "revoke pauser" action — what the council votes on for
+    /// <see cref="RevokePauserViaProposal"/>. A distinct tag from the register action is what
+    /// stops a proposal approved to add one pauser from being applied as a revoke. Layout:
+    /// <c>"neo4-gov:revokePauser" || pauser(20B)</c> = 41 bytes.
+    /// </summary>
+    [Safe]
+    public static byte[] BuildRevokePauserAction(UInt160 pauser)
+    {
+        return BuildPauserAction(ActionTagRevokePauser, pauser);
+    }
+
+    private static byte[] BuildPauserAction(byte[] tag, UInt160 pauser)
+    {
+        var pauserBytes = (byte[])pauser;
+        var body = new byte[20];
+        for (var i = 0; i < 20; i++) body[i] = pauserBytes[i];
+        return BuildAction(tag, body);
+    }
+
+    // ASCII bytes for the "neo4-gov:registerPauser" (23 bytes) / "neo4-gov:revokePauser" (21
+    // bytes) action tags. Kept as const byte[] (not a string) so the on-chain bytecode is the
+    // literal byte sequence — same idiom as the update-chain tag and the GovernanceController.
+    private static readonly byte[] ActionTagRegisterPauser = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'e', (byte)'g', (byte)'i', (byte)'s', (byte)'t', (byte)'e', (byte)'r',
+        (byte)'P', (byte)'a', (byte)'u', (byte)'s', (byte)'e', (byte)'r'
+    };
+
+    private static readonly byte[] ActionTagRevokePauser = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'g', (byte)'o', (byte)'v', (byte)':',
+        (byte)'r', (byte)'e', (byte)'v', (byte)'o', (byte)'k', (byte)'e',
+        (byte)'P', (byte)'a', (byte)'u', (byte)'s', (byte)'e', (byte)'r'
+    };
+
+    private static byte[] ConsumedProposalKey(ulong proposalId)
     {
         var k = new byte[1 + 8];
-        k[0] = PrefixConsumedUpdateProposal;
+        k[0] = PrefixConsumedProposal;
         k[1] = (byte)proposalId; k[2] = (byte)(proposalId >> 8);
         k[3] = (byte)(proposalId >> 16); k[4] = (byte)(proposalId >> 24);
         k[5] = (byte)(proposalId >> 32); k[6] = (byte)(proposalId >> 40);

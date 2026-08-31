@@ -1026,13 +1026,13 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
 | `C2` `MerkleTree.Verify` 不受位置绑定 | **未修复** —— 而且同一个形状出现在两条合约折叠之中（§5 V5），由于兑付测试把 verifier 做了 stub，它不可被观察 | `SettlementManagerContract.cs:989-1012`、`:1115-1134` |
 | `H1` 插件异常会停止节点 | **未修复**，已提升为 [E1] | `L2BatchPlugin.cs:479 throw;`、`Plugin.cs:74` 默认值、`src/` 中零个 `ExceptionPolicy` 覆写 |
 | `H6` 装饰性的链下二进制钉扎 | **未修复**，证据等级如今升到 [E1]，其测试的期望摘要由被测二进制自身派生，且没有反向测试（§5 V3） | `UT_Sp1StatefulBatchExecutor.cs:318` |
-| `H12` 信任根上的治理锁 | 就本分支覆盖的三根而言**已修复**；该模式在别处仍不完备（§7.1） | `ChainRegistryContract.cs:158-168,172-181,389` |
+| `H12` 信任根上的治理锁 | 就本分支覆盖的三根而言**已修复**；§7.1 中属于 `contracts/` 的两个残余已在后续分支上收口，只剩 native 合约那一面 | `ChainRegistryContract.cs:158-168,172-181,389` |
 | `H13` kill-switch 覆盖 3 个资产合约中的 1 个 | 全局标志**未修复**；它的按链变体（§4 H16）**已修复**（当前分支） | 审计时点为 `SubmitBatch:330-331` 对比 `FinalizeBatch:479-533`；`FinalizeBatch` 现在在 `:509-510` 断言 `isActive` |
 | `H2` FI 截止期短于它所暂停的挑战窗口 | **重新确认** | `ForcedInclusionContract.cs:195` 界定为 `[60, 86400]`，而 `OptimisticChallengeContract.cs:246` 允许 `[60, 7*86400]` —— 一个 7 天的窗口配上 24 小时的截止期，会让 `ReportCensorship:503` 暂停一个仍可被挑战的 batch。§4 H19 是它的镜像那一半：*部署期*那个字段完全跳过了这条边界 |
 | `H3` escape hatch 需要手工接线 | **一半被推翻** | `LiveDeployCommand.cs:801-802` 如今会在 `LockGovernance`（`:861-862`）之前注册该 pauser 并读回校验；只剩 `IsProductionReady()` 这条断言仍未落地（`ForcedInclusionContract.cs:254-266`）—— 见 §6 |
 | `§3.1` Windows 自我跳过 | **已修复**（本分支） | 同样 2,893 道测试下全仓库跳过 45 → 5；`tests/Shared/RepoRoot.cs` 在 10 个文件的 33 处替换了那五层上溯，受影响的六个项目现在都报告 `Skipped: 0`（§5 V4） |
 | `A4` 不可复现的 VM artifact | **未修复** | 未变；该 artifact 集合仍有两种编译器戳 |
-| 治理完备性 | **部分未修复** | 见 §7.1 |
+| 治理完备性 | **`contracts/` 已收口**；十个 native L2 合约仍未收口 | 见 §7.1 —— 可部署合约套件里每一个"锁之后仍可被 owner 改写"的表面，现在要么被锁守卫并配有绑定 payload 的孪生方法，要么就"为何不加守卫"记录了理由（`SetOwner`、`PauseChain`/`ResumeChain`、`RegisterChain` 对新 chainId 的非对称处理） |
 
 ### 7.1 锁模式：已实现之处正确，四个表面仍然缺失
 
@@ -1047,6 +1047,83 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   挑战窗口，也就是攻击者需要被抓场所花的那段时间，在锁之后仍可由 owner 调节。
 - `L2NativeContracts.cs` —— `LockGovernance` / `IsGovernanceLocked` 零次出现；十个 native L2 合约
   根本没有锁的概念，而这是一个 core-fork 层面的决策（`r3e/neo-n4-core`），不是 `contracts/` 层面的。
+
+**状态 —— 四条里的两条 `contracts/` 表面已在本分支修复，`SetOwner` 被推翻，native 合约那一条保持未修复。**
+前三条里给出的行号是审计时点的位置；修复落在 `ChainRegistryContract.cs` 的 `RegisterPauser:207` /
+`RegisterPauserViaProposal:221` / `RevokePauser:231` / `RevokePauserViaProposal:244` /
+`RequireApprovedProposal:489`，以及 `OptimisticChallengeContract.cs` 的 `SetWindowSeconds:253` /
+`SetWindowSecondsViaProposal:266` / `SetChallengerRewardBps:289` /
+`SetChallengerRewardBpsViaProposal:301` / `RequireApprovedProposal:509`。
+
+采用的形状就是 `H12` 确立、`ExternalBridgeRegistry` 已在用的那一种：即时路径保留它的 witness 检查，
+再加上 `Assert(!IsGovernanceLocked(), "… use XViaProposal")`，而每一道守卫都配一个孪生方法，而不是
+一律冻死。冻死是更小的 diff，也是错的那个 —— 事关的能力恰恰是运维者*上线之后*需要的能力（退役一个
+已被攻破的 pauser、把一个卡在 60 秒下限的窗口抬高、削减一个正在被薅的赏金），一道把这些都
+锁死的锁只会把治理漏洞变成可用性事故。
+
+这个形状带来两个承重后果，而两者现在都被测试覆盖，不再只是散文里的断言。
+
+边界检查留在应用步骤里（`WriteWindowSeconds:272`、`WriteChallengerRewardBps:307`、`WritePauser:250`），
+位于那道门写下消费标记*之后*。NeoVM 按事务记账 storage，所以一次 fault 会把那个标记连同其余一切
+一起丢弃，一票投错数值不会被毁掉：
+`SetChallengerRewardBpsViaProposal_KeepsBounds_AndDoesNotBurnAFaultedProposal` 展示 bps `0` 与
+`10001` 失败之后，bps `500` 仍能在*同一个* proposal id `51` 下生效。反过来排就会让每一次被拒的应用
+都变成一次 council 重投票。
+
+`ChainRegistry` 从一个命名空间消费 proposal id（`PrefixConsumedProposal = 0x06`），config 路径与两条
+pauser 路径共用。这是刻意比"每个表面一个命名空间"更严的选择：council 花在某条链配置上的 id 永远
+不可能再花在 pauser 上，于是"一份 proposal，一次应用"在整张合约范围内成立，而不是逐方法成立。
+`UpdateChainViaProposal_StillApplies_AndSharesTheConsumedNamespace` 把两半都钉住了 —— 用刚刚应用过
+config 的那个 id 再调 `RegisterPauserViaProposal` 必须失败。
+
+`SetOwner:150-157` 保持仅 witness，而该发现要求守卫它的诉求是**被推翻**，不是被推迟。
+`UT_ContractManifestInvariants.cs:81`（`OwnerManagedContracts_ExposeOwnershipTransfer`）要求每个
+owner 管理的合约 —— `NeoHub.ChainRegistry` 在 `:85` 属于这个集合 —— 暴露 `setOwner`，并在 `:116`
+给出了理由："so governance can rotate compromised or deprecated owner keys"。锁之后再守卫它，对攻击者
+并不收回任何那次泄露本来就已经给他的东西，因为唯一能调用它的一方就是握着 owner witness 的一方，
+却同时抹掉了那份文档里写明的、从这种状态下脱身的唯一恢复路径。真正构成提权面的是一旦锁定仍能被
+owner 静默改写的那些参数 —— verifier 路由、窗口、赏金、pauser 集合、链配置 —— 而它们现在全都关上了。
+
+同样按决定保持不变：`PauseChain` / `ResumeChain` 与锁互相独立。它们是 `H16` 所保护的那个缓解手段，
+不是锁该冻住的能力；`RegisterChain` 出于同一理由保留它对新 chainId 的非对称处理。第四条不受本分支
+影响 —— 本轮重新核查过，`L2NativeContracts.cs` 中这两个符号依然零次出现，而那是一个
+`r3e/neo-n4-core` 的决策。
+
+部署器被证明没有陷入死角：`RegisterPauser(forcedInclusion)` 是计划步骤 `ScaffoldPlan.cs:380`，在
+`:523` 的锁之前，而 `LiveDeployCommand` 本来就在 `LockGovernance` 之前注册该 pauser 并读回校验
+（§7 的 `H3` 行）。`SetWindowSeconds` 与 `SetChallengerRewardBps` 在树内没有任何一处是在锁之后调用的，
+所以本分支守卫住的每一条路径，都不是运维者仍需即时执行的路径。改动之后两处计划描述都已过时，
+现在它们点名了各自冻住的那些表面（窗口/赏金见 `ScaffoldPlan.cs:430`，pauser 集合见 `:523`）。
+
+`doc.md` 是刻意没动的。它的 `ChainRegistry` 核心方法列表（`:185-192`）从来就没有列出过 pauser 表面
+或那把锁，而规格里任何位置都不存在窗口或赏金 setter 的出现 —— 所以这里没有任何与它相悖之处。
+规格*确实*为锁后治理规定的那一套（`:1133-1138`，针对 escrow）正是此处复用的模式：已批准 + 已过
+timelock、action 字节绑定全部参数、proposal id 只能消费一次。这是一次遵循规格的加固，不是一次规格变更。
+
+证据：`NeoHub.Contracts.VmTests` **584/584**（原为 575 —— 新增九道测试：`UT_ChainRegistry_Vm` 七道、
+`UT_OptimisticChallenge_Vm` 两道）。负向对照是同时施加三处回退做的 —— `ChainRegistry` 的两道 pauser
+守卫、`OptimisticChallenge` 的两道窗口/赏金守卫、以及 `ChainRegistry` 的 payload 绑定断言 —— 并重新
+发射两份 NEF：结果是 **6 条失败、578 通过、0 跳过**，而每条失败都能精确归因到其中一组回退
+（`PauserSurface_RevertsOnceGovernanceLocked` 对应 pauser 守卫；
+`LockGovernance_…_FreezeTheRest` 与 `SetWindowSecondsViaProposal_…_AndSurvivesLock` 对应窗口守卫；
+`RegisterPauserViaProposal_PayloadMismatch_Faults`、
+`PauserViaProposal_BindsVotedPauser_Replays_AndSurvivesLock` 与
+`UpdateChainViaProposal_StillApplies_AndSharesTheConsumedNamespace` 对应绑定）。新测试之外没有任何一条
+失败，这正是重点：此前没有任何测试钉住这段行为，因为这些路径在此前根本不可能失败。源文件已恢复、
+产物已重新发射，并且被证明与"重新编译恢复后的源码"逐字节相同。本分支上的全解决方案：
+**38 个程序集 / 2,910 个测试 / 0 失败 / 5 跳过** —— 第 6 项的 2,901 加上这九道，跳过的还是同样那五道
+受环境门控的（`Neo.L2.Sdk` 3、`Neo.Plugins.L2Metrics` 1、`Neo.L2.Executor` 1）。在
+`NEO_N4_REQUIRE_FRESH_MANIFESTS=1` 之下 `UT_ContractManifestInvariants` 是 14/14 —— 此前这道门正确地
+拒绝了三个合约，它们的 `bin/sc/*.manifest.json` 早于本分支（以及它之前的 `H19`）改动过的源码。
+重编它们只是本地动作，`bin/` 被 gitignore，而刷新后的 ChainRegistry manifest 从 4,773 → 5,391 字节，
+多出来的正是 `registerPauserViaProposal`、`revokePauserViaProposal` 与 `buildRegisterPauserAction`
+—— 这是一次独立的交叉验证，证明被跟踪产物中新增的 ABI 与一次真实编译相符，而不是手工改出来的文件。
+
+还有一个由这次工作而非审计轮次浮出的发现：`UpdateChainViaProposal` 与 `BuildUpdateChainAction`
+到达本分支时**既没有 VM 测试，也没有任何链下驱动**。合约里存在一条绑定 payload 的 council 路径，
+却从未有任何东西执行过它 —— 它的绑定、它的边界、它的消费，全都在
+`UpdateChainViaProposal_StillApplies_AndSharesTheConsumedNamespace` 第一次跑它之前未经证实。
+按本报告自己的术语，这就是一个 `V` 类缺口，而且落在报告已经通读过的一个文件里。
 
 ## 8. 更正
 
@@ -1209,8 +1286,16 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
    负向对照是只回退 `L2BatchPlugin.cs:477` 做出来的。`Neo.L2.Telemetry.UnitTests` 117/117、
    全解决方案 38 个程序集 / 2,901 个测试 / 0 失败 / 5 跳过（第 5 项的 2,899 加上这两条）。
    见 §5 V6 的状态段。
-7. §7.1 —— 为 `SetOwner`、`RegisterPauser`/`RevokePauser`、`SetWindowSeconds`、
-   `SetChallengerRewardBps` 增加锁守卫（机械性；照 `RegisterChain` 复刻）。
+7. §7.1 —— **`contracts/` 那一半已完成，其中一项诉求被驳回**：`RegisterPauser`、`RevokePauser`、
+   `SetWindowSeconds` 与 `SetChallengerRewardBps` 现在都受锁守卫，并且各自拥有一个绑定 payload 的
+   `*ViaProposal` 孪生方法，复用所在合约既有的那道门与唯一那份已消费 proposal 命名空间。
+   `SetOwner` 被**驳回**：`UT_ContractManifestInvariants.cs:81,85,116` 要求它必须存在，恰恰是为了
+   让被泄露的 owner 私钥能被轮换；而锁后再加守卫，对于已经握着 witness 的攻击者并不收回任何他
+   本来就有的能力——理由被记录在案，而不是被略过。`L2NativeContracts` 那一条仍然是
+   `r3e/neo-n4-core` 层面的未决事项。`NeoHub.Contracts.VmTests` 575 → **584/584**、全解决方案
+   38 个程序集 / **2,910 个测试** / 0 失败 / 5 跳过，且在新鲜度门控下
+   `UT_ContractManifestInvariants` 14/14。负向对照：三处回退（并重新发射 NEF）产生
+   6 条失败 / 578 通过 / 0 跳过，且每一条都能归因到某一组回退。见 §7.1 的状态段。
 8. `H18` —— 把 `TemplateCatalog.cs:32` 与部署器注册的 verifier 对齐。放在最后，在 `C4` 之后。
 9. `V2`（部分）—— 更正 `BatchSerializer.cs:12-14` 与 `AGENTS.md` 中关于
    `ChainMode.L2RiscV` 的陈述，或者补上那个枚举成员。

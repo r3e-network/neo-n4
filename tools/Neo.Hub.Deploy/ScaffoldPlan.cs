@@ -427,7 +427,7 @@ public static class ScaffoldPlan
         }
         if (oc is not null && gc is not null)
         {
-            yield return $"{oc.Name}.LockGovernance()  # irreversible production gate: freeze the GovernanceController and disable instant owner allowlist add, v4 profile bind and revoke; an owner that could still revoke every verifier could make a fraudulent batch finalize unchallenged, so future changes require exact payload-bound timelocked proposals";
+            yield return $"{oc.Name}.LockGovernance()  # irreversible production gate: freeze the GovernanceController and disable instant owner allowlist add, v4 profile bind and revoke, plus the instant SetWindowSeconds and SetChallengerRewardBps owners; an owner that could still revoke every verifier could make a fraudulent batch finalize unchallenged, and an owner that could still shrink the window or the bounty could do the same silently, so future changes require exact payload-bound timelocked proposals (SetWindowSecondsViaProposal / SetChallengerRewardBpsViaProposal)";
         }
 
         // ─── External-bridge wiring ──────────────────────────────────────
@@ -520,7 +520,7 @@ public static class ScaffoldPlan
         }
         if (chainReg is not null && gc is not null)
         {
-            yield return $"{chainReg.Name}.LockGovernance()  # irreversible production gate: freeze the ChainRegistry controller and disable instant owner config replacement; future updates require exact proposal-bound council approval";
+            yield return $"{chainReg.Name}.LockGovernance()  # irreversible production gate: freeze the ChainRegistry controller and disable instant owner config replacement plus the instant RegisterPauser / RevokePauser surface; an owner that could still revoke a pauser could silently remove the censorship-pause capability, so future chain configs and pausers require an exact proposal-bound council approval (UpdateChainViaProposal / RegisterPauserViaProposal / RevokePauserViaProposal)";
         }
         if (sm is not null && gc is not null)
         {

@@ -295,6 +295,30 @@ timestamp drive contract behavior, not L1's"，随后却赋上 L1 高度。第�
 （batch 插件已经两者齐备 —— `L2BatchPlugin.cs:501-505` 把它们传给 `ProcessCommittedBlock`），
 并在两个执行器上用一个测试把这个映射钉住。
 
+**状态 —— 已在本分支修复，并附带一个冻结所有字节格式的配套规范决策。**
+两个执行器现在都从逐交易的 `L2BlockContext`（正在执行的 L2 区块的 `BlockIndex` +
+`BlockTimestamp`）构建持久化区块头部，不再使用 `ctx.L1FinalizedHeight` /
+`ctx.FirstBlockTimestamp`。batch 插件把逐区块的 timeline（`L2BatchBlock`：索引、时间戳、交易数）
+经 `BatchExecutionRequest.BlockTimeline` 贯穿起来；`BatchSealer.OnBlockCommit` 在喂入区块自身的
+交易之前先标记该区块，因此区块前被强制收录的交易折叠进首个区块的条目。timeline 在两端都做
+fail-closed 校验 —— `BlockTimelineValidator`（索引连续、时间戳单调不减且落在 block context
+区间内、交易数求和等于 batch 交易总数、首区块锚定与覆盖度）在 `SealedBatch` 构造器里运行一次，
+`ReferenceBatchExecutor` 内部对手工拼装的请求再跑一次 —— 而携带交易却没有 timeline 的
+`SealedBatch` 会直接拒绝 `ToExecutionRequest()`。两个执行器上的映射 pin 测试都刻意使用互不相同的
+取值：RISC-V fake-runner 断言 `PersistingBlock.Index/Timestamp`，ApplicationEngine 路径用真实的
+`SYSCALL GetTime … NUMEQUAL ASSERT` 脚本钉住 `Runtime.Time` —— 对区块时间戳成功、对 batch 级
+时间戳 FAULT。正是这套 pin 测试在验证期间抓住了新接缝里的一个真实缺陷：
+`L2Batch.BuildBlockTimeline` 起初把首区块之前的交易从第一个条目里丢掉了，任何含强制收录交易的
+batch 都会产出一条交易数无法求和的 timeline —— 校验器会拒绝 seal。已修复并补了回归 pin。
+配套规范决策（"不要破坏字节格式"规则）：timeline 只留在**内存接缝**里 —— 不进入
+`ExecutionPayloadV1`、witness 或 public inputs，`blockContextHash` 仍只覆盖 5 字段的
+`BatchBlockContext`。把它提升为承诺内容属于 payload V2，需要用 Linux `cargo prove` 重建
+guest blob；在此之前 `doc.md` §7.2.1 与 `SPEC.md` 把语义钉死 —— 执行头部就是正在执行的区块的
+索引/时间戳，batch 上下文的时间戳只是元数据，guest/proof 路径中的确定性合约 MUST NOT 读取
+`Runtime.Time` 或区块索引。`Neo.L2.Batch.UnitTests` 72/72、`Neo.L2.Executor.UnitTests`
+121（1 个 native-host 跳过）、`Neo.L2.Abstractions.UnitTests` 94/94、
+`Neo.L2.Executor.RiscV.UnitTests` 32/32，全量 `dotnet test Neo.L2.sln` 退出码 0。
+
 ### H16 — 暂停一条链并不能阻止终局化：两条变更路径中只有一条会读取 `isActive` [E1]
 
 这是对 H13 的增量，H13 覆盖的是 `EmergencyManager` 全局标志。*按链*的暂停有同一个漏洞、
@@ -1894,8 +1918,17 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     从未成功即阻塞发布，直到在确切的发布候选 commit 上手动 dispatch 并通过全部三条 lane。
     merge queue 归属被否决 —— 本仓库不使用它，且逐 PR 的重型 lane 运行会把该发现想保住的资源
     成本乘上去。见 §5 V1 的状态块。
-13. `H15` —— 逐区块上下文的修复会触及 batcher↔executor 接缝，并且如果被持久化的头部馈入任何哈希，
-    还会触及 state-root 编码。在“不要破坏字节格式”这条规则之下，它需要一个配套的规范决策。
+13. `H15` —— **已在本分支定案（2026-09-01）：逐区块头部成为现实，且配套的规范决策冻结了每一个
+    字节格式。** `ITransactionExecutor.ExecuteAsync` 新增必填的 `L2BlockContext blockContext`
+    参数；两个生产执行器都把它映射到持久化区块头部，batch 插件把一条经校验的逐区块 timeline
+    贯穿进请求。`BlockTimelineValidator` 在 sealer 端与 executor 端各自 fail-closed，
+    `SealedBatch.ToExecutionRequest` 拒绝带交易却无 timeline 的 batch，两个引擎上的映射 pin 都
+    刻意使用互不相同的取值（含一条真实的 `Runtime.Time` 脚本 pin）—— 正是这套测试在合并前抓住了
+    `BuildBlockTimeline` 把强制收录交易从首区块条目里丢掉的问题。规范决策：timeline 只是内存接缝，
+    永不进入 payload/witness/public inputs；`blockContextHash` 保持 5 字段预映像；把它提升进去
+    属于 payload V2，推迟到能用 Linux `cargo prove` 重建 guest blob 为止，`doc.md` §7.2.1 +
+    `SPEC.md` 钉定在此之前 guest 路径的确定性合约 MUST NOT 读取 `Runtime.Time` / 区块索引。
+    见 §3 H15 的状态块。
 14. `H1` —— **已在本分支定案（2026-08-31），并且是按发现自身要求的顺序：先补覆盖，再改策略。**
     commit 处理器的方法体现在经一个内部 `ProcessCommittedEvent` 接缝运行（`DispatchSealed` 确立的
     那种模式），配四条测试：被待持久化 batch 重试救回的 sink 故障不再向外传播；重试也失败

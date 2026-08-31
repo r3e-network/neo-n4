@@ -506,6 +506,10 @@ public class UT_Models
             Transactions = txs.Select(t => (ReadOnlyMemory<byte>)t).ToArray(),
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = ctx,
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 1, BlockTimestamp = 100, TransactionCount = txs.Length },
+            },
         };
         var a = Mk([[0x01, 0x02], [0x03]]);
         var b = Mk([[0x01, 0x02], [0x03]]);
@@ -513,5 +517,144 @@ public class UT_Models
         Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
         Assert.AreNotEqual(a, Mk([[0x01, 0x02], [0x04]]));
         Assert.AreNotEqual(a, Mk([[0x01, 0x02]]));  // shorter list
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_MultiBlockTimelineWithAnchors_Passes()
+    {
+        var ctx = new BatchBlockContext
+        {
+            L1FinalizedHeight = 42,
+            FirstBlockTimestamp = 1_000,
+            LastBlockTimestamp = 5_000,
+            SequencerCommitteeHash = UInt256.Zero,
+            Network = 5195086u,
+        };
+        BlockTimelineValidator.Validate(
+            new[]
+            {
+                new L2BatchBlock { BlockIndex = 100, BlockTimestamp = 1_000, TransactionCount = 1 },
+                new L2BatchBlock { BlockIndex = 101, BlockTimestamp = 2_000, TransactionCount = 0 },
+                new L2BatchBlock { BlockIndex = 102, BlockTimestamp = 5_000, TransactionCount = 2 },
+            },
+            transactionCount: 3,
+            firstBlock: 100,
+            lastBlock: 102,
+            blockContext: ctx);
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_EmptyTimelineWithZeroTransactions_Passes()
+    {
+        BlockTimelineValidator.Validate(Array.Empty<L2BatchBlock>(), transactionCount: 0);
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_NullTimeline_Throws()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(
+            () => BlockTimelineValidator.Validate(null!, transactionCount: 0));
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_EmptyTimelineWithTransactions_Throws()
+    {
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => BlockTimelineValidator.Validate(Array.Empty<L2BatchBlock>(), transactionCount: 1));
+        StringAssert.Contains(ex.Message, "got none for a batch with transactions");
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_NonContiguousIndexes_Throws()
+    {
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => BlockTimelineValidator.Validate(
+                new[]
+                {
+                    new L2BatchBlock { BlockIndex = 100, BlockTimestamp = 1_000, TransactionCount = 1 },
+                    new L2BatchBlock { BlockIndex = 102, BlockTimestamp = 2_000, TransactionCount = 1 },
+                },
+                transactionCount: 2));
+        StringAssert.Contains(ex.Message, "is not contiguous after");
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_TimestampRegression_Throws()
+    {
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => BlockTimelineValidator.Validate(
+                new[]
+                {
+                    new L2BatchBlock { BlockIndex = 100, BlockTimestamp = 2_000, TransactionCount = 1 },
+                    new L2BatchBlock { BlockIndex = 101, BlockTimestamp = 1_000, TransactionCount = 1 },
+                },
+                transactionCount: 2));
+        StringAssert.Contains(ex.Message, "precedes the previous block's");
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_TimestampOutsideBlockContext_Throws()
+    {
+        var ctx = new BatchBlockContext
+        {
+            L1FinalizedHeight = 42,
+            FirstBlockTimestamp = 1_000,
+            LastBlockTimestamp = 2_000,
+            SequencerCommitteeHash = UInt256.Zero,
+            Network = 5195086u,
+        };
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => BlockTimelineValidator.Validate(
+                new[]
+                {
+                    new L2BatchBlock { BlockIndex = 100, BlockTimestamp = 3_000, TransactionCount = 1 },
+                },
+                transactionCount: 1,
+                blockContext: ctx));
+        StringAssert.Contains(ex.Message, "outside the block context range");
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_CountMismatch_Throws()
+    {
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => BlockTimelineValidator.Validate(
+                new[]
+                {
+                    new L2BatchBlock { BlockIndex = 100, BlockTimestamp = 1_000, TransactionCount = 1 },
+                },
+                transactionCount: 2));
+        StringAssert.Contains(ex.Message, "but the batch carries 2");
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_WrongFirstBlockAnchor_Throws()
+    {
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => BlockTimelineValidator.Validate(
+                new[]
+                {
+                    new L2BatchBlock { BlockIndex = 101, BlockTimestamp = 1_000, TransactionCount = 1 },
+                },
+                transactionCount: 1,
+                firstBlock: 100));
+        StringAssert.Contains(ex.Message, "expected the batch's first block 100");
+    }
+
+    [TestMethod]
+    public void BlockTimelineValidator_CoverageMismatch_Throws()
+    {
+        // Blocks 100..102 require three timeline entries; two fail closed.
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(
+            () => BlockTimelineValidator.Validate(
+                new[]
+                {
+                    new L2BatchBlock { BlockIndex = 100, BlockTimestamp = 1_000, TransactionCount = 1 },
+                    new L2BatchBlock { BlockIndex = 101, BlockTimestamp = 2_000, TransactionCount = 1 },
+                },
+                transactionCount: 2,
+                firstBlock: 100,
+                lastBlock: 102));
+        StringAssert.Contains(ex.Message, "for the batch's block range");
     }
 }

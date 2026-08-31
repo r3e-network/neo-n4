@@ -23,6 +23,12 @@ public class UT_NeoVMGenesisBootstrap
         Network = 0x4F454E,
     };
 
+    private static readonly L2BlockContext BlockCtx = new()
+    {
+        BlockIndex = 1,
+        BlockTimestamp = 1_700_000_000_000UL,
+    };
+
     [TestMethod]
     public void Run_PopulatesNativeContractStorage()
     {
@@ -69,7 +75,7 @@ public class UT_NeoVMGenesisBootstrap
         };
         var serialized = tx.ToArray();
 
-        var result = await executor.ExecuteAsync(serialized, Ctx);
+        var result = await executor.ExecuteAsync(serialized, Ctx, BlockCtx);
         Assert.IsTrue(result.Receipt.Success,
             $"PUSH1 must HALT against bootstrapped state — got Success={result.Receipt.Success}");
         Assert.IsTrue(result.Receipt.GasConsumed > 0, "HALT execution consumed gas");

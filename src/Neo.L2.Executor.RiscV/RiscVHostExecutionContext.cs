@@ -33,6 +33,7 @@ public sealed class RiscVHostExecutionContext : IDisposable
         IL2KeyValueStore state,
         Transaction transaction,
         BatchBlockContext batchContext,
+        L2BlockContext blockContext,
         ProtocolSettings settings,
         ContractState? contract,
         long gasLimit,
@@ -41,6 +42,7 @@ public sealed class RiscVHostExecutionContext : IDisposable
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(batchContext);
+        ArgumentNullException.ThrowIfNull(blockContext);
         ArgumentNullException.ThrowIfNull(settings);
         if (gasLimit <= 0)
             throw new ArgumentOutOfRangeException(nameof(gasLimit), "gas limit must be positive");
@@ -54,7 +56,7 @@ public sealed class RiscVHostExecutionContext : IDisposable
         CancellationToken = cancellationToken;
         _contract = contract;
         _rootCache = new L2DataCacheAdapter(state);
-        PersistingBlock = BuildPersistingBlock(batchContext);
+        PersistingBlock = BuildPersistingBlock(blockContext);
         ExecFeeFactor = PersistingBlock.Index == 0
             ? PolicyContract.DefaultExecFeeFactor
             : NativeContract.Policy.GetExecFeeFactor(_rootCache);
@@ -596,14 +598,17 @@ public sealed class RiscVHostExecutionContext : IDisposable
         return output;
     }
 
-    private static Block BuildPersistingBlock(BatchBlockContext context)
+    private static Block BuildPersistingBlock(L2BlockContext blockContext)
     {
+        // Same mapping as ApplicationEngineTransactionExecutor: the executing L2 block's index
+        // and timestamp drive Runtime.Block.Index / Runtime.Time — never the batch context's
+        // L1 finalized height or frozen first-block timestamp.
         return new Block
         {
             Header = new Header
             {
-                Index = context.L1FinalizedHeight,
-                Timestamp = context.FirstBlockTimestamp,
+                Index = checked((uint)blockContext.BlockIndex),
+                Timestamp = blockContext.BlockTimestamp,
                 MerkleRoot = UInt256.Zero,
                 PrevHash = UInt256.Zero,
                 NextConsensus = UInt160.Zero,

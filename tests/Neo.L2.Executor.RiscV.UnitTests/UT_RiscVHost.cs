@@ -90,7 +90,7 @@ public class UT_RiscVHost
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction([(byte)OpCode.RET]),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
         RiscVTestData.AssertReceiptEffectsAreSameSource(result);
@@ -111,8 +111,8 @@ public class UT_RiscVHost
             riscVStore,
             RiscVTestData.Settings);
 
-        var applicationResult = await application.ExecuteAsync(serialized, RiscVTestData.Context);
-        var riscVResult = await riscV.ExecuteAsync(serialized, RiscVTestData.Context);
+        var applicationResult = await application.ExecuteAsync(serialized, RiscVTestData.Context, RiscVTestData.BlockContext);
+        var riscVResult = await riscV.ExecuteAsync(serialized, RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(applicationResult.Receipt.Success);
         Assert.IsTrue(riscVResult.Receipt.Success);
@@ -144,7 +144,7 @@ public class UT_RiscVHost
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(result.Receipt.Success);
         CollectionAssert.AreEqual(
@@ -196,7 +196,7 @@ public class UT_RiscVHost
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
         Assert.AreEqual(1, result.Effects.Events.Count);
@@ -251,7 +251,7 @@ public class UT_RiscVHost
 
         var riscVResult = await riscV.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
         var expectedState = new Neo.VM.Types.Array(
             null,
             [
@@ -284,7 +284,7 @@ public class UT_RiscVHost
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsFalse(result.Receipt.Success);
         Assert.AreEqual(UInt256.Zero, result.Receipt.StorageDeltaHash);
@@ -339,8 +339,8 @@ public class UT_RiscVHost
             riscVStore,
             RiscVTestData.Settings);
 
-        var applicationResult = await application.ExecuteAsync(serialized, RiscVTestData.Context);
-        var riscVResult = await riscV.ExecuteAsync(serialized, RiscVTestData.Context);
+        var applicationResult = await application.ExecuteAsync(serialized, RiscVTestData.Context, RiscVTestData.BlockContext);
+        var riscVResult = await riscV.ExecuteAsync(serialized, RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(applicationResult.Receipt.Success, applicationResult.FailureReason);
         Assert.IsTrue(riscVResult.Receipt.Success, riscVResult.FailureReason);
@@ -393,7 +393,7 @@ public class UT_RiscVHost
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
         Assert.IsNull(store.Get(new StorageKey { Id = contract.Id, Key = deletedKey }.ToArray()));
@@ -430,7 +430,7 @@ public class UT_RiscVHost
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsFalse(result.Receipt.Success);
         Assert.IsNull(store.Get(new StorageKey { Id = contract.Id, Key = key }.ToArray()));
@@ -452,7 +452,7 @@ public class UT_RiscVHost
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsFalse(result.Receipt.Success);
         Assert.AreEqual(UInt256.Zero, result.Receipt.StorageDeltaHash);

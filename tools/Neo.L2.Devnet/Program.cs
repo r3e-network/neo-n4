@@ -382,6 +382,15 @@ internal static class Program
                 Transactions = txList,
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = ctx,
+                BlockTimeline = new[]
+                {
+                    new L2BatchBlock
+                    {
+                        BlockIndex = (ulong)batchNum,
+                        BlockTimestamp = ctx.FirstBlockTimestamp,
+                        TransactionCount = txList.Length,
+                    },
+                },
             };
             var execResult = await executor.ApplyBatchAsync(execReq);
             if (executorMode == "counter")

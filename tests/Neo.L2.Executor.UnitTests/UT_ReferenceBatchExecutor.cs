@@ -15,6 +15,11 @@ public class UT_ReferenceBatchExecutor
         Network = 0x4F454E,
     };
 
+    private static IReadOnlyList<L2BatchBlock> SingleBlockTimeline(int transactionCount) => new[]
+    {
+        new L2BatchBlock { BlockIndex = 500, BlockTimestamp = 1_700_000_000_000, TransactionCount = transactionCount },
+    };
+
     private sealed class StubL1MessageProcessor : IL1MessageProcessor
     {
         public List<CrossChainMessage> Applied { get; } = new();
@@ -43,6 +48,7 @@ public class UT_ReferenceBatchExecutor
             Transactions = Array.Empty<ReadOnlyMemory<byte>>(),
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = SampleContext(),
+            BlockTimeline = Array.Empty<L2BatchBlock>(),
         });
 
         Assert.AreEqual(UInt256.Zero, result.TxRoot);
@@ -70,6 +76,7 @@ public class UT_ReferenceBatchExecutor
             Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0xAA, 0xBB } },
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = SampleContext(),
+            BlockTimeline = SingleBlockTimeline(1),
         });
 
         Assert.AreNotEqual(UInt256.Zero, result.TxRoot);
@@ -99,6 +106,7 @@ public class UT_ReferenceBatchExecutor
             Transactions = Array.Empty<ReadOnlyMemory<byte>>(),
             L1MessagesConsumed = msgs,
             BlockContext = SampleContext(),
+            BlockTimeline = Array.Empty<L2BatchBlock>(),
         });
 
         Assert.AreEqual(2, processor.Applied.Count);
@@ -127,6 +135,7 @@ public class UT_ReferenceBatchExecutor
             Transactions = new[] { txBytes },
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = SampleContext(),
+            BlockTimeline = SingleBlockTimeline(1),
         });
 
         Assert.AreNotEqual(UInt256.Zero, result.WithdrawalRoot);
@@ -143,6 +152,7 @@ public class UT_ReferenceBatchExecutor
         public ValueTask<TransactionExecutionResult> ExecuteAsync(
             ReadOnlyMemory<byte> serializedTx,
             BatchBlockContext batchContext,
+            L2BlockContext blockContext,
             CancellationToken cancellationToken = default)
             => ValueTask.FromResult(new TransactionExecutionResult
             {
@@ -179,6 +189,7 @@ public class UT_ReferenceBatchExecutor
                 Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x44 } },
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = SampleContext(),
+                BlockTimeline = SingleBlockTimeline(1),
             }));
 
         StringAssert.Contains(exception.Message, "canonical effects do not match receipt");
@@ -194,6 +205,7 @@ public class UT_ReferenceBatchExecutor
         public ValueTask<TransactionExecutionResult> ExecuteAsync(
             ReadOnlyMemory<byte> serializedTx,
             BatchBlockContext batchContext,
+            L2BlockContext blockContext,
             CancellationToken cancellationToken = default)
             => ValueTask.FromResult(new TransactionExecutionResult
             {
@@ -227,6 +239,7 @@ public class UT_ReferenceBatchExecutor
             Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 1, 2 }, new byte[] { 3 } },
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = SampleContext(),
+            BlockTimeline = SingleBlockTimeline(2),
         };
 
         var r1 = await executor.ApplyBatchAsync(Build());
@@ -271,6 +284,7 @@ public class UT_ReferenceBatchExecutor
             Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x00 } },
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = SampleContext(),
+            BlockTimeline = SingleBlockTimeline(1),
         });
 
         Assert.AreEqual(UInt256.Zero, result.WithdrawalRoot, "failed tx must not leak withdrawals");
@@ -285,7 +299,7 @@ public class UT_ReferenceBatchExecutor
         { _txHash = txHash; _withdrawals = w; _messages = m; }
 
         public ValueTask<TransactionExecutionResult> ExecuteAsync(
-            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, CancellationToken cancellationToken = default)
+            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, L2BlockContext blockContext, CancellationToken cancellationToken = default)
             => ValueTask.FromResult(new TransactionExecutionResult
             {
                 TxHash = _txHash,
@@ -321,6 +335,7 @@ public class UT_ReferenceBatchExecutor
                 Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = SampleContext(),
+                BlockTimeline = SingleBlockTimeline(1),
             }));
         StringAssert.Contains(ex.Message, "ExecuteAsync");
     }
@@ -343,6 +358,7 @@ public class UT_ReferenceBatchExecutor
                 Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = SampleContext(),
+                BlockTimeline = SingleBlockTimeline(1),
             }));
     }
 
@@ -362,13 +378,14 @@ public class UT_ReferenceBatchExecutor
                 Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = SampleContext(),
+                BlockTimeline = SingleBlockTimeline(1),
             }));
     }
 
     private sealed class NullReceiptExecutor : ITransactionExecutor
     {
         public ValueTask<TransactionExecutionResult> ExecuteAsync(
-            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, CancellationToken cancellationToken = default)
+            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, L2BlockContext blockContext, CancellationToken cancellationToken = default)
             => new ValueTask<TransactionExecutionResult>(new TransactionExecutionResult
             {
                 TxHash = UInt256.Zero,
@@ -381,7 +398,7 @@ public class UT_ReferenceBatchExecutor
     private sealed class NullTxHashExecutor : ITransactionExecutor
     {
         public ValueTask<TransactionExecutionResult> ExecuteAsync(
-            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, CancellationToken cancellationToken = default)
+            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, L2BlockContext blockContext, CancellationToken cancellationToken = default)
             => new ValueTask<TransactionExecutionResult>(new TransactionExecutionResult
             {
                 TxHash = null!,
@@ -401,7 +418,7 @@ public class UT_ReferenceBatchExecutor
     private sealed class NullReturningTxExecutor : ITransactionExecutor
     {
         public ValueTask<TransactionExecutionResult> ExecuteAsync(
-            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, CancellationToken cancellationToken = default)
+            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, L2BlockContext blockContext, CancellationToken cancellationToken = default)
             => new ValueTask<TransactionExecutionResult>((TransactionExecutionResult)null!);
     }
 
@@ -480,6 +497,7 @@ public class UT_ReferenceBatchExecutor
                 Transactions = Array.Empty<ReadOnlyMemory<byte>>(),
                 L1MessagesConsumed = new CrossChainMessage?[] { null }!,
                 BlockContext = SampleContext(),
+                BlockTimeline = Array.Empty<L2BatchBlock>(),
             }));
         StringAssert.Contains(ex.Message, "[0]");
     }
@@ -549,5 +567,164 @@ public class UT_ReferenceBatchExecutor
             EventsHash = null!,
         };
         Assert.ThrowsExactly<ArgumentNullException>(() => bad.Hash());
+    }
+
+    private sealed class BlockContextCapturingExecutor : ITransactionExecutor
+    {
+        private readonly ReferenceTransactionExecutor _inner = new();
+
+        public List<L2BlockContext> Observed { get; } = new();
+
+        public ValueTask<TransactionExecutionResult> ExecuteAsync(
+            ReadOnlyMemory<byte> serializedTx, BatchBlockContext batchContext, L2BlockContext blockContext, CancellationToken cancellationToken = default)
+        {
+            Observed.Add(blockContext);
+            return _inner.ExecuteAsync(serializedTx, batchContext, blockContext, cancellationToken);
+        }
+    }
+
+    [TestMethod]
+    public async Task BlockTimeline_ExecutesEachTransactionUnderItsOwnBlock()
+    {
+        var capturing = new BlockContextCapturingExecutor();
+        var executor = new ReferenceBatchExecutor(capturing, new DerivedPostStateRootOracle());
+
+        await executor.ApplyBatchAsync(new BatchExecutionRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 1 }, new byte[] { 2 }, new byte[] { 3 } },
+            L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+            BlockContext = SampleContext(),
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 500, BlockTimestamp = 1_700_000_000_000, TransactionCount = 2 },
+                new L2BatchBlock { BlockIndex = 501, BlockTimestamp = 1_700_000_001_000, TransactionCount = 1 },
+            },
+        });
+
+        Assert.AreEqual(3, capturing.Observed.Count);
+        Assert.AreEqual(500UL, capturing.Observed[0].BlockIndex);
+        Assert.AreEqual(1_700_000_000_000UL, capturing.Observed[0].BlockTimestamp);
+        Assert.AreEqual(500UL, capturing.Observed[1].BlockIndex);
+        Assert.AreEqual(1_700_000_000_000UL, capturing.Observed[1].BlockTimestamp);
+        Assert.AreEqual(501UL, capturing.Observed[2].BlockIndex);
+        Assert.AreEqual(1_700_000_001_000UL, capturing.Observed[2].BlockTimestamp);
+    }
+
+    [TestMethod]
+    public async Task BlockTimeline_EmptyBlocksHostNoExecution()
+    {
+        // A zero-transaction block hosts no execution, so no transaction may inherit its
+        // header: the cursor must skip straight to the next block carrying transactions.
+        var capturing = new BlockContextCapturingExecutor();
+        var executor = new ReferenceBatchExecutor(capturing, new DerivedPostStateRootOracle());
+
+        await executor.ApplyBatchAsync(new BatchExecutionRequest
+        {
+            ChainId = 1001,
+            BatchNumber = 1,
+            PreStateRoot = UInt256.Zero,
+            Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 1 }, new byte[] { 2 } },
+            L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+            BlockContext = SampleContext(),
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 500, BlockTimestamp = 1_700_000_000_000, TransactionCount = 1 },
+                new L2BatchBlock { BlockIndex = 501, BlockTimestamp = 1_700_000_001_000, TransactionCount = 0 },
+                new L2BatchBlock { BlockIndex = 502, BlockTimestamp = 1_700_000_002_000, TransactionCount = 1 },
+            },
+        });
+
+        CollectionAssert.AreEqual(
+            new[] { 500UL, 502UL },
+            capturing.Observed.Select(c => c.BlockIndex).ToArray());
+    }
+
+    [TestMethod]
+    public async Task BlockTimeline_CountMismatch_FailsClosed()
+    {
+        var executor = new ReferenceBatchExecutor(new ReferenceTransactionExecutor(), new DerivedPostStateRootOracle());
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+            await executor.ApplyBatchAsync(new BatchExecutionRequest
+            {
+                ChainId = 1001,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
+                Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 1 }, new byte[] { 2 } },
+                L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+                BlockContext = SampleContext(),
+                BlockTimeline = new[]
+                {
+                    new L2BatchBlock { BlockIndex = 500, BlockTimestamp = 1_700_000_000_000, TransactionCount = 1 },
+                },
+            }));
+        StringAssert.Contains(ex.Message, "but the batch carries 2");
+    }
+
+    [TestMethod]
+    public async Task BlockTimeline_NonMonotonicTimestamps_FailsClosed()
+    {
+        var executor = new ReferenceBatchExecutor(new ReferenceTransactionExecutor(), new DerivedPostStateRootOracle());
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+            await executor.ApplyBatchAsync(new BatchExecutionRequest
+            {
+                ChainId = 1001,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
+                Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 1 }, new byte[] { 2 } },
+                L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+                BlockContext = SampleContext(),
+                BlockTimeline = new[]
+                {
+                    new L2BatchBlock { BlockIndex = 500, BlockTimestamp = 1_700_000_002_000, TransactionCount = 1 },
+                    new L2BatchBlock { BlockIndex = 501, BlockTimestamp = 1_700_000_001_000, TransactionCount = 1 },
+                },
+            }));
+        StringAssert.Contains(ex.Message, "precedes the previous block's");
+    }
+
+    [TestMethod]
+    public async Task BlockTimeline_TimestampOutsideBlockContext_FailsClosed()
+    {
+        var executor = new ReferenceBatchExecutor(new ReferenceTransactionExecutor(), new DerivedPostStateRootOracle());
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+            await executor.ApplyBatchAsync(new BatchExecutionRequest
+            {
+                ChainId = 1001,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
+                Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 1 } },
+                L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+                BlockContext = SampleContext(),
+                BlockTimeline = new[]
+                {
+                    new L2BatchBlock { BlockIndex = 500, BlockTimestamp = 1_700_000_006_000, TransactionCount = 1 },
+                },
+            }));
+        StringAssert.Contains(ex.Message, "outside the block context range");
+    }
+
+    [TestMethod]
+    public async Task BlockTimeline_NonContiguousIndexes_FailsClosed()
+    {
+        var executor = new ReferenceBatchExecutor(new ReferenceTransactionExecutor(), new DerivedPostStateRootOracle());
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+            await executor.ApplyBatchAsync(new BatchExecutionRequest
+            {
+                ChainId = 1001,
+                BatchNumber = 1,
+                PreStateRoot = UInt256.Zero,
+                Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 1 }, new byte[] { 2 } },
+                L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+                BlockContext = SampleContext(),
+                BlockTimeline = new[]
+                {
+                    new L2BatchBlock { BlockIndex = 500, BlockTimestamp = 1_700_000_000_000, TransactionCount = 1 },
+                    new L2BatchBlock { BlockIndex = 502, BlockTimestamp = 1_700_000_001_000, TransactionCount = 1 },
+                },
+            }));
+        StringAssert.Contains(ex.Message, "is not contiguous after");
     }
 }

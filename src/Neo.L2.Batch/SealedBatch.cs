@@ -15,6 +15,7 @@ public sealed class SealedBatch
     private readonly IReadOnlyList<ReadOnlyMemory<byte>> _transactions;
     private readonly IReadOnlyList<CrossChainMessage> _l1Messages;
     private readonly IReadOnlyList<ForcedInclusionConsumptionProof> _forcedInclusions;
+    private readonly IReadOnlyList<L2BatchBlock>? _blockTimeline;
 
     /// <summary>L2 chain identifier.</summary>
     public uint ChainId { get; }
@@ -47,6 +48,13 @@ public sealed class SealedBatch
     /// <summary>Deterministic block context consumed by execution.</summary>
     public BatchBlockContext BlockContext { get; }
 
+    /// <summary>
+    /// Per-block execution timeline, when this batch was sealed by a batcher that attributed its
+    /// transactions to blocks. <c>null</c> only for instances reconstructed from decoded payloads,
+    /// which cannot re-derive block attribution; <see cref="ToExecutionRequest"/> refuses those.
+    /// </summary>
+    public IReadOnlyList<L2BatchBlock>? BlockTimeline => _blockTimeline;
+
     /// <summary>Create an immutable sealed batch.</summary>
     public SealedBatch(
         uint chainId,
@@ -57,7 +65,8 @@ public sealed class SealedBatch
         IReadOnlyList<ReadOnlyMemory<byte>> transactions,
         IReadOnlyList<CrossChainMessage> l1Messages,
         BatchBlockContext blockContext,
-        IReadOnlyList<ForcedInclusionConsumptionProof>? forcedInclusions = null)
+        IReadOnlyList<ForcedInclusionConsumptionProof>? forcedInclusions = null,
+        IReadOnlyList<L2BatchBlock>? blockTimeline = null)
     {
         ArgumentNullException.ThrowIfNull(preStateRoot);
         ArgumentNullException.ThrowIfNull(transactions);
@@ -67,6 +76,9 @@ public sealed class SealedBatch
         if (lastBlock < firstBlock)
             throw new ArgumentOutOfRangeException(
                 nameof(lastBlock), "lastBlock must not precede firstBlock");
+        if (blockTimeline is not null)
+            BlockTimelineValidator.Validate(
+                blockTimeline, transactions.Count, firstBlock, lastBlock, blockContext);
 
         ChainId = chainId;
         BatchNumber = batchNumber;
@@ -78,6 +90,9 @@ public sealed class SealedBatch
             SequencerCommitteeHash = new UInt256(
                 blockContext.SequencerCommitteeHash.GetSpan()),
         };
+        _blockTimeline = blockTimeline is null
+            ? null
+            : Array.AsReadOnly(blockTimeline.Select(static entry => entry!).ToArray());
 
         var transactionCopies = new ReadOnlyMemory<byte>[transactions.Count];
         for (var index = 0; index < transactions.Count; index++)
@@ -155,15 +170,25 @@ public sealed class SealedBatch
     }
 
     /// <summary>Build the exact executor request represented by this sealed batch.</summary>
-    public BatchExecutionRequest ToExecutionRequest() => new()
+    public BatchExecutionRequest ToExecutionRequest()
     {
-        ChainId = ChainId,
-        BatchNumber = BatchNumber,
-        PreStateRoot = PreStateRoot,
-        Transactions = Transactions,
-        L1MessagesConsumed = L1Messages,
-        BlockContext = BlockContext,
-    };
+        // Fail closed: a batch with transactions but no per-block attribution has no honest
+        // execution header, and silently falling back to batch-level header values is the
+        // defect this seam exists to remove. Payload-decoded instances carry no timeline.
+        if (_blockTimeline is null && _transactions.Count > 0)
+            throw new InvalidOperationException(
+                "sealed batch carries transactions but no block timeline; execution requires per-block attribution");
+        return new BatchExecutionRequest
+        {
+            ChainId = ChainId,
+            BatchNumber = BatchNumber,
+            PreStateRoot = PreStateRoot,
+            Transactions = Transactions,
+            L1MessagesConsumed = L1Messages,
+            BlockTimeline = _blockTimeline ?? Array.Empty<L2BatchBlock>(),
+            BlockContext = BlockContext,
+        };
+    }
 
     /// <summary>Build the exact versioned payload published to DA.</summary>
     public ExecutionPayloadV1 ToExecutionPayload() => new()

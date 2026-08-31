@@ -1517,7 +1517,7 @@ public class UT_CanonicalSettlementPipeline
     {
         var forcedTransaction = new byte[] { 0xF1, 0xF2, 0xF3 };
         var builder = new BatchBuilder(ChainId, 1, 10, H(1))
-            .AddBlock(10)
+            .AddBlock(10, 1_700_000_000)
             .AddForcedTransaction(
                 44,
                 new UInt256(Crypto.Hash256(forcedTransaction)),

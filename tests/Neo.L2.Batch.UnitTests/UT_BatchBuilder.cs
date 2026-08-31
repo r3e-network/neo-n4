@@ -27,7 +27,7 @@ public class UT_BatchBuilder
     public void Builder_AccumulatesBlocksTransactionsAndMessages()
     {
         var b = new BatchBuilder(1001, 7, 100, UInt256.Zero);
-        b.AddBlock(101).AddBlock(102).AddBlock(103);
+        b.AddBlock(101, 1_700_000_000_101).AddBlock(102, 1_700_000_000_102).AddBlock(103, 1_700_000_000_103);
         b.AddTransaction(new byte[] { 0x01, 0x02 });
         b.AddTransaction(new byte[] { 0x03 });
 
@@ -65,8 +65,8 @@ public class UT_BatchBuilder
         var preStateRoot = UInt256.Parse("0x" + new string('9', 64));
         var context = SampleContext();
         var builder = new BatchBuilder(1001, 7, 100, preStateRoot)
-            .AddBlock(100)
-            .AddBlock(101)
+            .AddBlock(100, 1_700_000_000_100)
+            .AddBlock(101, 1_700_000_000_101)
             .AddTransaction(new byte[] { 0xaa })
             .ConsumeL1Message(message)
             .AddWithdrawal(withdrawal)
@@ -88,8 +88,8 @@ public class UT_BatchBuilder
     public void Builder_RejectsOutOfOrderBlocks()
     {
         var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
-        b.AddBlock(101);
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => b.AddBlock(99));
+        b.AddBlock(101, 1_700_000_000_101);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => b.AddBlock(99, 1_700_000_000_099));
     }
 
     [TestMethod]
@@ -103,7 +103,7 @@ public class UT_BatchBuilder
     public void Builder_ProducesExecutionRequestThenCommitment()
     {
         var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
-        b.AddBlock(100).AddBlock(101);
+        b.AddBlock(100, 1_700_000_000_100).AddBlock(101, 1_700_000_000_101);
         b.AddTransaction(new byte[] { 0xAA });
         b.WithBlockContext(SampleContext());
 
@@ -141,7 +141,7 @@ public class UT_BatchBuilder
             MessageHash = Neo.L2.State.MessageHasher.HashMessage(messageWithoutHash),
         };
         var builder = new BatchBuilder(1001, 1, 100, UInt256.Zero)
-            .AddBlock(100)
+            .AddBlock(100, 1_700_000_000_100)
             .AddTransaction(transaction)
             .ConsumeL1Message(message)
             .WithBlockContext(SampleContext());
@@ -165,7 +165,7 @@ public class UT_BatchBuilder
         var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
         b.WithBlockContext(SampleContext());
         b.Seal(SampleResult(), UInt256.Zero, UInt256.Zero, ProofType.None, ReadOnlyMemory<byte>.Empty);
-        Assert.ThrowsExactly<InvalidOperationException>(() => b.AddBlock(200));
+        Assert.ThrowsExactly<InvalidOperationException>(() => b.AddBlock(200, 1_700_000_000_200));
     }
 
     [TestMethod]
@@ -241,5 +241,87 @@ public class UT_BatchBuilder
     {
         var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
         Assert.ThrowsExactly<ArgumentNullException>(() => b.AddL2ToL2Message(null!));
+    }
+
+    [TestMethod]
+    public void BlockTimeline_AttributesTransactionsToTheirBlocks()
+    {
+        // The batcher marks a block before feeding it its transactions (BatchSealer.OnBlockCommit
+        // order), so transactions appended after AddBlock(n) and before AddBlock(n+1) belong to n.
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        b.AddBlock(100, 1_700_000_000_100);
+        b.AddTransaction(new byte[] { 0x01 });
+        b.AddTransaction(new byte[] { 0x02 });
+        b.AddBlock(101, 1_700_000_000_101);
+        b.AddTransaction(new byte[] { 0x03 });
+
+        var timeline = b.Batch.BlockTimeline;
+
+        Assert.AreEqual(2, timeline.Count);
+        Assert.AreEqual(100UL, timeline[0].BlockIndex);
+        Assert.AreEqual(1_700_000_000_100UL, timeline[0].BlockTimestamp);
+        Assert.AreEqual(2, timeline[0].TransactionCount);
+        Assert.AreEqual(101UL, timeline[1].BlockIndex);
+        Assert.AreEqual(1_700_000_000_101UL, timeline[1].BlockTimestamp);
+        Assert.AreEqual(1, timeline[1].TransactionCount);
+    }
+
+    [TestMethod]
+    public void BlockTimeline_FoldsPreBlockTransactionsIntoFirstBlockEntry()
+    {
+        // Forced-inclusion entries are appended before any AddBlock call; they belong to the
+        // first block of the batch (the batcher drains them before marking that block), so the
+        // timeline must attribute them there rather than dropping or mis-attributing them.
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        b.AddTransaction(new byte[] { 0xAA });
+        b.AddTransaction(new byte[] { 0xBB });
+        b.AddBlock(100, 1_700_000_000_100);
+        b.AddTransaction(new byte[] { 0xCC });
+
+        var timeline = b.Batch.BlockTimeline;
+
+        Assert.AreEqual(1, timeline.Count);
+        Assert.AreEqual(100UL, timeline[0].BlockIndex);
+        Assert.AreEqual(1_700_000_000_100UL, timeline[0].BlockTimestamp);
+        Assert.AreEqual(3, timeline[0].TransactionCount);
+    }
+
+    [TestMethod]
+    public void AddBlock_RejectsTimestampRegression()
+    {
+        var b = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+        b.AddBlock(100, 1_700_000_000_200);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => b.AddBlock(101, 1_700_000_000_100));
+    }
+
+    [TestMethod]
+    public void SealedBatch_ToExecutionRequest_RequiresTimelineWhenTransactionsExist()
+    {
+        // Fail-closed: a sealed batch carrying transactions but no per-block attribution has
+        // no honest execution header, so ToExecutionRequest must refuse it instead of falling
+        // back to batch-level header values.
+        var context = SampleContext();
+        Assert.ThrowsExactly<InvalidOperationException>(() => new SealedBatch(
+            1001, 1, 100, 100, UInt256.Zero,
+            new ReadOnlyMemory<byte>[] { new byte[] { 0xAA } },
+            Array.Empty<CrossChainMessage>(),
+            context,
+            blockTimeline: null).ToExecutionRequest());
+
+        var timed = new SealedBatch(
+            1001, 1, 100, 100, UInt256.Zero,
+            new ReadOnlyMemory<byte>[] { new byte[] { 0xAA } },
+            Array.Empty<CrossChainMessage>(),
+            context,
+            blockTimeline: new[]
+            {
+                new L2BatchBlock
+                {
+                    BlockIndex = 100,
+                    BlockTimestamp = 1_700_000_000_100,
+                    TransactionCount = 1,
+                },
+            });
+        Assert.AreEqual(1, timed.ToExecutionRequest().BlockTimeline!.Count);
     }
 }

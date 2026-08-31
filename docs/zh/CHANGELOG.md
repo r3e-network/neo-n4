@@ -15,6 +15,26 @@
 
 ## 中文摘要
 
+- 2026-09-01 执行看到的是逐区块头，而非 batch 级冻结值（H15）：一个 batch 跨多个 L2 区块，但
+  两个执行器此前给批内每笔交易同一个 batch 级头 —— `PersistingBlock` 映射自
+  `blockContext.L1FinalizedHeight`/`FirstBlockTimestamp`，`Runtime.Time` 与区块索引按 batch 冻结，
+  正是审计点名的表面。现以内存态 batcher↔executor seam 携带逐区块时间线：`L2BatchBlock`
+  （BlockIndex/BlockTimestamp/TransactionCount）经 `BatchExecutionRequest.BlockTimeline` 传递，
+  `ITransactionExecutor.ExecuteAsync` 按交易要求 `L2BlockContext`，两个执行器都从被归属的时间线条目
+  映射 `PersistingBlock.Index`/`Timestamp`，零交易条目不承载执行。两端 fail-closed：
+  `BlockTimelineValidator` 拒绝空时间线配交易、索引不连续、时间戳回退、越界、计数不合、首条目
+  未锚定 firstBlock、条目数不覆盖区块区间；`SealedBatch` 构造时校验、执行器重校验、
+  `ToExecutionRequest` 在有交易而无时间线时拒绝。pin 套件在合并前抓到真实缺陷：
+  `BuildBlockTimeline` 按 `FirstTxPos` 切分导致 run 0 吞掉的 forced-inclusion 交易计数消失，
+  任何含 forced inclusion 的 batch 都会被拒绝封存 —— 现 run 0 折叠其前所有交易。配套规范决策冻结
+  字节格式：`BatchBlockContext` 5 字段形状不变（其哈希是 public-inputs preimage 的
+  `blockContextHash`），时间线仅内存态、不进 `ExecutionPayloadV1`/witness/任何已提交输入；
+  `doc.md` §7.2.1（新增）+ §8.1 与 `SPEC.md` 钉住头语义，并在 payload V2（需 Linux `cargo prove`
+  重建 guest blob）之前禁止确定性合约读取 `Runtime.Time` 或区块索引。证据：RISC-V 捕获
+  `context.PersistingBlock`、NeoVM 跑真实 `System.Runtime.GetTime` 脚本（旧 batch 值如今 FAULT），
+  约 30 条 fail-closed 反向；Batch 72/72、Executor 121（1 原生跳过）、Abstractions 94/94、
+  RiscV 32/32，全 solution 退出码 0。安全结论与测试证据以英文 CHANGELOG 原文为准。
+
 - 2026-09-01 Merkle inclusion 绑定到唯一位置，链上链下同步收紧（C2 + V5）：三条链上 Merkle 折叠
   此前都接受任意重标签的 leaf index —— 折叠只消耗 index 的低位，在 leaf `i` 上有效的 proof 在
   `i + 2^k` 上同样有效，inclusion 绑定的是 leaf 哈希而非唯一位置。`SettlementManager` 的两条折叠

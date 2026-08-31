@@ -102,10 +102,12 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
     public async ValueTask<TransactionExecutionResult> ExecuteAsync(
         ReadOnlyMemory<byte> serializedTx,
         BatchBlockContext batchContext,
+        L2BlockContext blockContext,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(batchContext);
+        ArgumentNullException.ThrowIfNull(blockContext);
 
         // Pre-hash the bytes — the receipt's TxHash field needs to match what the
         // batch sealer expects regardless of whether deserialization succeeds.
@@ -141,7 +143,7 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
         // from one immutable transition set.
         using var stateTransaction = new ExecutionStateTransaction(_state);
         var cache = new L2DataCacheAdapter(stateTransaction);
-        var persistingBlock = BuildPersistingBlock(batchContext);
+        var persistingBlock = BuildPersistingBlock(blockContext);
 
         ApplicationEngine engine;
         try
@@ -221,21 +223,20 @@ public sealed class ApplicationEngineTransactionExecutor : ITransactionExecutor
         };
     }
 
-    private Block BuildPersistingBlock(BatchBlockContext ctx)
+    private static Block BuildPersistingBlock(L2BlockContext blockContext)
     {
         // ApplicationEngine needs a "persisting block" for execution context
-        // (Runtime.Time, Runtime.Block.Index, etc.). We synthesize one from the
-        // batch context — for L2 chains, the L2 block height + timestamp drive
-        // contract behavior, not L1's. Witness / merkle-root fields are zero
-        // since this is an L2-internal block; an attacker can't fake them past
-        // the engine because consensus-driven block validation isn't part of
-        // the script execution path.
+        // (Runtime.Time, Runtime.Block.Index, etc.). We synthesize one from the L2 block this
+        // transaction belongs to — the L2 block height + timestamp drive contract behavior,
+        // never the batch context's L1 finalized height. Witness / merkle-root fields are zero
+        // since this is an L2-internal block; an attacker can't fake them past the engine
+        // because consensus-driven block validation isn't part of the script execution path.
         return new Block
         {
             Header = new Header
             {
-                Index = ctx.L1FinalizedHeight,
-                Timestamp = ctx.FirstBlockTimestamp,
+                Index = checked((uint)blockContext.BlockIndex),
+                Timestamp = blockContext.BlockTimestamp,
                 MerkleRoot = UInt256.Zero,
                 PrevHash = UInt256.Zero,
                 NextConsensus = UInt160.Zero,

@@ -204,9 +204,11 @@ internal static class ScaffoldExecutorCommand
                 public ValueTask<TransactionExecutionResult> ExecuteAsync(
                     ReadOnlyMemory<byte> serializedTx,
                     BatchBlockContext batchContext,
+                    L2BlockContext blockContext,
                     CancellationToken cancellationToken = default)
                 {
                     ArgumentNullException.ThrowIfNull(batchContext);
+                    ArgumentNullException.ThrowIfNull(blockContext);
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var span = serializedTx.Span;

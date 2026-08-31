@@ -5,6 +5,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — execution sees the per-block header, not a batch-frozen one — 2026-09-01
+
+- §10 item 13 (`H15`): a batch spans multiple L2 blocks, but both executors gave every
+  transaction in it the same batch-level header — `PersistingBlock` was mapped from
+  `blockContext.L1FinalizedHeight`/`FirstBlockTimestamp`, so `Runtime.Time` and the block index
+  were frozen per batch, the wrong wall clock for deterministic contract code, and the exact
+  surface the audit flagged. A per-block timeline now rides the in-memory batcher↔executor seam:
+  `L2BatchBlock` (BlockIndex, BlockTimestamp, TransactionCount) entries travel on
+  `BatchExecutionRequest.BlockTimeline`, `ITransactionExecutor.ExecuteAsync` takes a required
+  `L2BlockContext` per transaction, and both `ReferenceBatchExecutor` and the RISC-V path map
+  `PersistingBlock.Index`/`Timestamp` from the attributed timeline entry — zero-transaction-count
+  entries host no execution and are skipped by the cursor.
+- Fail-closed on both ends: `BlockTimelineValidator` (Neo.L2.Abstractions) rejects a null
+  timeline, an empty one with transactions, non-contiguous indices, regressing timestamps,
+  entries outside the block context's range, counts that do not sum to the batch's transaction
+  count, a first entry not anchored at `firstBlock`, and an entry count that does not cover
+  `lastBlock - firstBlock + 1`; `SealedBatch` validates at construction, `ReferenceBatchExecutor`
+  revalidates before executing, and `SealedBatch.ToExecutionRequest` refuses to produce a request
+  without a timeline while transactions exist.
+- The pin suite caught a real defect before it shipped: `BuildBlockTimeline` computed each run's
+  span from `run.FirstTxPos` — but the batcher marks the block before feeding it its
+  transactions, so run 0's `FirstTxPos` counts the pre-first-block forced-inclusion transactions
+  and their count vanished from the timeline; the validator would have refused to seal any batch
+  containing forced inclusions. Run 0 now folds everything appended before it
+  (`firstPosition = index == 0 ? 0 : run.FirstTxPos`), pinned by an attribution test in sealer
+  order.
+- Paired spec decision, byte formats frozen: `BatchBlockContext`'s 5-field shape is unchanged
+  (its hash is `blockContextHash` in the public-inputs preimage), and the timeline is in-memory
+  only — not part of `ExecutionPayloadV1`, the witness, or any committed input. `doc.md` §7.2.1
+  (new) + §8.1 and `SPEC.md` pin the header semantics and the prohibition: until a payload V2
+  promotes the timeline into the committed inputs (which requires a guest-blob rebuild via Linux
+  `cargo prove`), deterministic contract code proven by the N4 genesis V1 profile MUST NOT read
+  `Runtime.Time` or the block index; `L1FinalizedHeight` remains metadata only.
+- Evidence: mapping pins executed on both profiles — RISC-V captures `context.PersistingBlock`
+  against distinct-from-batch-context values (`777` / `1_700_000_001_234`), the NeoVM path runs a
+  real `System.Runtime.GetTime` script with `NUMEQUAL ASSERT` against the per-block timestamp and
+  a negative proving the old batch-context value now faults; ~30 fail-closed negatives across the
+  validator, SealedBatch, and both executors. `Neo.L2.Batch.UnitTests` 72/72,
+  `Neo.L2.Executor.UnitTests` 121 (1 native-host skip), `Neo.L2.Abstractions.UnitTests` 94/94,
+  `Neo.L2.Executor.RiscV.UnitTests` 32/32; full `dotnet test Neo.L2.sln` exit 0.
+
 ### Fixed — Merkle inclusion is bound to a unique position, on and off chain — 2026-09-01
 
 - §10 item 15 (`C2` + `V5`): all three on-chain Merkle folds accepted a proof at any relabelled

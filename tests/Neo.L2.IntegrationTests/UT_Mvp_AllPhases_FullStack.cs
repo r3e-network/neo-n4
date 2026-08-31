@@ -112,6 +112,10 @@ public class UT_Mvp_AllPhases_FullStack
                 Transactions = new ReadOnlyMemory<byte>[] { BitConverter.GetBytes((long)batchNum) },
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = ctx,
+                BlockTimeline = new[]
+                {
+                    new L2BatchBlock { BlockIndex = (ulong)(100 * batchNum), BlockTimestamp = ctx.FirstBlockTimestamp, TransactionCount = 1 },
+                },
             };
             var execResult = await executor.ApplyBatchAsync(execReq);
 

@@ -102,9 +102,21 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
         var outbox = new L2Outbox();
         long totalGas = 0;
 
+        // Per-block attribution: fail closed on a timeline that does not describe the sealed
+        // transaction list, then walk it so every transaction executes under its own L2 block's
+        // index and timestamp. Revalidated here even though the sealer validated it already —
+        // hand-assembled requests reach this seam too. The cursor skips zero-transaction blocks:
+        // they host no execution, so no transaction may inherit their header.
+        BlockTimelineValidator.Validate(
+            request.BlockTimeline, request.Transactions.Count, blockContext: request.BlockContext);
+        var timelineCursor = -1;
+        var remainingInBlock = 0;
+        L2BlockContext? currentBlock = null;
+        AdvanceBlockCursor();
+
         foreach (var serializedTx in request.Transactions)
         {
-            var result = await _txExecutor.ExecuteAsync(serializedTx, request.BlockContext, cancellationToken).ConfigureAwait(false)
+            var result = await _txExecutor.ExecuteAsync(serializedTx, request.BlockContext, currentBlock!, cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException("ITransactionExecutor.ExecuteAsync returned null");
             // Defensive: even with `required` on the record fields, individual fields can
             // be null. Receipt would NRE on the .Hash() call below; TxHash would NRE in
@@ -115,6 +127,11 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             receipts.Add(result.Receipt);
             txHashes.Add(result.TxHash);
             totalGas += result.Receipt.GasConsumed;
+
+            // Advance the per-block cursor unconditionally — a failed transaction still executed
+            // under its block's header, and the effect paths below `continue` past this point.
+            remainingInBlock--;
+            if (remainingInBlock == 0) AdvanceBlockCursor();
 
             if (_effectsProfile == TransactionEffectsProfile.CanonicalNativeV1)
                 ValidateCanonicalNativeEffects(result);
@@ -159,6 +176,27 @@ public sealed class ReferenceBatchExecutor : IL2BatchExecutor
             TxRoot = txRoot,
             GasConsumed = totalGas,
         };
+
+        // Position the cursor on the next block that hosts transactions. With the timeline
+        // validated (counts sum to the transaction count, all counts non-negative), any
+        // remaining transaction finds a non-exhausted entry with a positive count.
+        void AdvanceBlockCursor()
+        {
+            while (timelineCursor + 1 < request.BlockTimeline.Count)
+            {
+                timelineCursor++;
+                var next = request.BlockTimeline[timelineCursor];
+                if (next.TransactionCount == 0) continue;
+                currentBlock = new L2BlockContext
+                {
+                    BlockIndex = next.BlockIndex,
+                    BlockTimestamp = next.BlockTimestamp,
+                };
+                remainingInBlock = next.TransactionCount;
+                return;
+            }
+            currentBlock = null;
+        }
     }
 
     private static void ValidateCanonicalNativeEffects(TransactionExecutionResult result)

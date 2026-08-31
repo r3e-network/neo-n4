@@ -329,6 +329,35 @@ a consensus split. Fix: thread the per-block index and timestamp into execution 
 already has both — `L2BatchPlugin.cs:501-505` passes them to `ProcessCommittedBlock`), and pin the
 mapping with a test on both executors.
 
+**Status — fixed on this branch, with a paired spec decision that keeps byte formats frozen.**
+Both executors now build the persisted block header from a per-transaction `L2BlockContext`
+(`BlockIndex` + `BlockTimestamp` of the executing L2 block) instead of `ctx.L1FinalizedHeight` /
+`ctx.FirstBlockTimestamp`. The batch plugin threads a per-block timeline (`L2BatchBlock`: index,
+timestamp, transaction count) through `BatchExecutionRequest.BlockTimeline`;
+`BatchSealer.OnBlockCommit` marks each block before feeding it its transactions, so pre-block
+forced-inclusion transactions fold into the first block's entry. The timeline is validated
+fail-closed at both ends — `BlockTimelineValidator` (contiguous indexes, non-decreasing timestamps
+inside the block context's range, counts summing to the transaction count, first-block anchor and
+coverage) runs in the `SealedBatch` constructor and again inside `ReferenceBatchExecutor` for
+hand-assembled requests — and a `SealedBatch` carrying transactions but no timeline refuses
+`ToExecutionRequest()` outright. Mapping pins on both executors use deliberately distinct values:
+a RISC-V fake-runner asserts `PersistingBlock.Index/Timestamp`, and the ApplicationEngine path
+pins `Runtime.Time` through a real `SYSCALL GetTime … NUMEQUAL ASSERT` script that succeeds on the
+block timestamp and FAULTs against the batch-context timestamp. That pin suite caught a real
+defect in the new seam during verification: `L2Batch.BuildBlockTimeline` initially dropped
+pre-first-block transactions from the first entry, so any batch with forced inclusions produced a
+timeline whose counts could not sum to the transaction count — the validator would have refused to
+seal. Fixed and regression-pinned. The paired spec decision (the "don't break byte formats" rule):
+the timeline stays an **in-memory seam only** — it is not part of `ExecutionPayloadV1`, the
+witness, or the public-inputs preimage, and `blockContextHash` still covers exactly the 5-field
+`BatchBlockContext`. Promoting it into the committed inputs is a payload V2 that requires a
+guest-blob rebuild via Linux `cargo prove`; until then `doc.md` §7.2.1 and `SPEC.md` pin the
+semantics — the execution header is the executing block's index/timestamp, the batch context's
+timestamps are metadata, and deterministic contracts in the guest/proof path MUST NOT read
+`Runtime.Time` or the block index. `Neo.L2.Batch.UnitTests` 72/72, `Neo.L2.Executor.UnitTests`
+121 (1 native-host skip), `Neo.L2.Abstractions.UnitTests` 94/94,
+`Neo.L2.Executor.RiscV.UnitTests` 32/32, full `dotnet test Neo.L2.sln` exit 0.
+
 ### H16 — Pausing a chain does not stop finalization: `isActive` is consulted in one of the two mutation paths [E1]
 
 Delta to H13, which covered the `EmergencyManager` global flag. The *per-chain* pause has the same
@@ -2128,9 +2157,19 @@ Split by whether it can land now.
     release until a manual dispatch on the exact release-candidate commit passes all three lanes.
     Merge-queue ownership was rejected — this repo does not use one, and per-PR heavy-lane runs
     multiply the resource cost the finding wanted kept. See §5 V1's status block.
-13. `H15` — the per-block context fix touches the batcher↔executor seam and, if the persisted header
-    feeds any hash, the state-root encoding. Needs a paired spec decision under the "don't break byte
-    formats" rule.
+13. `H15` — **settled on this branch (2026-09-01): the per-block header is now real, and the
+    paired spec decision freezes every byte format.** `ITransactionExecutor.ExecuteAsync` gained a
+    required `L2BlockContext blockContext` parameter; both production executors map it onto the
+    persisted block header, and the batch plugin threads a validated per-block timeline through
+    the request. `BlockTimelineValidator` fails closed at the sealer and again at the executor,
+    `SealedBatch.ToExecutionRequest` refuses transaction-carrying batches without a timeline, and
+    the mapping is pinned on both engines with deliberately distinct values (including a real
+    `Runtime.Time` script pin) — a suite that caught `BuildBlockTimeline` dropping forced-inclusion
+    transactions from the first block's entry before merge. The spec decision: the timeline is an
+    in-memory seam only, never part of payload/witness/public inputs; `blockContextHash` keeps its
+    5-field preimage; promoting it is a payload V2 deferred until a Linux `cargo prove` guest-blob
+    rebuild, with `doc.md` §7.2.1 + `SPEC.md` pinning that guest-path deterministic contracts MUST
+    NOT read `Runtime.Time` / block index until then. See §3 H15's status block.
 14. `H1` — **settled on this branch (2026-08-31), in the order the finding demanded: coverage first,
     then the policy change.** The commit handler's body now runs through an internal
     `ProcessCommittedEvent` seam (the pattern `DispatchSealed` established), with four tests: a sink

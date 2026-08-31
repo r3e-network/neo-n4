@@ -128,6 +128,8 @@ public class UT_Mvp_Phase1_Cross_Component
         {
             ChainId = 1001,
             BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = UInt256.Parse("0x" + new string('1', 64)),
             PostStateRoot = UInt256.Parse("0x" + new string('2', 64)),
             TxRoot = UInt256.Parse("0x" + new string('3', 64)),
@@ -234,6 +236,8 @@ public class UT_Mvp_Phase1_Cross_Component
         {
             ChainId = 1001,
             BatchNumber = 1,
+            FirstBlock = 100,
+            LastBlock = 200,
             PreStateRoot = UInt256.Zero,
             PostStateRoot = execResult.PostStateRoot,
             TxRoot = execResult.TxRoot,

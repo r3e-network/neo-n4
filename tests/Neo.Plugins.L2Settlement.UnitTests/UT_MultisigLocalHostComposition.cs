@@ -465,6 +465,8 @@ public sealed class UT_MultisigLocalHostComposition
                 {
                     ChainId = 20260716u,
                     BatchNumber = 1,
+                    FirstBlock = 1,
+                    LastBlock = 2,
                     PreStateRoot = z,
                     PostStateRoot = root,
                     TxRoot = z,

@@ -148,6 +148,8 @@ public class UT_E2E_CustomExecutor_FullStack
             {
                 ChainId = ChainId,
                 BatchNumber = (ulong)batchNum,
+                FirstBlock = (ulong)(100 * batchNum),
+                LastBlock = (ulong)(100 * batchNum + 50),
                 PreStateRoot = preStateRoot,
                 PostStateRoot = execResult.PostStateRoot,
                 TxRoot = execResult.TxRoot,

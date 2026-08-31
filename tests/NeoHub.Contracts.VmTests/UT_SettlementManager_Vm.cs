@@ -109,9 +109,9 @@ public class UT_SettlementManager_Vm
         var blkctx = new byte[32];
 
         // Reconstruct publicInputHash exactly as SettlementManager.ComputePublicInputHash does.
-        var pre = new byte[4 + 8 + 10 * 32];
+        var pre = new byte[4 + 8 + 8 + 8 + 10 * 32];
         var pos = 0;
-        Array.Copy(c, 0, pre, pos, 12); pos += 12; // chainId + batchNumber
+        Array.Copy(c, 0, pre, pos, 28); pos += 28; // chainId + batchNumber + firstBlock + lastBlock
         void Put(byte[] src, int off) { Array.Copy(src, off, pre, pos, 32); pos += 32; }
         Put(c, OffPreState); Put(c, OffPostState); Put(c, OffTxRoot); Put(c, OffReceiptRoot);
         Put(c, OffWithdrawal); Put(c, OffL2ToL1); Put(c, OffL2ToL2);

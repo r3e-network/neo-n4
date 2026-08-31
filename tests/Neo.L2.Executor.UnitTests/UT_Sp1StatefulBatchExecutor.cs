@@ -490,6 +490,8 @@ public sealed class UT_Sp1StatefulBatchExecutor
             {
                 ChainId = payload.ChainId,
                 BatchNumber = payload.BatchNumber,
+                FirstBlock = payload.FirstBlock,
+                LastBlock = payload.LastBlock,
                 PreStateRoot = payload.PreStateRoot,
                 PostStateRoot = executionResult.PostStateRoot,
                 TxRoot = executionResult.TxRoot,
@@ -599,6 +601,8 @@ public sealed class UT_Sp1StatefulBatchExecutor
         {
             ChainId = payload.ChainId,
             BatchNumber = payload.BatchNumber,
+            FirstBlock = payload.FirstBlock,
+            LastBlock = payload.LastBlock,
             PreStateRoot = payload.PreStateRoot,
             PostStateRoot = executionResult.PostStateRoot,
             TxRoot = executionResult.TxRoot,

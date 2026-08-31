@@ -1319,6 +1319,8 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         {
             ChainId = batch.ChainId,
             BatchNumber = batch.BatchNumber,
+            FirstBlock = batch.FirstBlock,
+            LastBlock = batch.LastBlock,
             PreStateRoot = batch.PreStateRoot,
             PostStateRoot = executionResult.PostStateRoot,
             TxRoot = executionResult.TxRoot,

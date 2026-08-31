@@ -172,6 +172,8 @@ impl StateWitness {
 pub struct PublicInputs {
     pub chain_id: u32,
     pub batch_number: u64,
+    pub first_block: u64,
+    pub last_block: u64,
     pub pre_state_root: UInt256,
     pub post_state_root: UInt256,
     pub tx_root: UInt256,

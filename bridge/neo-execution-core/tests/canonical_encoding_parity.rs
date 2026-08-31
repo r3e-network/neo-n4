@@ -1,7 +1,7 @@
 //! Cross-language parity for the batch public-inputs preimage and the withdrawal Merkle fold.
 //!
 //! Both claims below are about tables this crate keeps implicitly: the order `hash_public_inputs`
-//! concatenates its twelve parameters in, and the order `merkle_root` pairs leaves. Nothing outside
+//! concatenates its fourteen parameters in, and the order `merkle_root` pairs leaves. Nothing outside
 //! Rust compared either one to the .NET side before this file. The vectors come from
 //! `tests/Shared/canonical_encoding_vectors.hex`, which
 //! `tests/Neo.L2.IntegrationTests/UT_CanonicalEncodingParity.cs` asserts are the bytes
@@ -23,13 +23,15 @@ fn hash_public_inputs_assembles_the_bytes_the_dotnet_encoder_writes() {
     let dotnet = field_bytes(&fields, "public_inputs");
     assert_eq!(
         dotnet.len(),
-        332,
-        "the .NET public-inputs vector is not 332 bytes"
+        348,
+        "the .NET public-inputs vector is not 348 bytes"
     );
 
     let rust = hash_public_inputs(
         field_u32(&fields, "chain_id"),
         field_u64(&fields, "batch_number"),
+        field_u64(&fields, "first_block"),
+        field_u64(&fields, "last_block"),
         &root(&fields, "pre_state_root"),
         &root(&fields, "post_state_root"),
         &root(&fields, "tx_root"),
@@ -72,7 +74,7 @@ fn merkle_root_folds_the_withdrawal_leaves_the_dotnet_tree_folds() {
 fn fixture_carries_the_sizes_the_encoders_declare() {
     let fields = fields();
     assert_eq!(field_bytes(&fields, "commitment").len(), 321);
-    assert_eq!(field_bytes(&fields, "public_inputs").len(), 332);
+    assert_eq!(field_bytes(&fields, "public_inputs").len(), 348);
     // 48-byte header + 3 siblings. No Rust code parses this framing today — nothing in the workspace
     // reads a path bitmap — so the length is checked here only to keep the vector from silently
     // losing a sibling.

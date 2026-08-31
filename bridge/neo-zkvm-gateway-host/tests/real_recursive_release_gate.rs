@@ -92,6 +92,8 @@ fn commitment(artifact: &neo_execution_core::ProofWitnessArtifact, proof: &[u8])
     let public_input_hash = neo_execution_core::hash_public_inputs(
         inputs.chain_id,
         inputs.batch_number,
+        inputs.first_block,
+        inputs.last_block,
         &inputs.pre_state_root,
         &inputs.post_state_root,
         &inputs.tx_root,

@@ -694,7 +694,10 @@ public static class ProofWitnessArtifactSerializer
         ArgumentNullException.ThrowIfNull(inputs.L1MessageHash);
         ArgumentNullException.ThrowIfNull(inputs.DACommitment);
         ArgumentNullException.ThrowIfNull(inputs.BlockContextHash);
-        if (inputs.ChainId != artifact.ChainId || inputs.BatchNumber != artifact.BatchNumber)
+        if (inputs.ChainId != artifact.ChainId
+            || inputs.BatchNumber != artifact.BatchNumber
+            || inputs.FirstBlock != artifact.FirstBlock
+            || inputs.LastBlock != artifact.LastBlock)
             throw new ArgumentException(
                 "PublicInputs identity does not match the artifact", nameof(artifact));
         if (!inputs.PreStateRoot.Equals(artifact.ExecutionPayload.PreStateRoot)

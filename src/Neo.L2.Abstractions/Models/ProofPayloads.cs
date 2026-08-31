@@ -15,6 +15,12 @@ public sealed record PublicInputs
     /// <summary>Batch sequence number.</summary>
     public required ulong BatchNumber { get; init; }
 
+    /// <summary>First L1 block the batch claims to cover. Part of the signed preimage.</summary>
+    public required ulong FirstBlock { get; init; }
+
+    /// <summary>Last L1 block the batch claims to cover. Part of the signed preimage.</summary>
+    public required ulong LastBlock { get; init; }
+
     /// <summary>State root before the batch.</summary>
     public required UInt256 PreStateRoot { get; init; }
 

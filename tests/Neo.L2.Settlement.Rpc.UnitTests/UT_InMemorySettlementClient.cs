@@ -41,6 +41,8 @@ public class UT_InMemorySettlementClient
     {
         ChainId = 1001,
         BatchNumber = 1,
+        FirstBlock = 10,
+        LastBlock = 12,
         PreStateRoot = UInt256.Zero,
         PostStateRoot = UInt256.Zero,
         TxRoot = UInt256.Zero,

@@ -103,12 +103,12 @@ internal static class CanonicalEncodingVectors
         "0606060606060606060606060606060606060606060606060606060606060606" + // 188  l2ToL1MessageRoot
         "0707070707070707070707070707070707070707070707070707070707070707" + // 220  l2ToL2MessageRoot
         "0909090909090909090909090909090909090909090909090909090909090909" + // 252  daCommitment
-        "7c1834c86d9526d3bd47995d06b2d274447c7ecaffbe6e51dee975734fd2d2cf" + // 284  publicInputHash
+        "a56a616d15b7b5b4f7a2abf997f94be264c1bad1095a3b97992ff7e6af62e4e3" + // 284  publicInputHash
         "01" + //                               316  proofType         = Multisig
         "00000000"); //                          317  proofLen          = 0
 
     /// <summary>
-    /// The 332 bytes <c>BatchSerializer.EncodePublicInputs</c> emits for the same batch. Never
+    /// The 348 bytes <c>BatchSerializer.EncodePublicInputs</c> emits for the same batch. Never
     /// transmitted to L1 — the contract sees only its digest at commitment offset 284 — but it is the
     /// preimage the attestation is signed over, the digest in every durable witness artifact, and the
     /// buffer the Rust side rebuilds byte-for-byte.
@@ -116,16 +116,18 @@ internal static class CanonicalEncodingVectors
     public static byte[] PublicInputs() => FromHex(
         "e9030000" + //   0  chainId           = 1001
         "0100000000000000" + //   4  batchNumber       = 1
-        "1010101010101010101010101010101010101010101010101010101010101010" + //  12  preStateRoot
-        "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1" + //  44  postStateRoot
-        "0303030303030303030303030303030303030303030303030303030303030303" + //  76  txRoot
-        "0404040404040404040404040404040404040404040404040404040404040404" + // 108  receiptRoot
-        WithdrawalRootHex + //                      140  withdrawalRoot
-        "0606060606060606060606060606060606060606060606060606060606060606" + // 172  l2ToL1MessageRoot
-        "0707070707070707070707070707070707070707070707070707070707070707" + // 204  l2ToL2MessageRoot
-        "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1" + // 236  l1MessageHash
-        "0909090909090909090909090909090909090909090909090909090909090909" + // 268  daCommitment
-        "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2"); // 300  blockContextHash
+        "0200000000000000" + //  12  firstBlock        = 2
+        "0300000000000000" + //  20  lastBlock         = 3
+        "1010101010101010101010101010101010101010101010101010101010101010" + //  28  preStateRoot
+        "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1" + //  60  postStateRoot
+        "0303030303030303030303030303030303030303030303030303030303030303" + //  92  txRoot
+        "0404040404040404040404040404040404040404040404040404040404040404" + // 124  receiptRoot
+        WithdrawalRootHex + //                     156  withdrawalRoot  (Merkle root of WithdrawalLeaves)
+        "0606060606060606060606060606060606060606060606060606060606060606" + // 188  l2ToL1MessageRoot
+        "0707070707070707070707070707070707070707070707070707070707070707" + // 220  l2ToL2MessageRoot
+        "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1" + // 252  l1MessageHash
+        "0909090909090909090909090909090909090909090909090909090909090909" + // 284  daCommitment
+        "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2"); // 316  blockContextHash
 
     /// <summary>
     /// The 91 bytes <c>L2ChainConfigSerializer.Encode</c> emits for the config

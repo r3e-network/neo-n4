@@ -603,7 +603,8 @@ artifact；SP1 的执行与证明栈没有被任何把关它合并的检查执�
 边界，§11 的第一条 bullet 说清了是哪一条。
 
 *BatchSerializer。* `:12-14` 现在把两个边界分开陈述，而不再把它们混为一谈：commitment 头部是
-`SettlementManager.submitBatch` 解析的 ABI，而 332 字节的 public-inputs 形式**从不**到达 L1 ——
+`SettlementManager.submitBatch` 解析的 ABI，而 348 字节的 public-inputs 形式（本分支的块区间绑定
+把 preimage 从 332 字节扩成 348 字节 —— 见 §6 最后一项）**从不**到达 L1 ——
 合约只看到它在 commitment 偏移 284 处的摘要 —— 但它仍然是签名所覆盖的那份精确 preimage
 （`src/Neo.L2.Proving/Attestation/AttestationProver.cs:36-40`、
 `src/Neo.L2.Proving/Optimistic/OptimisticProver.cs:81-83`）、每一份持久 witness artifact 中记录的
@@ -648,7 +649,7 @@ behavior"，现在改为说明它是一个不对运行时做任何分发的 oper
 `ProofRoutingExpectations.cs` 建立、并由 `tests/Directory.Build.props` 编译进每一个测试程序集的那个
 模式。
 
-`CanonicalEncodingVectors` 为全部四种边界格式（321 字节 commitment 头部、332 字节 public inputs、
+`CanonicalEncodingVectors` 为全部四种边界格式（321 字节 commitment 头部、348 字节 public inputs、
 91 字节链配置、48+32·N proof 分帧）保存 golden 字节，外加一棵五 leaf 的 withdrawal 树及其逐 leaf
 siblings，于是头部布局与 Merkle 折叠互相绑定。这些字节由一个临时的第三实现产出 —— 用的语言两侧都
 不用 —— 而不是靠运行 C# 编码器，所以它们是规格，不是被测代码的快照。每一个 32 字节字段都带一个互
@@ -1287,6 +1288,55 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   这句承诺、把这份文件按它本来的样子标注 —— 一份过时的摘要。保持现状是唯一一个选择：它让一条被文档记录
   的不变式始终为假，同时让一个绿色的测试把这一对文件认证为“已同步”。
 
+- **batch 声称覆盖的 L1 块区间在 L1 上不被任何东西认证** [E1]。
+  `L2BatchCommitment.FirstBlock`/`LastBlock` 占据头部偏移 12 与 20，
+  `SettlementManager.SubmitBatch` 存下整个 321 字节头部（`:384`），但没有任何读取点索引这两个偏移，
+  且 `ComputePublicInputHash:457` 在 root 之前只拷贝 `0..11` —— 于是 batch 声称覆盖的区间作为
+  不透明字节抵达 L1，落在绑定 root 的摘要之外，也落在每一条 assert 之外。后果是有界的（结算由 root
+  而非区间把守），但 sequencer 可以发布一个块区间与其所提交状态转换相矛盾的头部，而链上没有任何
+  检查会发现。这条是在钉布局时发现的；golden 向量给这两个字段取了与 `batchNumber` 不同的值，恰恰
+  因为仓库里每一份手工头部都把三者设为相等 —— 这正是更早的测试不可能看见这个缺口的原因。修复：
+  把区间纳入摘要 —— 这是一次需要配套规范编辑的字节格式变更 —— 或者针对上一个已 finalize 的 batch
+  断言区间连续性，后者不需要格式变更。
+
+  **已在本分支修复（2026-08-31），走摘要这条路 —— 即该项点名的“配套规范编辑”选项。**
+  `PublicInputs` 新增 `FirstBlock`/`LastBlock`，preimage 从 332 字节扩成 348 字节
+  （`chainId[4] ‖ batchNumber[8] ‖ firstBlock[8] ‖ lastBlock[8] ‖ 十个 32 字节 root`，全部
+  小端），于是 `ComputePublicInputHash` 在 root 之前拷贝头部字节 `0..27`，而链上记录的摘要把该区间
+  与本项描述的每一种伪造绑定在一起。配套规范编辑已落地：`doc.md` §8.3 按位置列出这两个字段，
+  Gateway 递归一段则写明 guest 用 commitment 加两个补充字段重建 348 字节形式。每一个消费者都在
+  同一次变更中迁移：签名 preimage（`AttestationProver`、`OptimisticProver`）、
+  `StateRootCalculator.HashPublicInputs`、持久 artifact 摘要（`ProofWitnessStore`）、执行的
+  前置门（`Sp1StatefulBatchExecutor`）、Rust 的 `hash_public_inputs`（现为十四个参数）及其在
+  batch 构建器、host 守护进程（`prove_batch.rs`）与两份 release-gate 测试里的调用点，还有 Gateway
+  guest 的 sidecar 重建（`bridge/neo-zkvm-gateway-guest/src/lib.rs`）—— 那是唯一一个从
+  commitment 字节加 `l1MessageHash`/`blockContextHash` 补充字段重组 preimage 的读取者，它自己的
+  单元测试会重建 348 字节形式，并在补充字段或 commitment root 被篡改时报错。
+  `Sp1Groth16Verifier` 无需改动：`publicInputHash` 对它是一个参数。同步重新生成的有：golden
+  向量（`CanonicalEncodingVectors` 与共享 hex 导出）、两个配对测试程序集的手工构建器、VM 程序集的
+  `BuildCommitment`/`BuildPublicInputs` 镜像、三份 SP1 fixture（artifact 主体 1892 → 1908 与
+  3307 → 3323 字节；native output 保持 1291 字节、仅替换内嵌摘要），以及用钉住的
+  nccs `3.9.1+5fa9566e` 重发的 `SettlementManager` 跟踪 NEF。全部 golden 摘要随之迁移并重新钉扎：
+  共享向量的 `publicInputHash`（`a56a616d…e4e3`）、stateful fixture 的摘要（`515c73cc…4cc7`）与
+  artifact content hash（`c3fc234d…671b`）。清查本身就证明了钉扎纪律：编码器落地后的 2,943 测试
+  全量运行中，唯一的失败正是那条过期的 `Artifact_ContentHashHasStableGoldenValue` 字面量。全解决
+  方案 38 程序集 / **2,943 测试** / 0 失败 / 5 跳过；`NeoHub.Contracts.VmTests` 对重发 NEF
+  593/593，`neo-execution-core` 17/17，`neo-zkvm-gateway-guest` 13/13，`neo-zkvm-guest` 18/18。
+  未在本地重新验证、且 §11 已记录的：guest ELF/VK manifest 与 Groth16 positive vector 仍钉住
+  旧公式的证明，重新生成需要 Linux 的 `cargo prove` 通道。
+
+- **`permissionlessExit` 是一个被钉住的 wire 字段：一个消费者把它丢弃，验证器只检查一个方向** [E1
+  已计数]。`L2ChainConfigSerializer` 把它写在 91 字节配置的偏移 87，而
+  `InMemoryL2RpcStore.cs:117-119` 从 `chain.config.json` 解析出它后立即丢弃
+  （`_ = permissionlessExit;`），于是 RPC 链描述符只从 `exitModel` 推导退出策略。两个 CLI 命令从
+  同一对字段打印出相反的投影（`CreateChainCommand.cs:69`、`ListTemplatesCommand.cs:59`）：只要该
+  bool 为真就打印 `exit policy = permissionless`，而对随附的 `rollup` 模板
+  （`TemplateCatalog.cs:39` —— `ExitModel: "Delayed"`、`PermissionlessExit: true`）来说，这恰好
+  省略了 `ExitModel.Delayed` 自己的文档所称的该模式的实质 —— 挑战窗口。
+  `ValidateChainConfigCommand.cs:178` 只防住一个方向的矛盾（`OperatorAssisted` + `true`）；镜像
+  的一侧 `Permissionless` + `false` —— 链上声称最强退出保障、而配置字段却说需要运营者共同签署
+  —— 干净通过。修复：一个同时覆盖两个方向的检查，并让 CLI 那一行写出窗口。
+
 ## 7. 本轮重新核实的既有发现状态
 
 | 既有发现 | 当前状态 | 证据 |
@@ -1613,7 +1663,7 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
 9. `V2`（两半）—— **第二半起初被判为无法关闭，随后以另一种方式关掉了。** *文档那一半:*
    **“或者补上那个枚举成员”这个备选项是被证据否掉的，
    不是被我单方面否决的。** `BatchSerializer.cs:12-14` 现在把它曾混为一谈的两个边界分开陈述：
-   commitment 头部是唯一那份 L1 ABI，而 332 字节的 public-inputs 形式从不抵达合约，却同时是签名
+   commitment 头部是唯一那份 L1 ABI，而 348 字节的 public-inputs 形式从不抵达合约，却同时是签名
    覆盖的 preimage、artifact 摘要、执行的门槛，以及 Rust 侧重建的缓冲区（四处引用行号均在本分支
    重新打开核对）。`doc.md` §6 列出的正是那四个已声明成员，而 `doc.md:1343` 是把
    `--vm neovm2-riscv` 与 `--template rollup` **并列**用来选择执行引擎的，所以文档里那个第五成员
@@ -1641,6 +1691,11 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
    的断言被替换成它真正的消费者。全解决方案 38 个程序集 / **2,943 个测试** / 0 失败 / 5 跳过，
    另有 `neo-execution-core` 17/17。仍然开放的部分比原先那条子弹窄，已在 §11 重述。
    见 §5 V2 的状态段。
+9b. §6 的块区间绑定项 —— **已在本分支完成**，关闭 §6 记录的最后一个编码缺口：`firstBlock`/`lastBlock`
+    现已进入 settlement 合约验证的那份摘要（332 → 348 字节，`ComputePublicInputHash` 拷贝头部字节
+    `0..27`），同一次变更里还包括配套的 `doc.md` 规范编辑、每一个 .NET 与 Rust 消费者、重新生成的
+    golden 向量/fixture，以及重新发出来的 `SettlementManager` NEF。完整证据与 dispatch-only 陈旧性
+    注意事项见 §6 的状态块。
 
 **需要先决策再写代码的：**
 
@@ -1684,7 +1739,7 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
 
 - §V2 的 .NET ↔ Rust 那一半在第三条腿落地之后仍然剩下的东西：凡是*能够*交叉钉扎的都没有被漏掉，
   但四种边界格式里有三种在 Rust 侧根本没有对应实现可钉。`bridge/neo-execution-core` 会重建
-  332 字节的 public-inputs preimage（`src/hashing.rs:283-314`，现已交叉钉扎），也会折叠 Merkle
+  348 字节的 public-inputs preimage（`src/hashing.rs:283-314`，现已交叉钉扎），也会折叠 Merkle
   root（`:36-54`，现已交叉钉扎）；它对 321 字节的 commitment 头部**没有**任何编码器或解析器，
   对 91 字节的 `L2ChainConfigSerializer` 形式没有，对 48+32·N 的 `MerkleProofSerializer` 分帧也没有
   —— Rust 读过的那个唯一 sibling 数组是执行载荷里的 forced-inclusion 那一段
@@ -1692,7 +1747,14 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
   格式而言，风险不是两个读取者之间的漂移，而是只存在一个实现，而再多共享数据也改变不了这一点。
   `StateWitnessV1` 在本分支之前就已经是双侧的了。
 - 重新构建 SP1 guest：这里没有 `cargo prove` 工具链，因此 `bridge/neo-zkvm-guest` 的当前
-  artifact 未被复现（此前 `A4` 一类风险，对 SP1 未定量）。
+  artifact 未被复现（此前 `A4` 一类风险，对 SP1 未定量）。本分支用三个 dispatch-only 钉住点把
+  这一类风险拓宽了 —— 它们描述的仍是*旧的* public-inputs 公式，只能在 Linux 的
+  `sp1-release-gates` 通道里重新生成：guest ELF/VK 清单（`vk_manifest.rs`，其 SHA-256 钉住点覆盖
+  本分支改动过的 guest 源码）、Groth16 正向向量
+  `tests/fixtures/sp1-groth16-positive-vector-v1.json`（其 `publicInputHashHex` 内嵌一份真实 SP1
+  证明的 332 字节公式摘要），以及 Gateway 递归 VK。三者都保持内部自洽 —— 向量自己的验证器测试
+  仍然通过，因为 `Sp1Groth16Verifier` 把 `publicInputHash` 当作形参 —— 但在该通道重新跑之前，
+  它们证明的是旧格式，而不是新格式。
 - `H10`/`H11` 的真实增长曲线：不存在基准测试脚手架，而创建一个超出范围。记录在案的 Devnet 数字
   （5 个区块 → 5,624 ms，20 → 4,803 ms，40 → 4,161 ms，且 `state entries: 1`）显示每 batch
   的常量成本占主导，且无法把 ≈5·S 的状态扫描与持久化分离开来；`BatchSealer.cs:258-261` 的秒表

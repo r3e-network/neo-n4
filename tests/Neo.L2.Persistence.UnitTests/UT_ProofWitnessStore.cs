@@ -675,6 +675,8 @@ public class UT_ProofWitnessStore
         {
             ChainId = payload.ChainId,
             BatchNumber = payload.BatchNumber,
+            FirstBlock = payload.FirstBlock,
+            LastBlock = payload.LastBlock,
             PreStateRoot = payload.PreStateRoot,
             PostStateRoot = result.PostStateRoot,
             TxRoot = result.TxRoot,

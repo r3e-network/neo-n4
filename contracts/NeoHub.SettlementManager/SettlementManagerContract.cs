@@ -445,17 +445,19 @@ public class SettlementManagerContract : SmartContract
     /// inputs not carried in the header (<paramref name="l1MessageHash"/>,
     /// <paramref name="blockContextHash"/>). Must match
     /// <c>Neo.L2.State.StateRootCalculator.HashPublicInputs</c>:
-    /// <c>Hash256(chainId(4 LE) ‖ batchNumber(8 LE) ‖ preStateRoot ‖ postStateRoot ‖ txRoot ‖
-    /// receiptRoot ‖ withdrawalRoot ‖ l2ToL1MessageRoot ‖ l2ToL2MessageRoot ‖ l1MessageHash ‖
-    /// daCommitment ‖ blockContextHash)</c>, where <c>Hash256(x) = Sha256(Sha256(x))</c>.
+    /// <c>Hash256(chainId(4 LE) ‖ batchNumber(8 LE) ‖ firstBlock(8 LE) ‖ lastBlock(8 LE) ‖
+    /// preStateRoot ‖ postStateRoot ‖ txRoot ‖ receiptRoot ‖ withdrawalRoot ‖ l2ToL1MessageRoot ‖
+    /// l2ToL2MessageRoot ‖ l1MessageHash ‖ daCommitment ‖ blockContextHash)</c>, where
+    /// <c>Hash256(x) = Sha256(Sha256(x))</c>.
     /// </summary>
     private static UInt256 ComputePublicInputHash(byte[] commitmentBytes, byte[] l1MessageHash, byte[] blockContextHash)
     {
-        var buf = new byte[4 + 8 + 10 * 32];
+        var buf = new byte[4 + 8 + 8 + 8 + 10 * 32];
         var pos = 0;
-        // chainId(4 LE) + batchNumber(8 LE) are already little-endian at the head of the commitment.
-        for (var i = 0; i < 12; i++) buf[pos + i] = commitmentBytes[i];
-        pos += 12;
+        // chainId(4 LE) + batchNumber(8 LE) + firstBlock(8 LE) + lastBlock(8 LE) are already
+        // little-endian and contiguous at the head of the commitment (offsets 0, 4, 12, 20).
+        for (var i = 0; i < 28; i++) buf[pos + i] = commitmentBytes[i];
+        pos += 28;
         CopyRoot(buf, ref pos, commitmentBytes, PreStateRootOffset);
         CopyRoot(buf, ref pos, commitmentBytes, PostStateRootOffset);
         CopyRoot(buf, ref pos, commitmentBytes, TxRootOffset);

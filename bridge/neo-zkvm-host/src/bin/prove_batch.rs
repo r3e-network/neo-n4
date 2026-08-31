@@ -1216,6 +1216,8 @@ fn expected_public_input_hash(request_bytes: &[u8]) -> Result<[u8; 32], String> 
     Ok(neo_execution_core::hash_public_inputs(
         artifact.public_inputs.chain_id,
         artifact.public_inputs.batch_number,
+        artifact.public_inputs.first_block,
+        artifact.public_inputs.last_block,
         &artifact.public_inputs.pre_state_root,
         &artifact.public_inputs.post_state_root,
         &artifact.public_inputs.tx_root,

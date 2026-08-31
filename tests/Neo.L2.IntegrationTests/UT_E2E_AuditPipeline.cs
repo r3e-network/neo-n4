@@ -54,6 +54,8 @@ public class UT_E2E_AuditPipeline
             {
                 ChainId = chainId,
                 BatchNumber = i,
+                FirstBlock = (i - 1) * 10,
+                LastBlock = (i - 1) * 10 + 9,
                 PreStateRoot = preStateRoot,
                 PostStateRoot = post,
                 TxRoot = HashWithSeed(i + 100),

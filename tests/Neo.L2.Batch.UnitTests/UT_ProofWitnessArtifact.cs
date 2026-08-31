@@ -240,7 +240,7 @@ public class UT_ProofWitnessArtifact
     {
         var artifact = SampleArtifact();
         Assert.AreEqual(
-            "3e828a96f943f514ad9d29ef2e8e6f209c7bdcfa6e0b108576327cb1574d1553",
+            "c3fc234d57526f76a04f02fe3334dd5e1871e63c0e16d78684ec92757094671b",
             Convert.ToHexString(artifact.ContentHash.GetSpan()).ToLowerInvariant());
     }
 
@@ -509,6 +509,8 @@ public class UT_ProofWitnessArtifact
         {
             ChainId = payload.ChainId,
             BatchNumber = payload.BatchNumber,
+            FirstBlock = payload.FirstBlock,
+            LastBlock = payload.LastBlock,
             PreStateRoot = payload.PreStateRoot,
             PostStateRoot = executionResult.PostStateRoot,
             TxRoot = executionResult.TxRoot,

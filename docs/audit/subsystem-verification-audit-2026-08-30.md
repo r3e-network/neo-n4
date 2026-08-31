@@ -1418,6 +1418,23 @@ disagree, and only the alert state is legible to someone who has not read the no
   it is — a stale summary. Leaving it as-is is the one option that keeps a documented invariant false
   while a green test certifies the pair as complete.
 
+  **Relabeled on this branch (2026-08-31) — the digest contract is the real artifact, and the digest is
+  no longer stale.** Sizing killed the backfill option: `CHANGELOG.md` is 10,076 lines with **724**
+  dated `###` entries, so a header-compare mirror is a one-time ~700-line translation *plus* a
+  permanent tax on every future entry, and it would make the zh page a table of contents with no
+  content — worse for a Chinese reader than the digest it already is. The page's own 本页用途 section
+  always claimed to be a major-change index, so the header was rewritten to say exactly that: not
+  entry-for-entry lockstep, ordinary entries do not trigger updates, only security fixes / audit
+  conclusions / production-readiness changes earn a digest entry, and English stays authoritative for
+  security conclusions and test evidence — a digest entry must not weaken or expand what the English
+  record states. The majors from 2026-08-28 → 2026-08-31 (C1, H12, the SP1 advisory records, C4, V4,
+  the audit report itself, H16, H17, V6, V8, H19, §7.1, H18, both V2 halves, Fix A, Fix B) were
+  backfilled at relabel time, so the page is current and the pre-existing 2026-07 summaries stay. The
+  enforced pair property remains the existence gate
+  (`CurrentDocumentation_EveryEnglishMarkdownHasChineseCounterpart`), and the zh page's 同步状态 now
+  says in so many words that this is the only tested property — the header no longer promises an
+  invariant no test enforces.
+
 - **A batch's claimed L1 block range is authenticated by nothing on L1** [E1].
   `L2BatchCommitment.FirstBlock`/`LastBlock` occupy header offsets 12 and 20, and
   `SettlementManager.SubmitBatch` stores the whole 321-byte header (`:384`), but no read site indexes
@@ -1920,13 +1937,11 @@ Split by whether it can land now.
     deadline timer, the existing challenge orchestrator, or an explicit operator runbook step — the
     last of which needs `docs/launching-an-l2.md` to say so. Pick one; "the contract exposes it" is not
     an answer that survives a mainnet with a 7-day window.
-19. The `docs/zh/CHANGELOG.md` sync-vs-relabel decision from §6, which this pass re-widens: its header
-    still promises lockstep for security conclusions and test evidence, it still contains nothing newer
-    than 2026-07-15, and `H18` adds another dated English entry on top. The `H18` branch deliberately
-    does **not** touch the file — one backfilled entry inside a six-week gap leaves the documented
-    invariant false while making the mirror read as if it held, which is strictly worse than the
-    "leave it as-is" option §6 already rejects. Decide the real artifact, then either backfill and
-    make a test compare entry headers, or relabel the header.
+19. The `docs/zh/CHANGELOG.md` sync-vs-relabel decision from §6 — **settled on this branch (relabel,
+    2026-08-31)**: the header now describes the digest contract it actually operates under (major-change
+    index, English authoritative, no entry-for-entry promise), the 2026-08-28 → 2026-08-31 majors are
+    backfilled so the page is current, and §6's status block records why the header-compare option was
+    rejected on sizing (724 entries).
 
 ## 11. Not verified in this pass
 

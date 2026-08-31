@@ -193,6 +193,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
     private readonly IL2Prover _prover;
     private readonly ISettlementClient _client;
     private readonly IForcedInclusionFinalizationClient? _forcedInclusionFinalizer;
+    private readonly ISettlementWindowFinalizer? _settlementWindowFinalizer;
     private readonly ProofWitnessPipelineProfile _profile;
     private readonly int _maxAutomaticRetries;
     private readonly SemaphoreSlim _reconcileGate = new(1, 1);
@@ -209,7 +210,8 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         ProofWitnessPipelineProfile profile,
         IL2Metrics? metrics = null,
         IForcedInclusionFinalizationClient? forcedInclusionFinalizer = null,
-        int maxAutomaticRetries = DefaultMaxAutomaticRetries)
+        int maxAutomaticRetries = DefaultMaxAutomaticRetries,
+        ISettlementWindowFinalizer? settlementWindowFinalizer = null)
     {
         ArgumentNullException.ThrowIfNull(executor);
         ArgumentNullException.ThrowIfNull(daWriter);
@@ -238,6 +240,7 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         _prover = prover;
         _client = client;
         _forcedInclusionFinalizer = forcedInclusionFinalizer;
+        _settlementWindowFinalizer = settlementWindowFinalizer;
         _profile = profile;
         _maxAutomaticRetries = maxAutomaticRetries;
         _metrics = metrics ?? NoOpMetrics.Instance;
@@ -452,8 +455,20 @@ public sealed class CanonicalSettlementPipeline : IDisposable
                         }
                         else if (status is BatchStatus.Pending or BatchStatus.Challengeable)
                         {
-                            await _store.MarkSubmissionObservedAsync(
-                                artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                            status = await FinalizeExpiredWindowAsync(
+                                artifact,
+                                status.Value,
+                                cancellationToken).ConfigureAwait(false);
+                            if (status == BatchStatus.Finalized)
+                            {
+                                await _store.MarkSettlementFinalizedAsync(
+                                    artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                await _store.MarkSubmissionObservedAsync(
+                                    artifact.ContentHash, cancellationToken).ConfigureAwait(false);
+                            }
                             manifest = await ReadManifestAsync(
                                 artifact.ContentHash, cancellationToken).ConfigureAwait(false);
                         }
@@ -534,6 +549,35 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             {
             }
         }
+    }
+
+    /// <summary>
+    /// Drive the permissionless <c>FinalizeIfPastWindow</c> path for a Challengeable batch
+    /// whose window has expired, and report whether the batch reached Finalized.
+    /// </summary>
+    /// <remarks>
+    /// This reconcile cadence is the operator-side owner of challenge-window expiry
+    /// (doc.md §7.5): without a driver, finalized-on-L1 batches would wait indefinitely for
+    /// an external actor to call the permissionless contract entry point. The
+    /// ChallengeOrchestrator stays adversarial-only and deliberately never finalizes.
+    /// Without a wired <see cref="ISettlementWindowFinalizer"/> the behavior is unchanged:
+    /// expired windows stay open until the operator finalizes out of band.
+    /// </remarks>
+    private async ValueTask<BatchStatus> FinalizeExpiredWindowAsync(
+        ProofWitnessArtifactV1 artifact,
+        BatchStatus status,
+        CancellationToken cancellationToken)
+    {
+        if (status != BatchStatus.Challengeable || _settlementWindowFinalizer is null)
+            return status;
+        if (!await _settlementWindowFinalizer.IsWindowExpiredAsync(
+                artifact.ChainId, artifact.BatchNumber, cancellationToken).ConfigureAwait(false))
+            return status;
+        await _settlementWindowFinalizer.FinalizeIfPastWindowAsync(
+            artifact.ChainId, artifact.BatchNumber, cancellationToken).ConfigureAwait(false);
+        var refreshed = await _client.GetBatchStatusAsync(
+            artifact.ChainId, artifact.BatchNumber, cancellationToken).ConfigureAwait(false);
+        return refreshed == BatchStatus.Finalized ? refreshed : status;
     }
 
     /// <summary>Count committed artifacts that have not been observed on L1.</summary>

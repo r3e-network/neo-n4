@@ -1929,14 +1929,26 @@ Split by whether it can land now.
     reads as resolved), and decide whether to ask Succinct to merge Plonky3's `0.4.3` challenger fix
     into the fork. The third sub-action from the original item — assessing `p3-symmetric` in writing —
     is done in §5 V8.
-18. `finalizeIfPastWindow` has no driver anywhere in-tree — neither off-chain nor contract-to-contract
-    (§4 H16's blast-radius note). That makes it the sole caller of `finalizeBatch`
-    (`OptimisticChallengeContract.cs:791`) reachable only by an externally crafted L1 transaction, so
-    an Optimistic chain finalizes only as often as somebody remembers to call it, and withdrawals
-    behind a finalized root inherit that. The decision is ownership: `Neo.Plugins.L2Settlement` on a
-    deadline timer, the existing challenge orchestrator, or an explicit operator runbook step — the
-    last of which needs `docs/launching-an-l2.md` to say so. Pick one; "the contract exposes it" is not
-    an answer that survives a mainnet with a 7-day window.
+18. `finalizeIfPastWindow` driver — **settled on this branch (2026-08-31): ownership is
+    `Neo.Plugins.L2Settlement`'s reconcile cadence, and the driver is implemented.** The chosen
+    shape mirrors the forced-inclusion finalizer seam: `ISettlementWindowFinalizer` (Abstractions,
+    expiry + finalize), an optional `CanonicalSettlementPipeline` constructor seam, and the
+    Challengeable branch of `ReconcileAsync` now checks expiry and submits
+    `OptimisticChallenge.FinalizeIfPastWindow` on the first reconciliation pass after the on-chain
+    deadline passes, re-reading status and durably marking `SettlementFinalized` when it lands.
+    `InMemorySettlementClient` implements the capability against an injectable clock with the
+    deadline anchored to submission time (matching `SettlementManagerContract.cs:395`, which opens
+    the window inside SubmitBatch); `RpcSettlementWindowFinalizer` reads `getDeadline` via
+    `invokefunction`, refuses to broadcast a still-open window, and treats a window that vanished
+    mid-send (concurrent finalizer or accepted challenge) as benign so the next status read decides.
+    Production wiring is config-gated: a new `OptimisticChallengeHash` plugin setting (validated
+    distinct) constructs the RPC finalizer in `L2SettlementProductionComposition` and flows through
+    `WireProduction`/`Wire`; empty leaves today's out-of-band behavior unchanged, which is also
+    what the no-capability test pins. `ChallengeOrchestrator` deliberately stays adversarial-only.
+    No contract change — the entry point was already permissionless; only nobody called it. Tests:
+    6 window tests in `UT_InMemorySettlementClient`, 3 driver tests in `UT_CanonicalSettlementPipeline`
+    (expired → finalized / window open → no send / no finalizer → legacy), 81 + 171 passing in the
+    two touched projects. `docs/launching-an-l2.md` states the ownership and the config key.
 19. The `docs/zh/CHANGELOG.md` sync-vs-relabel decision from §6 — **settled on this branch (relabel,
     2026-08-31)**: the header now describes the digest contract it actually operates under (major-change
     index, English authoritative, no entry-for-entry promise), the 2026-08-28 → 2026-08-31 majors are

@@ -1289,6 +1289,120 @@ public class UT_CanonicalSettlementPipeline
         Assert.AreEqual(ProofType.Multisig, client.LastCommitment!.ProofType);
     }
 
+    [TestMethod]
+    public async Task Reconcile_ExpiredWindow_FinalizesChallengeableBatch()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient { AutoFinalizeOnSubmit = false };
+        var finalizer = new RecordingWindowFinalizer
+        {
+            WindowExpired = true,
+            FinalizeEffect = () => client.SetStatus(ChainId, 1, BatchStatus.Finalized),
+        };
+        using var pipeline = new CanonicalSettlementPipeline(
+            new TestExecutor(ExecutionSemanticIds.ReferenceNoOpV1, authenticated: false),
+            new ProductionDaWriter(),
+            store,
+            new LegacyProver(),
+            client,
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, H(1)),
+            settlementWindowFinalizer: finalizer);
+
+        await pipeline.PersistAsync(BuildBatch());
+        await pipeline.ReconcileAsync();
+        client.SetStatus(ChainId, 1, BatchStatus.Challengeable);
+        await pipeline.ReconcileAsync();
+
+        Assert.AreEqual(1, finalizer.IsWindowExpiredCount);
+        Assert.AreEqual(1, finalizer.FinalizeCount);
+        var artifact = (await store.GetAsync(ChainId, 1))!;
+        var manifest = (await store.GetProofAsync(artifact.ContentHash))!;
+        Assert.IsTrue(manifest.SettlementFinalized,
+            "the reconcile cadence must durably record window finalization");
+    }
+
+    [TestMethod]
+    public async Task Reconcile_WindowStillOpen_KeepsBatchUnfinalized()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient { AutoFinalizeOnSubmit = false };
+        var finalizer = new RecordingWindowFinalizer { WindowExpired = false };
+        using var pipeline = new CanonicalSettlementPipeline(
+            new TestExecutor(ExecutionSemanticIds.ReferenceNoOpV1, authenticated: false),
+            new ProductionDaWriter(),
+            store,
+            new LegacyProver(),
+            client,
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, H(1)),
+            settlementWindowFinalizer: finalizer);
+
+        await pipeline.PersistAsync(BuildBatch());
+        client.SetStatus(ChainId, 1, BatchStatus.Challengeable);
+        await pipeline.ReconcileAsync();
+
+        Assert.AreEqual(1, finalizer.IsWindowExpiredCount);
+        Assert.AreEqual(0, finalizer.FinalizeCount,
+            "an open window must never be finalized by the driver");
+        var artifact = (await store.GetAsync(ChainId, 1))!;
+        var manifest = (await store.GetProofAsync(artifact.ContentHash))!;
+        Assert.IsFalse(manifest.SettlementFinalized);
+        Assert.IsTrue(manifest.SettlementObserved);
+    }
+
+    [TestMethod]
+    public async Task Reconcile_WithoutWindowFinalizer_KeepsLegacyBehavior()
+    {
+        using var backend = new InMemoryKeyValueStore();
+        using var store = new KeyValueProofWitnessStore(backend);
+        var client = new RecordingSettlementClient { AutoFinalizeOnSubmit = false };
+        using var pipeline = new CanonicalSettlementPipeline(
+            new TestExecutor(ExecutionSemanticIds.ReferenceNoOpV1, authenticated: false),
+            new ProductionDaWriter(),
+            store,
+            new LegacyProver(),
+            client,
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, H(1)));
+
+        await pipeline.PersistAsync(BuildBatch());
+        client.SetStatus(ChainId, 1, BatchStatus.Challengeable);
+        await pipeline.ReconcileAsync();
+
+        var artifact = (await store.GetAsync(ChainId, 1))!;
+        var manifest = (await store.GetProofAsync(artifact.ContentHash))!;
+        Assert.IsFalse(manifest.SettlementFinalized,
+            "without a finalizer the batch stays Challengeable, as before");
+        Assert.IsTrue(manifest.SettlementObserved);
+    }
+
+    private sealed class RecordingWindowFinalizer : ISettlementWindowFinalizer
+    {
+        public bool WindowExpired { get; set; }
+        public int IsWindowExpiredCount { get; private set; }
+        public int FinalizeCount { get; private set; }
+        public Action? FinalizeEffect { get; init; }
+
+        public ValueTask<bool> IsWindowExpiredAsync(
+            uint chainId,
+            ulong batchNumber,
+            CancellationToken cancellationToken = default)
+        {
+            IsWindowExpiredCount++;
+            return ValueTask.FromResult(WindowExpired);
+        }
+
+        public ValueTask FinalizeIfPastWindowAsync(
+            uint chainId,
+            ulong batchNumber,
+            CancellationToken cancellationToken = default)
+        {
+            FinalizeCount++;
+            FinalizeEffect?.Invoke();
+            return ValueTask.CompletedTask;
+        }
+    }
+
     private static CanonicalSettlementPipeline CreateZkPipeline(
         IProofWitnessStore store,
         IProofWitnessBatchExecutor executor,

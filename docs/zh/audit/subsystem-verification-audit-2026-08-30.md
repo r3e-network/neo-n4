@@ -1733,14 +1733,23 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     （`ignore` 抑制的是更新 PR、不是告警，所以三条全都还开着，而那段注释读起来像是已解决），
     以及决定是否请 Succinct 把 Plonky3 的 `0.4.3` challenger 修复合进这个 fork。原条目里的第三个子动作
     —— 把 `p3-symmetric` 写成书面评估 —— 已在 §5 V8 完成。
-18. `finalizeIfPastWindow` 在整个树内没有任何驱动 —— 既不在 off-chain 侧，也不在合约间调用侧
-    （§4 H16 的 blast-radius 那段）。这使得它是 `finalizeBatch` 唯一调用方
-    （`OptimisticChallengeContract.cs:791`），而它本身只能由一笔外部手工构造的 L1 交易触达；于是
-    一条 Optimistic 链终局化的频率就等于“有人记得去调用它”的频率，而依赖已终局化 root 的提款
-    继承这一点。要决策的是归属：由 `Neo.Plugins.L2Settlement` 挂一个截止期定时器、交给既有的
-    challenge orchestrator、还是明确写成一条运维手册步骤 —— 最后这一项需要
-    `docs/launching-an-l2.md` 把它说清楚。选一个；“合约暴露了这个方法”不是一个能撑住一条有着
-    7 天窗口的主网的答案。
+18. `finalizeIfPastWindow` 驱动 —— **已在本分支定案并实现（2026-08-31）：归属是
+    `Neo.Plugins.L2Settlement` 的对账节奏，驱动已落地。** 形状复用 forced-inclusion finalizer
+    的接缝模式：`ISettlementWindowFinalizer`（Abstractions，过期判定 + 终局化）、
+    `CanonicalSettlementPipeline` 的可选构造接缝，以及 `ReconcileAsync` 的 Challengeable 分支
+    现在会在链上截止期过后、首次对账时调用 `OptimisticChallenge.FinalizeIfPastWindow`，重读
+    状态并持久化记录 `SettlementFinalized`。`InMemorySettlementClient` 用可注入时钟实现该能力，
+    deadline 锚定在提交时刻（与 `SettlementManagerContract.cs:395` 在 SubmitBatch 内开窗一致）；
+    `RpcSettlementWindowFinalizer` 经 `invokefunction` 读 `getDeadline`，拒绝广播未过期的窗口，
+    并把"发送中途窗口消失"（并发终局化者或已接受的挑战）视为良性，由下一次状态读取定论。生产
+    接线由配置门控：新增 `OptimisticChallengeHash` 插件设置（校验互异），在
+    `L2SettlementProductionComposition` 构造 RPC finalizer 并经 `WireProduction`/`Wire` 下传；
+    留空则保持现状（带外处理），这也正是 no-capability 测试所钉住的行为。
+    `ChallengeOrchestrator` 有意保持只做对抗路径。无合约改动 —— 入口本来就是无许可的，只是
+    之前没人调用。测试：`UT_InMemorySettlementClient` 6 条窗口测试、
+    `UT_CanonicalSettlementPipeline` 3 条驱动测试（已过期 → Finalized / 窗口未开 → 不发送 /
+    无 finalizer → 维持旧行为），两个受影响项目 81 + 171 全绿。
+    `docs/launching-an-l2.md` 写明了归属与该配置键。
 19. §6 里那条 `docs/zh/CHANGELOG.md`「同步还是重贴标签」的决策 —— **已在本分支定案（重贴标签，
     2026-08-31）**：页眉现在如实描述它实际运行的那份摘要契约（重大变更索引、英文为准、不承诺
     逐条同步），2026-08-28 → 2026-08-31 的重大条目已回填、页面因此是当前的，§6 的状态块记录了

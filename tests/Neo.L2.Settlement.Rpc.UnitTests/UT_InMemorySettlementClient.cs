@@ -243,4 +243,88 @@ public class UT_InMemorySettlementClient
         Assert.AreEqual(UInt256.Zero, await client.GetCanonicalStateRootAsync(2002),
             "other chains must not pick up state from chain 1001");
     }
+
+    [TestMethod]
+    public async Task Window_NotExpiredWhileOpen()
+    {
+        long now = 1_700_000_000;
+        var client = new InMemorySettlementClient(() => now) { ChallengeWindowSeconds = 3600 };
+        await client.SubmitBatchAsync(Mk(1001, 1), SamplePublicInputs());
+        client.AdvanceStatus(1001, 1, BatchStatus.Challengeable);
+
+        Assert.IsFalse(await client.IsWindowExpiredAsync(1001, 1));
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            async () => await client.FinalizeIfPastWindowAsync(1001, 1));
+        Assert.AreEqual(BatchStatus.Challengeable, await client.GetBatchStatusAsync(1001, 1));
+    }
+
+    [TestMethod]
+    public async Task Window_FinalizesAfterDeadline()
+    {
+        long now = 1_700_000_000;
+        var client = new InMemorySettlementClient(() => now) { ChallengeWindowSeconds = 60 };
+        await client.SubmitBatchAsync(Mk(1001, 1, postRootSeed: 0x09), SamplePublicInputs());
+        client.AdvanceStatus(1001, 1, BatchStatus.Challengeable);
+
+        now += 61;
+        Assert.IsTrue(await client.IsWindowExpiredAsync(1001, 1));
+        await client.FinalizeIfPastWindowAsync(1001, 1);
+        Assert.AreEqual(BatchStatus.Finalized, await client.GetBatchStatusAsync(1001, 1));
+        Assert.AreEqual(MakeUInt256(0x09), await client.GetCanonicalStateRootAsync(1001));
+        Assert.IsFalse(await client.IsWindowExpiredAsync(1001, 1),
+            "finalization consumes the window");
+    }
+
+    [TestMethod]
+    public async Task Window_FinalizeIsIdempotentAfterFinalized()
+    {
+        long now = 1_700_000_000;
+        var client = new InMemorySettlementClient(() => now) { ChallengeWindowSeconds = 60 };
+        await client.SubmitBatchAsync(Mk(1001, 1), SamplePublicInputs());
+        client.AdvanceStatus(1001, 1, BatchStatus.Challengeable);
+        now += 61;
+        await client.FinalizeIfPastWindowAsync(1001, 1);
+
+        await client.FinalizeIfPastWindowAsync(1001, 1);
+        Assert.AreEqual(BatchStatus.Finalized, await client.GetBatchStatusAsync(1001, 1));
+    }
+
+    [TestMethod]
+    public async Task Window_ConsumedByRevertAndFinalizeIsNoOp()
+    {
+        long now = 1_700_000_000;
+        var client = new InMemorySettlementClient(() => now);
+        await client.SubmitBatchAsync(Mk(1001, 1), SamplePublicInputs());
+        client.AdvanceStatus(1001, 1, BatchStatus.Challengeable);
+        client.AdvanceStatus(1001, 1, BatchStatus.Reverted);
+        now += 10_000;
+
+        Assert.IsFalse(await client.IsWindowExpiredAsync(1001, 1),
+            "an accepted challenge deletes the window on-chain too");
+        await client.FinalizeIfPastWindowAsync(1001, 1);
+        Assert.AreEqual(BatchStatus.Reverted, await client.GetBatchStatusAsync(1001, 1),
+            "the driver must not resurrect a fraud-reverted batch");
+    }
+
+    [TestMethod]
+    public async Task Window_UnknownBatchNotExpired()
+    {
+        var client = new InMemorySettlementClient(() => 1_700_000_000);
+        Assert.IsFalse(await client.IsWindowExpiredAsync(1001, 99));
+        await client.FinalizeIfPastWindowAsync(1001, 99);
+    }
+
+    [TestMethod]
+    public async Task Window_DeadlineAnchorsToSubmissionNotPromotion()
+    {
+        // SettlementManager.SubmitBatch opens the window inside the submission tx, so a
+        // late in-memory Pending → Challengeable promotion must not extend the deadline.
+        long now = 1_700_000_000;
+        var client = new InMemorySettlementClient(() => now) { ChallengeWindowSeconds = 100 };
+        await client.SubmitBatchAsync(Mk(1001, 1), SamplePublicInputs());
+        now += 500;
+        client.AdvanceStatus(1001, 1, BatchStatus.Challengeable);
+
+        Assert.IsTrue(await client.IsWindowExpiredAsync(1001, 1));
+    }
 }

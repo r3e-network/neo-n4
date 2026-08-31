@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — the settlement reconcile cadence now drives permissionless challenge-window expiry — 2026-08-31
+
+- §10 item 18 [E1]: `OptimisticChallenge.FinalizeIfPastWindow` was the sole caller of
+  `finalizeBatch` reachable only by an externally crafted L1 transaction — nothing in-tree called
+  it, so an Optimistic chain finalized only as often as somebody remembered to, and withdrawals
+  behind the finalized root inherited that. Ownership is now decided and implemented: the
+  `Neo.Plugins.L2Settlement` reconcile cadence drives expiry; `ChallengeOrchestrator` stays
+  adversarial-only.
+- New `ISettlementWindowFinalizer` capability (Abstractions). `CanonicalSettlementPipeline`'s
+  Challengeable branch checks expiry through an optional constructor seam and submits the
+  finalize invocation on the first pass after the on-chain deadline passes, re-reading status and
+  durably recording `SettlementFinalized`. `InMemorySettlementClient` implements the capability
+  with an injectable clock, deadline anchored to submission time (the contract opens the window
+  inside SubmitBatch); `RpcSettlementWindowFinalizer` reads `getDeadline` via `invokefunction`,
+  refuses to broadcast a still-open window, and treats a window consumed mid-send (concurrent
+  finalizer or accepted challenge) as benign.
+- Production wiring is config-gated by a new `OptimisticChallengeHash` plugin setting (validated
+  distinct from the other NeoHub hashes): when set, `WireProduction` wires the RPC finalizer;
+  when empty, behavior is exactly as before — the no-capability test pins that. No contract
+  change; `docs/launching-an-l2.md` documents the ownership and the key.
+- Tests: 6 window tests in `UT_InMemorySettlementClient` (open/expired/idempotent/revert-consumed/
+  unknown/submission-anchored) and 3 driver tests in `UT_CanonicalSettlementPipeline`; 81 + 171
+  passing in the two touched projects.
+
 ### Changed — `docs/zh/CHANGELOG.md` is now what it always was: a major-change digest, with the stale lockstep promise removed — 2026-08-31
 
 - §6's finding: the zh page's header promised lockstep ("英文文档发生…安全结论变更时，本中文版本必须

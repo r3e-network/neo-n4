@@ -181,6 +181,46 @@ public sealed class UT_Sp1GatewayProofProver
         Assert.AreEqual(0, Directory.GetFiles(queue.Path).Length);
     }
 
+    [TestMethod]
+    public async Task ProveAsync_TransientProofFileSharingViolation_IsRetried()
+    {
+        using var queue = new TemporaryDirectory();
+        var (binding, aggregate) = Statement();
+        var daemon = RespondOnceAsync(
+            queue.Path,
+            binding,
+            holdProofFileOpenUntil: Task.Delay(250));
+        var prover = CreateProver(queue.Path);
+
+        var proof = await prover.ProveAsync(binding, aggregate);
+
+        await daemon;
+        Assert.AreEqual(Sp1GatewayProofProver.Groth16ProofSize, proof.Length);
+    }
+
+    [TestMethod]
+    public async Task ProveAsync_PersistentProofFileSharingViolation_IsTypedAsInvalidData()
+    {
+        using var queue = new TemporaryDirectory();
+        var (binding, aggregate) = Statement();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var daemon = RespondOnceAsync(
+            queue.Path,
+            binding,
+            holdProofFileOpenUntil: release.Task);
+        var prover = CreateProver(queue.Path);
+        try
+        {
+            await Assert.ThrowsExactlyAsync<InvalidDataException>(
+                async () => await prover.ProveAsync(binding, aggregate));
+        }
+        finally
+        {
+            release.SetResult();
+            await daemon;
+        }
+    }
+
     private static async Task AssertRejectedAsync(
         Func<DaemonResponsePlan, GatewaySp1ProofRequestManifest, DaemonResponsePlan> mutate)
     {
@@ -282,7 +322,8 @@ public sealed class UT_Sp1GatewayProofProver
     private static async Task RespondOnceAsync(
         string queuePath,
         GatewayProofBinding binding,
-        Func<(DaemonResponsePlan Plan, GatewaySp1ProofRequestManifest Request), DaemonResponsePlan>? mutate = null)
+        Func<(DaemonResponsePlan Plan, GatewaySp1ProofRequestManifest Request), DaemonResponsePlan>? mutate = null,
+        Task? holdProofFileOpenUntil = null)
     {
         var requestManifestPath = await WaitForSingleFileAsync(
             queuePath,
@@ -313,6 +354,10 @@ public sealed class UT_Sp1GatewayProofProver
         await File.WriteAllBytesAsync(verificationKeyPath, plan.VerificationKey);
         await File.WriteAllBytesAsync(publicValuesPath, plan.PublicValues);
 
+        using var proofLock = holdProofFileOpenUntil is null
+            ? null
+            : new FileStream(proofPath, FileMode.Open, FileAccess.Read, FileShare.None);
+
         var result = new GatewaySp1ProofResultManifest
         {
             SchemaVersion = GatewaySp1FileQueueProtocol.SchemaVersion,
@@ -333,6 +378,9 @@ public sealed class UT_Sp1GatewayProofProver
         };
         var resultPath = Path.Combine(queuePath, request.RequestId + ".gateway-result.json");
         await WriteAtomicallyAsync(resultPath, JsonSerializer.SerializeToUtf8Bytes(result));
+
+        if (proofLock is not null && holdProofFileOpenUntil is not null)
+            await holdProofFileOpenUntil;
     }
 
     private static async Task WriteAtomicallyAsync(string path, byte[] bytes)

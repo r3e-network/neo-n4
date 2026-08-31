@@ -985,6 +985,18 @@ src/Neo.Plugins.L2Gateway/Sp1GatewayProofProver.cs:377:       catch (IOException
 同样的 `File.Exists` 检查、同样无守卫的 `File.ReadAllBytesAsync`（在 `:429`）—— 所以无论答案是哪个，
 两处读取都应保持一致。
 
+**状态 —— 本分支已修复，两半都闭，且只有一个共享答案。** 写路径与获取发布锁路径早已带着的重试惯例，
+现在被应用到了两个读漏斗上：`ReadBoundedPathAsync` 把那次读取改走一个
+`ReadAllBytesWithSharingViolationRetryAsync` helper —— 瞬态 `IOException` 在 2 秒窗口内以 50 毫秒
+间隔重试（这是给过滤驱动持有的一个成比例预算，刻意窄于运维可调的 `_resultTimeout`）；读取途中出现的
+`FileNotFoundException` 保持与读取前存在性检查一致的“工件缺失”判定；—— 这正是 §10 第 16 项要求明确
+决策的部分 —— 重试*耗尽*后的 `IOException` 被收进该 transport 的 `InvalidDataException` 家族并保留内层
+异常，于是该 transport 能检测到的每一种读失败都是类型化的、都归调用方的结构化拒绝路径所有；
+`OperationCanceledException` 照常穿透。`Sp1GatewayProofProver.ReadBoundedFileAsync` 附带完全相同的
+helper 与相同常量 —— 一个答案，两处一致，正如该发现所要求的。四个新测试通过两条公开路径独占地持有
+工件：窗口内释放被重试到成功；活得比窗口久的持有被类型化，而不是裸抛。
+`Neo.L2.Proving.UnitTests` 86/86，`Neo.Plugins.L2Gateway.UnitTests` 105/105。
+
 ### V8 — CI 里唯一那道 Rust 依赖门禁看不见 Dependabot 报出的那些公告，而其中 High 那一条是活的 [E1 门禁盲区 + 可达性]
 
 GitHub 上这个仓库有三条 open 的 Dependabot 告警。三条都是 Rust，三条都出自*同一份* `Cargo.lock`，
@@ -1721,10 +1733,10 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
 14. `H1` —— 针对 `Committed` 采用 `StopPlugin` + 重试；需要先补上 `OnBlockCommitted`
     的测试覆盖（§6，“OnBlockCommitted 没有测试”那条）。
 15. `C2` / `V5` —— 受位置绑定的验证，外加去掉 `UT_SharedBridge_Vm` 的 mock。
-16. `V7` —— 重试惯例在 `AtomicFileQueueTransport.cs:108`/`:147` 已然存在；需要决定的是读路径是否
-    获得同样的有界等待重试，*以及*重试耗尽后的 `IOException` 是否包装进协议的
-    `InvalidDataException` 家族。一个答案，同时应用到两处读取点
-    （`AtomicFileQueueTransport.cs:265`、`Sp1GatewayProofProver.cs:429`）。
+16. `V7` —— **本分支已定案（2026-08-31），两个决策各做一次、同时应用到两处读取点。** 读路径获得与
+    写路径、获取发布锁路径同样的有界等待重试（2 秒窗口、50 毫秒间隔）；耗尽 `IOException` 的答案是
+    **是，它归入协议家族**：两个读漏斗把它包装进 `InvalidDataException` 并保留内层异常，该发现点名的
+    逃逸异常因此不复存在。见 §5 V7 的状态块。
 17. `V8` —— **已由测量结掉，而结论是没有任何东西需要排期。** 这条队列此前当作修复方案点名的那次
     SP1 6.2.1 → 6.5.0 bump 什么都不修：`0.4.3-succinct` 与 `0.3.3-succinct` 带着公告点名的那两个文件
     的逐字节相同副本，而 `0.4.3-succinct` 是 `p3-challenger` 有史以来发布过的最高的 `-succinct`

@@ -15,6 +15,12 @@
 
 ## 中文摘要
 
+- 2026-08-31 SP1 队列读路径容忍瞬态共享冲突并始终类型化失败：两个读漏斗
+  （`AtomicFileQueueTransport.ReadBoundedPathAsync`、`Sp1GatewayProofProver.ReadBoundedFileAsync`）
+  的裸 `File.ReadAllBytesAsync` 曾在全部类型化守卫之外，过滤驱动短暂持有刚改名的文件即以裸
+  `IOException` 逃逸（全量两次运行测得一次失败）。现对两处统一给出既有重试惯例：瞬态
+  `IOException` 在 2 秒窗口内以 50 毫秒间隔重试；重试耗尽的 `IOException` 明确归入协议的
+  `InvalidDataException` 家族并保留内层异常。
 - 2026-08-31 结算对账节奏接管挑战窗口过期：`OptimisticChallenge.FinalizeIfPastWindow`
   此前在树内没有任何调用方，Optimistic 链的终局化只能依赖"有人记得去调用"。归属定案为
   `Neo.Plugins.L2Settlement` 的对账节奏：新增 `ISettlementWindowFinalizer` 能力接口，

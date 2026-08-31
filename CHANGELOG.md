@@ -27,6 +27,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   release-candidate commit passes all three lanes. The nightly makes the failure visible; the green
   dispatch on the release commit is what releases it.
 
+### Security — the Dependabot ignore comment now matches the alert state it describes — 2026-08-31
+
+- §10 item 17 [E1 gate-blindness]: the cargo `ignore` block's comment read as "these two are
+  handled" while all three advisory alerts stayed open in the Security tab — `ignore` suppresses
+  update PRs, not alerts, and only the alert state is legible to someone who has not read the
+  2026-08-28 note. The comment now states the mechanism plainly (alerts remain open as tracked
+  accepted risk), names all three live GHSAs with severities, points at both documents, and explains
+  why `p3-symmetric` is absent from the list (no patched release, so Dependabot can never raise an
+  update PR for it). No pin rotated; the ignore set is unchanged.
+- The reconcile also corrected a citation: the note's lru alert id (`GHSA-qqmc-hwqp-8g2w`) is a
+  different (2022, use-after-free) lru record — the live alert is `GHSA-rhfx-m35p-ff5j`. The dated
+  note stays as written; the correction is recorded in the audit report §5 V8 and the config comment.
+- The second sub-action of §10 item 17 is decided in the audit report: ask Succinct to merge
+  Plonky3's `0.4.3` challenger fix into the `-succinct` fork; filing that ask is an external
+  communication left to the maintainer's go.
+
+### Fixed — a batcher commit-handler fault now stops the plugin, not the node — 2026-08-31
+
+- §10 item 14 [E1] (`H1`): the core's default `ExceptionPolicy` for a `Blockchain.Committed`
+  handler exception is `StopNode`, so a transient sink or executor fault inside the batcher — the
+  same fault class the pending-batch retry exists for — killed the whole chain instead of one plugin.
+  `L2BatchPlugin` now carries the first-party override the audit-time grep proved did not exist
+  anywhere under `src/`: `ExceptionPolicy => StopPlugin`. The chain keeps importing blocks and the
+  pending sealed batch survives for operator retry.
+- Coverage landed first, in the order the finding demanded. The commit handler's body now runs
+  through an internal `ProcessCommittedEvent` seam, and its catch path counts the metric, retries the
+  pending sealed batch once through the durable persist/ack route, and rethrows only when that retry
+  cannot recover — a recovered transient never reaches the core dispatch at all, and the next
+  commit's recovery loop re-reads the skipped block from the local ledger.
+- Four new tests: a sink fault recovered by the pending-batch retry does not propagate; a retry that
+  also fails rethrows the original exception with the pending batch still held and both attempts in
+  the sink's log; disabled settings invoke no work; and the effective policy is asserted to be
+  `StopPlugin`. `Neo.Plugins.L2Batch.UnitTests` 70/70. Other L2 plugins keep the core default — none
+  of them holds durable per-commit state the way the batcher's pending sealed batch does.
+
 ### Fixed — SP1 queue reads now tolerate transient sharing violations and always fail typed — 2026-08-31
 
 - §10 item 16 [E1]: both SP1 file-queue read funnels read artifacts with a bare

@@ -24,13 +24,23 @@ updates:
       - dependencies
       - rust
     ignore:
-      # Transitive deps of the pinned sp1-sdk 6.2.1 prover toolchain. Their
-      # advisories (GHSA-vj64-rjf3-w3v7, GHSA-qqmc-hwqp-8g2w) cannot be fixed
-      # inside this dependency graph — remediation is the coordinated SP1
-      # upgrade (VK re-pin + guest rebuild), not a lockfile bump. Assessment,
+      # Transitive deps of the pinned sp1-sdk 6.2.1 prover toolchain. `ignore`
+      # suppresses Dependabot's security-UPDATE pull requests only — it does NOT
+      # close or suppress the alerts themselves. All three advisories below stay
+      # OPEN in the Security tab as tracked accepted risk, not "handled": no SP1
+      # release carries a fix (byte-identical copies of the named files in both
+      # 0.3.3-succinct and 0.4.3-succinct), so remediation is the coordinated SP1
+      # upgrade (VK re-pin + guest rebuild), never a lockfile bump. Assessments,
       # reachability evidence, and the remediation plan live in
-      # docs/audit/sp1-transitive-advisories-2026-08-28.md. Every other
+      # docs/audit/sp1-transitive-advisories-2026-08-28.md and
+      # docs/audit/subsystem-verification-audit-2026-08-30.md §5 V8. Every other
       # advisory path stays active.
+      # p3-challenger (high) — GHSA-vj64-rjf3-w3v7
+      # lru (low) — GHSA-rhfx-m35p-ff5j; the 2026-08-28 note's GHSA-qqmc-hwqp-8g2w
+      #   citation is a different (2022) lru record, not the live alert
+      # p3-symmetric (low) — GHSA-3g92-f9ch-qjcm is not listed below only because
+      #   it has no patched release, so Dependabot can never raise an update PR
+      #   for it to suppress
       - dependency-name: "lru"
       - dependency-name: "p3-challenger"
 

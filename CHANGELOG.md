@@ -42,6 +42,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Audit-report fixes (2)/(3) — a SHA-256 test constant and packaging-script staging — were
   deliberately not taken; the rationale is recorded in the audit's §3 C3 status block.
 
+### Fixed — every FFI panic boundary can unwind again — 2026-08-31
+
+- §10 item 11 [E1] (`H14`): `external/neo-riscv-vm` set `panic = "abort"` under **both**
+  `[profile.release]` and `[profile.dev]`, while `neo-riscv-host`'s ten
+  `catch_unwind(AssertUnwindSafe(…))` FFI arms — the surface that converts a Rust panic inside the
+  execution core into a `FAULT` receipt returned to Neo — had nothing to catch: the process would
+  die at the first panic in any of the ten arms, turning an ordinary fault into a sequencer outage
+  (the Rust-side twin of H1). Both profiles now unwind; the guest keeps abort deliberately (its
+  PolkaVM target has no unwinder) via `-C panic=abort` in `regenerate-guest-blob.sh`, which also
+  owns `-Z location-detail=none` (see the C3 entry above), so the blob's semantics are unchanged
+  while the flags live in exactly one place.
+- Measured, not assumed: release lane, the 47-test opcode/parity execution suite — **16.99 s
+  unwound vs 17.09 s under the audit's own abort-profile baseline, 47/47 passed both** — so
+  unwinding costs nothing measurable on the guest hot path. The full host suite is 305/305 green
+  in release, including the new compile-time guard `crates/neo-riscv-host/tests/
+  panic_unwind_boundary.rs` (asserts `!cfg!(panic = "abort")`), which fails any future
+  abort-profile regression in both dev and release lanes.
+- The alternative fix (an explicit `extern "C"` catch surface) is deliberately not taken: the ten
+  arms are that catch surface and are live again; re-plumbing them adds churn the guard test
+  doesn't reduce. The submodule commit (`765bc27`) lands via the C3 gitlink bump; the parent-side
+  change is documentation only.
+
 ### Added — a nightly SP1 release-gate dispatch, with the release-blocking rule written down — 2026-08-31
 
 - §10 item 12 [E1] (`V1`): the only CI job that produces real batch and recursive SP1 proofs was

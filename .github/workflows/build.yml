@@ -299,6 +299,15 @@ jobs:
             --minimum-tests 10 \
             -- /p:NuGetAudit=false --nologo --no-build
 
+      # neo-execution-core: the hashing + encoding core every SP1 crate compiles in, and the
+      # cross-language canonical encoding parity vectors (tests/Shared/canonical_encoding_vectors.hex,
+      # shared with tests/Neo.L2.IntegrationTests/UT_CanonicalEncodingParity.cs). No pull-request lane
+      # ran this crate's tests before: `cargo test` inside bridge/neo-zkvm-guest tests only that
+      # package, and `cargo test --workspace` lives in the workflow_dispatch-only
+      # sp1-release-gates job.
+      - name: cargo test (neo-execution-core)
+        run: cargo test --locked -p neo-execution-core
+
       # neo-zkvm-guest: the Rust crate that compiles to RISC-V ELF inside SP1's
       # zkVM. Host-side compilation + tests pin the deterministic execution
       # contract (parse, Merkle root, hash256). The actual digest-pinned Docker

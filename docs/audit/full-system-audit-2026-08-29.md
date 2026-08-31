@@ -229,7 +229,9 @@ clean.) Fix: `set -o pipefail` plus an explicit exit-code and expected-project-c
 
 ### 3.5 `cargo audit --ignore` is blanket-scoped, and the policy table reports the filtered result [E2]
 
-`.github/workflows/build.yml:600-607` applies `--ignore RUSTSEC-2026-0258` in a loop over **all
+`.github/workflows/build.yml:609-616` (that is where it reads today; `600-607` when this was written —
+a later nine-line step in the `bridge` job moved every reference below line 302) applies
+`--ignore RUSTSEC-2026-0258` in a loop over **all
 five** lockfiles, but the advisory belongs to `h2 0.4.14`, which is only in
 `external/neo-zkvm/Cargo.lock` (verified: root lock is `h2 0.4.19`). A future regression of the
 *root* graph to a vulnerable `h2` would be silently accepted.

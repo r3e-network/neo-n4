@@ -230,7 +230,8 @@ echo "OK: no vulnerable NuGet packages"
 
 ### 3.5 `cargo audit --ignore` 是全域作用域，且策略表报告的是过滤后的结果 [E2]
 
-`.github/workflows/build.yml:600-607` 在**全部五个** lockfile 的循环上应用
+`.github/workflows/build.yml:609-616`（这是它今天的行号；写下本节时为 `600-607` —— 后来
+`bridge` job 里新增的九行步骤把 302 行之下的每一处引用都推移了）在**全部五个** lockfile 的循环上应用
 `--ignore RUSTSEC-2026-0258`，但该 advisory 属于 `h2 0.4.14`，而它只存在于
 `external/neo-zkvm/Cargo.lock`（已核实：根 lockfile 是 `h2 0.4.19`）。
 未来*根*依赖图回退到存在漏洞的 `h2` 时会被静默接受。

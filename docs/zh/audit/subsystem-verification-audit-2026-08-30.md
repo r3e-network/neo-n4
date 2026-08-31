@@ -952,6 +952,32 @@ exercised 那条真正付钱的链上路径上的提取 inclusion 校验。** `U
 depth，因此正是 `index == 0` 这项检查在绑定位置），去掉 `UT_SharedBridge_Vm` 的 stub，
 并为每条折叠各加一个反向 VM 测试。`C2` 仍未修复，而且是两份报告中价值最高的未修复项。
 
+**状态（在 `fix/position-bound-verify` 分支落定，2026-09-01）：终止条件、位置绑定、去 stub、
+红 → 绿全部完成。** 三个链上折叠点现在都绑定了位置。`SettlementManager` 的两条折叠都以本发现
+所要求的终止条件收尾 —— 在根比较之前加 `if (index != 0) return false;`
+（`VerifyWithdrawalLeafWithProof:1034`、`VerifyStateLeafWithProof:1159`）—— 而且这里的数量勘误
+同样重要：还存在本发现没有点名的*第三处*未设防折叠，即 `RestrictedExecutionFraudVerifier` 结构性
+pre/post storage-proof 路径里的那条；它的修复是把既有的 `IsCanonicalLeafIndex` 检查扩展到两个
+sibling 计数上，使结构化 proof 无法把 storage key 滑到其折叠从未走过的位置。链下方面，
+`MerkleTree.Verify`（`src/Neo.L2.State/MerkleTree.cs`）现在把 `PathBitmap` 绑定到 leaf index
+自身的位上，*并*要求 index 被证明深度完全消耗 —— 与链上终止条件相同的接受集，因为重标签过的
+`i + 2^depth` 走的折叠方向相同、隐含的 bitmap 也相同，这是只查 bitmap 的检查仍然会接受的。
+`EmergencyManager` 委托给状态折叠，因此原样继承这次收紧，自身无改动。
+
+`UT_SharedBridge_Vm` 不再 stub 验证器：它在同一个引擎里部署真实的 `ChainRegistry` +
+`SettlementManager` + `SharedBridge`（只有 VerifierRegistry / DARegistry / DAValidator /
+TokenRegistry / NEP-17 这些后端是 mock），并从手写的 commitment header —— publicInputHash 按
+348 字节 preimage 重算 —— 出发结算真实的每链批次，Merkle proof 则按折叠约定的本地拷贝手工构建。
+C1 隔离测试获得了一个让失败可归因的控制断言：先断言 leaf B 的 proof 确实通过验证，因此下面的拒绝
+可证明发生在 escrow 上限处，而不是 proof 处。新增的 `Withdrawal_RelabelledLeafIndex_Fails` 在
+真正付钱的那条路径上兑现了本发现要求的反向测试：一个深度为 1 的已注资 leaf 的 proof 出示在
+`index + 2` 上 —— 折叠方向完全相同，但对应不到已提交树中的任何 leaf。对*修复前*的已提交
+artifacts 执行时它**真的付了钱**（3 失败 / 9 通过；失败正是 `Assert.ThrowsExactly` 没等到异常），
+而用钉住的 nccs 重新签发两个合约的 artifacts 之后，同一套件转绿：SharedBridge / parity /
+fraud-verifier / EmergencyManager 四个 VM 类合计 52/52，`Neo.L2.State.UnitTests` 124/124
+（含四个新增的 `Verify_Rejects*` 位置绑定测试），整个 solution 全绿。两个 artifact 的 diff 都
+恰好只有 `Manifest`/`Nef` 属性两行，ABI 名称集合逐字节一致。
+
 ### V6 — 仓库里守卫最严密的那个表面有一处绕过，而它恰好落在宕机路径上 [E1 counted]
 
 telemetry 值得在讲缺陷之前先记一功。`MetricNames.cs` 声明了 39 个 metric 常量，
@@ -1473,7 +1499,7 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
 | 既有发现 | 当前状态 | 证据 |
 | --- | --- | --- |
 | `C1` deposit/router 收件箱相撞 | **已修复**（本分支） | `L1MessageDrain.cs` 中的两段式去重 + 全序，`UT_L1MessageDrain` 回归测试 |
-| `C2` `MerkleTree.Verify` 不受位置绑定 | **未修复** —— 而且同一个形状出现在两条合约折叠之中（§5 V5），由于兑付测试把 verifier 做了 stub，它不可被观察 | `SettlementManagerContract.cs:989-1012`、`:1115-1134` |
+| `C2` `MerkleTree.Verify` 不受位置绑定 | **已修复**（本分支，2026-09-01）—— 链下验证器把 `PathBitmap` 绑定到 index 自身的位并要求 index 被完全消耗；两条合约折叠加上 `index != 0` 终止条件，结构化折叠则补上 `IsCanonicalLeafIndex` 守卫（§5 V5） | `src/Neo.L2.State/MerkleTree.cs` 位置绑定块；`SettlementManagerContract.cs:1034`、`:1159`；红 → 绿 VM 证据见 §5 V5 状态块 |
 | `H1` 插件异常会停止节点 | item-14 分支上**已为 batcher 修复**（2026-08-31）：`ExceptionPolicy => StopPlugin` 覆写 + 重新抛出前先重试一次待持久化 batch | `L2BatchPlugin.cs` 的覆写 + `ProcessCommittedEvent` 重试，4 条新测试；其余 L2 插件保持核心默认（没有需要保护的持久逐 commit 状态） |
 | `H6` 装饰性的链下二进制钉扎 | **未修复**，证据等级如今升到 [E1]，其测试的期望摘要由被测二进制自身派生，且没有反向测试（§5 V3） | `UT_Sp1StatefulBatchExecutor.cs:318` |
 | `H12` 信任根上的治理锁 | 就本分支覆盖的三根而言**已修复**；§7.1 中属于 `contracts/` 的两个残余已在后续分支上收口，只剩 native 合约那一面 | `ChainRegistryContract.cs:158-168,172-181,389` |
@@ -1882,7 +1908,12 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     区块。那条普遍化（"这适用于每一个 L2 插件"）按构造依然成立 —— 只有 batcher 覆写了策略 ——
     但其他插件没有一个像 batcher 的待持久化 sealed batch 那样持有持久的逐 commit 状态，所以
     H1 的宕服路径正是被收口的那条。`Neo.Plugins.L2Batch.UnitTests` 70/70。
-15. `C2` / `V5` —— 受位置绑定的验证，外加去掉 `UT_SharedBridge_Vm` 的 mock。
+15. `C2` / `V5` —— **在本分支落定（2026-09-01），四个半边一次做完。** `SettlementManager` 的两条
+    折叠加上 `index != 0` 终止条件；`RestrictedExecutionFraudVerifier` 的结构性 pre/post 折叠补上
+    本发现的计数所漏掉的 `IsCanonicalLeafIndex` 守卫；链下 `MerkleTree.Verify` 把 `PathBitmap`
+    绑定到 index 自身的位并要求 index 被完全消耗（与链上终止条件相同的接受集）；`UT_SharedBridge_Vm`
+    改跑真实结算栈与手写 proof —— 包括那条对修复前 artifacts 可证明会付钱、重签后被拒绝的兑付路径
+    重标签反向测试。红 → 绿证据见 §5 V5 状态块。
 16. `V7` —— **本分支已定案（2026-08-31），两个决策各做一次、同时应用到两处读取点。** 读路径获得与
     写路径、获取发布锁路径同样的有界等待重试（2 秒窗口、50 毫秒间隔）；耗尽 `IOException` 的答案是
     **是，它归入协议家族**：两个读漏斗把它包装进 `InvalidDataException` 并保留内层异常，该发现点名的

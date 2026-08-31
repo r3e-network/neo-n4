@@ -420,7 +420,8 @@ public class RestrictedExecutionFraudVerifierContract : SmartContract
                 return false;
             }
             var preSibCount = (int)payload[pos]; pos += 1;
-            if (preSibCount > MaxSiblingDepth)
+            if (preSibCount > MaxSiblingDepth
+                || !IsCanonicalLeafIndex(leafIndex, preSibCount))
             {
                 OnFraudProofRejected(chainId, batchNumber, ReasonInvalidStorageProof);
                 return false;
@@ -440,7 +441,8 @@ public class RestrictedExecutionFraudVerifierContract : SmartContract
                 return false;
             }
             var postSibCount = (int)payload[pos]; pos += 1;
-            if (postSibCount > MaxSiblingDepth)
+            if (postSibCount > MaxSiblingDepth
+                || !IsCanonicalLeafIndex(leafIndex, postSibCount))
             {
                 OnFraudProofRejected(chainId, batchNumber, ReasonInvalidStorageProof);
                 return false;

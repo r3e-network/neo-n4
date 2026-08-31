@@ -345,6 +345,12 @@ public class UT_CanonicalEncodingParity_Vm
         Assert.IsFalse(pair.Settlement.VerifyWithdrawalLeafWithProof(
             chainId, CanonicalEncodingVectors.Batch, new UInt256(leaves[0]), Siblings(0), 1)!.Value);
 
+        // V5 position binding: the golden tree has depth 3, so leaf 4's proof folds identically when
+        // the index is relabelled to 4 + 2^3 = 12 — the fold consumes only the low three bits — but
+        // 12 is no leaf of the tree. A proof bound only to the leaf hash would accept it.
+        Assert.IsFalse(pair.Settlement.VerifyWithdrawalLeafWithProof(
+            chainId, CanonicalEncodingVectors.Batch, new UInt256(leaves[4]), Siblings(4), 12)!.Value);
+
         Assert.IsFalse(pair.Settlement.VerifyWithdrawalLeafWithProof(
             chainId, 2, new UInt256(leaves[0]), Siblings(0), 0)!.Value);
     }
@@ -371,6 +377,11 @@ public class UT_CanonicalEncodingParity_Vm
         tampered[1] = CanonicalEncodingVectors.Fill(0xEE);
         Assert.IsFalse(pair.Settlement.VerifyStateLeafWithProof(
             chainId, new UInt256(leaves[2]), tampered, 2)!.Value);
+
+        // Same terminator as the withdrawal fold: relabelling leaf 2 to 2 + 2^3 = 10 walks the
+        // identical fold directions (only the low three bits are consumed) and must be rejected.
+        Assert.IsFalse(pair.Settlement.VerifyStateLeafWithProof(
+            chainId, new UInt256(leaves[2]), Siblings(2), 10)!.Value);
     }
 
     [TestMethod]

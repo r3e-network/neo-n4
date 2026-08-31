@@ -153,6 +153,24 @@ public sealed class MerkleTree
             throw new ArgumentException("Path depth exceeds 64", nameof(proof));
 
         var current = proof.Leaf;
+        // Position binding: PathBitmap and LeafIndex travel as independent fields (both are
+        // serialized), so without these checks a genuine proof for leaf i verifies equally at any
+        // relabelled index — inclusion bound to the leaf hash, not to a unique position. Two
+        // conditions bind them: the bitmap must equal the index's own bits (bit d of the index is 1
+        // exactly when the level-d sibling sits on the left — the same convention GetProof encodes),
+        // and the index must be fully consumed by the depth (the on-chain folds' `index != 0`
+        // terminator — an index of i + 2^depth walks the same directions but names no leaf of the
+        // tree). Reject (don't throw): Verify's bool contract handles untrusted proofs.
+        var expectedBitmap = 0UL;
+        var residual = (ulong)proof.LeafIndex;
+        for (var d = 0; d < proof.Siblings.Count; d++)
+        {
+            if ((residual & 1UL) != 0UL)
+                expectedBitmap |= 1UL << d;
+            residual >>= 1;
+        }
+        if (residual != 0 || proof.PathBitmap != expectedBitmap)
+            return false;
         for (var d = 0; d < proof.Siblings.Count; d++)
         {
             var sibling = proof.Siblings[d] ?? throw new ArgumentException(

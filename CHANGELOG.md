@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — SP1 queue reads now tolerate transient sharing violations and always fail typed — 2026-08-31
+
+- §10 item 16 [E1]: both SP1 file-queue read funnels read artifacts with a bare
+  `File.ReadAllBytesAsync` outside every typed guard — `AtomicFileQueueTransport.ReadBoundedPathAsync`
+  (`:265` at audit time) and the structurally identical `Sp1GatewayProofProver.ReadBoundedFileAsync`
+  (`:429`). A transient Windows sharing violation at that instant (filter driver holding a
+  just-renamed file; antivirus under a 38-assembly parallel run) escaped as a raw `IOException`, the
+  one exception class outside the transports' `InvalidDataException` convention — measured at 1
+  failure in 2 full-solution runs, in a project neither branch touched.
+- The write and publisher-lock paths already carried the bounded wait-and-retry idiom; the read paths
+  now get the same answer at both sites: transient `IOException`s are retried within a 2-second
+  window polled at 50 ms (deliberately narrower than the operator-tuned `_resultTimeout`), an
+  in-flight `FileNotFoundException` keeps the existing missing-artifact verdict, and the explicit
+  decision §10 item 16 asked for — an *exhausted* `IOException` **is** wrapped into the protocol's
+  `InvalidDataException` family with the inner exception preserved, so every detectable read failure
+  is typed and owned by the callers' structured-rejection paths. `OperationCanceledException` still
+  propagates.
+- Four new tests hold artifacts exclusively through both public paths: release inside the window is
+  retried to success; a hold that outlives the window is typed, never raw. `Neo.L2.Proving.UnitTests`
+  86/86, `Neo.Plugins.L2Gateway.UnitTests` 105/105.
+
 ### Added — the settlement reconcile cadence now drives permissionless challenge-window expiry — 2026-08-31
 
 - §10 item 18 [E1]: `OptimisticChallenge.FinalizeIfPastWindow` was the sole caller of

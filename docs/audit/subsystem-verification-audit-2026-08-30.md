@@ -1089,6 +1089,21 @@ and decide explicitly whether an exhausted `IOException` belongs in the protocol
 ships a structurally identical helper — same `File.Exists` check, same unguarded
 `File.ReadAllBytesAsync` at `:429` — so whichever answer is right should be applied to both.
 
+**Status — fixed on this branch, both halves, with one shared answer.** The retry idiom the write and
+lock-acquisition paths already carried is now applied to both read funnels: `ReadBoundedPathAsync`
+routes the read through a `ReadAllBytesWithSharingViolationRetryAsync` helper that retries transient
+`IOException`s within a 2-second window polled at 50 ms (a proportionate budget for a filter-driver
+hold, deliberately narrower than the operator-tuned `_resultTimeout`), converts an in-flight
+`FileNotFoundException` to the same missing-artifact verdict the pre-read existence check emits, and
+— the explicit decision §10 item 16 asked for — wraps an *exhausted* `IOException` into the
+transport's `InvalidDataException` family with the inner exception preserved, so every read failure
+the transport can detect is typed and every caller's structured-rejection path owns it;
+`OperationCanceledException` still propagates. `Sp1GatewayProofProver.ReadBoundedFileAsync` ships the
+identical helper with the same constants — one answer, applied to both, as the finding required. Four
+new tests hold artifacts exclusively through both public paths: release inside the window is retried
+to success; a hold that outlives the window is typed, never raw. `Neo.L2.Proving.UnitTests` 86/86,
+`Neo.Plugins.L2Gateway.UnitTests` 105/105.
+
 ### V8 — The only Rust dependency gate in CI cannot see the advisories Dependabot reports, and the High one is live [E1 gate-blindness + reachability]
 
 GitHub lists three open Dependabot alerts on this repository. All three are Rust, all three resolve
@@ -1915,10 +1930,12 @@ Split by whether it can land now.
 14. `H1` — `StopPlugin` + retry for `Committed`; needs the `OnBlockCommitted` test coverage first
     (§6, "OnBlockCommitted has no test").
 15. `C2` / `V5` — position-bound verification, plus un-mocking `UT_SharedBridge_Vm`.
-16. `V7` — the retry idiom already exists at `AtomicFileQueueTransport.cs:108`/`:147`; decide whether
-    the read path gets the same bounded wait-and-retry *and* whether an exhausted `IOException` is
-    wrapped into the protocol's `InvalidDataException` family. One answer, applied to both read sites
-    (`AtomicFileQueueTransport.cs:265`, `Sp1GatewayProofProver.cs:429`).
+16. `V7` — **settled on this branch (2026-08-31), both decisions made once and applied to both read
+    sites.** The read path gets the same bounded wait-and-retry the write and lock-acquisition paths
+    already carried (2-second window, 50 ms poll), and the exhausted-`IOException` answer is **yes,
+    it belongs in the protocol family**: the read funnels wrap it into `InvalidDataException` with the
+    inner exception preserved, so the escaping exception the finding flagged no longer exists. See
+    §5 V7's status block.
 17. `V8` — **settled by measurement, and the answer is that nothing needs scheduling.** The SP1
     6.2.1 → 6.5.0 bump this queue used to name as the fix does not fix anything: `0.4.3-succinct` and
     `0.3.3-succinct` carry byte-identical copies of both files the advisory names, and `0.4.3-succinct`

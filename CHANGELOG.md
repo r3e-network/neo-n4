@@ -82,8 +82,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   dispatch-only lane; this branch's new Rust file is clean, and `wire.rs` is deliberately untouched here.
 - Audit: §5 V2's status block, §10 item 9, §11's first bullet and §8 item 15 in
   `docs/audit/subsystem-verification-audit-2026-08-30.md`, mirrored into `docs/zh/`. Adding the CI step
-  shifted every later `build.yml` line by 9, so eleven citations in these two reports and their mirrors
-  were renumbered against disk.
+  shifted every later `build.yml` line by 9, so each affected citation in these two reports and their
+  mirrors was renumbered against disk — item 15(d) enumerates them. Item 15 also gained (e) and (f): the
+  paragraph replacing the earlier `rustfmt` claim had itself shipped three unmeasured assertions, and this
+  PR's description published a `0x22`/`0x33`-vs-`0x12`/`0x1e` slot disagreement that no finding supports
+  (`ChainRegistryContract.cs:309-310` and `L2ChainConfigSerializer.cs:43-44` name the same `24`/`44`).
 
 ### Fixed — V2 (docs half): `ChainMode.L2RiscV` never existed, and the public-inputs encoder is not an L1 ABI — 2026-08-31
 

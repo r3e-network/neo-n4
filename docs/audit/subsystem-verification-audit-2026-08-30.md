@@ -1661,15 +1661,16 @@ the file, not inferred.
     cross-language vector held in one file" claim in §5. (d) After item 13's mechanical citation scan had
     passed, this branch added a nine-line step to `build.yml`, silently invalidating every `build.yml`
     reference at or after line 302 in both reports. Item 13's scan cannot catch that class, because it
-    checks a citation against the tree as it was when the scan ran; eleven sites were renumbered by hand
-    against disk (`385-387`→`394-396`, `516`→`527`, `520`→`529`, `532`→`541`, `565-569`→`574-578`,
-    `592-599`→`601-608` in this report and its mirror, and `600-607`→`609-616` in the 2026-08-29 report
-    plus its mirror). Any future edit to a file this report cites at fixed line numbers has the same
-    effect, so the rule this pass learned is that a CI edit and a report edit do not belong in the same
-    commit unless the renumbering rides with them. (e) The paragraph that presented itself as the measured
-    replacement for the earlier `rustfmt` claim shipped three claims of its own that had not been measured
-    either: a toolchain version copied forward as 1.98 when the local binary is 1.9.0-stable, the *rule*
-    the diff violates inferred as "SCREAMING members sort first" when the printed diff wants
+    checks a citation against the tree as it was when the scan ran; every affected reference was
+    renumbered by hand against disk (`385-387`→`394-396`, `516`→`527`, `520`→`529`, `532`→`541`,
+    `565-569`→`574-578`, `592-599`→`601-608` in this report's §5 V1 fenced block and its §5 V8
+    sentence, the same six in the mirror, item 12's sentence in both, and `600-607`→`609-616` in the
+    2026-08-29 report plus its mirror). Any future edit to a file this report cites at fixed line numbers
+    has the same effect, so the rule this pass learned is that a CI edit and a report edit do not belong in
+    the same commit unless the renumbering rides with them. (e) The paragraph that presented itself as the
+    measured replacement for the earlier `rustfmt` claim shipped three claims of its own that had not been
+    measured either: a toolchain version copied forward as 1.98 when the local binary is 1.9.0-stable, the
+    *rule* the diff violates inferred as "SCREAMING members sort first" when the printed diff wants
     `MAX_PAYLOAD_ITEMS` before `Reader` (ordinary alphabetical order), and "no `rust-toolchain` file exists
     anywhere in this repo", refuted by `external/neo-riscv-vm` and `external/neo-vm-rs`. All three are
     corrected in §5 and in the mirror. Writing "measured rather than assumed" does not make a paragraph

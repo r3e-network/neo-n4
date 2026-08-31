@@ -79,6 +79,73 @@ public class UT_MerkleTree
     }
 
     [TestMethod]
+    public void Verify_RejectsRelabelledLeafIndex()
+    {
+        // C2: LeafIndex and PathBitmap travel as independent serialized fields. Without binding
+        // the bitmap to the index, a genuine proof for leaf i verifies equally at any relabelled
+        // index — inclusion bound to the leaf hash, not to a unique position.
+        var leaves = Enumerable.Range(0, 8).Select(H).ToArray();
+        var tree = new MerkleTree(leaves);
+        var proof = tree.GetProof(3);
+        Assert.IsTrue(MerkleTree.Verify(proof, tree.Root));
+        foreach (var j in new[] { 0, 1, 2, 4, 5, 6, 7 })
+        {
+            Assert.IsFalse(MerkleTree.Verify(proof with { LeafIndex = j }, tree.Root),
+                $"leaf 3's proof must not verify at index {j}");
+        }
+    }
+
+    [TestMethod]
+    public void Verify_RejectsIndexBeyondTheTreeDepth()
+    {
+        // C2, terminator half: index i + 2^depth walks the same fold directions (only the low
+        // `depth` bits are consumed) and implies the same bitmap — but it names no leaf of the
+        // tree. Same acceptance set as the on-chain folds' `index != 0` terminator.
+        var leaves = Enumerable.Range(0, 5).Select(H).ToArray();
+        var tree = new MerkleTree(leaves); // depth 3
+        var proof = tree.GetProof(2);
+        Assert.IsTrue(MerkleTree.Verify(proof, tree.Root));
+        Assert.IsFalse(MerkleTree.Verify(proof with { LeafIndex = 2 + 8 }, tree.Root));
+        Assert.IsFalse(MerkleTree.Verify(proof with { LeafIndex = 2 + 16 }, tree.Root));
+
+        // Depth-0 corner: a single-leaf tree's empty-sibling proof binds the index to zero.
+        var single = new MerkleTree(new[] { H(1) });
+        var singleProof = single.GetProof(0);
+        Assert.IsTrue(MerkleTree.Verify(singleProof, single.Root));
+        Assert.IsFalse(MerkleTree.Verify(singleProof with { LeafIndex = 1 }, single.Root));
+    }
+
+    [TestMethod]
+    public void Verify_RejectsInconsistentBitmap()
+    {
+        // C2: a bitmap that disagrees with the index's own bits is self-contradictory even when
+        // the fold would still land on the root — the two position statements must match each
+        // other, not just the root.
+        var leaves = Enumerable.Range(0, 8).Select(H).ToArray();
+        var tree = new MerkleTree(leaves);
+        var proof = tree.GetProof(5); // 101b — bitmap has bits 0 and 2 set
+        Assert.IsTrue(MerkleTree.Verify(proof, tree.Root));
+        foreach (var flip in new[] { 0, 1, 2 })
+        {
+            Assert.IsFalse(
+                MerkleTree.Verify(proof with { PathBitmap = proof.PathBitmap ^ (1UL << flip) }, tree.Root),
+                $"flipping bitmap bit {flip} must be rejected");
+        }
+    }
+
+    [TestMethod]
+    public void Verify_AcceptsEveryPositionOfAnOddTree()
+    {
+        // Roundtrip control for the binding: every legitimate proof of a 5-leaf tree (odd count,
+        // self-paired trailing leaf) still verifies, so the accept set shrank only for relabelled
+        // or self-contradictory proofs.
+        var leaves = Enumerable.Range(0, 5).Select(H).ToArray();
+        var tree = new MerkleTree(leaves);
+        for (var i = 0; i < leaves.Length; i++)
+            Assert.IsTrue(MerkleTree.Verify(tree.GetProof(i), tree.Root), $"index {i}");
+    }
+
+    [TestMethod]
     public void Verify_RejectsNullLeaf()
     {
         // Regression for iter 168: Leaf is UInt256 (reference type) — `required` only

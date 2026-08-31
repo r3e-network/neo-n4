@@ -15,6 +15,20 @@
 
 ## 中文摘要
 
+- 2026-09-01 Merkle inclusion 绑定到唯一位置，链上链下同步收紧（C2 + V5）：三条链上 Merkle 折叠
+  此前都接受任意重标签的 leaf index —— 折叠只消耗 index 的低位，在 leaf `i` 上有效的 proof 在
+  `i + 2^k` 上同样有效，inclusion 绑定的是 leaf 哈希而非唯一位置。`SettlementManager` 的两条折叠
+  （`verifyWithdrawalLeafWithProof`、`verifyStateLeafWithProof`）现以 `index != 0` 终止条件收尾；
+  审计计数漏掉的第三处未设防折叠 —— `RestrictedExecutionFraudVerifier` 结构性 pre/post
+  storage-proof 路径 —— 以扩展既有 `IsCanonicalLeafIndex` 守卫收口；`EmergencyManager` 委托状态
+  折叠、原样继承收紧。链下 `MerkleTree.Verify` 把 `PathBitmap` 绑定到 index 自身的位并要求 index
+  被证明深度完全消耗（与链上终止条件相同的接受集）。无字节格式变化：合法 proof 不受影响，只有
+  重标签或自相矛盾的 proof 被移出接受集。`UT_SharedBridge_Vm` 去掉 `→ true` 桩，改跑真实
+  ChainRegistry + SettlementManager + SharedBridge 与手写 proof，并以红 → 绿执行证明：对修复前的
+  已提交 artifacts，三条重标签反向测试失败 —— SharedBridge 那条是真金白银付出去的（3 失败 /
+  9 通过）—— 用钉住 nccs 重签两个合约 artifacts 后同套件转绿（四个受影响 VM 类 52/52；状态单元
+  测试 124/124；全 solution 绿）。安全结论与测试证据以英文 CHANGELOG 原文为准。
+
 - 2026-08-31 FFI panic 边界恢复可展开（H14）：`external/neo-riscv-vm` 此前在 **两个** profile
   （`[profile.release]` 与 `[profile.dev]`）下都设 `panic = "abort"`，而 `neo-riscv-host` 的十个
   `catch_unwind(AssertUnwindSafe(…))` FFI 分支 —— 把执行核心内部的 Rust panic 转换成回呈给

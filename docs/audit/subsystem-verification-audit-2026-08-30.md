@@ -1065,6 +1065,38 @@ root carries no depth, so the `index == 0` check is what binds position), un-stu
 `UT_SharedBridge_Vm`, and add a negative VM test per fold. `C2` remains open and is the
 highest-value unfixed item in either report.
 
+**Status (settled on the `fix/position-bound-verify` branch, 2026-09-01): terminated, bound,
+un-stubbed, proven red → green.** All three on-chain fold sites now bind position. Both
+`SettlementManager` folds end with the terminator this finding specified —
+`if (index != 0) return false;` before the root comparison
+(`VerifyWithdrawalLeafWithProof:1034`, `VerifyStateLeafWithProof:1159`) — and the count correction
+matters here too: there was a *third* unguarded fold, in `RestrictedExecutionFraudVerifier`'s
+structural pre/post storage-proof path, which the finding did not name; it is guarded by extending
+the existing `IsCanonicalLeafIndex` check to both sibling counts, so a structural proof can no
+longer slide a storage key to a position its fold never walked. Off-chain, `MerkleTree.Verify`
+(`src/Neo.L2.State/MerkleTree.cs`) now binds `PathBitmap` to the leaf index's own bits *and*
+requires the index fully consumed by the proof depth — the same acceptance set as the on-chain
+terminator, since a relabelled `i + 2^depth` walks identical fold directions and implies an
+identical bitmap, which a bitmap-only check would still accept. `EmergencyManager` delegates to the
+state fold and inherits the tightening with no change of its own.
+
+`UT_SharedBridge_Vm` no longer stubs the verifier: it deploys real `ChainRegistry` +
+`SettlementManager` + `SharedBridge` in one engine (only the VerifierRegistry / DARegistry /
+DAValidator / TokenRegistry / NEP-17 back ends are mocked) and settles real per-chain batches from
+hand-rolled commitment headers — publicInputHash recomputed over the 348-byte preimage — with real
+Merkle proofs built from a local copy of the fold convention. The C1 isolation test gained a
+control that makes its failure attributable: leaf B's proof is asserted to verify first, so the
+rejection provably happens at the escrow cap, not at the proof. The new
+`Withdrawal_RelabelledLeafIndex_Fails` pays the negative this finding asked for on the path that
+moves money: a depth-1 proof for a funded leaf presented at `index + 2` — identical fold
+directions, no leaf of the committed tree. Executed against the *pre-fix* committed artifacts it
+**pays out** (3 failed / 9 passed; the failure is `Assert.ThrowsExactly` seeing no exception), and
+after re-emitting the two contracts' artifacts with the pinned nccs the same suite is green:
+52/52 across the SharedBridge / parity / fraud-verifier / EmergencyManager VM classes,
+`Neo.L2.State.UnitTests` 124/124 with four new `Verify_Rejects*` position-binding tests, and the
+full solution green. Both artifact diffs are exactly the `Manifest`/`Nef` property lines with the
+ABI name sets byte-identical.
+
 ### V6 — The best-guarded surface in the repo has one bypass, and it is on the crash path [E1 counted]
 
 Telemetry deserves credit before the defect. `MetricNames.cs` declares 39 metric constants,
@@ -1643,7 +1675,7 @@ decision.
 | Prior | Status now | Evidence |
 | --- | --- | --- |
 | `C1` deposit/router inbox collision | **Fixed** (this branch) | two-part dedup + total order in `L1MessageDrain.cs`, `UT_L1MessageDrain` regressions |
-| `C2` `MerkleTree.Verify` not position-bound | **Open** — and the same shape is in both contract folds (§5 V5), unobservable because the payout test stubs the verifier | `SettlementManagerContract.cs:989-1012`, `:1115-1134` |
+| `C2` `MerkleTree.Verify` not position-bound | **Fixed** (this branch, 2026-09-01) — the off-chain verifier binds `PathBitmap` to the index's own bits and requires the index fully consumed; both contract folds got the `index != 0` terminator and the structural folds their `IsCanonicalLeafIndex` guard (§5 V5) | `src/Neo.L2.State/MerkleTree.cs` position-binding block; `SettlementManagerContract.cs:1034`, `:1159`; red → green VM evidence in §5 V5's status block |
 | `H1` plugin exceptions stop the node | **Fixed** for the batcher on the item-14 branch (2026-08-31): `ExceptionPolicy => StopPlugin` override + one pending-batch retry before rethrow | `L2BatchPlugin.cs` override + `ProcessCommittedEvent` retry, 4 new tests; other L2 plugins keep the core default (no durable per-commit state to protect) |
 | `H6` decorative off-chain binary pin | **Open**, now [E1] with a derived-digest test and no negative test (§5 V3) | `UT_Sp1StatefulBatchExecutor.cs:318` |
 | `H12` governance locks on trust roots | **Fixed** for the three roots this branch covered; §7.1's two `contracts/` residuals were closed on the follow-up branch, leaving only the native-contract surface | `ChainRegistryContract.cs:158-168,172-181,389` |
@@ -2115,7 +2147,14 @@ Split by whether it can land now.
     construction — only the batcher overrides the policy — but no other plugin holds durable
     per-commit state the way the batcher's pending sealed batch does, so H1's outage path is the one
     closed. `Neo.Plugins.L2Batch.UnitTests` 70/70.
-15. `C2` / `V5` — position-bound verification, plus un-mocking `UT_SharedBridge_Vm`.
+15. `C2` / `V5` — **settled on this branch (2026-09-01), all four halves at once.** Both
+    `SettlementManager` folds got the `index != 0` terminator, the structural pre/post folds in
+    `RestrictedExecutionFraudVerifier` got the `IsCanonicalLeafIndex` guard the finding's count
+    missed, off-chain `MerkleTree.Verify` binds `PathBitmap` to the index's own bits and requires
+    the index fully consumed (the same acceptance set as the on-chain terminator), and
+    `UT_SharedBridge_Vm` runs against a real settlement stack with hand-rolled proofs — including
+    the payout-path relabel negative that demonstrably pays out against the pre-fix artifacts and
+    is rejected after the re-emit. See §5 V5's status block for the red → green evidence.
 16. `V7` — **settled on this branch (2026-08-31), both decisions made once and applied to both read
     sites.** The read path gets the same bounded wait-and-retry the write and lock-acquisition paths
     already carried (2-second window, 50 ms poll), and the exhausted-`IOException` answer is **yes,

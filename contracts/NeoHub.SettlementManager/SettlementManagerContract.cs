@@ -1028,6 +1028,10 @@ public class SettlementManagerContract : SmartContract
             current = (byte[])CryptoLib.Sha256(h1);
             index = index >> 1;
         }
+        // Position binding: the stored root carries no depth, so a fully-consumed index is what
+        // ties inclusion to a unique leaf. Without this, a proof for leaf i verifies equally at
+        // i + 2^k for any k >= sibling count — the fold only reads the low bits.
+        if (index != 0) return false;
         return storedRoot.Equals((UInt256)current);
     }
 
@@ -1150,6 +1154,9 @@ public class SettlementManagerContract : SmartContract
             current = (byte[])CryptoLib.Sha256(h1);
             index = index >> 1;
         }
+        // Position binding, same terminator as VerifyWithdrawalLeafWithProof: the canonical root
+        // carries no depth, so a fully-consumed index is what ties inclusion to a unique leaf.
+        if (index != 0) return false;
         return canonicalRoot.Equals((UInt256)current);
     }
 

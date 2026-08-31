@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Merkle inclusion is bound to a unique position, on and off chain — 2026-09-01
+
+- §10 item 15 (`C2` + `V5`): all three on-chain Merkle folds accepted a proof at any relabelled
+  leaf index — the fold consumes only the index's low bits, so a proof valid at leaf `i` verified
+  equally at `i + 2^k`, binding inclusion to the leaf hash instead of a unique position. The two
+  `SettlementManager` folds (`verifyWithdrawalLeafWithProof`, `verifyStateLeafWithProof`) now end
+  with the `index != 0` terminator; the third unguarded fold the audit count had missed —
+  `RestrictedExecutionFraudVerifier`'s structural pre/post storage-proof path — is closed by
+  extending the existing `IsCanonicalLeafIndex` guard to both sibling counts. `EmergencyManager`
+  delegates to the state fold and inherits the tightening. Off-chain, `MerkleTree.Verify` now
+  binds `PathBitmap` to the leaf index's own bits and requires the index fully consumed by the
+  proof depth — the same acceptance set as the on-chain terminator (a bitmap-only check would
+  still accept `i + 2^depth`, which walks identical fold directions and implies an identical
+  bitmap). No byte format changes: legal proofs are unaffected, only relabelled or
+  self-contradictory ones shrink out of the accept set.
+- `UT_SharedBridge_Vm` no longer stubs `VerifyWithdrawalLeafWithProof → true`: it deploys real
+  `ChainRegistry` + `SettlementManager` + `SharedBridge` and settles real per-chain batches from
+  hand-rolled commitment headers (publicInputHash recomputed over the 348-byte preimage) with real
+  hand-built Merkle proofs. The C1 isolation test gained a proof-verifies-first control so its
+  rejection is attributable to the escrow cap, and a new payout-path negative
+  (`Withdrawal_RelabelledLeafIndex_Fails`) presents a funded leaf's depth-1 proof at `index + 2`.
+  Executed red → green: against the pre-fix committed artifacts the three relabel negatives fail —
+  the SharedBridge one by actually paying out (3 failed / 9 passed) — and after re-emitting the two
+  contracts' artifacts with the pinned nccs the same suite is green (52/52 across the four affected
+  VM classes; `Neo.L2.State.UnitTests` 124/124 with four new position-binding tests; full solution
+  green). Both artifact diffs are exactly the `Manifest`/`Nef` property lines with identical ABI
+  name sets.
+
 ### Fixed — the RISC-V guest blob is fresh again, and a CI gate keeps it that way — 2026-08-31
 
 - §10 item 10 [E1] (`C3`): every RISC-V test executed a committed `guest.polkavm` that predates

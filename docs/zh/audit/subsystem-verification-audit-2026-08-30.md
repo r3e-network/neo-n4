@@ -1179,6 +1179,17 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
 距其建立已六周，而且再加一条 ignore 也不会关掉它们：`ignore` 抑制的是拉取请求，不是告警。
 书面的接受风险决定与可见的告警状态互相矛盾，而读过那份笔记之外的人只能看见后者。
 
+**状态 —— 本分支已对齐（2026-08-31）。** ignore 块的注释现在把机制写明 —— `ignore` 只抑制
+更新 PR，告警仍以受追踪的接受风险保持 open —— 点名全部三条在案 GHSA 及其严重度
+（`GHSA-vj64-rjf3-w3v7` high、`GHSA-rhfx-m35p-ff5j` low、`GHSA-3g92-f9ch-qjcm` low，均在本分支
+日期经 API 复验为 open），指向两份文档，并解释第三条告警为何不在 ignore 清单里：
+`p3-symmetric` 没有已修补版本，Dependabot 永远不会为它发起可被抑制的更新 PR。对齐还顺带纠正了
+一处该发现的证据本身即可核验的引用错误：2026-08-28 笔记把 lru 告警写作 `GHSA-qqmc-hwqp-8g2w`，
+而 advisory API 显示该 id 是另一条（2022 年、use-after-free）lru 记录 —— 在案的告警是
+`GHSA-rhfx-m35p-ff5j`（2026 年、`IterMut` 违反 stacked borrows，与笔记所引的
+`>= 0.9.0, < 0.16.3` 区间吻合）。那份带日期的笔记按原样保留；更正记录在此处与配置注释里。
+第二个子动作的决定记录在 §10 第 17 条。
+
 ## 6. Medium / Low 发现（本轮新增）
 
 - **`SealedBatch` 丢弃了 batch 的消息那一侧** [E1]。`BatchBuilder.AddWithdrawal`、
@@ -1741,10 +1752,16 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     SP1 6.2.1 → 6.5.0 bump 什么都不修：`0.4.3-succinct` 与 `0.3.3-succinct` 带着公告点名的那两个文件
     的逐字节相同副本，而 `0.4.3-succinct` 是 `p3-challenger` 有史以来发布过的最高的 `-succinct`
     构建（§5 V8）。这条 High 继续开着，是因为它在这张依赖图里无法修补，不是因为还有工作没做。
-    剩下两个台账动作，都不需要轮换任何钉扎：把 `.github/dependabot.yml:26-35` 与 Security 标签页对齐
-    （`ignore` 抑制的是更新 PR、不是告警，所以三条全都还开着，而那段注释读起来像是已解决），
-    以及决定是否请 Succinct 把 Plonky3 的 `0.4.3` challenger 修复合进这个 fork。原条目里的第三个子动作
-    —— 把 `p3-symmetric` 写成书面评估 —— 已在 §5 V8 完成。
+    本条目点名的两个台账动作中，第一个**已在本分支完成（2026-08-31）**：`.github/dependabot.yml`
+    的 ignore 注释现在把机制写明、点名全部三条在案 GHSA、并纠正笔记里过期的 lru 引用 ——
+    见 §5 V8 的状态块。第二个**已定案：要问，请 Succinct 把 Plonky3 的 `0.4.3` challenger 修复
+    合进 `-succinct` fork**。理由：在钉扎配对上被测得成立的唯一公告机制（无长度标记的
+    `duplexing` 吸收导致的 transcript 可塑性，§5 V8）有一条公开的上游修复，而它在整条 fork 线上
+    都不存在；fork 是该修复唯一的分发渠道（比 `0.4.3` 更新的 `-succinct` 构建从未发布过）；而
+    询问的成本只是一条消息 —— 替代方案是自己携带修复，那意味着 fork SP1 的整套工具链。询问本身
+    是对 `succinctlabs` 的外部沟通（在其仓库以 issue/discussion 形式引用 §5 V8 的钉扎配对测量），
+    刻意不在本代码树内擅自发起：这是维护者要拍板去发的动作，不是智能体可以悄悄代做的。
+    原条目里的第三个子动作 —— 把 `p3-symmetric` 写成书面评估 —— 已在 §5 V8 完成。
 18. `finalizeIfPastWindow` 驱动 —— **已在本分支定案并实现（2026-08-31）：归属是
     `Neo.Plugins.L2Settlement` 的对账节奏，驱动已落地。** 形状复用 forced-inclusion finalizer
     的接缝模式：`ISettlementWindowFinalizer`（Abstractions，过期判定 + 终局化）、

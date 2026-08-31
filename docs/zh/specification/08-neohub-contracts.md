@@ -123,13 +123,20 @@ L2 burn/lock -> withdrawal record -> WithdrawalRoot -> L1 accepted batch -> incl
 `VerifierRegistry` 把 proof type 映射到 verifier。
 
 ```text
-ProofType.Multisig   -> Attestation verifier
-ProofType.Optimistic -> Optimistic path
-ProofType.Zk         -> ContractZkVerifier
-ProofType.Gateway    -> Gateway verifier
+ProofType.Multisig   (1) -> 委员会签名 attest verifier
+ProofType.Optimistic (2) -> 乐观窗口 path
+ProofType.Zk         (3) -> ContractZkVerifier
 ```
 
-它的重点不是“自己验证所有证明”，而是做受治理控制的 proof dispatch。
+`writeVerifier` 只接受 proof type `1..3`，因此不存在 `ProofType.Gateway` 这样的第四
+条 dispatch 路由 —— Gateway 的 global root 由 `SettlementManager.PublishGatewayGlobalRoot`
+发布，不走 commitment verify 派发。它的重点不是“自己验证所有证明”，而是做受治理控制
+的 proof dispatch。
+
+需要如实区分“可注册”和“出厂就注册”：`contracts/` 里实现 `verify(commitmentBytes)`
+的只有 `ContractZkVerifier`，而 `neo-hub-deploy` 在一次性 `lockGovernance` 之前也只注册
+`ProofType.Zk`。因此选择 `Multisig` / `Optimistic` 的链，运维者必须在自己那侧提供并
+注册对应 verifier（且必须发生在锁之前）。
 
 ## 8.7 `ContractZkVerifier`
 

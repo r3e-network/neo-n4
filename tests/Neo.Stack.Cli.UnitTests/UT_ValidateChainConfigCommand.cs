@@ -295,16 +295,35 @@ public class UT_ValidateChainConfigCommand
     }
 
     [TestMethod]
-    public void Validate_CrossFieldNoWarning_OptimisticWithOptimistic()
+    public void Validate_CrossFieldNoWarning_OptimisticWithZk()
     {
-        // Default rollup config: SecurityLevel.Optimistic + ProofType.Optimistic — no
-        // warning. Pin so a regression that emits warnings on every config doesn't
-        // sneak in.
-        var path = WriteConfig(ValidRollupConfig());
+        // The shipped rollup pairing: SecurityLevel.Optimistic promises at least a
+        // challenge window, ProofType.Zk over-delivers on it, and Zk is the route
+        // Neo.Hub.Deploy registers. Legal and served — nothing to warn about.
+        var config = ValidRollupConfig().Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Zk\"");
+        var path = WriteConfig(config);
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
         Assert.AreEqual(0, rc);
         Assert.IsFalse(output.Contains("⚠"),
-            "consistent SecurityLevel + ProofType pair should NOT emit a warning");
+            "Optimistic + Zk is legal and has a production verifier route, so it must NOT warn");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldWarning_LegalProofWithNoProductionVerifierRoute()
+    {
+        // Optimistic + Optimistic passes SettlementManager.IsProofTypeCompatible but is
+        // not deployable: Neo.Hub.Deploy registers only the Zk route and then locks
+        // VerifierRegistry, so the very first submitBatch faults with
+        // "no verifier for proof type". Pre-H18 the validator called this pair
+        // consistent, which is how the rollup template shipped a config that could
+        // never settle on the hub the same tool builds.
+        var path = WriteConfig(ValidRollupConfig());  // proofType=Optimistic, securityLevel=Optimistic
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc, "an unserved route is a warning, not a fatal error");
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "legal for securityLevel=Optimistic");
+        StringAssert.Contains(output, "no verifier route in the shipped production bundle");
+        StringAssert.Contains(output, "no verifier for proof type");
     }
 
     [TestMethod]
@@ -325,10 +344,13 @@ public class UT_ValidateChainConfigCommand
     }
 
     [TestMethod]
-    public void Validate_CrossFieldWarning_SidechainWithUnusualProof()
+    public void Validate_CrossFieldNoWarning_SidechainWithZk()
     {
-        // SecurityLevel.Sidechain typically pairs with ProofType.None or Multisig
-        // (sidechains usually don't run a prover). Anything else gets a warning.
+        // Sidechain is the weakest promise, so a validity proof over-delivers on it and
+        // SettlementManager accepts the pair; Zk is also the route the locked
+        // VerifierRegistry actually serves. Pre-H18 the CLI called this combination
+        // unusual and steered operators toward None — a proof type the contract, the
+        // registry and the batcher all refuse.
         var sidechainWithZk = ValidRollupConfig()
             .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Sidechain\"")
             .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"SidechainMode\"")
@@ -336,9 +358,28 @@ public class UT_ValidateChainConfigCommand
         var path = WriteConfig(sidechainWithZk);
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
         Assert.AreEqual(0, rc);
+        Assert.IsFalse(output.Contains("⚠"),
+            $"Sidechain + Zk settles on the shipped hub and must not warn.\nOutput:\n{output}");
+    }
+
+    [TestMethod]
+    public void Validate_CrossFieldWarning_SidechainWithMultisig_HasNoProductionVerifierRoute()
+    {
+        // The sidechain template's own pairing: legal for the label (a committee
+        // attestation is exactly what a sidechain promises) but Neo.Hub.Deploy freezes
+        // VerifierRegistry with only the Zk route, so this chain cannot settle on that
+        // hub unless an operator registers Multisig before the lock. Say so out loud —
+        // samples/privacy-sidechain.config.json depends on this warning firing.
+        var sidechainWithMultisig = ValidRollupConfig()
+            .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Sidechain\"")
+            .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"SidechainMode\"")
+            .Replace("\"proofType\": \"Optimistic\"", "\"proofType\": \"Multisig\"");
+        var path = WriteConfig(sidechainWithMultisig);
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc);
         StringAssert.Contains(output, "⚠");
-        StringAssert.Contains(output, "Sidechain");
-        StringAssert.Contains(output, "None or Multisig");
+        StringAssert.Contains(output, "proofType=Multisig is legal for securityLevel=Sidechain");
+        StringAssert.Contains(output, "no verifier route in the shipped production bundle");
     }
 
     [TestMethod]
@@ -358,10 +399,13 @@ public class UT_ValidateChainConfigCommand
     }
 
     [TestMethod]
-    public void Validate_CrossFieldNoWarning_SidechainWithNone()
+    public void Validate_CrossFieldWarning_SidechainWithNone_IsRejectedByTheContract()
     {
-        // sidechain template defaults: chainMode=SidechainMode + SecurityLevel.Sidechain
-        // + ProofType.None — all internally consistent. No cross-field warning should fire.
+        // The sidechain template used to ship proofType=None. None is not a settlement
+        // route anywhere: SettlementManager.IsProofTypeCompatible has no None row,
+        // VerifierRegistry.WriteVerifier refuses byte 0, and the batcher has no None
+        // proof artifact to build. Pin the warning + the accepted set so a future edit
+        // can't restore None as a "sidechains don't prove" shorthand.
         var sidechain = ValidRollupConfig()
             .Replace("\"chainMode\": \"L2RollupMode\"", "\"chainMode\": \"SidechainMode\"")
             .Replace("\"securityLevel\": \"Optimistic\"", "\"securityLevel\": \"Sidechain\"")
@@ -369,8 +413,9 @@ public class UT_ValidateChainConfigCommand
         var path = WriteConfig(sidechain);
         var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
         Assert.AreEqual(0, rc);
-        Assert.IsFalse(output.Contains("⚠"),
-            "Sidechain template (SidechainMode + Sidechain + None) is canonical — no warning");
+        StringAssert.Contains(output, "⚠");
+        StringAssert.Contains(output, "securityLevel=Sidechain accepts only proofType=Multisig / Optimistic / Zk");
+        StringAssert.Contains(output, "SettlementManager.IsProofTypeCompatible");
     }
 
     [TestMethod]
@@ -429,23 +474,26 @@ public class UT_ValidateChainConfigCommand
     {
         // Templates ship as canonical references; if a future edit introduces a
         // cross-field contradiction in any sample, every operator who copies it
-        // inherits the contradiction. Pin that all 4 shipped samples pass `validate`
-        // with zero `⚠` warnings.
+        // inherits the contradiction. Pin all 4 shipped samples against the same
+        // policy the create-chain and new-l2 guards use: no under-delivery warning
+        // anywhere, and the one sample shipped as a documented missing-verifier-route
+        // case (privacy-sidechain) still prints exactly that caveat.
         //
         // This is an integration-style guard: it exercises the actual JSON files
         // under samples/ + the actual ValidateChainConfigCommand path. If a future
         // commit adds a new validate warning that incidentally fires on an existing
         // sample, this test catches it before the sample ships broken.
-        var samplesRoot = FindSamplesRoot();
         foreach (var name in new[] { "general-rollup", "gaming-rollup", "exchange-validium", "privacy-sidechain" })
-        {
-            var path = Path.Combine(samplesRoot, $"{name}.config.json");
-            Assert.IsTrue(File.Exists(path), $"sample missing: {path}");
-            var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
-            Assert.AreEqual(0, rc, $"{name} must validate cleanly (rc=0); got: {output}");
-            Assert.IsFalse(output.Contains("⚠"),
-                $"{name} emits a cross-field warning — sample is internally inconsistent.\nOutput:\n{output}");
-        }
+            ShippedConfigWarningPolicy.AssertConsistent(name, RunSample(name));
+    }
+
+    private static string RunSample(string name)
+    {
+        var path = Path.Combine(FindSamplesRoot(), $"{name}.config.json");
+        Assert.IsTrue(File.Exists(path), $"sample missing: {path}");
+        var (rc, output) = CaptureStdout(() => ValidateChainConfigCommand.Run(new[] { path }));
+        Assert.AreEqual(0, rc, $"{name} must validate cleanly (rc=0); got: {output}");
+        return output;
     }
 
     private static string FindSamplesRoot()

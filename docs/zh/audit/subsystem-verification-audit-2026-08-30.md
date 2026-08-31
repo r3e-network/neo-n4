@@ -372,6 +372,104 @@ Sp1Groth16Verifier 三者都在为前提），带上 `GATEWAY_PROGRAM_VKEY_REPLA
 而 `neo-stack` 应当把模板的 `ProofType` 与部署计划做交叉核对。修复量很小；要点在于这两个工具
 对旗舰模板的默认安全态势意见相左。
 
+**状态 —— 本分支已修复，而根因不是模板那一行。** 把 `TemplateCatalog` 与部署器对齐之后才发现，
+这条接受规则同时存在于三层，它们彼此是抄来的，而其中真正有强制力的只有一处：
+
+| 层 | 位置（修复前） | 它所编码的规则 |
+|---|---|---|
+| 链上权威 | `SettlementManagerContract.IsProofTypeCompatible` —— 原本是 `private static`，规则体在本次修复中未改动 | `Sidechain`/`Settled ⇒ {Multisig, Optimistic, Zk}`；`Optimistic ⇒ {Optimistic, Zk}`；`Validity`/`Validium ⇒ {Zk}`；其余一律 `false` |
+| 运维者状态启发式 | `LocalHostOperatorStatus.cs`（修复前 `:578-590`） | `Optimistic ⇒ {Optimistic, **Multisig**}`；`Sidechain`/`Settled ⇒ {**None**, Multisig}` |
+| `neo-stack validate` | `ValidateChainConfigCommand.cs`（修复前 `:94-114`） | 与上面相同的两行错误，写成四个按层级的 `if` —— 而且**完全没有 `Settled` 那一行** |
+| `doc.md` §3.2 | —— | 这条规则从未写进规范，方法也不在接口清单里 |
+
+两份链下副本彼此一致，是因为一份抄自另一份；它们与链上规则相差恰好三对 ——
+`Optimistic+Multisig`、`Sidechain+None`、`Settled+None`。这三对都能写进 `chain.config.json`、
+都能通过 `validate`，然后都在 `submitBatch`（`SettlementManagerContract.cs:370`）里、在 verifier
+被调用之前就 fault。`Settled` 这一处缺失更尖锐：由于 CLI 用四个互不相干的 `if` 判断 `sec`，
+一个 `Settled` 的链四个都不命中，于是它在**任何** proof type 下都静默通过校验。
+
+仅凭 `TemplateCatalog.cs:32` 这一处看不出的是：`Optimistic+Optimistic` 在链上是合法的，
+所以**任何一版正确的接受表也不会对旗舰模板告警**。缺失的知识是另一条正交的轴 ——
+一次部署实际注册了哪些路由 —— 而仓库里没有任何一层编码过它。因此真正的缺陷是两张对合法性
+意见相左的表，*加上*一条没人跟踪的「合法但无路由」轴。
+
+修复是结构性的，分四部分。
+
+1. **向权威询问，而不是复制它。** `IsProofTypeCompatible` 现在是
+   `[Safe] public static`（`SettlementManagerContract.cs:403-425`）。其规则体一字未动，
+   因此没有任何结算行为发生改变，变化只在可达性。同一个函数在 `:370`（`submitBatch`）与
+   `:523`（`finalizeBatch`）就是执行点，这正是把它暴露出来的理由。合约 artifact 已用钉住的 nccs 重发。
+2. **一份链下镜像。** `src/Neo.L2.Abstractions/Models/ProofRouting.cs` 现在是合约之外唯一那张
+   `SecurityLevel ⇒ ProofType` 表：`AcceptedProofTypes` / `AcceptsProofType`（`:39-51`）管合法性轴，
+   `ProductionVerifierRoutes` / `HasProductionVerifierRoute`（`:29`、`:53`）管注册轴。两张手写表都被删除；
+   `LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType`（`:584`）与
+   `ValidateChainConfigCommand`（`:100-108`）都改为委托。`validate` 现在发出两类不同的告警：
+   被合约拒绝的组合报 `accepts only proofType=…`，组合合法但部署器锁死时未注册路由的报
+   `… has no verifier route in the shipped production bundle`。
+3. **一份两份实现都看不见的第三方参照。** `tests/Shared/ProofRoutingExpectations.cs` 经
+   `tests/Directory.Build.props` 编译进**每一个**测试程序集，它才是两侧共同对照的那张表 ——
+   `UT_SettlementManager_ProofRouting` 把全部 36 对（6 个层级含越界的 `5`，6 个 proof type 含 `4`
+   与 `255`）穿过已部署的 NEF，`UT_ProofRouting` 则用同一张表检查 `ProofRouting`。此后无论改合约
+   还是改镜像，都会撞到一张两者都不引用的表。之所以是编译进来的文件而不是项目引用：
+   `NeoHub.Contracts.VmTests.csproj` 有意一个 `<ProjectReference>` 都不带 —— 若引用
+   `Neo.L2.Abstractions`，就会与 `Neo.SmartContract.Testing` 自带的 `Neo` 一起解析出
+   `$(NeoCorePath)\Neo\Neo.csproj`。
+4. **模板与样例如今指向真实存在的路由。** `rollup` 在 `Optimistic` 这一承诺下限下发射 `Zk`
+   （超额交付合法，且这是已发布 hub 既能接受又能验证的唯一组合）；`sidechain` 发射 `Multisig`，
+   绝不再用 `None` —— `VerifierRegistry.WriteVerifier` 拒绝 proof type `0`
+   （`VerifierRegistryContract.cs:233`），`ProofWitnessSerializers` 也拒绝构造 `None` artifact，
+   所以一份 `None` 配置在任何一层都产不出 batch。`sidechain` / `privacy-sidechain` 作为「合法的
+   无路由案例」这一文档化情形出厂，`samples/README.md` 写明了这一点，而 `ShippedConfigWarningPolicy`
+   让三处出厂配置守卫（逐模板的 `create-chain`、逐模板的 `new-l2`、以及遍历
+   `samples/*.config.json`）改为断言同一份按类别区分的策略，不再是三份「零 `⚠`」的复制品。
+   `UT_ListTemplatesCommand` 补上目录级版本：每个模板的组合必须合法，且除 sidechain 之外每个模板
+   必须指向部署器会注册的路由。
+
+同样的漂移也存在于散文里，已修正四份对外文档：`docs/launching-an-l2.md` 与它的中文镜像在代码已经改
+之后仍然宣传 `rollup = L1 DA + Optimistic`、`sidechain = External + None`（而且它们「乐观 rollup 运维者」
+那段的前提，出厂模板已经不再满足）；`doc.md` §3.2 从未写下这条接受规则；`doc.md:169` 关于
+`SecurityLevel` 编号的说法与它自己的 §12 相矛盾；`docs/zh/specification/08-neohub-contracts.md`
+把 `ProofType.Gateway` 列为可注册路由，而 `VerifierRegistry.WriteVerifier` 拒绝它。改对的表能维持多久，
+取决于有没有测试把它钉住，因此两张对外的模板表现在都由
+`LaunchingGuide_TemplateTable_MatchesTheCatalog` 及其中文版逐格对照 `TemplateCatalog` 解析比较。
+
+把 `Multisig` 与 `securityLevel: "Optimistic"` 配在一起的测试夹具 ——
+`UT_E2E_HostComposition_FromDeployReport` 与 `UT_MultisigLocalHostComposition` 里共五处 ——
+描述的正是一条 `SettlementManager` 会 fault 的链。它们被改为 `Settled`，其定义恰好就是
+「batch 提交到 L1，但不检查欺诈证明或有效性证明」，而不是为了迁就夹具把表放宽。
+
+**本次没有修复的部分，写清楚以免被误读。** `doc.md` §7.5 stage 0/1 点名的两条路由在 L1 上仍未实现：
+26 个 `contracts/NeoHub.*` 工程里只有一个实现 registry 的 `verify(commitmentBytes)` 接口
+（`ContractZkVerifierContract.cs:302`），所以 `Multisig` 与 `Optimistic` 就构造而言必须是运维者自带的
+路由，`sidechain` 的那条 caveat 是准确描述而非装饰。诚实的收尾是实现这两个 verifier，并在
+`lockGovernance`（`:866-869`）*之前*把它们注册进 `LiveDeployCommand`；那一天 `ShippedConfigWarningPolicy`
+就是提示你删除 caveat 的绊线。同样按原样保留的还有：
+`tools/Neo.L2.Devnet/Program.cs:385,403` 无论配置里的 `proofType` 是什么都构造 Multisig commitment，
+因此 `--config` 跑的是标签表面（`samples/README.md` 已披露），以及 `SecurityLevel.Settled` 有四对合法
+组合却没有任何出厂模板发射它。
+
+**基于证据而非假设地保留。** DA-mode 的孪生函数
+`LocalHostOperatorStatus.IsSecurityLevelPairedWithDaMode`（`:591-599`）已针对
+`SettlementManager.AssertSecurityConfigurationCompatible`（`:427-441`）与 `ChainRegistry` 的注册检查
+（`:594-595`）重新推导过：`Validity ⇒ L1` 与 `Validium ⇒ ¬L1` 两行与合约逐字节一致，
+`Sidechain`/`Settled`/`Optimistic` 在链上无约束、在链下返回 `true`，而 `DAMode.Local = byte.MaxValue`
+—— 虽然被启发式的默认分支接受 —— 到不了 batch，因为 `ChainRegistry` 与 `SettlementManager` 都把
+`daMode` 上限钉在 `3`。那是另一条规则、另一个定义域，而且它本来就是对的。
+
+**本分支上的验证。** `dotnet test Neo.L2.sln -p:NuGetAudit=false`：**38 个程序集、2,916 通过、
+0 失败、5 跳过** = 总量 2,921（基线 2,910）。新增的 11 个是十一个新的 `[TestMethod]` 方法，
+`DataRow` 展开未变：`UT_ProofRouting` ×4、36 对的 `UT_SettlementManager_ProofRouting` ×1、
+`UT_ListTemplatesCommand` 里两个新的目录守卫加两个新的 `launching-an-l2.md` 表格守卫、
+`UT_ValidateChainConfigCommand` 里两个新的告警类别测试。
+`NeoHub.Contracts.VmTests`（585，原为 584）跑的是已部署的 NEF，所以那 36 对检查的是编译后的字节码，
+而不是对源码的一次 C# 重读。`Neo.Plugins.L2Settlement.UnitTests`（168）与 `Neo.L2.IntegrationTests`
+（40）覆盖被重新配对的夹具；`Neo.Stack.Cli.UnitTests`（195）覆盖模板、样例遍历、两类告警，
+以及两张对外表格。`NEO_N4_REQUIRE_FRESH_MANIFESTS=1 dotnet test tests/Neo.Hub.Deploy.UnitTests`
+以 115/115 通过，说明重新发射的 `SettlementManager` NEF/manifest 满足权威性的工件新鲜度门控。
+表格守卫做过反向对照：把英文表格里一个 `proofType` 单元格改成漂移值，恰好产生一个失败
+（`rollup: proofType column disagrees with TemplateCatalog / expected: "Zk" / actual: "Optimistic"`）
+且中文版守卫不受影响，随后该文件按字节原样还原。`dotnet format --verify-no-changes` 干净。
+
 ### H19 — 反审查截止期在 owner 路径上有界，在 deploy 路径上无界 [E2]
 
 `ForcedInclusion` 只存储一个全局的 `deadlineSeconds`，并在为每条条目盖章时读取它。下面这段摘录
@@ -1296,7 +1394,20 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
    38 个程序集 / **2,910 个测试** / 0 失败 / 5 跳过，且在新鲜度门控下
    `UT_ContractManifestInvariants` 14/14。负向对照：三处回退（并重新发射 NEF）产生
    6 条失败 / 578 通过 / 0 跳过，且每一条都能归因到某一组回退。见 §7.1 的状态段。
-8. `H18` —— 把 `TemplateCatalog.cs:32` 与部署器注册的 verifier 对齐。放在最后，在 `C4` 之后。
+8. `H18` —— **本分支已完成，而这条发现低估了缺陷本身。** 接受规则同时存在于三层（合约、运维者状态
+   启发式、`neo-stack validate`）；两份链下副本彼此抄来，且在 `Optimistic+Multisig` 与
+   `Sidechain`/`Settled` 下的 `None` 上都错；而由于 CLI 用四个互不相干的 `if` 判断 `sec`，它根本没有
+   `Settled` 那一行 —— 任何 `Settled` 配置无论 proof type 是什么都静默通过。
+   `SettlementManager.IsProofTypeCompatible` 现在是一个 `[Safe]` 读取、规则体未变，
+   `Neo.L2.ProofRouting` 是唯一那份链下副本，而编译进两个测试程序集的第三方参照是逐对把合约与镜像
+   相对照，不再让任何一方对照自己的复制品。`validate` 补上了仓库从未跟踪的那条轴：组合合法但
+   `neo-hub-deploy` 锁死时未注册其 verifier 路由。`rollup` 如今发射 `Zk`，`sidechain` 发射 `Multisig`，
+   三处出厂配置守卫共享同一份按类别区分的策略。全解决方案 38 个程序集 / **2,921 个测试** / 0 失败 /
+   5 跳过（即第 7 条的 2,910 加上十一个新方法），且在
+   `NEO_N4_REQUIRE_FRESH_MANIFESTS=1` 下 115/115 通过，两张对外的模板表格如今也都由测试对照
+   `TemplateCatalog`。有意**未**收尾的部分：`Multisig` 与 `Optimistic` 的
+   链上 verifier 仍未实现，那是 `doc.md` §7.5 stage 0/1 的工程量，不是一张路由表能补上的；等它落地那天，
+   `ShippedConfigWarningPolicy` 就是提示你删除 caveat 的绊线。见 §4 H18 的状态段。
 9. `V2`（部分）—— 更正 `BatchSerializer.cs:12-14` 与 `AGENTS.md` 中关于
    `ChainMode.L2RiscV` 的陈述，或者补上那个枚举成员。
 
@@ -1332,6 +1443,11 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     challenge orchestrator、还是明确写成一条运维手册步骤 —— 最后这一项需要
     `docs/launching-an-l2.md` 把它说清楚。选一个；“合约暴露了这个方法”不是一个能撑住一条有着
     7 天窗口的主网的答案。
+19. §6 里那条 `docs/zh/CHANGELOG.md`「同步还是重贴标签」的决策，本轮又把它拉大了：它的页眉仍然
+    承诺对安全结论与测试证据保持lockstep，里面仍然没有任何晚于 2026-07-15 的条目，而 `H18` 又在
+    英文侧追加了一条带日期的条目。`H18` 分支有意**不**动这个文件 —— 在六周的空洞里补一条条目，
+    会让那份镜像读起来像是成立的，而写在页眉的那条不变式依旧是假的；这比 §6 已经否掉的「就这么
+    放着」严格更差。先决定哪份是真的：要么回填并让一个测试比对两侧的条目标题，要么改掉页眉。
 
 ## 11. 本轮未验证
 

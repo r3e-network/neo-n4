@@ -283,7 +283,6 @@ public class UT_NewL2Command
             Console.SetOut(origOut);
         }
         Assert.AreEqual(0, rc, $"new-l2 --template {template} must succeed end-to-end");
-        Assert.IsFalse(output.Contains("⚠"),
-            $"new-l2 --template {template} embedded validate emitted a cross-field warning — template defaults are internally inconsistent.\nFull stdout:\n{output}");
+        ShippedConfigWarningPolicy.AssertConsistent(template, output);
     }
 }

@@ -91,27 +91,20 @@ internal static class ValidateChainConfigCommand
             var gateway = RequireBool(root, "gatewayEnabled");
             var permExit = RequireBool(root, "permissionlessExit");
 
-            // Cross-field consistency: a chain claiming a particular SecurityLevel
-            // SHOULD use a matching proofType. Mismatches aren't fatal — operators
-            // who know what they're doing can ship anyway — but the warning catches
-            // a typo (e.g. zk-rollup template + accidentally-changed proofType).
-            // One warning per supported SecurityLevel dimension so a Validium / Sidechain
-            // operator gets the same diagnostic an Optimistic / Validity operator would.
-            if (sec == SecurityLevel.Validity && proof != ProofType.Zk)
+            // Cross-field consistency. The proofType byte is stamped into every batch
+            // commitment, and SettlementManager rejects it against the chain's registered
+            // securityLevel before the verifier registry is ever consulted — so ask that rule
+            // (Neo.L2.ProofRouting, mirrored from the contract and pinned to it by a VM test)
+            // rather than restating it here. Mismatches stay non-fatal: an operator shipping a
+            // devnet-only chain knows what they're doing and `validate` runs before registration.
+            if (!ProofRouting.AcceptsProofType(sec, proof))
             {
-                Console.WriteLine($"⚠ securityLevel=Validity typically pairs with proofType=Zk; got {proof}");
+                var accepted = string.Join(" / ", ProofRouting.AcceptedProofTypes(sec));
+                Console.WriteLine($"⚠ securityLevel={sec} accepts only proofType={accepted} (SettlementManager.IsProofTypeCompatible); got {proof} — every submitBatch faults before the verifier runs");
             }
-            if (sec == SecurityLevel.Validium && proof != ProofType.Zk)
+            else if (!ProofRouting.HasProductionVerifierRoute(proof))
             {
-                Console.WriteLine($"⚠ securityLevel=Validium typically pairs with proofType=Zk; got {proof}");
-            }
-            if (sec == SecurityLevel.Optimistic && proof != ProofType.Optimistic && proof != ProofType.Multisig)
-            {
-                Console.WriteLine($"⚠ securityLevel=Optimistic typically pairs with proofType=Optimistic or Multisig; got {proof}");
-            }
-            if (sec == SecurityLevel.Sidechain && proof != ProofType.None && proof != ProofType.Multisig)
-            {
-                Console.WriteLine($"⚠ securityLevel=Sidechain typically pairs with proofType=None or Multisig; got {proof}");
+                Console.WriteLine($"⚠ proofType={proof} is legal for securityLevel={sec} but has no verifier route in the shipped production bundle: Neo.Hub.Deploy registers only {string.Join(" / ", ProofRouting.ProductionVerifierRoutes)} and then locks VerifierRegistry, so submitBatch faults with \"no verifier for proof type\"");
             }
 
             // chainMode=L1Mode is reserved for the actual Neo L1 (per ChainMode's

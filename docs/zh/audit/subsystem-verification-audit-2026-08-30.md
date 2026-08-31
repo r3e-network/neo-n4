@@ -576,6 +576,19 @@ artifact；SP1 的执行与证明栈没有被任何把关它合并的检查执�
 但一条发布路径上唯一的审阅控制，能被推送它的同一个身份用一次 API 调用移除，这和本节所讲的
 “检查错了东西的门禁”是同一类问题，§10 的修复顺序应当据此给予权重。
 
+**状态 —— 本分支已定案并接线（2026-08-31）：nightly 排班拥有 SP1 dispatch，发布清单承载阻塞规则。**
+`build.yml` 新增 nightly `schedule` 触发（cron `47 3 * * *`，与 `sdk-conformance` 的 `37 3` 错开），
+而仅以 `workflow_dispatch` 为键的两处现在以同样方式接受 `schedule` —— `sp1-release-gates` job 的
+`if`，以及 `sp1-host` 聚合的成功断言 —— 沿用 `sdk-conformance.yml:88` 已确立的先例。普通 PR 与
+`master` push 上的资源上限逐字节不变：重型 lane 仍报告 `skipped`，这仍是被要求检查所断言的东西。
+改变的是这条断言如今每晚被行使一次：`bridge/neo-zkvm-host` 或 Gateway 递归栈里的一次真实回归会在
+一天内让排班 run 变红，且 `sp1-host` 自己随之失败 —— 必需 context 不再*因为*重型 lane 缺席而通过。
+决定的阻塞那一半写在 `docs/release-readiness-checklist.md` §6（EN 与 zh）：nightly 失败或从未成功
+即阻塞发布，直到在确切的发布候选 commit 上手动 dispatch 并通过全部三条 lane —— nightly 负责让
+失败可见，发布候选 commit 上的绿色 dispatch 才是解除阻塞的东西。由 merge queue 拥有 dispatch 的
+选项被否决：本仓库不使用 merge queue，而逐 PR 的重型 lane 运行会把该发现明确想保住的资源成本
+乘上去。
+
 ### V2 — "off-chain ↔ on-chain encodings are paired" 这一不变式没有任何跨边界测试 [E1]
 
 `tests/NeoHub.Contracts.VmTests/NeoHub.Contracts.VmTests.csproj` 引用了
@@ -1727,7 +1740,15 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     `polkatool 0.32.0`）并比较 SHA-256 的 CI job，也就是 Rust 通道上新的 CI 容量。
 11. `H14` —— 移除 `panic = "abort"` 会改变展开语义，并可能改变 guest 热路径上的吞吐；
     需要一次测量，而且它与 SP1 再执行档相互影响。
-12. `V1` —— 决定谁拥有定时的 SP1 dispatch（nightly 还是 merge queue），以及它失败时凭什么阻塞发布。
+12. `V1` —— **已在本分支定案（2026-08-31）：nightly 排班拥有 SP1 dispatch，发布清单拥有阻塞规则。**
+    `build.yml` 新增 nightly `schedule` 触发，且两处以 `workflow_dispatch` 为键的位置
+    （`sp1-release-gates` 的 `if`、`sp1-host` 的成功断言）以完全相同的方式接受 `schedule`，沿用
+    `sdk-conformance.yml` 已确立的先例；PR/push 行为逐字节不变（重型 lane skipped，这仍是必需
+    检查所断言的），而 SP1 栈里的真实回归如今会在一天内让某次排班 run 变红并使 `sp1-host` 自身
+    失败。发布阻塞规则写进 `docs/release-readiness-checklist.md` §6（EN + zh）：nightly 失败或
+    从未成功即阻塞发布，直到在确切的发布候选 commit 上手动 dispatch 并通过全部三条 lane。
+    merge queue 归属被否决 —— 本仓库不使用它，且逐 PR 的重型 lane 运行会把该发现想保住的资源
+    成本乘上去。见 §5 V1 的状态块。
 13. `H15` —— 逐区块上下文的修复会触及 batcher↔executor 接缝，并且如果被持久化的头部馈入任何哈希，
     还会触及 state-root 编码。在“不要破坏字节格式”这条规则之下，它需要一个配套的规范决策。
 14. `H1` —— 针对 `Committed` 采用 `StopPlugin` + 重试；需要先补上 `OnBlockCommitted`

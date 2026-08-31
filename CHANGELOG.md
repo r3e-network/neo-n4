@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — a nightly SP1 release-gate dispatch, with the release-blocking rule written down — 2026-08-31
+
+- §10 item 12 [E1] (`V1`): the only CI job that produces real batch and recursive SP1 proofs was
+  `workflow_dispatch`-only, and the required `sp1-host` aggregate asserted the heavy lanes were
+  `skipped` on every other event — so a regression in `bridge/neo-zkvm-host` could not redden
+  anything an author sees, and the required check passed *because* of that absence. Decision: the
+  nightly schedule owns the dispatch. `build.yml` gains a `schedule` trigger (cron `47 3 * * *`,
+  staggered from sdk-conformance's `37 3`) and both `workflow_dispatch`-keyed places —
+  `sp1-release-gates`' `if` and `sp1-host`'s success assertion — now accept `schedule` identically,
+  following the precedent `sdk-conformance.yml` already set. PR and push behavior is unchanged: the
+  heavy lanes stay skipped there, which is still what the required check asserts; the assertion is
+  now exercised nightly instead of never. Merge-queue ownership was rejected: the repo does not use
+  one, and per-PR heavy-lane runs multiply the resource cost the finding wanted kept.
+- The other half of the decision is written into `docs/release-readiness-checklist.md` §6 (EN +
+  zh): a failed or never-completed nightly blocks a release until a manual dispatch on the exact
+  release-candidate commit passes all three lanes. The nightly makes the failure visible; the green
+  dispatch on the release commit is what releases it.
+
 ### Fixed — SP1 queue reads now tolerate transient sharing violations and always fail typed — 2026-08-31
 
 - §10 item 16 [E1]: both SP1 file-queue read funnels read artifacts with a bare

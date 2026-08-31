@@ -13,10 +13,10 @@ label end-to-end before deploying to L1.
 
 | Sample | Template | chainId | Use case | Distinguishing parameters |
 |--------|----------|--------:|----------|---------------------------|
-| [`general-rollup`](./general-rollup.config.json) | `rollup` | 1100 | General-purpose Neo L2 (DeFi, dApp hosting) — the "safe default" | SecurityLevel=Optimistic, daMode=NeoFS, sequencer=DbftCommittee, exit=Delayed |
-| [`gaming-rollup`](./gaming-rollup.config.json) | `rollup` | 1200 | High-frequency gaming chain (frequent state updates, low-value txs) | sequencer=Centralized for sub-second seal, daMode=NeoFS |
+| [`general-rollup`](./general-rollup.config.json) | `rollup` | 1100 | General-purpose Neo L2 (DeFi, dApp hosting) — the "safe default" | SecurityLevel=Optimistic, proofType=Zk, daMode=NeoFS, sequencer=DbftCommittee, exit=Delayed |
+| [`gaming-rollup`](./gaming-rollup.config.json) | `rollup` | 1200 | High-frequency gaming chain (frequent state updates, low-value txs) | sequencer=Centralized for sub-second seal, proofType=Zk, daMode=NeoFS |
 | [`exchange-validium`](./exchange-validium.config.json) | `validium` | 1300 | DEX / orderbook / matching engine — ZK validity + off-chain DA | SecurityLevel=Validium, daMode=NeoFS, exit=Delayed, gateway=true |
-| [`privacy-sidechain`](./privacy-sidechain.config.json) | `sidechain` | 1400 | Permissioned enterprise / privacy chain — minimal L1 footprint | SecurityLevel=Sidechain, proofType=None, exit=Permissionless |
+| [`privacy-sidechain`](./privacy-sidechain.config.json) | `sidechain` | 1400 | Permissioned enterprise / privacy chain — minimal L1 footprint | SecurityLevel=Sidechain, proofType=Multisig, exit=Permissionless |
 
 ## Running a sample through the devnet
 
@@ -31,6 +31,13 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 \
 #                     sequencer=Centralized exit=Delayed gateway=False
 ```
 
+A `--config` run exercises the sample's §16.2 **label** surface only: the devnet
+runner builds Multisig commitments unconditionally
+(`tools/Neo.L2.Devnet/Program.cs`), so it never routes the declared `proofType`
+and does not prove that route exists on L1. `neo-stack validate <config>` is what
+checks a declared `proofType` against `SettlementManager.IsProofTypeCompatible`
+and against the routes the production bundle freezes.
+
 Each sample includes the `template`, `chainMode`, `vm`, and the §16.2 label
 dimensions. The four UInt160 hashes (`operator`, `verifier`, `bridgeAdapter`,
 `messageAdapter`) get resolved at deploy time from the
@@ -39,11 +46,14 @@ depend on which L1 the operator is targeting.
 
 ## When to start from each
 
-**`general-rollup`** is the default. Inherits the Optimistic challenge window
-(§17 mitigation #2) so a faulty proof is contestable. NeoFS is the canonical
-N4 data-availability tier: batches stay Neo-native, retrievable, and
-content-addressed without pushing every byte through L1. Pick this unless one
-of the others specifically applies.
+**`general-rollup`** is the default. Settlement is an SP1 validity proof, so a
+batch is final once the proof verifies — no honest-challenger assumption and no
+window to wait out. It still advertises `securityLevel=Optimistic`, which is the
+floor the chain promises; `proofType=Zk` over-delivers on that floor and is the
+only pairing the shipped production hub can both accept and verify. NeoFS is
+the canonical N4 data-availability tier: batches stay Neo-native, retrievable,
+and content-addressed without pushing every byte through L1. Pick this unless
+one of the others specifically applies.
 
 **`gaming-rollup`** trades off: centralized sequencer (faster seal cadence,
 no committee round-trip) while still using NeoFS DA.
@@ -59,10 +69,15 @@ in Phase-5 cross-L2 messaging — DEX users can move assets between this and
 other Elastic Network L2s without waiting on L1.
 
 **`privacy-sidechain`** is the lightest-touch variant: SidechainMode
-+ proofType=None + permissionlessExit. Useful for permissioned consortia
++ proofType=Multisig + permissionlessExit. Useful for permissioned consortia
 or enterprise networks where the L1 anchor isn't a trust anchor — it's just
-a discovery + asset-bridge endpoint. No prover plugin needed; settlement
-happens via attestation alone.
+a discovery + asset-bridge endpoint. Settlement is a committee attestation
+rather than a validity proof. `proofType=None` is not available at any layer:
+`SettlementManager.IsProofTypeCompatible` has no None row, `VerifierRegistry`
+refuses to register a route for byte 0, and the batcher cannot build a None
+proof artifact. Caveat: the shipped production bundle registers only the Zk
+route before locking `VerifierRegistry`, so a sidechain that must settle
+batches on such a hub needs a Multisig verifier registered before that lock.
 
 ## Custom chain logic — `executors/`
 

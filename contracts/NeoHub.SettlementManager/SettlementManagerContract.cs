@@ -400,7 +400,15 @@ public class SettlementManagerContract : SmartContract
         OnBatchSubmitted(chainId, batchNumber, postStateRoot);
     }
 
-    private static bool IsProofTypeCompatible(byte securityLevel, byte proofType)
+    /// <summary>
+    /// The accept table for <c>SecurityLevel ⇒ ProofType</c>: a higher label is a stronger promise, so a
+    /// chain may over-deliver (an Optimistic chain submitting Zk is legal) but never under-deliver.
+    /// Read-only so off-chain tooling asks this contract instead of carrying its own copy —
+    /// <c>Neo.L2.ProofRouting.AcceptsProofType</c> is the mirror, pinned pair-by-pair by
+    /// <c>UT_SettlementManager_ProofRouting.ProofRoutingTable_MatchesTheOnChainAuthority</c>.
+    /// </summary>
+    [Safe]
+    public static bool IsProofTypeCompatible(byte securityLevel, byte proofType)
     {
         if (securityLevel == SecurityLevelSidechain || securityLevel == SecurityLevelSettled)
             return proofType == ProofTypeMultisig ||

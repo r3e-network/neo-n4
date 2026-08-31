@@ -62,7 +62,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
                 {
                   "chainId": 20260716,
                   "proofType": "Multisig",
-                  "securityLevel": "Optimistic",
+                  "securityLevel": "Settled",
                   "daMode": "Local",
                   "sequencerModel": "DbftCommittee",
                   "exitModel": "Permissionless",
@@ -167,7 +167,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Directory.CreateDirectory(chainDir);
         try
         {
-            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Optimistic");
+            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Settled");
             using var http = MockL1HttpClient(Root(0x11));
             var signers = new InMemorySignerSet([GenKey(0x10), GenKey(0x20)]);
             using var settlementHost = MultisigLocalHostComposition.Open(
@@ -698,7 +698,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Directory.CreateDirectory(chainDir);
         try
         {
-            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Optimistic");
+            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Settled");
             using var http = MockL1HttpClient(Root(0x11));
             var signers = new InMemorySignerSet([GenKey(0x10), GenKey(0x20)]);
             using var settlementHost = MultisigLocalHostComposition.Open(
@@ -790,7 +790,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Directory.CreateDirectory(chainDir);
         try
         {
-            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Optimistic");
+            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Settled");
             RewriteMaxBlocksPerBatch(chainDir, 1);
             using var http = MockL1HttpClient(Root(0x11));
             var signers = new InMemorySignerSet([GenKey(0x10), GenKey(0x20)]);
@@ -833,7 +833,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
         Directory.CreateDirectory(chainDir);
         try
         {
-            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Optimistic");
+            MaterializeChain(chainDir, reportPath, ProofType.Multisig, DAMode.Local, "Settled");
             RewriteMaxBlocksPerBatch(chainDir, 1);
             using var http = MockL1HttpClient(Root(0x11));
             var signers = new InMemorySignerSet([GenKey(0x10), GenKey(0x20)]);

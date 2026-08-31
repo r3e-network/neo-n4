@@ -1852,7 +1852,7 @@ public sealed class UT_MultisigLocalHostComposition
             {
               "chainId": 20260716,
               "proofType": "Multisig",
-              "securityLevel": "Optimistic",
+              "securityLevel": "Settled",
               "daMode": "Local",
               "sequencerModel": "DbftCommittee",
               "exitModel": "Permissionless",

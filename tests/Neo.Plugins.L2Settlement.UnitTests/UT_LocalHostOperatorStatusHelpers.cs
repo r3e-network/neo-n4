@@ -79,27 +79,36 @@ public sealed class UT_LocalHostOperatorStatusHelpers
     }
 
     [TestMethod]
-    public void IsSecurityLevelPairedWithProofType_RecommendedPairings()
+    public void IsSecurityLevelPairedWithProofType_MatchesTheSettlementManagerTable()
     {
-        Assert.IsTrue(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
-            SecurityLevel.Validity, ProofType.Zk));
-        Assert.IsTrue(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
-            SecurityLevel.Validium, ProofType.Zk));
-        Assert.IsTrue(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
-            SecurityLevel.Optimistic, ProofType.Optimistic));
-        Assert.IsTrue(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
-            SecurityLevel.Optimistic, ProofType.Multisig));
+        // This helper gates production readiness, so it is the rule the chain actually
+        // settles under (SettlementManager.IsProofTypeCompatible), not a recommendation.
+        // A higher SecurityLevel promises more, so over-delivery is legal and
+        // under-delivery is the fault. ProofType.None has no row at any level: the
+        // contract rejects it and VerifierRegistry refuses to register route byte 0.
+        foreach (var level in Enum.GetValues<SecurityLevel>())
+        {
+            Assert.IsTrue(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(level, ProofType.Zk),
+                $"{level} + Zk must be accepted — a validity proof always delivers at least the promise");
+            Assert.IsFalse(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(level, ProofType.None),
+                $"{level} + None must be rejected — submitBatch faults before the verifier is consulted");
+        }
+
         Assert.IsTrue(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
             SecurityLevel.Sidechain, ProofType.Multisig));
         Assert.IsTrue(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
-            SecurityLevel.Settled, ProofType.None));
+            SecurityLevel.Settled, ProofType.Optimistic));
+        Assert.IsTrue(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
+            SecurityLevel.Optimistic, ProofType.Optimistic));
 
+        // Under-delivery: Multisig attestation / Optimistic challenge window do not
+        // satisfy a level that promises more than committee honesty.
+        Assert.IsFalse(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
+            SecurityLevel.Optimistic, ProofType.Multisig));
         Assert.IsFalse(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
             SecurityLevel.Validity, ProofType.Multisig));
         Assert.IsFalse(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
-            SecurityLevel.Optimistic, ProofType.Zk));
-        Assert.IsFalse(LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType(
-            SecurityLevel.Sidechain, ProofType.Optimistic));
+            SecurityLevel.Validium, ProofType.Optimistic));
     }
 
     [TestMethod]

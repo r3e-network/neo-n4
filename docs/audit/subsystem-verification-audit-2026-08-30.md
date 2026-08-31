@@ -408,6 +408,120 @@ for chains declared optimistic, and `neo-stack` should cross-check the template'
 against the deployment plan. Fix is small; the point is that the two tools disagree about the
 default security posture of the flagship template.
 
+**Status — fixed on this branch, and the root cause is not the template line.** Reconciling
+`TemplateCatalog` against the deployer showed the accept rule existed in three layers, they were
+copies of each other, and only one of them is the thing that actually enforces anything:
+
+| Layer | Location (pre-fix) | Rule it encoded |
+|---|---|---|
+| On-chain authority | `SettlementManagerContract.IsProofTypeCompatible` — `private static`, body unchanged by this fix | `Sidechain`/`Settled ⇒ {Multisig, Optimistic, Zk}`; `Optimistic ⇒ {Optimistic, Zk}`; `Validity`/`Validium ⇒ {Zk}`; everything else `false` |
+| Operator-status heuristic | `LocalHostOperatorStatus.cs` (pre-fix `:578-590`) | `Optimistic ⇒ {Optimistic, **Multisig**}`; `Sidechain`/`Settled ⇒ {**None**, Multisig}` |
+| `neo-stack validate` | `ValidateChainConfigCommand.cs` (pre-fix `:94-114`) | the same two wrong rows as four per-level `if`s — and **no row naming `Settled` at all** |
+| `doc.md` §3.2 | — | the rule was never written down, and the method was not in the interface list |
+
+The two off-chain copies agreed with each other because one was copied from the other; they disagree
+with the contract on exactly three pairs — `Optimistic+Multisig`, `Sidechain+None`, `Settled+None`.
+All three are writable in a `chain.config.json`, all three passed `validate`, and all three fault at
+`submitBatch` (`SettlementManagerContract.cs:370`) before the verifier is ever consulted. The
+`Settled` gap is the sharper one: because the CLI tested `sec` with four independent `if`s, a
+`Settled` chain matched none of them and validated silently clean at *any* proof type.
+
+What this finding could not see from `TemplateCatalog.cs:32` alone: `Optimistic+Optimistic` is legal
+on-chain, so **no correct version of the accept table would have warned about the flagship template
+either.** The missing knowledge is a second, orthogonal axis — which routes a deployment actually
+registers — and no layer in the repo encoded it. The real defect was therefore two tables that
+disagreed about legality, *and* one legal-but-unserved axis nobody tracked.
+
+The fix is structural, in four parts.
+
+1. **Ask the authority instead of copying it.** `IsProofTypeCompatible` is now
+   `[Safe] public static` (`SettlementManagerContract.cs:403-425`). Its body is untouched, so no
+   settlement behavior moved; what changed is reachability. The same function is the enforcement
+   point at `:370` (`submitBatch`) and `:523` (`finalizeBatch`), which is what makes it the correct
+   thing to expose. Contract artifacts re-emitted with the pinned nccs.
+2. **One off-chain mirror.** `src/Neo.L2.Abstractions/Models/ProofRouting.cs` is now the only
+   `SecurityLevel ⇒ ProofType` table outside the contract: `AcceptedProofTypes` /
+   `AcceptsProofType` (`:39-51`) for the legality axis, and `ProductionVerifierRoutes` /
+   `HasProductionVerifierRoute` (`:29`, `:53`) for the registration axis. Both hand-written tables are
+   deleted; `LocalHostOperatorStatus.IsSecurityLevelPairedWithProofType` (`:584`) and
+   `ValidateChainConfigCommand` (`:100-108`) delegate to it. `validate` now emits two distinct
+   warnings: `accepts only proofType=…` for a pair the contract rejects, and
+   `… has no verifier route in the shipped production bundle` for a legal pair the deployer freezes
+   without a route.
+3. **A third reference neither implementation can see.** `tests/Shared/ProofRoutingExpectations.cs`
+   is compiled into *every* test assembly via `tests/Directory.Build.props`, and it is the table both
+   sides are checked against — `UT_SettlementManager_ProofRouting` pushes all 36 pairs (6 levels
+   including the out-of-range `5`, 6 proof types including `4` and `255`) through the deployed NEF,
+   and `UT_ProofRouting` checks `ProofRouting` against the same list. Editing either the contract or
+   the mirror now fails a test that references neither. It is a compiled-in file rather than a project
+   reference because `NeoHub.Contracts.VmTests.csproj` deliberately holds no `<ProjectReference>` at
+   all — adding `Neo.L2.Abstractions` would resolve `$(NeoCorePath)\Neo\Neo.csproj` alongside
+   `Neo.SmartContract.Testing`'s own `Neo`.
+4. **Templates and samples now name routes that exist.** `rollup` emits `Zk` under the `Optimistic`
+   floor (over-delivery is legal and is the only pairing the shipped hub can both accept and verify);
+   `sidechain` emits `Multisig`, never `None` — `VerifierRegistry.WriteVerifier` rejects proof type
+   `0` (`VerifierRegistryContract.cs:233`) and `ProofWitnessSerializers` refuses to build a `None`
+   artifact, so a `None` config cannot produce a batch anywhere. `sidechain` / `privacy-sidechain` are
+   shipped as the documented legal-but-unserved case, `samples/README.md` says so, and
+   `ShippedConfigWarningPolicy` makes the three shipped-config guards (per-template `create-chain`,
+   per-template `new-l2`, and the `samples/*.config.json` walk) assert one class-aware policy instead
+   of three copies of "zero `⚠`". `UT_ListTemplatesCommand` adds the catalog-level version: every
+   template's pair must be legal, and every non-sidechain template must name a route the deployer
+   registers.
+
+The same drift existed in prose, and four published documents were corrected: `docs/launching-an-l2.md`
+and its Chinese mirror both advertised `rollup = L1 DA + Optimistic` and `sidechain = External + None`
+after the code said otherwise (and their "Optimistic-rollup operators" lead rested on a premise the
+shipped template no longer satisfies), `doc.md` §3.2 never stated the accept rule at all, `doc.md:169`
+contradicted its own §12 on the `SecurityLevel` numbering, and
+`docs/zh/specification/08-neohub-contracts.md` listed `ProofType.Gateway` as a registerable route
+although `VerifierRegistry.WriteVerifier` rejects it. Because a corrected table is only as durable as
+the test that holds it, both published template tables are now parsed and compared cell-by-cell against
+`TemplateCatalog` by `LaunchingGuide_TemplateTable_MatchesTheCatalog` and its Chinese twin.
+
+Test fixtures that paired `Multisig` with `securityLevel: "Optimistic"` — five of them across
+`UT_E2E_HostComposition_FromDeployReport` and `UT_MultisigLocalHostComposition` — described a chain
+`SettlementManager` would fault. They are corrected to `Settled`, whose definition is exactly "batches
+commit to L1 but no fraud or validity proof is checked", rather than the table being loosened to
+accommodate them.
+
+**What this does not fix, stated so it is not overread.** The two routes named by `doc.md` §7.5 stages
+0/1 remain unimplemented on L1: of the 26 `contracts/NeoHub.*` projects, exactly one implements the
+registry's `verify(commitmentBytes)` interface (`ContractZkVerifierContract.cs:302`), so `Multisig`
+and `Optimistic` are operator-supplied routes by construction and the `sidechain` caveat is accurate,
+not cosmetic. The honest closure is to implement those verifiers and register them in
+`LiveDeployCommand` *before* `lockGovernance` (`:866-869`); when that lands,
+`ShippedConfigWarningPolicy` is the tripwire that says delete the caveat. Also left as found:
+`tools/Neo.L2.Devnet/Program.cs:385,403` builds Multisig commitments regardless of the config's
+`proofType`, so a `--config` run exercises the label surface only (disclosed in `samples/README.md`),
+and `SecurityLevel.Settled` is legal at four pairs but no shipped template emits it.
+
+**Left alone on evidence, not assumption.** The DA-mode twin
+`LocalHostOperatorStatus.IsSecurityLevelPairedWithDaMode` (`:591-599`) was re-derived against
+`SettlementManager.AssertSecurityConfigurationCompatible` (`:427-441`) and `ChainRegistry`'s
+registration check (`:594-595`): the `Validity ⇒ L1` and `Validium ⇒ ¬L1` rows match the contract
+byte for byte, levels `Sidechain`/`Settled`/`Optimistic` are unconstrained on-chain and return `true`
+off-chain, and `DAMode.Local = byte.MaxValue` — which the heuristic's default arm accepts — cannot
+reach a batch because both `ChainRegistry` and `SettlementManager` cap `daMode` at `3`. It is a
+different rule with a different domain, and it was already correct.
+
+**Verification on this branch.** `dotnet test Neo.L2.sln -p:NuGetAudit=false`: **38 assemblies,
+2,916 passed, 0 failed, 5 skipped** = 2,921 total (baseline 2,910). The +11 are eleven new
+`[TestMethod]` methods, with no `DataRow` expansion changed: `UT_ProofRouting` ×4, the 36-pair
+`UT_SettlementManager_ProofRouting` ×1, two new catalog guards plus two new
+`launching-an-l2.md`-table guards in `UT_ListTemplatesCommand`, and two new warning-class tests in
+`UT_ValidateChainConfigCommand`. `NeoHub.Contracts.VmTests` (585, was 584) runs the deployed NEF, so
+the 36-pair check exercises compiled bytecode rather than a C# re-read of the source.
+`Neo.Plugins.L2Settlement.UnitTests` (168) and `Neo.L2.IntegrationTests` (40) cover the re-paired
+fixtures; `Neo.Stack.Cli.UnitTests` (195) covers the templates, the samples walk, both warning
+classes, and both published tables. `NEO_N4_REQUIRE_FRESH_MANIFESTS=1 dotnet test
+tests/Neo.Hub.Deploy.UnitTests` passes 115/115, so the re-emitted `SettlementManager` NEF/manifest
+satisfies the authoritative artifact-freshness gate. The doc-table guard was negative-controlled:
+drifting one `proofType` cell in the English table produced exactly one failure
+(`rollup: proofType column disagrees with TemplateCatalog / expected: "Zk" / actual: "Optimistic"`)
+with the Chinese guard unaffected, and the file was then restored byte-identically.
+`dotnet format --verify-no-changes` clean.
+
 ### H19 — The anti-censorship deadline is bounded on the owner path and unbounded on the deploy path [E2]
 
 `ForcedInclusion` stores one global `deadlineSeconds` and reads it when stamping each entry. The excerpt
@@ -1424,8 +1538,23 @@ Split by whether it can land now.
    failed / 5 skipped, `UT_ContractManifestInvariants` 14/14 under the freshness gate. Negative
    control: three reverts with the NEFs re-emitted produce 6 failures / 578 passed / 0 skipped, each
    attributable to one reverted group. See §7.1's status block.
-8. `H18` — reconcile `TemplateCatalog.cs:32` with the verifier the deployer registers. Last, after
-   `C4`.
+8. `H18` — **done on this branch, and the finding under-described the defect.** The accept rule lived in
+   three layers (the contract, the operator-status heuristic, `neo-stack validate`); the two off-chain
+   ones were copies of each other and both were wrong on `Optimistic+Multisig` and on `None` under
+   `Sidechain`/`Settled`, and because the CLI tested `sec` with four independent `if`s it named no
+   `Settled` row at all — every `Settled` config validated silently whatever its proof type.
+   `SettlementManager.IsProofTypeCompatible` is now a `[Safe]` read with an unchanged body,
+   `Neo.L2.ProofRouting` is the only off-chain copy, and a third reference compiled into both test
+   assemblies checks contract against mirror pair-by-pair rather than each against itself. `validate`
+   gained the axis the repo never tracked: a pairing that is legal but whose verifier route
+   `neo-hub-deploy` freezes without registering. `rollup` now emits `Zk`, `sidechain` emits `Multisig`,
+   and the three shipped-config guards share one class-aware policy. Full solution 38 assemblies /
+   **2,921 tests** / 0 failed / 5 skipped (item 7's 2,910 plus eleven new methods), with
+   `NEO_N4_REQUIRE_FRESH_MANIFESTS=1` passing 115/115 and both published template tables now
+   guarded against `TemplateCatalog`. What is deliberately
+   **not** closed: the `Multisig` and `Optimistic` on-chain verifiers remain unimplemented, which is
+   `doc.md` §7.5 stage 0/1 work rather than a routing-table fix, and `ShippedConfigWarningPolicy` is the
+   tripwire that says delete the caveat when it lands. See §4 H18's status block.
 9. `V2` (partial) — correct `BatchSerializer.cs:12-14` and `AGENTS.md`'s `ChainMode.L2RiscV` claim, or
    add the enum member.
 
@@ -1465,6 +1594,13 @@ Split by whether it can land now.
     deadline timer, the existing challenge orchestrator, or an explicit operator runbook step — the
     last of which needs `docs/launching-an-l2.md` to say so. Pick one; "the contract exposes it" is not
     an answer that survives a mainnet with a 7-day window.
+19. The `docs/zh/CHANGELOG.md` sync-vs-relabel decision from §6, which this pass re-widens: its header
+    still promises lockstep for security conclusions and test evidence, it still contains nothing newer
+    than 2026-07-15, and `H18` adds another dated English entry on top. The `H18` branch deliberately
+    does **not** touch the file — one backfilled entry inside a six-week gap leaves the documented
+    invariant false while making the mirror read as if it held, which is strictly worse than the
+    "leave it as-is" option §6 already rejects. Decide the real artifact, then either backfill and
+    make a test compare entry headers, or relabel the header.
 
 ## 11. Not verified in this pass
 

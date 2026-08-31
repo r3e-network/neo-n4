@@ -4,7 +4,7 @@
   "vm": "neovm2-riscv",
   "chainMode": "SidechainMode",
   "daMode": "NeoFS",
-  "proofType": "None",
+  "proofType": "Multisig",
   "securityLevel": "Sidechain",
   "sequencerModel": "DbftCommittee",
   "exitModel": "Permissionless",
@@ -12,5 +12,5 @@
   "permissionlessExit": true,
   "milestonePerBlockMs": 5000,
   "validators": [],
-  "_comment": "Permissioned consortium / privacy chain. SidechainMode + proofType=None = the L1 anchor is a discovery + asset-bridge endpoint, NOT a settlement trust anchor; the chain's operators run their own trust model (committee multisig, KYC list, enterprise governance). NeoFS remains the canonical DA tier so sidechain batches are still Neo-native and retrievable. gateway off because cross-L2 messaging isn't the use case. permissionlessExit=true so participating users always have an L1 unbridge path even when consortium membership ends. See samples/README.md."
+  "_comment": "Permissioned consortium / privacy chain. SidechainMode + proofType=Multisig = the L1 anchor is a discovery + asset-bridge endpoint, NOT a settlement trust anchor; batches commit to a committee attestation the operators can actually produce. proofType=None is not an option at any layer: SettlementManager.IsProofTypeCompatible has no None row, VerifierRegistry refuses to register a route for 0, and the batcher cannot build a None proof artifact. NeoFS remains the canonical DA tier so sidechain batches are still Neo-native and retrievable. gateway off because cross-L2 messaging isn't the use case. permissionlessExit=true so participating users always have an L1 unbridge path even when consortium membership ends. Caveat: the shipped production bundle freezes VerifierRegistry with only the Zk route, so settling these commitments on a hub deployed by Neo.Hub.Deploy needs a Multisig verifier registered before that lock. See samples/README.md."
 }

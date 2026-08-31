@@ -29,11 +29,16 @@ internal static class TemplateCatalog
     {
         new Template(
             Name: "rollup",
-            ChainMode: "L2RollupMode", DaMode: "NeoFS", ProofType: "Optimistic",
+            // proofType=Zk, not Optimistic: VerifierRegistry is keyed by proof type and the production
+            // bundle registers only the Zk route before locking the registry one-way, so an Optimistic
+            // commitment faults in submitBatch with "no verifier for proof type" (the OptimisticVerifier
+            // doc.md §3.2 lists is unimplemented). Zk under an Optimistic label over-delivers, which is
+            // exactly what SettlementManager.IsProofTypeCompatible accepts.
+            ChainMode: "L2RollupMode", DaMode: "NeoFS", ProofType: "Zk",
             SecurityLevel: "Optimistic", SequencerModel: "DbftCommittee",
             ExitModel: "Delayed", GatewayEnabled: false, PermissionlessExit: true,
-            TagLine: "Optimistic settlement + NeoFS DA + dBFT committee + delayed exit (the safe default).",
-            UseCase: "General-purpose Neo L2 — DeFi, dApp hosting. Inherits the §17 mitigation #2 optimistic challenge window so a faulty proof is contestable. NeoFS is the canonical N4 DA layer: batches remain Neo-native, content-addressed, and retrievable without forcing every byte into L1 calldata. Pick this unless one of the others specifically applies."),
+            TagLine: "ZK validity settlement + NeoFS DA + dBFT committee (the safe default).",
+            UseCase: "General-purpose Neo L2 — DeFi, dApp hosting. Settlement is an SP1 validity proof, so a batch is final when the proof verifies: no honest-challenger assumption, no window to wait out. NeoFS is the canonical N4 DA layer: batches remain Neo-native, content-addressed, and retrievable without forcing every byte into L1 calldata. securityLevel stays Optimistic because that is the floor the chain advertises (doc.md §16.2) while proofType=Zk over-delivers on it. Pick this unless one of the others specifically applies; pick zk-rollup instead when batch data must also land on L1."),
         new Template(
             Name: "zk-rollup",
             // ChainRegistry asserts SecurityLevel.Validity ⇒ DAMode.L1 (doc.md §12 / §16.2).
@@ -52,11 +57,16 @@ internal static class TemplateCatalog
             UseCase: "Validity-proof + off-chain DA. Cheaper than L1 DA + still retrievable via NeoFS. Delayed exit lets the operator drain orderbook on shutdown without users front-running. Gateway-enabled so DEX users can move assets between this and other Elastic Network L2s without round-tripping L1."),
         new Template(
             Name: "sidechain",
-            ChainMode: "SidechainMode", DaMode: "NeoFS", ProofType: "None",
+            // proofType=Multisig, not None: no layer accepts None. SettlementManager
+            // .IsProofTypeCompatible has no None row, VerifierRegistry.WriteVerifier rejects proofType 0,
+            // and Neo.L2.Batch.ProofWitnessSerializers refuses to build a None artifact — so a None
+            // config cannot produce a batch anywhere. Multisig is the committee-attestation route the
+            // contract accepts for Sidechain and the one the Phase-0 sidechain scenario uses.
+            ChainMode: "SidechainMode", DaMode: "NeoFS", ProofType: "Multisig",
             SecurityLevel: "Sidechain", SequencerModel: "DbftCommittee",
             ExitModel: "Permissionless", GatewayEnabled: false, PermissionlessExit: true,
-            TagLine: "No L1 settlement, NeoFS DA, attestation only. Permissioned consortia, enterprise.",
-            UseCase: "Lightest-touch variant. SidechainMode + ProofType=None + permissionlessExit. Useful for permissioned consortia or enterprise networks where the L1 anchor isn't a trust anchor — it's just a discovery + asset-bridge endpoint. NeoFS remains the canonical data-availability store even when the proof model is sidechain-style attestation."),
+            TagLine: "No L1 settlement, NeoFS DA, committee attestation. Permissioned consortia, enterprise.",
+            UseCase: "Lightest-touch variant. SidechainMode + ProofType=Multisig + permissionlessExit. Useful for permissioned consortia or enterprise networks where the L1 anchor isn't a trust anchor — it's just a discovery + asset-bridge endpoint. NeoFS remains the canonical data-availability store even when the proof model is committee attestation. Note: the shipped production bundle freezes VerifierRegistry with only the Zk route, so a sidechain that must settle batches on a hub deployed by Neo.Hub.Deploy needs an operator-supplied Multisig route registered before the lock."),
     };
 
     /// <summary>Resolve a template by name (case-sensitive). Falls back to <c>"rollup"</c> on unknown name.</summary>

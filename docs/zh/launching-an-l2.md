@@ -236,10 +236,17 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 
 | 模板         | chainMode        | daMode    | proofType  | SecurityLevel | Exit             |
 |--------------|------------------|-----------|------------|---------------|------------------|
-| `rollup`     | L2RollupMode     | L1        | Optimistic | Optimistic    | Delayed          |
+| `rollup`     | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
 | `zk-rollup`  | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
 | `validium`   | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
-| `sidechain`  | SidechainMode    | External  | None       | Sidechain     | Permissionless   |
+| `sidechain`  | SidechainMode    | NeoFS     | Multisig   | Sidechain     | Permissionless   |
+
+每个模板所发射的 `securityLevel` ⇄ `proofType` 配对不是风格选择:
+`SettlementManager.IsProofTypeCompatible`(NeoHub §3.2)会拒绝任何不在接受集合内的
+配对,于是配置不匹配的链在第一个 `submitBatch` 上就 fault。`ProofRouting.AcceptsProofType`
+是这条规则的链下镜像,`neo-stack validate` 会在配置与之矛盾时告警。没有任何层级接受
+`proofType: None` —— 合约里没有 `None` 行,`VerifierRegistry.WriteVerifier` 拒绝 proof
+type `0`,批量证明器也拒绝构造 `None` artifact。
 
 所有模板默认 `sequencerModel: DbftCommittee`(Neo 原生单块终结性)。所有都可在
 `create-chain` 之后编辑 —— JSON 是运维者的财产。
@@ -250,10 +257,17 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 
 ### 乐观 rollup 运维者:接好 fraud verifier
 
-`rollup` 模板的链跑 `proofType: Optimistic`,意味着 `NeoHub.OptimisticChallenge`
-强制一个挑战窗口,期间任何方都可以提交欺诈证明。经
-`Challenge(chainId, batchNumber, challenger, fraudProofBytes, fraudVerifier)`
-提交,把实际密码学校验委派给由 `fraudVerifier` 参数指定的合约。
+出厂的 `rollup` 模板发射的是 `securityLevel: Optimistic` 下的 `proofType: Zk`:
+有效性证明在承诺上「超额交付」,因此批量在证明验证通过时即终结,不走挑战窗口。
+要起一条真正乐观的链,需设置 `proofType: Optimistic`,**并且**在部署器加锁之前向
+`NeoHub.VerifierRegistry` 注册 Optimistic 的 verifier 路由。`neo-hub-deploy` 只注册
+Zk 路由并随后一次性锁定 registry,所以对该 hub 提交 Optimistic 承诺会在 `submitBatch`
+里以 `no verifier for proof type` fault。
+
+路由存在之后,`NeoHub.OptimisticChallenge` 强制一个挑战窗口,期间任何方都可以提交
+欺诈证明:`submitBatch` 打开窗口,`Challengeable` 批量只能由 `OptimisticChallenge`
+自己终结;经 `Challenge(chainId, batchNumber, challenger, fraudProofBytes,
+fraudVerifier)` 提交,把实际密码学校验委派给由 `fraudVerifier` 参数指定的合约。
 
 这里记录两种面向生产的部署 profile：bundle 内置的受限 v4，以及运维者提供的
 自定义 executable v4；这不等同于已经通过独立审计或真实部署。默认 `neo-hub-deploy plan` 的 24 步生产 bundle 排除 v1/v2

@@ -394,10 +394,19 @@ security label set per `doc.md` §6 + §16.2):
 
 | Template     | chainMode        | daMode    | proofType  | SecurityLevel | Exit             |
 |--------------|------------------|-----------|------------|---------------|------------------|
-| `rollup`     | L2RollupMode     | L1        | Optimistic | Optimistic    | Delayed          |
+| `rollup`     | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
 | `zk-rollup`  | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
 | `validium`   | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
-| `sidechain`  | SidechainMode    | External  | None       | Sidechain     | Permissionless   |
+| `sidechain`  | SidechainMode    | NeoFS     | Multisig   | Sidechain     | Permissionless   |
+
+The `securityLevel` ⇄ `proofType` pairing each template emits is not a style
+choice: `SettlementManager.IsProofTypeCompatible` (NeoHub §3.2) rejects any pair
+outside the accepted set, so a mismatched config faults on the first
+`submitBatch`. `ProofRouting.AcceptsProofType` is the off-chain mirror of that
+rule and `neo-stack validate` warns when a config contradicts it. No level
+accepts `proofType: None` — the contract has no `None` row,
+`VerifierRegistry.WriteVerifier` rejects proof type `0`, and the batch prover
+refuses to build a `None` artifact.
 
 All templates default to `sequencerModel: DbftCommittee` (Neo-native one-block
 finality). All can be edited post-`create-chain` — the JSON is operator
@@ -410,12 +419,21 @@ DeFi rollup / gaming chain / DEX validium / privacy sidechain), see
 
 ### Optimistic-rollup operators: wire a fraud verifier
 
-`rollup` template chains run with `proofType: Optimistic`, which means
-`NeoHub.OptimisticChallenge` enforces a challenge window during which any
-party can submit a fraud proof. Submission via `Challenge(chainId,
-batchNumber, challenger, fraudProofBytes, fraudVerifier)` delegates the
-actual cryptographic check to a contract identified by the
-`fraudVerifier` argument.
+The shipped `rollup` template emits `proofType: Zk` under
+`securityLevel: Optimistic`: a validity proof over-delivers on the optimistic
+promise, so a batch is final once the proof verifies and no challenge window
+applies. To launch a genuinely optimistic chain, set `proofType: Optimistic`
+**and** register an Optimistic verifier route in `NeoHub.VerifierRegistry` before
+the deployer locks it. `neo-hub-deploy` registers only the Zk route and then
+locks the registry one-way, so an Optimistic commitment against that hub faults
+in `submitBatch` with `no verifier for proof type`.
+
+Once the route exists, `NeoHub.OptimisticChallenge` enforces a challenge window
+during which any party can submit a fraud proof: `submitBatch` opens the window,
+a `Challengeable` batch can only be finalized by `OptimisticChallenge` itself, and
+submission via `Challenge(chainId, batchNumber, challenger, fraudProofBytes,
+fraudVerifier)` delegates the actual cryptographic check to a contract identified
+by the `fraudVerifier` argument.
 
 Two production-target deployment profiles are documented: the bundled restricted-v4
 profile and an operator-supplied custom executable-v4 profile. The default 24-step production bundle

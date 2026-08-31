@@ -7,8 +7,14 @@
 
   <ItemGroup>
     <!-- Compiled in rather than referenced: a project reference would drag this file's consumers'
-         plugin dependencies along, and every test assembly needs the probe anyway. -->
+         plugin dependencies along, and every test assembly needs the probe anyway.
+         ProofRoutingExpectations is the third reference behind the SecurityLevel => ProofType rule
+         (audit finding H18). It has to be visible to NeoHub.Contracts.VmTests, which executes the
+         compiled contract, and to Neo.L2.Abstractions.UnitTests, which executes the off-chain mirror,
+         without either project referencing the other. -->
     <Compile Include="$(MSBuildThisFileDirectory)Shared/RepoRoot.cs" Link="Shared\RepoRoot.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Shared/ProofRoutingExpectations.cs"
+             Link="Shared\ProofRoutingExpectations.cs" />
   </ItemGroup>
 
   <ItemGroup>

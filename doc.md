@@ -166,7 +166,7 @@ struct L2ChainConfig {
     UInt160 verifier;
     UInt160 bridgeAdapter;
     UInt160 messageAdapter;
-    byte securityLevel;       // 0 sidechain, 1 settled, 2 optimistic, 3 validity
+    byte securityLevel;       // 0 sidechain, 1 settled, 2 optimistic, 3 validity, 4 validium（见 §12）
     byte daMode;              // 0 L1 DA, 1 NeoFS DA, 2 external DA, 3 DAC
     bool gatewayEnabled;
     bool permissionlessExit;
@@ -257,7 +257,27 @@ lockGovernance()                                         // 生产不可逆锁
 buildRevertBatchAction(chainId, batchNumber)
 revertBatchViaProposal(chainId, batchNumber, proposalId) // threshold + timelock + exact payload
 getCanonicalStateRoot(chainId)
+isProofTypeCompatible(securityLevel, proofType)          // [Safe]，见下
 ```
+
+`submitBatch` 与 `finalizeBatch` 都以该链在 `ChainRegistry` 注册的 `securityLevel`
+为准，校验 commitment 携带的 `proofType`；下表是唯一的接受判据，不匹配的组合在
+`VerifierRegistry` 被调用之前就会 fault（`VerifierRegistry` 只按 `proofType` 派发，
+不会替 `securityLevel` 兜底）。
+
+```text
+securityLevel              接受的 proofType
+0 sidechain                1 multisig, 2 optimistic, 3 zk
+1 settled sidechain        1 multisig, 2 optimistic, 3 zk
+2 optimistic rollup        2 optimistic, 3 zk
+3 zk rollup                3 zk
+4 zk validium              3 zk
+```
+
+层级越高承诺越强，因此允许超额交付（`2 optimistic rollup` 提交 `3 zk` 合法），
+不允许欠交付。`proofType = 0 (none)` 不被任何层级接受，`VerifierRegistry` 也拒绝为它
+注册 verifier。链下各层（模板目录、`validate`、operator status）必须复用这张表而不是
+各自复制一份，镜像由 `UT_SettlementManager_ProofRouting` 逐对钉住。
 
 `batchNumber = 1` 的 `preStateRoot` 必须等于 `ChainRegistry` 中该链不可变的
 `genesisStateRoot`；后续 batch 必须连接最新已终局根。首批终局前（或首批回滚后），

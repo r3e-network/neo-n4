@@ -46,6 +46,9 @@ public class UT_CreateChainCommand
         StringAssert.Contains(config, "\"vm\": \"neovm2-riscv\"");
         StringAssert.Contains(config, "\"securityLevel\": \"Optimistic\"");  // rollup default
         StringAssert.Contains(config, "\"daMode\": \"NeoFS\"");
+        // The default must name a route the deployer actually registers (Zk) — see
+        // UT_ListTemplatesCommand.Catalog_* for the catalog-wide guard.
+        StringAssert.Contains(config, "\"proofType\": \"Zk\"");
     }
 
     [TestMethod]
@@ -113,8 +116,13 @@ public class UT_CreateChainCommand
     }
 
     [TestMethod]
-    public void CreateChain_SidechainTemplate_EmitsNoneProof()
+    public void CreateChain_SidechainTemplate_EmitsMultisigProof()
     {
+        // Not "None": SettlementManager.IsProofTypeCompatible has no None row,
+        // VerifierRegistry refuses to register route byte 0 and the batcher cannot
+        // build a None artifact — a sidechain still commits to *something*. Multisig is
+        // the attestation a consortium can actually produce, and validate warns that
+        // the shipped hub does not register that route before it locks.
         var rc = CreateChainCommand.Run(new[]
         {
             "--chain-id", "4099",
@@ -125,7 +133,7 @@ public class UT_CreateChainCommand
         var config = File.ReadAllText(Path.Combine(_tempDir, "chain.config.json"));
         StringAssert.Contains(config, "\"chainMode\": \"SidechainMode\"");
         StringAssert.Contains(config, "\"securityLevel\": \"Sidechain\"");
-        StringAssert.Contains(config, "\"proofType\": \"None\"");
+        StringAssert.Contains(config, "\"proofType\": \"Multisig\"");
         StringAssert.Contains(config, "\"daMode\": \"NeoFS\"");
     }
 
@@ -248,10 +256,11 @@ public class UT_CreateChainCommand
     {
         // Pin the create-chain ↔ validate contract: every template a user can
         // pick via --template MUST produce a config the validate command accepts
-        // cleanly, with zero ⚠ cross-field warnings. If a future commit adds a
-        // new validate warning that incidentally fires on a freshly-created
-        // template config, OR a template's defaults drift into a contradiction,
-        // this test catches it. Complements the samples-walk test in
+        // with no cross-field contradiction (see ShippedConfigWarningPolicy for the
+        // one documented caveat the sidechain template is allowed to carry). If a
+        // future commit adds a new validate warning that incidentally fires on a
+        // freshly-created template config, OR a template's defaults drift into a
+        // contradiction, this test catches it. Complements the samples-walk test in
         // UT_ValidateChainConfigCommand which checks the hand-maintained
         // samples/*.config.json files; this test exercises the actual
         // CreateChainCommand JSON-emission path.
@@ -269,8 +278,7 @@ public class UT_CreateChainCommand
             ValidateChainConfigCommand.Run(new[] { configPath }));
         Assert.AreEqual(0, validateRc,
             $"validate rejected freshly-created template={template} config:\n{validateOutput}");
-        Assert.IsFalse(validateOutput.Contains("⚠"),
-            $"validate emitted a cross-field warning for template={template} — template defaults are internally inconsistent.\nOutput:\n{validateOutput}");
+        ShippedConfigWarningPolicy.AssertConsistent(template, validateOutput);
     }
 
     // ---- Helpers ----

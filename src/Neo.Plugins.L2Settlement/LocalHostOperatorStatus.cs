@@ -575,19 +575,14 @@ public sealed record LocalHostOperatorStatus
     public required UInt256 InitialStateRoot { get; init; }
 
     /// <summary>
-    /// Offline heuristic: whether <paramref name="securityLevel"/> is a recommended pairing
-    /// with <paramref name="proofType"/> (mirrors chain-config validation tips).
+    /// Whether <paramref name="proofType"/> commitments are acceptable for a chain advertising
+    /// <paramref name="securityLevel"/>. Delegates to <see cref="ProofRouting.AcceptsProofType"/>, the
+    /// off-chain mirror of <c>SettlementManager.IsProofTypeCompatible</c> — this is a named entry in the
+    /// operator-readiness failure list, so it must be the rule the chain actually settles under, not a
+    /// recommendation.
     /// </summary>
     public static bool IsSecurityLevelPairedWithProofType(SecurityLevel securityLevel, ProofType proofType)
-        => securityLevel switch
-        {
-            SecurityLevel.Validity or SecurityLevel.Validium => proofType == ProofType.Zk,
-            SecurityLevel.Optimistic =>
-                proofType is ProofType.Optimistic or ProofType.Multisig,
-            SecurityLevel.Sidechain or SecurityLevel.Settled =>
-                proofType is ProofType.None or ProofType.Multisig,
-            _ => false,
-        };
+        => ProofRouting.AcceptsProofType(securityLevel, proofType);
 
     /// <summary>
     /// Offline heuristic: whether <paramref name="securityLevel"/> is a recommended pairing

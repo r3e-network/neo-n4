@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Neo.L2;
 using Neo.Stack.Cli.Commands;
 
 namespace Neo.Stack.Cli.UnitTests;
@@ -26,6 +27,103 @@ public class UT_ListTemplatesCommand
         Assert.AreEqual("validium", names[2].Name);
         Assert.AreEqual("sidechain", names[3].Name);
     }
+
+    [TestMethod]
+    public void Catalog_EveryTemplateProofTypeIsLegalForItsSecurityLevel()
+    {
+        // A template is copied verbatim by the next operator who runs create-chain, so
+        // a template whose proofType its own securityLevel forbids ships a chain that
+        // faults at the first submitBatch. ProofRouting is the off-chain mirror of
+        // SettlementManager.IsProofTypeCompatible (pinned pair-by-pair against the
+        // contract by UT_SettlementManager_ProofRouting).
+        foreach (var t in TemplateCatalog.All)
+        {
+            var level = Enum.Parse<SecurityLevel>(t.SecurityLevel);
+            var proof = Enum.Parse<ProofType>(t.ProofType);
+            Assert.IsTrue(ProofRouting.AcceptsProofType(level, proof),
+                $"template '{t.Name}' pairs securityLevel={level} with proofType={proof}, "
+                + $"which SettlementManager rejects (accepted: {string.Join(" / ", ProofRouting.AcceptedProofTypes(level))})");
+        }
+    }
+
+    [TestMethod]
+    public void Catalog_NonSidechainTemplates_NameARouteTheDeployerRegisters()
+    {
+        // Neo.Hub.Deploy writes only the Zk verifier route and then locks
+        // VerifierRegistry one-way, so any other proofType needs an operator-supplied
+        // route registered before that lock. Sidechain is the single template allowed
+        // to name an unserved route (committee attestation is its whole point); its
+        // caveat is documented in samples/README.md and pinned as a `validate` warning
+        // by UT_ValidateChainConfigCommand.
+        foreach (var t in TemplateCatalog.All)
+        {
+            if (t.Name == "sidechain") continue;
+            var proof = Enum.Parse<ProofType>(t.ProofType);
+            Assert.IsTrue(ProofRouting.HasProductionVerifierRoute(proof),
+                $"template '{t.Name}' defaults to proofType={proof}, which has no verifier route "
+                + "in the bundle Neo.Hub.Deploy locks — the chain could not settle as created");
+        }
+    }
+
+    [TestMethod]
+    public void LaunchingGuide_TemplateTable_MatchesTheCatalog()
+    {
+        // `docs/launching-an-l2.md` is the operator walkthrough, and its Templates table is a hand-typed
+        // copy of TemplateCatalog. H18 found both copies (this file and its Chinese mirror) still
+        // advertising rollup = L1 DA + Optimistic and sidechain = External + None after the code said
+        // otherwise — the exact "two tools disagree about the default posture" shape, one level up.
+        AssertDocTableMatchesCatalog("docs/launching-an-l2.md", "Template");
+    }
+
+    [TestMethod]
+    public void LaunchingGuide_ChineseTemplateTable_MatchesTheCatalog()
+    {
+        AssertDocTableMatchesCatalog("docs/zh/launching-an-l2.md", "模板");
+    }
+
+    private static void AssertDocTableMatchesCatalog(string relativeDocPath, string headerCell)
+    {
+        var path = Path.Combine(Neo.L2.TestInfra.RepoRoot.Directory, relativeDocPath);
+        Assert.IsTrue(File.Exists(path), $"doc missing: {path}");
+
+        var rows = new List<string[]>();
+        var inTable = false;
+        foreach (var line in File.ReadAllLines(path))
+        {
+            var trimmed = line.Trim();
+            if (!inTable)
+            {
+                inTable = trimmed.StartsWith('|') && FirstCell(trimmed) == headerCell;
+                continue;
+            }
+            if (!trimmed.StartsWith('|')) break;
+            var cells = trimmed.Split('|')[1..^1].Select(c => c.Trim()).ToArray();
+            if (cells.All(c => c.All(ch => ch is '-' or ':'))) continue; // |---|---| separator row
+            rows.Add(cells);
+        }
+
+        Assert.IsTrue(inTable && rows.Count > 0,
+            $"{relativeDocPath}: no table found whose header cell is \"{headerCell}\"");
+        Assert.AreEqual(
+            string.Join(", ", TemplateCatalog.All.Select(t => t.Name)),
+            string.Join(", ", rows.Select(r => r[0].Trim('`'))),
+            $"{relativeDocPath}: the documented template list must be the catalog's, in order");
+
+        foreach (var (row, template) in rows.Zip(TemplateCatalog.All))
+        {
+            Assert.AreEqual(6, row.Length, $"{relativeDocPath}: row for {template.Name} is malformed: {string.Join(" | ", row)}");
+            var name = row[0].Trim('`');
+            Assert.AreEqual(template.Name, name, $"{relativeDocPath}: row order drifted");
+            Assert.AreEqual(template.ChainMode, row[1], $"{name}: chainMode column disagrees with TemplateCatalog");
+            Assert.AreEqual(template.DaMode, row[2], $"{name}: daMode column disagrees with TemplateCatalog");
+            Assert.AreEqual(template.ProofType, row[3], $"{name}: proofType column disagrees with TemplateCatalog");
+            Assert.AreEqual(template.SecurityLevel, row[4], $"{name}: SecurityLevel column disagrees with TemplateCatalog");
+            Assert.AreEqual(template.ExitModel, row[5], $"{name}: Exit column disagrees with TemplateCatalog");
+        }
+    }
+
+    private static string FirstCell(string trimmedRow) =>
+        trimmedRow.Split('|')[1].Trim();
 
     [TestMethod]
     public void Catalog_Resolve_ReturnsExactTemplate()

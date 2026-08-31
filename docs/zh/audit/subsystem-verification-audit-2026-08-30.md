@@ -724,7 +724,8 @@ this format off the wire when verifying user withdrawal proofs” —— 它并�
 那里：既有测试只覆盖 permissionless 模式与 invalid-mode 拒绝，于是模式 1 的核准集合检查与模式 0 的
 拒绝都是死代码。那里单侧的布局位移会让准入闸门去测试错误字段的核准集合成员关系，从而让一个未获核准
 的 verifier 完成注册。与 `C2` 同一个失效模式，只是早了一道闸门。两条分支现在都会被执行，而测试断言
-被切出的字节就是向量的 `0x22`/`0x33` 槽位，而不是复述合约自己的算术。
+被切出的字节就是向量里 `0x22` 填充与 `0x33` 填充的那两段 —— 那是标记 verifier 与 bridgeAdapter 的
+填充**值**，不是第二对偏移 —— 而不是复述合约自己的算术。
 
 `ComputePublicInputHash:452-474` 用头部字节 `0..11` 与八个头部 root 重建那 332 字节的 preimage，
 `IsProofTypeCompatible` 读取偏移 316 —— 于是提交路径钉住的就是这两个位置，尾部其余部分一概不钉。
@@ -1467,7 +1468,7 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     加 5 个 env 门，§11 现已把五个逐一点名。值得记下来的是这个归类错误本身：一条消息写着 "not found"
     的跳过是证据问题、不是环境问题，而只读计数不读消息，让我把 40 个被静默停用的测试说成了主动谢绝
     执行的测试。
-15. 关闭 `V2` 这件事否证了本报告自己的三句话，另有第四句是事后才出现的。(a) 那条发现的控制结论说：
+15. 关闭 `V2` 这件事否证了本报告自己的三句话，另有三句是事后才出现的。(a) 那条发现的控制结论说：
    对调 `txRoot`/`receiptRoot` 之后 "round-trip tests stay green"；实际这次对调确实让早已存在的
    `UT_BatchSerializer.Commitment_ByteLayout_MatchesDocumentedOffsets` 变红，也就是说这个性质是有守卫
    的 —— 守卫的是编码器自己文档里写下的偏移量。(b) “没有任何测试执行过配对的两端”同样过宽：
@@ -1484,6 +1485,17 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
    `520`→`529`、`532`→`541`、`565-569`→`574-578`、`592-599`→`601-608`，以及 2026-08-29 报告及其镜像
    里的 `600-607`→`609-616`）。今后任何对本报告按固定行号引用的文件的改动都会产生同样后果，
    所以本轮学到的规则是：一次 CI 改动与一次报告改动不该放进同一个 commit，除非重新编号随它们同行。
+   (e) 那段把自己呈现为“实测替换了此前 rustfmt 断言”的文字，自己又带出三条同样没有实测的断言：一个被
+   沿用成 1.98 的工具链版本（本地二进制其实是 1.9.0-stable）、把 diff 违反的*规则*推断成“SCREAMING
+   成员排在最前”（而打印出的 diff 只是要求 `MAX_PAYLOAD_ITEMS` 排在 `Reader` 之前，即普通字母序），以及
+   “本仓库任何位置都不存在 `rust-toolchain` 文件”（`external/neo-riscv-vm` 与 `external/neo-vm-rs` 各有一份，
+   足以否证）。三条都已在 §5 与镜像中改正。写一句“这里是量出来的”并不能让一段文字变成实测；在同一会话里
+   重跑那道检查才可以。(f) 本分支的 pull request 描述把三条互不相干的事实并成一条假结论，声称 fraud
+   verifier 在 `0x22`/`0x33` 读取 verifier 信任根，“而 off-chain 写入方把它们放在 `0x12`/`0x1e`”。这样的
+   分歧并不存在 —— `ChainRegistryContract.cs:309-310` 与 `L2ChainConfigSerializer.cs:43-44` 写的是同样的
+   `24`/`44`，`0x22`/`0x33` 是填充值（即 §5 第二条浮现项），而“既不被摘要绑定也不被 assert 绑定”是第三条
+   里 `firstBlock`/`lastBlock` 的性质。该描述已就地改正；commit `0dcc6e59` 的提交信息仍带着那句错话并保持
+   原样，因为重写一个已发布的 commit 意味着一次 force-push。
 
 ## 9. 在执行验证下站得住的部分
 

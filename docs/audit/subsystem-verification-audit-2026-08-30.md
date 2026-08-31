@@ -800,7 +800,9 @@ had never run: existing tests cover only the permissionless mode and the invalid
 1's approved-set check and mode 0's reject were both dead. A one-sided layout shift there makes the
 admission gate test the approval-set membership of the wrong field and lets an unapproved verifier
 register. Same failure mode as `C2`, one gate earlier. Both branches now execute, and the test asserts
-the sliced bytes are the vector's `0x22`/`0x33` slots rather than repeating the contract's arithmetic.
+the sliced bytes are the vector's `0x22`-filled and `0x33`-filled regions — fill **values** marking
+verifier and bridgeAdapter, not a second pair of offsets — rather than repeating the contract's
+arithmetic.
 
 `ComputePublicInputHash:452-474` rebuilds the 332-byte preimage from header bytes `0..11` and eight
 header roots, and `IsProofTypeCompatible` reads offset 316 — so the submit path pins those positions
@@ -1644,7 +1646,7 @@ the file, not inferred.
     classification error is the interesting part: a skip whose message says "not found" is an evidence
     problem, not an environment problem, and reading the counts without reading the messages let me
     label 40 silently-disabled tests as deliberately-declined ones.
-15. Closing `V2` falsified three of this report's own sentences and one more arrived after the fact.
+15. Closing `V2` falsified three of this report's own sentences, and three more arrived after the fact.
     (a) The finding's control claim was that "round-trip tests stay green" under a swapped
     `txRoot`/`receiptRoot`; the swap did redden the pre-existing
     `UT_BatchSerializer.Commitment_ByteLayout_MatchesDocumentedOffsets`, so the property was guarded —
@@ -1664,7 +1666,21 @@ the file, not inferred.
     `592-599`→`601-608` in this report and its mirror, and `600-607`→`609-616` in the 2026-08-29 report
     plus its mirror). Any future edit to a file this report cites at fixed line numbers has the same
     effect, so the rule this pass learned is that a CI edit and a report edit do not belong in the same
-    commit unless the renumbering rides with them.
+    commit unless the renumbering rides with them. (e) The paragraph that presented itself as the measured
+    replacement for the earlier `rustfmt` claim shipped three claims of its own that had not been measured
+    either: a toolchain version copied forward as 1.98 when the local binary is 1.9.0-stable, the *rule*
+    the diff violates inferred as "SCREAMING members sort first" when the printed diff wants
+    `MAX_PAYLOAD_ITEMS` before `Reader` (ordinary alphabetical order), and "no `rust-toolchain` file exists
+    anywhere in this repo", refuted by `external/neo-riscv-vm` and `external/neo-vm-rs`. All three are
+    corrected in §5 and in the mirror. Writing "measured rather than assumed" does not make a paragraph
+    measured; re-running the checker in the same session as the prose does. (f) This branch's pull-request
+    description merged three distinct facts into one false bullet, claiming the fraud verifier reads
+    verifier trust roots at `0x22`/`0x33` "while the off-chain writer puts them at `0x12`/`0x1e`". No such
+    disagreement exists — `ChainRegistryContract.cs:309-310` and `L2ChainConfigSerializer.cs:43-44` name
+    the same `24`/`44`, `0x22`/`0x33` are fill values (§5's second surfaced item), and "bound by neither
+    digest nor assert" is the `firstBlock`/`lastBlock` property of the third. The body was fixed in place;
+    commit `0dcc6e59`'s message carries the bad sentence and stays as pushed, because rewriting a published
+    commit means a force-push.
 
 ## 9. What held up under execution
 

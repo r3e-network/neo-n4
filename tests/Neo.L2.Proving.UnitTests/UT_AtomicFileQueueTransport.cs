@@ -154,6 +154,65 @@ public sealed class UT_AtomicFileQueueTransport
             await transport.ReadBoundedAsync("link.bin", 1));
     }
 
+    [TestMethod]
+    public async Task ReadBoundedAsync_TransientSharingViolation_IsRetried()
+    {
+        using var directory = new TemporaryDirectory();
+        var transport = CreateTransport(directory.Path);
+        var path = Path.Combine(directory.Path, "artifact.bin");
+        await transport.PublishExactAsync("artifact.bin", new byte[] { 1, 2, 3 });
+        var lockAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var holder = Task.Run(async () =>
+        {
+            using var lockStream = new FileStream(
+                path, FileMode.Open, FileAccess.Read, FileShare.None);
+            lockAcquired.SetResult();
+            await Task.Delay(250);
+        });
+        try
+        {
+            await lockAcquired.Task;
+
+            CollectionAssert.AreEqual(
+                new byte[] { 1, 2, 3 }, await transport.ReadBoundedAsync("artifact.bin", 3));
+        }
+        finally
+        {
+            await holder;
+        }
+    }
+
+    [TestMethod]
+    public async Task ReadBoundedAsync_PersistentSharingViolation_IsTypedAsInvalidData()
+    {
+        using var directory = new TemporaryDirectory();
+        var transport = CreateTransport(directory.Path);
+        var path = Path.Combine(directory.Path, "artifact.bin");
+        await transport.PublishExactAsync("artifact.bin", new byte[] { 1, 2, 3 });
+        var lockAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var holder = Task.Run(async () =>
+        {
+            using var lockStream = new FileStream(
+                path, FileMode.Open, FileAccess.Read, FileShare.None);
+            lockAcquired.SetResult();
+            await release.Task;
+        });
+        try
+        {
+            await lockAcquired.Task;
+
+            var exception = await Assert.ThrowsExactlyAsync<InvalidDataException>(async () =>
+                await transport.ReadBoundedAsync("artifact.bin", 3));
+            Assert.IsInstanceOfType(exception.InnerException, typeof(IOException));
+        }
+        finally
+        {
+            release.SetResult();
+            await holder;
+        }
+    }
+
     private static AtomicFileQueueTransport CreateTransport(string directory) =>
         new(directory, TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(5));
 

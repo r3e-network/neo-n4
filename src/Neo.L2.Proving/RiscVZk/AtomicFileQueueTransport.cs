@@ -6,13 +6,17 @@ namespace Neo.L2.Proving.RiscVZk;
 /// <summary>Atomic, bounded file-queue transport shared by SP1 prover clients.</summary>
 /// <remarks>
 /// See doc.md §4, §7.5, and §8. Artifacts are immutable and idempotent, result manifests are
-/// readiness markers, symbolic links are rejected, and every read is size-bounded.
+/// readiness markers, symbolic links are rejected, every read is size-bounded, and reads
+/// tolerate transient sharing violations within a bounded retry window before typing the
+/// failure as <see cref="InvalidDataException"/> like every other read verdict.
 /// </remarks>
 public sealed class AtomicFileQueueTransport
 {
     private const long DefaultMaximumQueueBytes = 16L * 1024 * 1024 * 1024;
     private const int DefaultMaximumRequestCount = 64;
     private static readonly TimeSpan MaximumTimeout = TimeSpan.FromHours(24);
+    private static readonly TimeSpan ReadSharingViolationWindow = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan ReadSharingViolationPoll = TimeSpan.FromMilliseconds(50);
     private readonly string _directory;
     private readonly TimeSpan _resultTimeout;
     private readonly TimeSpan _pollInterval;
@@ -262,11 +266,44 @@ public sealed class AtomicFileQueueTransport
         if (length < 0 || length > maximumLength)
             throw new InvalidDataException(
                 $"{Path.GetFileName(path)} exceeds the {maximumLength}-byte protocol limit");
-        var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+        var bytes = await ReadAllBytesWithSharingViolationRetryAsync(
+            path, cancellationToken).ConfigureAwait(false);
         if (bytes.Length > maximumLength || bytes.LongLength != length)
             throw new InvalidDataException(
                 $"{Path.GetFileName(path)} changed while being read");
         return bytes;
+    }
+
+    private async ValueTask<byte[]> ReadAllBytesWithSharingViolationRetryAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (true)
+        {
+            try
+            {
+                return await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+            }
+            catch (FileNotFoundException)
+            {
+                throw new InvalidDataException(
+                    $"SP1 queue artifact is missing: {Path.GetFileName(path)}");
+            }
+            catch (IOException) when (stopwatch.Elapsed < ReadSharingViolationWindow)
+            {
+                var remaining = ReadSharingViolationWindow - stopwatch.Elapsed;
+                await Task.Delay(
+                    remaining < ReadSharingViolationPoll ? remaining : ReadSharingViolationPoll,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (IOException exception)
+            {
+                throw new InvalidDataException(
+                    $"{Path.GetFileName(path)} could not be read: {exception.Message}",
+                    exception);
+            }
+        }
     }
 
     private string Resolve(string fileName)

@@ -1,10 +1,15 @@
 namespace Neo.L2;
 
 /// <summary>
-/// Operating mode of a Neo 4 node. Drives consensus, batching, settlement, and DA behavior.
+/// Operating mode of a Neo 4 node per doc.md §6 — one of four values, and the set is closed.
 /// </summary>
 /// <remarks>
-/// See doc.md §6.
+/// This is an operator-facing label, not a runtime switch: <c>neo-stack validate</c> reads it to warn
+/// about incoherent configs, and nothing else consumes it. It has no byte in the 91-byte
+/// <see cref="Neo.L2.L2ChainConfigSerializer"/> registration format, so <c>ChainRegistry</c> never sees
+/// it. The execution engine is selected separately — doc.md §14.2's <c>--vm</c> (the
+/// <c>neovm2-riscv</c> label in <c>chain.config.json</c>) and the devnet's <c>--executor riscv</c> —
+/// so a new VM profile does not need, and must not be given, a member here.
 /// </remarks>
 public enum ChainMode : byte
 {

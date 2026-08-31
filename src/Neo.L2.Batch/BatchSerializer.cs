@@ -9,8 +9,19 @@ namespace Neo.L2.Batch;
 /// All multi-byte integers are little-endian (matches Neo on-chain conventions). UInt160 / UInt256
 /// are encoded as their 20- / 32-byte payloads. Proof bytes are length-prefixed (32-bit LE length).
 /// <para>
-/// This is the byte format that NeoHub's settlement contract reads, so any change here is a
-/// breaking on-chain change.
+/// The two layouts bind different boundaries, and only one of them is an L1 ABI. The commitment
+/// header is the byte format <c>SettlementManager.submitBatch</c> parses, so any change to it is a
+/// breaking on-chain change. The 332-byte public-inputs form is <em>never</em> transmitted to L1 —
+/// the contract sees only its 32-byte digest, at commitment offset 284 — but it is still the exact
+/// preimage the committee/sequencer signature is taken over
+/// (<c>src/Neo.L2.Proving/Attestation/AttestationProver.cs:36-40</c>,
+/// <c>src/Neo.L2.Proving/Optimistic/OptimisticProver.cs:81-83</c>), the digest recorded in every
+/// durable witness artifact (<c>src/Neo.L2.Persistence/ProofWitnessStore.cs:1090-1091</c>), the
+/// equality check that gates execution
+/// (<c>src/Neo.L2.Executor/Witness/Sp1StatefulBatchExecutor.cs:271-272</c>), and the buffer the Rust
+/// side rebuilds byte-for-byte (<c>bridge/neo-execution-core/src/hashing.rs:297</c>). A change to it
+/// breaks the C# ↔ Rust prover ABI, the pinned VK, and every artifact already on disk — just not the
+/// contract's parser.
 /// </para>
 /// <para>
 /// <b>L2BatchCommitment layout (321 + proofLen bytes):</b>

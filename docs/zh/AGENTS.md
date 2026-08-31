@@ -23,8 +23,11 @@
 
 ## Phase 4 执行/证明边界
 
-- PolkaVM `ChainMode.L2RiscV` 位于 `external/neo-riscv-vm` +
-  `src/Neo.L2.Executor.RiscV`，没有匹配 prover 时不得继承 validity 标签。
+- PolkaVM 路径位于 `external/neo-riscv-vm` + `src/Neo.L2.Executor.RiscV`；它由 devnet 的
+  `--executor riscv`（`tools/Neo.L2.Devnet/DevnetArgs.cs:61-76`）选择，并在
+  `chain.config.json` 中以 `vm: "neovm2-riscv"` 标注（`doc.md` §14.2）——**不是**靠
+  `ChainMode` 成员。`doc.md` §6 只定义四个 mode，且 `ChainMode` 在运行时不做任何分发，
+  因此新增 VM 档不得在这里补第五个成员；没有匹配 prover 时不得继承 validity 标签。
 - 内置生产有效性档是精确 `Sp1StatefulNeoVmV1`：`Sp1SettlementExecutionStack` 固定
   完整持久状态、SHA-256 锁定 `neo-zkvm-executor`、不可变 artifact-first 原子
   post-state commit、`Sp1BatchProofProver` 与准确 VK/profile；SP1 guest 再执行同一 runtime。

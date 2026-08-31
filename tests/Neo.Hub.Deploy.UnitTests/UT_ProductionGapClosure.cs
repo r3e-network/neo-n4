@@ -1,3 +1,5 @@
+using Neo.L2;
+
 namespace Neo.Hub.Deploy.UnitTests;
 
 [TestClass]
@@ -507,6 +509,69 @@ public class UT_ProductionGapClosure
         StringAssert.Contains(chinese, "| 生产完备 |");
         StringAssert.Contains(chinese, "任何阶段都不能标记为生产完备");
     }
+
+    [TestMethod]
+    public void CurrentDocumentation_NamesOnlyDeclaredChainModeMembers()
+    {
+        // ChainMode is the one config label the compiler never checks: it has no byte in the 91-byte
+        // L2ChainConfigSerializer registration format, so ChainRegistry never sees it and a member
+        // that does not exist breaks no build. V2 found eight documentation sites plus one test
+        // fixture naming an "L2RiscV" member that has never been declared, because the prose was
+        // written from the intent of doc.md §6 rather than from the enum. Pin every label used in the
+        // committed tree against Enum.GetNames so the same drift cannot reappear silently.
+        var root = FindRepositoryRoot();
+        var declared = Enum.GetNames<ChainMode>();
+
+        var offenders = new List<string>();
+        foreach (var path in Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories))
+        {
+            var extension = Path.GetExtension(path);
+            if (extension is not (".md" or ".cs" or ".json" or ".yaml" or ".yml" or ".toml")) continue;
+
+            var relative = Relative(root, path);
+            if (IsSkippedPath(root, path) || IsDatedChainModeNarrative(relative)) continue;
+
+            var lines = File.ReadAllLines(path);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                // [A-Z] keeps "ChainMode.cs" (a filename) out of the member matches.
+                foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(
+                    lines[i], @"ChainMode\.([A-Z][A-Za-z0-9_]*)"))
+                {
+                    var label = match.Groups[1].Value;
+                    if (!declared.Contains(label, StringComparer.Ordinal))
+                        offenders.Add($"{relative}:{i + 1} ChainMode.{label}");
+                }
+
+                foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(
+                    lines[i], @"""chainMode""\s*:\s*""([A-Za-z0-9_]+)"""))
+                {
+                    var label = match.Groups[1].Value;
+                    if (!declared.Contains(label, StringComparer.Ordinal))
+                        offenders.Add($"{relative}:{i + 1} \"chainMode\": \"{label}\"");
+                }
+            }
+        }
+
+        Assert.AreEqual(0, offenders.Count,
+            $"ChainMode declares exactly {string.Join(" / ", declared)}; committed files name labels "
+            + "outside that set (the execution engine is chosen by --vm / --executor, not by ChainMode):\n"
+            + string.Join('\n', offenders.Order(StringComparer.Ordinal)));
+    }
+
+    /// <summary>
+    /// Dated narrative and evidence quote a stale label deliberately — the audit reports record the
+    /// defect, the CHANGELOG records the fix it describes — and <c>TASKS.md</c> names members core
+    /// does not ship <i>yet</i>. Those are not claims about today's tree, so the guard does not read
+    /// them as such.
+    /// </summary>
+    private static bool IsDatedChainModeNarrative(string relative)
+        => relative.StartsWith("docs/audit/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("docs/zh/audit/", StringComparison.OrdinalIgnoreCase)
+            || relative.Equals("CHANGELOG.md", StringComparison.OrdinalIgnoreCase)
+            || relative.Equals("docs/zh/CHANGELOG.md", StringComparison.OrdinalIgnoreCase)
+            || relative.Equals("TASKS.md", StringComparison.OrdinalIgnoreCase)
+            || relative.Equals("docs/zh/TASKS.md", StringComparison.OrdinalIgnoreCase);
 
     [TestMethod]
     public void CurrentDocumentation_ChineseArchitecturePreservesCriticalSettlementAnchors()

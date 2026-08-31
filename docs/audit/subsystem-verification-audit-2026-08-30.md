@@ -652,6 +652,53 @@ and not for the public-inputs half, which is never transmitted. This is the mech
 `C2`-class encoding drift stays invisible; a single test project that references both sides would
 close it.
 
+**Status — the documentation half is fixed on this branch; the cross-boundary test this finding is
+named for is not, and stays open (§11).**
+
+*BatchSerializer.* `:12-14` now separates the two boundaries instead of collapsing them: the
+commitment header is `SettlementManager.submitBatch`'s ABI, while the 332-byte public-inputs form
+never reaches L1 — the contract sees only its digest at commitment offset 284 — yet it is still the
+signed preimage (`src/Neo.L2.Proving/Attestation/AttestationProver.cs:36-40`,
+`src/Neo.L2.Proving/Optimistic/OptimisticProver.cs:81-83`), the digest recorded in each durable
+artifact (`src/Neo.L2.Persistence/ProofWitnessStore.cs:1090-1091`), the check that gates execution
+(`src/Neo.L2.Executor/Witness/Sp1StatefulBatchExecutor.cs:271-272`) and the buffer the Rust side
+rebuilds (`bridge/neo-execution-core/src/hashing.rs:297`). Each citation was re-read at those line
+numbers on this branch rather than carried over.
+
+*The `ChainMode` claim, which §10 item 9 asked about.* **The docs were wrong, and the enum was
+right.** Three pieces of evidence close the "or add the enum member" alternative: `doc.md` §6
+(476-486) lists exactly the four declared members; `doc.md:1343` selects the engine with
+`--vm neovm2-riscv` *alongside* `--template rollup`, so the spec itself treats VM and mode as
+independent axes; and `ChainMode` has no byte in the 91-byte `L2ChainConfigSerializer` format
+(offsets 84-90 are securityLevel/daMode/gatewayEnabled/permissionlessExit/sequencerModel/exitModel/
+active) with `neo-stack validate` as its only consumer. A fifth member would therefore have wired
+nothing while making the label look like a dispatch key. Fixed instead: ten documentation sites
+(five English + five Chinese mirrors: `AGENTS.md`, `WHITEPAPER.md`,
+`docs/architecture-{l2-lifecycle,walkthrough}.md`, `docs/tech-stack-coverage.md` and their
+`docs/zh/` counterparts) now say the PolkaVM profile is selected by the devnet's `--executor riscv`
+(`tools/Neo.L2.Devnet/DevnetArgs.cs:61-76`) and labelled `vm: "neovm2-riscv"`;
+`ChainMode`'s own `<summary>`, which asserted it "drives consensus, batching, settlement, and DA
+behavior", now says it is an operator-facing label that dispatches nothing; and
+`tests/Neo.Stack.Cli.UnitTests/UT_BootstrapGenesisCommand.cs:36`'s fixture — which carried
+`"chainMode": "L2RiscV"` and passed only because nothing parses that key on the bootstrap path —
+carries `L2RollupMode`, the value the same `zk-rollup` template ships.
+
+Two guards replace the copy-paste discipline that let it drift.
+`CurrentDocumentation_NamesOnlyDeclaredChainModeMembers` scans every tracked
+`.md`/`.cs`/`.json`/`.yaml`/`.yml`/`.toml` file for both spellings (`ChainMode.<Member>` and
+`"chainMode": "<value>"`) and rejects any label outside `Enum.GetNames<ChainMode>()`, exempting only
+dated narrative and evidence (`docs/audit/**`, `CHANGELOG.md`, `TASKS.md`) whose stale labels are
+deliberate quotes rather than claims about today's tree; it caught its own comment on the first run,
+and a control line added to `README.md` produced
+`README.md:471 ChainMode.L2RiscV` + `README.md:471 "chainMode": "L2RiscV"` before the file was
+restored byte-identical. `Catalog_EveryTemplateNameADeclaredChainMode` pins the four
+`TemplateCatalog` `ChainMode` strings, the one catalog field no earlier guard parsed.
+
+**Not closed:** `NeoHub.Contracts.VmTests` still has zero `ProjectReference`s, so no test proves the
+guest or host reads `StateWitnessV1` / `PublicInputs` / `MerkleProofSerializer` bytes the way the C#
+writer emits them. Renaming the guard above to "documentation" is the honest label for what this
+branch shipped; the finding's title still describes the repo.
+
 ### V3 — The SP1 executor "funded release pin" is decorative, and its rejection path has no test [E1]
 
 Prior `H6`, now confirmed by execution. `Sp1SettlementExecutionStack.cs:46,127` and
@@ -1555,8 +1602,23 @@ Split by whether it can land now.
    **not** closed: the `Multisig` and `Optimistic` on-chain verifiers remain unimplemented, which is
    `doc.md` §7.5 stage 0/1 work rather than a routing-table fix, and `ShippedConfigWarningPolicy` is the
    tripwire that says delete the caveat when it lands. See §4 H18's status block.
-9. `V2` (partial) — correct `BatchSerializer.cs:12-14` and `AGENTS.md`'s `ChainMode.L2RiscV` claim, or
-   add the enum member.
+9. `V2` (documentation half) — **done on this branch, and the "or add the enum member" alternative is
+   refuted rather than declined.** `BatchSerializer.cs:12-14` now separates the two boundaries it had
+   collapsed: the commitment header is the only L1 ABI, while the 332-byte public-inputs form never
+   reaches the contract yet is the signed preimage, the artifact digest, the gate on execution and the
+   buffer Rust rebuilds (four cited sites, each re-read on this branch). `doc.md` §6 lists exactly the
+   four declared members, and `doc.md:1343` selects the engine with `--vm neovm2-riscv` *alongside*
+   `--template rollup`, so the fifth member the prose named was a documentation error, not a missing
+   dispatch key — adding it would have wired nothing while making a label look like a switch. Ten doc
+   sites, `ChainMode`'s own `<summary>` (which claimed it "drives consensus, batching, settlement, and
+   DA behavior") and one fixture that passed only because nothing parses the key are corrected;
+   `CurrentDocumentation_NamesOnlyDeclaredChainModeMembers` (repo-wide, both spellings, dated narrative
+   and evidence exempted by path) plus `Catalog_EveryTemplateNameADeclaredChainMode` replace the
+   copy-paste discipline. Full solution 38 assemblies / **2,923 tests** / 0 failed / 5 skipped
+   (item 8's 2,921 plus the two new guards). What is deliberately **not** closed is the half the
+   finding is named for: `NeoHub.Contracts.VmTests` still has zero `ProjectReference`s, so nothing
+   cross-executes the .NET encoder against the Rust reader — §11's first bullet is unchanged. See §5
+   V2's status block.
 
 **Needs a decision before code:**
 

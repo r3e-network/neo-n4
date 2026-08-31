@@ -151,8 +151,12 @@ Every cross-cutting capability has an interface so phases can swap implementatio
 All phases (0/1/2/3/4/5/6) are ✅.
 
 - **Phase 4** (NeoVM2/RISC-V ZK validity proof): the codebase exposes two explicit
-  execution profiles. PolkaVM `ChainMode.L2RiscV` lives in `external/neo-riscv-vm` +
-  `src/Neo.L2.Executor.RiscV`; it does not inherit a validity label without a matching
+  execution profiles. The PolkaVM profile lives in `external/neo-riscv-vm` +
+  `src/Neo.L2.Executor.RiscV`; it is selected by the devnet's `--executor riscv`
+  (`tools/Neo.L2.Devnet/DevnetArgs.cs:61-76`) and labelled `vm: "neovm2-riscv"` in
+  `chain.config.json` (`doc.md` §14.2) — **not** by a `ChainMode` member. `doc.md` §6 defines exactly
+  four modes, and `ChainMode` dispatches nothing at runtime, so a new VM profile must not be given a
+  fifth one here. The PolkaVM path does not inherit a validity label without a matching
   prover. The bundled production validity profile is `Sp1StatefulNeoVmV1`:
   `Sp1SettlementExecutionStack` binds complete durable state, SHA-256-pinned
   `neo-zkvm-executor`, immutable-artifact-first atomic post-state commit,

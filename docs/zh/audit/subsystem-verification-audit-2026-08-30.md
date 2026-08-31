@@ -589,6 +589,51 @@ artifact；SP1 的执行与证明栈没有被任何把关它合并的检查执�
 对 public-inputs 那一半则不成立 —— 而后者从不被传输。这正是 `C2` 类编码漂移得以隐形的机制；
 只需要一个同时引用两侧的测试项目就可以把它关闭。
 
+**状态 —— 文档那一半已在本分支修复；该发现以其命名的跨边界测试尚未修复，仍然开放（见 §11）。**
+
+*BatchSerializer。* `:12-14` 现在把两个边界分开陈述，而不再把它们混为一谈：commitment 头部是
+`SettlementManager.submitBatch` 解析的 ABI，而 332 字节的 public-inputs 形式**从不**到达 L1 ——
+合约只看到它在 commitment 偏移 284 处的摘要 —— 但它仍然是签名所覆盖的那份精确 preimage
+（`src/Neo.L2.Proving/Attestation/AttestationProver.cs:36-40`、
+`src/Neo.L2.Proving/Optimistic/OptimisticProver.cs:81-83`）、每一份持久 witness artifact 中记录的
+摘要（`src/Neo.L2.Persistence/ProofWitnessStore.cs:1090-1091`）、执行的前置门所比较的那段字节
+（`src/Neo.L2.Executor/Witness/Sp1StatefulBatchExecutor.cs:271-272`），以及 Rust 侧逐字节重建的那个
+缓冲区（`bridge/neo-execution-core/src/hashing.rs:297`）。上述每一处行号都在本分支重新打开文件核对过，
+而不是沿用旧值。
+
+*§10 第 9 项所问的那个 `ChainMode` 陈述。* **错的是文档，枚举是对的。** 三条证据直接否掉了
+“补一个枚举成员”这个选项：`doc.md` §6（476-486 行）列出的正是那四个已声明的成员；
+`doc.md:1343` 用 `--vm neovm2-riscv` 选择执行引擎，并且是与 `--template rollup` **并列**出现的，
+也就是说规范本身就把 VM 与 mode 当作两个独立的轴；而 `ChainMode` 在 91 字节的
+`L2ChainConfigSerializer` 格式里不占任何字节（偏移 84-90 依次是
+securityLevel/daMode/gatewayEnabled/permissionlessExit/sequencerModel/exitModel/active），
+它唯一的消费者是 `neo-stack validate`。因此补上第五个成员不会接上任何逻辑，只会让这个标签看起来
+像一个分发键。实际的修法是：十处文档站点（五处英文加五处中文镜像：`AGENTS.md`、`WHITEPAPER.md`、
+`docs/architecture-{l2-lifecycle,walkthrough}.md`、`docs/tech-stack-coverage.md` 及其 `docs/zh/`
+对应文件）现在都写明 PolkaVM 档由 devnet 的 `--executor riscv`
+（`tools/Neo.L2.Devnet/DevnetArgs.cs:61-76`）选择、并以 `vm: "neovm2-riscv"` 标注；
+`ChainMode` 自己的 `<summary>` 原本断言它 "drives consensus, batching, settlement, and DA
+behavior"，现在改为说明它是一个不对运行时做任何分发的 operator 面向标签；而
+`tests/Neo.Stack.Cli.UnitTests/UT_BootstrapGenesisCommand.cs:36` 的那个 fixture —— 它带着
+`"chainMode": "L2RiscV"`，而它之所以能通过，只是因为 bootstrap 路径上没有任何代码解析这个键 ——
+现在填的是同一个 `zk-rollup` 模板真正发布的 `L2RollupMode`。
+
+两道守卫取代了放任漂移的复制粘贴纪律。
+`CurrentDocumentation_NamesOnlyDeclaredChainModeMembers` 扫描每一个被 git 跟踪的
+`.md`/`.cs`/`.json`/`.yaml`/`.yml`/`.toml` 文件中的两种拼法（`ChainMode.<成员>` 与
+`"chainMode": "<取值>"`），拒绝任何不在 `Enum.GetNames<ChainMode>()` 之内的标签，并且只豁免那些
+刻意引用旧标签的带日期叙述与证据（`docs/audit/**`、`CHANGELOG.md`、`TASKS.md`）——它们不构成对
+当前代码树的断言；这个守卫在自己的第一次运行中就逮住了它自己的注释，而在 `README.md` 里临时加一行
+控制样本会得到 `README.md:471 ChainMode.L2RiscV` 加上
+`README.md:471 "chainMode": "L2RiscV"`，随后该文件被逐字节还原。
+`Catalog_EveryTemplateNameADeclaredChainMode` 钉扎了 `TemplateCatalog` 的四个 `ChainMode` 字符串，
+那是此前任何守卫都没有解析过的唯一一个 catalog 字段。
+
+**未关闭：** `NeoHub.Contracts.VmTests` 依然有零个 `ProjectReference`，因此仍然没有任何测试证明
+guest 或 host 按 C# writer 发出的方式读取 `StateWitnessV1` / `PublicInputs` /
+`MerkleProofSerializer` 字节。把上面那道守卫改叫 "documentation" 才是对本分支交付物的诚实命名；
+这条发现的标题描述的仍然是仓库现状。
+
 ### V3 — SP1 执行器的 "funded release pin" 只是装饰，且它的拒绝路径没有任何测试 [E1]
 
 这是此前的 `H6`，如今已由执行确认。`Sp1SettlementExecutionStack.cs:46,127` 与
@@ -1408,8 +1453,21 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
    `TemplateCatalog`。有意**未**收尾的部分：`Multisig` 与 `Optimistic` 的
    链上 verifier 仍未实现，那是 `doc.md` §7.5 stage 0/1 的工程量，不是一张路由表能补上的；等它落地那天，
    `ShippedConfigWarningPolicy` 就是提示你删除 caveat 的绊线。见 §4 H18 的状态段。
-9. `V2`（部分）—— 更正 `BatchSerializer.cs:12-14` 与 `AGENTS.md` 中关于
-   `ChainMode.L2RiscV` 的陈述，或者补上那个枚举成员。
+9. `V2`（文档那一半）—— **已在本分支完成，而且“或者补上那个枚举成员”这个备选项是被证据否掉的，
+   不是被我单方面否决的。** `BatchSerializer.cs:12-14` 现在把它曾混为一谈的两个边界分开陈述：
+   commitment 头部是唯一那份 L1 ABI，而 332 字节的 public-inputs 形式从不抵达合约，却同时是签名
+   覆盖的 preimage、artifact 摘要、执行的门槛，以及 Rust 侧重建的缓冲区（四处引用行号均在本分支
+   重新打开核对）。`doc.md` §6 列出的正是那四个已声明成员，而 `doc.md:1343` 是把
+   `--vm neovm2-riscv` 与 `--template rollup` **并列**用来选择执行引擎的，所以文档里那个第五成员
+   是文档错误，而不是一个缺失的分发键 —— 补上它什么都接不上，只会让一个标签看起来像开关。
+   十处文档站点、`ChainMode` 自己的 `<summary>`（原本声称它 "drives consensus, batching,
+   settlement, and DA behavior"）以及一个只是因为没人解析那个键才通过的 fixture 都已更正；
+   `CurrentDocumentation_NamesOnlyDeclaredChainModeMembers`（全仓库、两种拼法、带日期的叙述与证据
+   按路径豁免）加上 `Catalog_EveryTemplateNameADeclaredChainMode` 取代了原先放任漂移的复制粘贴纪律。
+   全解决方案 38 个程序集 / **2,923 个测试** / 0 失败 / 5 跳过（即第 8 条的 2,921 加上两道新守卫）。
+   有意**未**收尾的，正是这条发现以其命名的那一半：`NeoHub.Contracts.VmTests` 依然是零个
+   `ProjectReference`，因此没有任何测试把 .NET 编码器与 Rust 读取侧交叉执行 —— §11 的第一条子弹
+   原样保留。见 §5 V2 的状态段。
 
 **需要先决策再写代码的：**
 

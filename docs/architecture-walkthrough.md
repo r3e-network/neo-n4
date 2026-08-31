@@ -83,7 +83,8 @@ hands it to the configured `IL2Prover`:
   `prove-batch daemon --watch <queue-dir>` and re-executes the same
   `neo-execution-core` + vendored `neo-vm-rs` runtime inside the SP1 RISC-V guest.
   `external/neo-riscv-vm` and `Neo.L2.Executor.RiscV` remain the distinct PolkaVM
-  `ChainMode.L2RiscV` execution profile; they are not silently treated as the same SP1
+  execution profile (selected by `--executor riscv`, labelled `vm: "neovm2-riscv"`, not by a
+  `ChainMode` value); they are not silently treated as the same SP1
   semantic. A chain must use a matching proof profile before claiming validity for that
   path. `MockRiscVProver` remains in-process testing only.
 

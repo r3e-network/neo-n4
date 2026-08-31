@@ -29,6 +29,23 @@ public class UT_ListTemplatesCommand
     }
 
     [TestMethod]
+    public void Catalog_EveryTemplateNameADeclaredChainMode()
+    {
+        // ChainMode is the one TemplateCatalog field no other test parses: proofType and
+        // securityLevel strings are exercised by the two legality guards below, but nothing read
+        // ChainMode, so an invented fifth value would ship in every `create-chain` config and only
+        // surface as `validate` exiting 2 on a file the template itself printed.
+        foreach (var t in TemplateCatalog.All)
+        {
+            Assert.IsTrue(Enum.TryParse<ChainMode>(t.ChainMode, out var mode),
+                $"template '{t.Name}' names chainMode={t.ChainMode}, which is not a ChainMode member "
+                + $"({string.Join(" / ", Enum.GetNames<ChainMode>())})");
+            Assert.AreEqual(t.ChainMode, mode.ToString(),
+                $"template '{t.Name}' chainMode must be spelled exactly as its enum member");
+        }
+    }
+
+    [TestMethod]
     public void Catalog_EveryTemplateProofTypeIsLegalForItsSecurityLevel()
     {
         // A template is copied verbatim by the next operator who runs create-chain, so

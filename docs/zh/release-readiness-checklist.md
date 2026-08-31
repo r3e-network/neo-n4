@@ -85,8 +85,9 @@ cargo test --release --locked -- --ignored --nocapture
   `build` 并三条 lane 全部通过。nightly 负责让失败可见；发布候选 commit 上的绿色 dispatch
   才是解除阻塞的东西。
 - 确认 required `RISC-V guest blob freshness`（`riscv-guest-freshness`）为绿。该 job 用 guest
-  源码重建 `external/neo-riscv-vm` 已提交的 `guest.polkavm`（工具链钉在
-  `dtolnay/rust-toolchain@nightly-2026-08-28` + polkatool 0.32.0），任何漂移即失败。红或过期
+  源码重建 `external/neo-riscv-vm` 已提交的 `guest.polkavm`（工具链钉在 `nightly-2026-08-28`，
+  经 `dtolnay/rust-toolchain` action 安装、其 ref 以 commit SHA 钉住 + polkatool 0.32.0），
+  任何漂移即失败。红或过期
   即阻塞发布：先在发布候选 commit 上运行
   `CARGO_NIGHTLY="cargo +nightly-2026-08-28" bash external/neo-riscv-vm/scripts/regenerate-guest-blob.sh`
   并落库重生成的 blob —— 测试里执行的运行时必须与所发布源码构建出的运行时一致。

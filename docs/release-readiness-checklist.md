@@ -92,7 +92,8 @@ Run this on a real Neo N4 devnet/testnet node set before production:
   nightly makes the failure visible; the green dispatch on the release commit is what releases it.
 - Confirm the required `RISC-V guest blob freshness` (`riscv-guest-freshness`) is green. The job
   rebuilds `external/neo-riscv-vm`'s committed `guest.polkavm` from its guest source with the
-  toolchain pinned (`dtolnay/rust-toolchain@nightly-2026-08-28` + polkatool 0.32.0) and fails on
+  toolchain pinned to `nightly-2026-08-28` (via the `dtolnay/rust-toolchain` action, whose ref is
+  pinned by commit SHA + polkatool 0.32.0) and fails on
   any drift. A red or stale run blocks the release: run
   `CARGO_NIGHTLY="cargo +nightly-2026-08-28" bash external/neo-riscv-vm/scripts/regenerate-guest-blob.sh`
   on the release-candidate commit and land the regenerated blob first — the runtime that executes

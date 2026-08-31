@@ -11,7 +11,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   three rounds of guest-side hardening, nothing could notice, and release packaging rebuilt the
   blob unconditionally — tests certified one binary while shipping another. Now `build.yml` runs a
   `riscv-guest-freshness` job on every event: it rebuilds the blob from guest source with the
-  date-stamped toolchain pinned (`dtolnay/rust-toolchain@nightly-2026-08-28` + `polkatool 0.32.0
+  date-stamped toolchain pinned (`nightly-2026-08-28` via `dtolnay/rust-toolchain`, whose action
+  ref is pinned by commit SHA + `polkatool 0.32.0
   --locked`) and fails on `git diff --exit-code` against the committed bytes; the check joins
   `master`'s required contexts, so drift is blocked at PR time. The release checklist §6 (EN + zh)
   states the blocking rule for a red or stale run.
@@ -26,9 +27,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (floating nightly, `7bd373a1…`) differs from the pinned `nightly-2026-08-28` rebuild
   (`2389ab52…`, deterministic across two runs) despite an identical rustc hash, and the gate's
   first CI run red-demonstrated cross-toolchain drift on the runner's floating nightly. The gate
-  pins the toolchain ref, and the bump procedure is written into the workflow: bump the
-  `dtolnay/rust-toolchain` ref and re-land the blob with the same pinned `CARGO_NIGHTLY` in one
-  change.
+  pins the toolchain, and the bump procedure is written into the workflow: bump the pinned
+  `toolchain` input (and optionally the action's SHA ref) and re-land the blob with the same pinned
+  `CARGO_NIGHTLY` in one change.
 - Audit-report fixes (2)/(3) — a SHA-256 test constant and packaging-script staging — were
   deliberately not taken; the rationale is recorded in the audit's §3 C3 status block.
 

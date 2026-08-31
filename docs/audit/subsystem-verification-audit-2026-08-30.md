@@ -121,7 +121,7 @@ the tracked source tree.
 Fix (1) is implemented and wired: `build.yml` gains a `riscv-guest-freshness` job that runs on
 every event (not nightly-only — a PR that changes guest source without regenerating the blob is
 exactly the drift this must catch), rebuilds the blob with the toolchain pinned
-(`dtolnay/rust-toolchain@nightly-2026-08-28` + `polkatool 0.32.0 --locked`), and fails via
+(`nightly-2026-08-28` via `dtolnay/rust-toolchain` + `polkatool 0.32.0 --locked`), and fails via
 `git diff --exit-code` on `guest.polkavm`; the check is added to
 `master`'s required contexts. The job's failure response is written into it and into the release
 checklist §6 (EN + zh): regenerate on the release-candidate commit and land the blob.
@@ -150,13 +150,16 @@ rebuild (`7bd373a1…`) was itself only stable per-toolchain: the gate's first C
 different bytes, and a local rebuild under the date-stamped `nightly-2026-08-28` — same rustc
 hash `e457a7b0d` as the floating toolchain, different cargo — produced a *third* byte string
 (`2389ab52…`, deterministic across two runs). Blob bytes track the whole date-stamped toolchain,
-not just the rustc hash, so the gate now pins it: CI runs
-`dtolnay/rust-toolchain@nightly-2026-08-28`, the committed blob is the `2389ab52…` rebuild under
-exactly that toolchain, and the bump procedure (bump the `dtolnay/rust-toolchain` ref and
-re-land the blob with the same pinned `CARGO_NIGHTLY` in one change) is written into the
-workflow comment and the release checklist §6 (EN + zh). A toolchain bump without a matching
-blob re-land now fails the gate by construction, which is the property a floating toolchain
-could never give.
+not just the rustc hash, so the gate now pins it: CI runs the `dtolnay/rust-toolchain` action with
+its ref pinned by commit SHA and a `toolchain: nightly-2026-08-28` input — the action repo carries
+no date-stamped branches, and a `@nightly-2026-08-28` ref was itself proven wrong by the second
+red run (the job died in "Set up job"; `git ls-remote` shows the repo has only version branches
+plus `nightly`/`stable`/`beta`/`master`). The committed blob is the `2389ab52…` rebuild under
+exactly that toolchain, and the bump procedure (bump the action's `toolchain` input — optionally
+the SHA ref too — and re-land the blob with the same pinned `CARGO_NIGHTLY` in one change) is
+written into the workflow comment and the release checklist §6 (EN + zh). A toolchain bump without
+a matching blob re-land now fails the gate by construction, which is the property a floating
+toolchain could never give.
 
 ### C4 — A successful fraud proof permanently kills the chain it just protected [E2]
 
@@ -2008,8 +2011,9 @@ Split by whether it can land now.
 
 10. `C3` — **settled on this branch (2026-08-31): the gate exists, the blob is fresh, and the
     guest builds again.** `build.yml`'s new `riscv-guest-freshness` job rebuilds `guest.polkavm`
-    from guest source on every event (toolchain pinned to `dtolnay/rust-toolchain@nightly-2026-08-28`
-    + `polkatool 0.32.0 --locked`) and fails on `git diff --exit-code` against the committed blob;
+    from guest source on every event (toolchain pinned to `nightly-2026-08-28` via
+    `dtolnay/rust-toolchain`, action ref pinned by commit SHA + `polkatool 0.32.0 --locked`) and
+    fails on `git diff --exit-code` against the committed blob;
     it is a required context on `master`, so a PR that edits guest source without regenerating is
     blocked at PR time rather than discovered nightly. Regenerating for real showed the committed
     bytes were stale by hash (`6a90a0af…` → `2389ab52…` under the pinned toolchain) and that the

@@ -641,17 +641,21 @@ jobs:
     # and commit the regenerated blob. Blob bytes track the whole date-stamped
     # toolchain, not just the rustc hash — a floating nightly on the runner
     # produces different bytes than the pinned one (proven by this gate's own
-    # first red run), so the pin is what makes the rebuild deterministic. To
-    # bump the toolchain: change the dtolnay/rust-toolchain ref below and
-    # re-land the blob with the same pinned CARGO_NIGHTLY in one change.
+    # first red run), so the pin is what makes the rebuild deterministic. The
+    # action ref is pinned by commit SHA because the action repo carries no
+    # date-stamped branches (a @nightly-<date> ref fails job setup); the
+    # toolchain input selects the dated nightly. To bump the toolchain: change
+    # the `toolchain` input below (and optionally the action SHA) and re-land
+    # the blob with the same pinned CARGO_NIGHTLY in one change.
     steps:
       - uses: actions/checkout@v7
         with:
           submodules: true
 
       - name: Setup Rust (pinned nightly, rust-src for -Zbuild-std)
-        uses: dtolnay/rust-toolchain@nightly-2026-08-28
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
         with:
+          toolchain: nightly-2026-08-28
           components: rust-src
 
       - name: Install pinned polkatool

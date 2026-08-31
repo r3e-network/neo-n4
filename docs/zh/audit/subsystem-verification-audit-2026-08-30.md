@@ -112,7 +112,7 @@ release 插件里包含一个刚刚编译出来的 guest，其测试套件从未
 **状态 —— 本分支已定案（2026-08-31），且是靠执行、而非只读推断。** 修复 (1) 已实现并接线：
 `build.yml` 新增 `riscv-guest-freshness` job，在**每一个事件**上运行（而非仅 nightly —— "改了
 guest 源码却不重生成 blob" 的 PR 正是它必须当场拦下的漂移），用钉住日期戳的工具链
-（`dtolnay/rust-toolchain@nightly-2026-08-28` + `polkatool 0.32.0 --locked`）重建 blob，并以
+（`nightly-2026-08-28`，经 `dtolnay/rust-toolchain` + `polkatool 0.32.0 --locked`）重建 blob，并以
 `git diff --exit-code` 比对 `guest.polkavm` 失败；
 该检查已加入 `master` 的 required contexts。失败时的响应写进了 job 注释与发布清单 §6
 （EN + zh）：在发布候选 commit 上重生成并落库。
@@ -136,10 +136,14 @@ opcode/parity 执行套件（107 秒真实 guest 执行）。
 2026-08-30）上把 `7bd373a1…` 时代的源码重建成了不同的字节，而在日期戳 `nightly-2026-08-28`
 下的本地重建 —— rustc 哈希 `e457a7b0d` 与浮动工具链相同、cargo 不同 —— 产生了*第三种*字节串
 （`2389ab52…`，两次运行确定性一致）。blob 字节追踪的是整个日期戳工具链，而不只是 rustc 哈希，
-因此门禁现在把它钉住：CI 运行 `dtolnay/rust-toolchain@nightly-2026-08-28`，已提交的 blob 正是
-在该工具链下重建的 `2389ab52…` 字节，升级流程（升级 `dtolnay/rust-toolchain` ref 并用同一钉住的
-`CARGO_NIGHTLY` 在一次变更内重新落地 blob）写入 workflow 注释与发布清单 §6（EN + zh）。工具链
-升级而没有配套的 blob 重落地，如今按构造就会让门禁失败 —— 这是浮动工具链永远给不了的性质。
+因此门禁现在把它钉住：CI 运行 `dtolnay/rust-toolchain` action，其 ref 以 commit SHA 钉住、并以
+`toolchain: nightly-2026-08-28` 输入选择日期戳 nightly —— action 仓库没有任何日期戳分支，
+直接写 `@nightly-2026-08-28` ref 的做法被第二次红灯证明是错的（job 死在 "Set up job"；
+`git ls-remote` 显示该仓库只有版本分支加 `nightly`/`stable`/`beta`/`master`）。已提交的 blob 正是
+在该工具链下重建的 `2389ab52…` 字节，升级流程（升级 action 的 `toolchain` 输入——可选连 SHA ref
+一起——并用同一钉住的 `CARGO_NIGHTLY` 在一次变更内重新落地 blob）写入 workflow 注释与发布清单
+§6（EN + zh）。工具链升级而没有配套的 blob 重落地，如今按构造就会让门禁失败 —— 这是浮动工具链
+永远给不了的性质。
 
 ### C4 — 一次成功的 fraud proof 会永久杀死它刚刚保护好的那条链 [E2]
 
@@ -1795,8 +1799,9 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
 
 10. `C3` —— **本分支已定案（2026-08-31）：门禁已存在、blob 已刷新、guest 恢复可编译。**
     `build.yml` 新增的 `riscv-guest-freshness` job 在每个事件上用 guest 源码重建
-    `guest.polkavm`（工具链钉在 `dtolnay/rust-toolchain@nightly-2026-08-28` +
-    `polkatool 0.32.0 --locked`），并以 `git diff --exit-code` 比对已提交 blob，漂移即失败；
+    `guest.polkavm`（工具链钉在 `nightly-2026-08-28`，经 `dtolnay/rust-toolchain` 安装、
+    action ref 以 commit SHA 钉住 + `polkatool 0.32.0 --locked`），并以
+    `git diff --exit-code` 比对已提交 blob，漂移即失败；
     它已是 `master` 的 required context，因此"改 guest 源码却不重生成"的 PR 在 PR 时即被拦截，
     而非等到 nightly 才被发现。真实重生成证明已提交字节确实陈旧（在钉住工具链下
     `6a90a0af…` → `2389ab52…`），且 guest 在当前 nightly 的 Rust 2024 硬错误下已无法编译 ——

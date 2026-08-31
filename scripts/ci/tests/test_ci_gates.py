@@ -214,7 +214,7 @@ class CargoProveWrapperTests(unittest.TestCase):
             "\n  sp1-host:", 1
         )[0]
         self.assertIn(
-            "if: ${{ github.event_name == 'workflow_dispatch' }}",
+            "if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}",
             sp1_release_gates,
         )
         self.assertIn("timeout-minutes: 120", sp1_release_gates)
@@ -254,11 +254,13 @@ class CargoProveWrapperTests(unittest.TestCase):
             self.assertIn(result, sp1_aggregate)
         self.assertIn("SP1_RELEASE_GATES_RESULT", sp1_aggregate)
         self.assertIn(
-            'if [[ "$EVENT_NAME" == workflow_dispatch ]]',
+            'if [[ "$EVENT_NAME" == workflow_dispatch || "$EVENT_NAME" == schedule ]]; then',
             sp1_aggregate,
         )
         self.assertIn('test "$SP1_RELEASE_GATES_RESULT" = skipped', sp1_aggregate)
-        self.assertNotIn("schedule:", workflow.split("permissions:", 1)[0])
+        on_block = workflow.split("permissions:", 1)[0]
+        self.assertIn("schedule:", on_block)
+        self.assertIn("cron: '47 3 * * *'", on_block)
         prove_step = workflow.split(
             "- name: cargo prove build (reproducible guest ELF)", 1
         )[1].split("\n      - name:", 1)[0]

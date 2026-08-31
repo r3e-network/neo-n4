@@ -639,6 +639,23 @@ only review control can be removed in one API call by the same identity that pus
 class of gate-that-checks-the-wrong-thing this section is about, and §10's remediation order should
 value it accordingly.
 
+**Status — decided and wired on this branch (2026-08-31): the nightly schedule owns the SP1
+dispatch, and the release checklist carries the blocking rule.** `build.yml` gains a nightly
+`schedule` trigger (cron `47 3 * * *`, staggered from `sdk-conformance`'s `37 3`), and the two
+places that keyed on `workflow_dispatch` alone now accept `schedule` the same way — the
+`sp1-release-gates` job's `if`, and the `sp1-host` aggregate's success assertion — following the
+precedent `sdk-conformance.yml:88` already set. On ordinary PRs and `master` pushes the envelope is
+unchanged: the heavy lanes still report `skipped`, which is still what the required check asserts.
+What changes is that the assertion is now exercised nightly: a regression in `bridge/neo-zkvm-host`
+or the Gateway recursion reddens the scheduled run within a day, with `sp1-host` itself failing —
+the required context no longer passes *because* the heavy lanes were absent. The release-blocking
+half of the decision lives in `docs/release-readiness-checklist.md` §6 (EN and zh): a failed or
+never-completed nightly blocks a release until a manual dispatch on the exact release-candidate
+commit passes all three lanes — the nightly makes the failure visible, and the green dispatch on
+the release commit is what releases it. A merge-queue-owned dispatch was rejected: this repository
+does not use merge queues, and per-PR heavy-lane runs would multiply the resource cost the finding
+explicitly wanted kept.
+
 ### V2 — The "off-chain ↔ on-chain encodings are paired" invariant has no cross-boundary test [E1]
 
 `tests/NeoHub.Contracts.VmTests/NeoHub.Contracts.VmTests.csproj` references
@@ -1952,8 +1969,17 @@ Split by whether it can land now.
     cargo + `polkatool 0.32.0`) and compares SHA-256, i.e. new CI capacity on the Rust lane.
 11. `H14` — removing `panic = "abort"` changes unwind semantics and possibly throughput on the guest
     hot path; needs a measurement, and it interacts with the SP1 re-execution profile.
-12. `V1` — decide who owns a scheduled SP1 dispatch (nightly or merge queue) and what blocks a release
-    when it fails.
+12. `V1` — **settled on this branch (2026-08-31): the nightly schedule owns the SP1 dispatch, and
+    the release checklist owns the blocking rule.** `build.yml` gains a nightly `schedule` trigger
+    and both `workflow_dispatch`-keyed places (`sp1-release-gates`'s `if`, `sp1-host`'s success
+    assertion) accept `schedule` identically, on the precedent `sdk-conformance.yml` already set;
+    PR/push behavior is byte-for-byte unchanged (heavy lanes skipped, which is still what the
+    required check asserts), while a real SP1 regression now reddens a scheduled run within a day
+    and fails `sp1-host` itself. The release-blocking rule is written into
+    `docs/release-readiness-checklist.md` §6 (EN + zh): a failed or never-completed nightly blocks a
+    release until a manual dispatch on the exact release-candidate commit passes all three lanes.
+    Merge-queue ownership was rejected — this repo does not use one, and per-PR heavy-lane runs
+    multiply the resource cost the finding wanted kept. See §5 V1's status block.
 13. `H15` — the per-block context fix touches the batcher↔executor seam and, if the persisted header
     feeds any hash, the state-root encoding. Needs a paired spec decision under the "don't break byte
     formats" rule.

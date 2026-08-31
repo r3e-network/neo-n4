@@ -15,6 +15,17 @@
 
 ## 中文摘要
 
+- 2026-08-31 nightly SP1 release-gate dispatch，并把发布阻塞规则写成文字：唯一产出真实
+  batch 与递归 SP1 proof 的 CI job 此前仅限 `workflow_dispatch`，而必需检查 `sp1-host` 在其余
+  事件上断言重型 lane 为 `skipped` —— SP1 栈里的回归无法让作者看到的任何东西变红。定案：nightly
+  排班拥有该 dispatch（cron `47 3 * * *`），`sp1-release-gates` 的 `if` 与 `sp1-host` 的成功
+  断言均同样接受 `schedule`，沿用 sdk-conformance 的先例；PR/push 行为不变（重型 lane 仍
+  skipped），断言改为每晚被行使。merge queue 归属被否决（仓库不用它，且逐 PR 重跑会乘上资源
+  成本）。发布阻塞规则写入 `docs/release-readiness-checklist.md` §6（EN + zh）：nightly 失败或
+  从未成功即阻塞发布，直到发布候选 commit 上手动 dispatch 三条 lane 全绿。钉住 `build.yml` 文本的
+  CI 门禁自测同步更新：双事件 `if`、双事件 bash 分支，以及由"禁止 schedule"反转为正面钉住 nightly
+  cron；PR/push 下断言 `skipped` 的不变式保留。
+
 - 2026-08-31 Dependabot ignore 注释与其描述的告警状态对齐：cargo `ignore` 块的注释此前读起来像
   "这两条已处理"，而 Security 标签页三条告警全部仍然 open —— `ignore` 抑制的是更新 PR、不是
   告警。注释现在写明机制（告警以受追踪的接受风险保持 open）、点名全部三条在案 GHSA 及严重度、

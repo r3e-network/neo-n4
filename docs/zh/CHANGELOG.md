@@ -15,6 +15,30 @@
 
 ## 中文摘要
 
+- 2026-08-31 RISC-V guest blob 恢复新鲜，并由 CI 门禁保持：此前每一条 RISC-V 测试执行的
+  已提交 `guest.polkavm` 都落后 guest 源码三轮安全加固，且没有任何机制能发现；发布打包路径则
+  无条件重建 —— 测试认证一个二进制、发布的又是另一个。现 `build.yml` 在每个事件上运行
+  `riscv-guest-freshness` job：以 guest 源码重建 blob（工具链钉在 `nightly-2026-08-28`，经
+  `dtolnay/rust-toolchain` action 安装、其 ref 以 commit SHA 钉住 + `polkatool 0.32.0 --locked`），`git diff --exit-code` 比对已提交字节，漂移即失败；该检查已
+  加入 `master` 的 required contexts，漂移在 PR 时即被拦截。发布清单 §6（EN + zh）写明红/过期
+  时的阻塞规则。真实重生成双重印证了发现：已提交字节重建出不同的 SHA-256，且 guest 在当前
+  nightly 把 Rust 2024 `unsafe_op_in_unsafe_fn` 与未经 `unsafe()` 修饰的
+  `no_mangle`/`link_section` 属性升为硬错误后已完全无法编译。子模块分支
+  （`r3e-network/neo-riscv-vm` `ci/guest-blob-freshness`）等价修复 C ABI 内存内建函数与该属性、
+  重生成 blob，父 PR 更新 gitlink；`cargo test -p neo-riscv-host` 对新 blob 302/302 全绿，
+  含 47 项 opcode/parity 执行套件实跑。blob 字节追踪的是整个日期戳工具链而不只是 rustc 哈希：
+  浮动 nightly 的首次重生成（`7bd373a1…`）与钉住 `nightly-2026-08-28` 的重建（`2389ab52…`，两次
+  运行确定性一致）rustc 哈希相同、字节不同，且门禁首次 CI 运行即在 runner 浮动 nightly 上
+  实证了跨工具链漂移。门禁现钉住工具链，升级流程写入 workflow：升级钉住的 `toolchain` 输入
+  （及可选的 action SHA ref）并用同一钉住的 `CARGO_NIGHTLY` 重新落地 blob，一次变更内完成。
+  blob 字节还曾追踪构建机器本身：`#[track_caller]` panic 位置把 cargo/registry/rustup 绝对路径
+  烧进 blob 的 rodata（门禁第三次红灯），再生脚本现传 `-Z location-detail=none`，路径类字符串
+  归零。但产出编译器宿主构建之间的布局级差异依然存在：门禁第四次红灯捕获到同尺寸（300,023
+  字节）、约 21k 字节重排的 blob —— Linux runner 对 Windows 本地构建，且没有任何旗标组合能
+  弥合 —— 因此 Linux runner 是规范产出方。漂移时门禁把再生 blob 作为 `guest-polkavm-regenerated`
+  artifact 上传；落地该 artifact（而非本地再生，其布局可能不同）才是让红灯转绿的路径，流程写入
+  发布清单 §6（EN + zh）。审计修复 (2)/(3) 有意不取，
+  理由见审计 §3 C3 状态块。
 - 2026-08-31 nightly SP1 release-gate dispatch，并把发布阻塞规则写成文字：唯一产出真实
   batch 与递归 SP1 proof 的 CI job 此前仅限 `workflow_dispatch`，而必需检查 `sp1-host` 在其余
   事件上断言重型 lane 为 `skipped` —— SP1 栈里的回归无法让作者看到的任何东西变红。定案：nightly

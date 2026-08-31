@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the RISC-V guest blob is fresh again, and a CI gate keeps it that way — 2026-08-31
+
+- §10 item 10 [E1] (`C3`): every RISC-V test executed a committed `guest.polkavm` that predates
+  three rounds of guest-side hardening, nothing could notice, and release packaging rebuilt the
+  blob unconditionally — tests certified one binary while shipping another. Now `build.yml` runs a
+  `riscv-guest-freshness` job on every event: it rebuilds the blob from guest source with the
+  date-stamped toolchain pinned (`nightly-2026-08-28` via `dtolnay/rust-toolchain`, whose action
+  ref is pinned by commit SHA + `polkatool 0.32.0
+  --locked`) and fails on `git diff --exit-code` against the committed bytes; the check joins
+  `master`'s required contexts, so drift is blocked at PR time. The release checklist §6 (EN + zh)
+  states the blocking rule for a red or stale run.
+- Regenerating for real proved the finding twice over: the committed bytes rebuild to a different
+  SHA-256, and the guest had stopped compiling entirely — the current nightly promotes Rust 2024
+  `unsafe_op_in_unsafe_fn` and untrusted `no_mangle`/`link_section` attributes to hard errors. The
+  submodule branch (`r3e-network/neo-riscv-vm` `ci/guest-blob-freshness`) fixes the C-ABI memory
+  intrinsics and the attribute (semantics-preserving) and regenerates the blob; the parent PR bumps
+  the gitlink. `cargo test -p neo-riscv-host` is 302/302 green against the fresh blob, including
+  the 47-test opcode/parity execution suite running the real guest.
+- Blob bytes track the whole date-stamped toolchain, not just the rustc hash: the first regen
+  (floating nightly, `7bd373a1…`) differs from the pinned `nightly-2026-08-28` rebuild
+  (`2389ab52…`, deterministic across two runs) despite an identical rustc hash, and the gate's
+  first CI run red-demonstrated cross-toolchain drift on the runner's floating nightly. The gate
+  pins the toolchain, and the bump procedure is written into the workflow: bump the pinned
+  `toolchain` input (and optionally the action's SHA ref) and re-land the blob with the same pinned
+  `CARGO_NIGHTLY` in one change.
+- Blob bytes also used to track the build machine: `#[track_caller]` panic locations embedded
+  absolute cargo/registry/rustup paths into the blob's rodata (the gate's third red run), fixed by
+  `-Z location-detail=none` in the regen script — zero path-like strings remain. Layout-level
+  differences across the producing compiler's host build remain though: the gate's fourth red run
+  caught same-size (300,023-byte) blobs with ~21k reordered bytes between the Linux runner and a
+  Windows local build, with no flag set that closes the gap — so the Linux runner is the canonical
+  producer. On drift the gate uploads its regenerated blob as the `guest-polkavm-regenerated`
+  artifact; landing that artifact (not a local regen, whose layout can differ) is how a red gate
+  goes green, and the release checklist §6 (EN + zh) documents the flow.
+- Audit-report fixes (2)/(3) — a SHA-256 test constant and packaging-script staging — were
+  deliberately not taken; the rationale is recorded in the audit's §3 C3 status block.
+
 ### Added — a nightly SP1 release-gate dispatch, with the release-blocking rule written down — 2026-08-31
 
 - §10 item 12 [E1] (`V1`): the only CI job that produces real batch and recursive SP1 proofs was

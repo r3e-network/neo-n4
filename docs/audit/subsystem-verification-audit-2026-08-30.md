@@ -117,6 +117,76 @@ assert it in a test, the way `Sp1StatefulBatchExecutor` asserts its executor dig
 `package-adapter-plugin.sh` either commit-verify or build into a staging copy rather than mutating
 the tracked source tree.
 
+**Status — settled on this branch (2026-08-31), by execution rather than read-only inference.**
+Fix (1) is implemented and wired: `build.yml` gains a `riscv-guest-freshness` job that runs on
+every event (not nightly-only — a PR that changes guest source without regenerating the blob is
+exactly the drift this must catch), rebuilds the blob with the toolchain pinned
+(`nightly-2026-08-28` via `dtolnay/rust-toolchain` + `polkatool 0.32.0 --locked`), and fails via
+`git diff --exit-code` on `guest.polkavm`; the check is added to
+`master`'s required contexts. The job's failure response is written into it and into the release
+checklist §6 (EN + zh): regenerate on the release-candidate commit and land the blob.
+
+Executing the regeneration surfaced two facts the audit only inferred. First, the drift is real
+by hash: the committed blob `efc3791`-era bytes (SHA-256 `6a90a0af…`) rebuild to `7bd373a1…` on
+the current toolchain, deterministic across two rebuilds. Second, the guest had become
+*unbuildable*: the current nightly (rustc 1.100.0-nightly `e457a7b0d`) promotes
+`unsafe_op_in_unsafe_fn` and untrusted `no_mangle`/`link_section` attributes to hard errors, so
+`regenerate-guest-blob.sh` failed before linking — under the old regime nothing would ever have
+reported that, because nothing ran it. The submodule branch fixes the four C-ABI memory
+intrinsics and the `link_section` attribute (semantics-preserving `unsafe {}` scoping), regenerates
+the blob, and pushes it as `ci/guest-blob-freshness` on `r3e-network/neo-riscv-vm`; the parent PR
+carries the gitlink bump. Verification: `cargo test -p neo-riscv-host` 302/302 green against the
+fresh blob, including the 47-test opcode/parity execution suite (107 s of real guest execution).
+
+Fixes (2) and (3) are deliberately not taken: a SHA-256 constant in a test duplicates the gate's
+detection while adding a manual constant bump to every regeneration — the exact friction that
+produced the original staleness — and the packaging-script staging change hardens a path that the
+gate now observes anyway. If the maintainers want defense-in-depth for out-of-CI runs, (2) can be
+revisited independently.
+
+**Pin addendum (2026-08-31, from the gate's own first red CI run).** The floating-nightly
+rebuild (`7bd373a1…`) was itself only stable per-toolchain: the gate's first CI run rebuilt
+`7bd373a1…`-era source on the runner's floating nightly (rustc `908501772`, 2026-08-30) to
+different bytes, and a local rebuild under the date-stamped `nightly-2026-08-28` — same rustc
+hash `e457a7b0d` as the floating toolchain, different cargo — produced a *third* byte string
+(`2389ab52…`, deterministic across two runs). Blob bytes track the whole date-stamped toolchain,
+not just the rustc hash, so the gate now pins it: CI runs the `dtolnay/rust-toolchain` action with
+its ref pinned by commit SHA and a `toolchain: nightly-2026-08-28` input — the action repo carries
+no date-stamped branches, and a `@nightly-2026-08-28` ref was itself proven wrong by the second
+red run (the job died in "Set up job"; `git ls-remote` shows the repo has only version branches
+plus `nightly`/`stable`/`beta`/`master`). The committed blob is the `2389ab52…` rebuild under
+exactly that toolchain, and the bump procedure (bump the action's `toolchain` input — optionally
+the SHA ref too — and re-land the blob with the same pinned `CARGO_NIGHTLY` in one change) is
+written into the workflow comment and the release checklist §6 (EN + zh). A toolchain bump without
+a matching blob re-land now fails the gate by construction, which is the property a floating
+toolchain could never give.
+
+**Portability addendum (2026-08-31, from the gate's third red run).** With the toolchain pinned the
+gate still went red on CI — and correctly: the Linux runner's rebuild differed from the committed
+`2389ab52…` blob although source, polkatool and the date-stamped toolchain were identical to the
+local rebuild. Extracting string literals from the blob found the mechanism: `#[track_caller]`
+panic locations embed absolute build paths — `C:\Users\…\.cargo\git\checkouts\neo-vm-rs-…`,
+`…\.cargo\registry\src\…\num-bigint-0.4.6\src\…`, `…\.rustup\toolchains\nightly-2026-08-28-x86_64-pc-windows-msvc\…\library\…`
+— into rodata, so blob bytes tracked the producing machine's directories and OS, and no
+Windows-local regen could ever byte-match a Linux runner's. The fix lives in the submodule's regen
+script, not the workflow: `regenerate-guest-blob.sh` now passes `-Z location-detail=none`
+(nightly-only; the guest's `#[panic_handler]` formats `PanicInfo` into a diagnostics buffer, so the
+`panicked at <path>:<line>` prefix degrades to a pathless form, and no host test asserts on that
+text). The committed blob is path-free — zero path-like strings remain — and locally deterministic
+(two runs, byte-identical from a second build directory, unchanged under a 2-CPU affinity mask).
+But the gate's fourth red run closed the loop with ground truth: uploading the runner's blob as an
+artifact and diffing showed **same-size (300,023-byte) blobs with ~21k reordered bytes** — rodata
+and function layout differ between the Windows and Linux builds of the same pinned rustc, no path
+strings involved, and no flag set closes the gap. Byte-identity across producing hosts is therefore
+not a property the gate can demand; instead the **Linux runner is the canonical producer**: on
+drift the gate uploads its regenerated blob as the `guest-polkavm-regenerated` artifact, landing
+that artifact is how a red gate goes green (the committed bytes are then the runner's own output),
+and a local regen is a diagnostic tool whose output must be diffed against the artifact before
+landing. The landed blob (`c350ee01…`, the runner's own regen) was verified 47/47 on the
+opcode/parity execution suite before being committed. That submodule commit also carries H14's
+host-profile unwind (see §4 H14's status block): the script owns `-C panic=abort` for the guest,
+and a compile-time guard test fails any future abort-profile regression.
+
 ### C4 — A successful fraud proof permanently kills the chain it just protected [E2]
 
 `OpenWindow` refuses to re-arm a window that already exists, and the window key is written in one
@@ -209,6 +279,21 @@ This is the Rust-side twin of H1: an ordinary fault inside the execution core be
 outage rather than a rejected block. Fix: drop `panic = "abort"` (measure the unwind cost; if it
 matters, keep `abort` only for the guest crate, which has no FFI boundary to cross), or replace the
 ten arms with an explicit `extern "C"` catch surface that cannot be configured away by a profile.
+
+**Status (settled on the `fix/host-unwind-profiles` submodule branch, 2026-08-31): unwind,
+measured, guarded.** Both profiles dropped `panic = "abort"`; the guest keeps abort deliberately —
+its PolkaVM target has no unwinder — via `-C panic=abort` in `regenerate-guest-blob.sh` (which also
+passes `-Z location-detail=none`, see §3 C3's portability addendum), so the blob's semantics are
+unchanged while the flags live in exactly one place. Measurement, release lane, the 47-test
+opcode/parity execution suite: **16.99 s unwound vs 17.09 s under the audit's own abort-profile
+baseline, 47/47 passed both** — unwinding costs nothing measurable on the guest hot path. The full
+host suite is green in release (305/305, including the new guard test). That guard
+(`crates/neo-riscv-host/tests/panic_unwind_boundary.rs`) asserts `!cfg!(panic = "abort")`, so any
+future profile regression fails the suite in both dev and release lanes. The alternative fix (an
+explicit `extern "C"` catch surface) is deliberately not taken: the ten arms are that catch surface
+and are live again, and re-plumbing them adds churn the guard test doesn't reduce. The submodule
+commit (`765bc27`) lands via the C3 gitlink bump, so this item's parent-side change is
+documentation only.
 
 ### H15 — Every block in a batch executes with the same `Runtime.Block.Index` — an L1 height — and the frozen first-block timestamp [E1]
 
@@ -1965,8 +2050,30 @@ Split by whether it can land now.
 
 **Needs a decision before code:**
 
-10. `C3` — guest-blob freshness gate. Requires a CI job that runs `regenerate-guest-blob.sh` (nightly
-    cargo + `polkatool 0.32.0`) and compares SHA-256, i.e. new CI capacity on the Rust lane.
+10. `C3` — **settled on this branch (2026-08-31): the gate exists, the blob is fresh, and the
+    guest builds again.** `build.yml`'s new `riscv-guest-freshness` job rebuilds `guest.polkavm`
+    from guest source on every event (toolchain pinned to `nightly-2026-08-28` via
+    `dtolnay/rust-toolchain`, action ref pinned by commit SHA + `polkatool 0.32.0 --locked`) and
+    fails on `git diff --exit-code` against the committed blob;
+    it is a required context on `master`, so a PR that edits guest source without regenerating is
+    blocked at PR time rather than discovered nightly. Regenerating for real showed the committed
+    bytes were stale by hash (`6a90a0af…` → `2389ab52…` under the pinned toolchain) and that the
+    guest had stopped compiling under the current nightly's Rust 2024 hard errors — fixed on the
+    `r3e-network/neo-riscv-vm` `ci/guest-blob-freshness` branch (gitlink bumped here), with the
+    host suite 302/302 green against the fresh blob. The gate's first CI run red-demonstrated
+    cross-toolchain drift (floating runner nightly vs pinned `nightly-2026-08-28`: same rustc
+    hash, different bytes) and the pin responds to it — blob bytes track the whole date-stamped
+    toolchain, so the pin is what makes rebuilds deterministic and a toolchain bump without a
+    matching blob re-land fails by construction. The gate's third red run revealed a second drift
+    axis: `#[track_caller]` panic locations embed the build machine's absolute paths into the
+    blob's rodata, so a Windows-local regen could never byte-match a Linux runner's; the submodule
+    regen script now passes `-Z location-detail=none` and the committed blob carries zero path
+    strings. The gate's fourth red run then produced the decisive evidence that a residual drift
+    axis is NOT flag-addressable: same-size blobs with ~21k reordered layout bytes between the
+    Linux runner and a Windows local build — so the Linux runner is the canonical producer, and on
+    drift the gate uploads its regenerated blob (`guest-polkavm-regenerated` artifact) whose
+    landing is how the gate goes green (details in §3 C3's portability addendum). Fixes (2)/(3)
+    deliberately not taken; rationale in §3 C3's status block.
 11. `H14` — removing `panic = "abort"` changes unwind semantics and possibly throughput on the guest
     hot path; needs a measurement, and it interacts with the SP1 re-execution profile.
 12. `V1` — **settled on this branch (2026-08-31): the nightly schedule owns the SP1 dispatch, and

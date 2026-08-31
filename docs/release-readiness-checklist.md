@@ -90,6 +90,17 @@ Run this on a real Neo N4 devnet/testnet node set before production:
   `sp1-release-gates` failed (or no scheduled run has ever completed), the release is blocked until
   a manual dispatch of `build` on the exact release-candidate commit passes all three lanes. The
   nightly makes the failure visible; the green dispatch on the release commit is what releases it.
+- Confirm the required `RISC-V guest blob freshness` (`riscv-guest-freshness`) is green. The job
+  rebuilds `external/neo-riscv-vm`'s committed `guest.polkavm` from its guest source with the
+  toolchain pinned to `nightly-2026-08-28` (via the `dtolnay/rust-toolchain` action, whose ref is
+  pinned by commit SHA + polkatool 0.32.0) and fails on
+  any drift. A red or stale run blocks the release: on drift the job uploads its regenerated blob
+  as the `guest-polkavm-regenerated` artifact — land that artifact on the release-candidate commit
+  and commit it. Blob bytes are layout-sensitive to the producing compiler's host build, so the
+  Linux runner is the canonical producer: a locally regenerated blob (same script, same flags) can
+  differ byte-wise from the runner's and must not be landed without diffing it against the CI
+  artifact first. The runtime that executes in tests must be the runtime built from the source
+  being released.
 - Require `SDK Conformance / Shared vectors (4 SDKs)` and manually dispatch
   `SDK Conformance`; manual dispatch automatically requires the live job and its configured
   credentials. Retain the offline and live JSON

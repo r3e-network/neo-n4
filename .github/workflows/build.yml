@@ -624,6 +624,76 @@ jobs:
             cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0258 --json
           done
 
+  riscv-guest-freshness:
+    name: RISC-V guest blob freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Audit C3 (§10 item 10): neo-riscv-host embeds the committed
+    # guest.polkavm via include_bytes! (runtime_cache.rs) with no build.rs and
+    # nothing that ever compared it against the guest source that produces it
+    # — the blob certified by tests was months older than the source, and the
+    # release packaging rebuilt it unconditionally, so tests certified one
+    # binary while shipping another. This gate rebuilds the blob from source
+    # and fails when the committed one differs. A red run means: run
+    # external/neo-riscv-vm/scripts/regenerate-guest-blob.sh with
+    # CARGO_NIGHTLY="cargo +nightly-2026-08-28" (the toolchain is pinned below)
+    # and commit the regenerated blob. Blob bytes track the whole date-stamped
+    # toolchain, not just the rustc hash — a floating nightly on the runner
+    # produces different bytes than the pinned one (proven by this gate's own
+    # first red run), so the pin is what makes the rebuild deterministic. The
+    # action ref is pinned by commit SHA because the action repo carries no
+    # date-stamped branches (a @nightly-<date> ref fails job setup); the
+    # toolchain input selects the dated nightly. Blob bytes also used to track
+    # the build machine's directories: #[track_caller] panic locations embed
+    # absolute cargo/registry/rustup paths into the blob's rodata, so a blob
+    # produced on one OS could never byte-match another OS's regen (the
+    # gate's third red run). regenerate-guest-blob.sh passes
+    # -Z location-detail=none, stripping those strings — but the gate's fourth
+    # red run then proved a residual axis no flag closes: same-size (300,023-byte)
+    # blobs with ~21k reordered bytes between the Linux runner and a Windows
+    # local build of the same pinned rustc (host-build layout sensitivity).
+    # So the Linux runner is the canonical producer: on drift, this job uploads
+    # its regenerated blob as the `guest-polkavm-regenerated` artifact, and
+    # landing that artifact — not a locally regenerated blob, whose layout can
+    # differ byte-wise from the runner's — is how the gate goes green. The
+    # script, not this workflow, owns the build flags. To bump the toolchain:
+    # change the `toolchain` input below (and optionally the action SHA) and
+    # re-land the blob from the runner's artifact with the same pinned
+    # CARGO_NIGHTLY in one change.
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Setup Rust (pinned nightly, rust-src for -Zbuild-std)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: nightly-2026-08-28
+          components: rust-src
+
+      - name: Install pinned polkatool
+        run: cargo install polkatool --version 0.32.0 --locked
+
+      - name: Regenerate guest.polkavm and fail on drift
+        env:
+          CARGO_NIGHTLY: cargo +nightly-2026-08-28
+        run: |
+          bash external/neo-riscv-vm/scripts/regenerate-guest-blob.sh
+          git -C external/neo-riscv-vm diff --exit-code -- \
+            crates/neo-riscv-guest-module/guest.polkavm
+
+      # On drift, upload the CI-regenerated blob: landing it is how the gate
+      # goes green again, and diffing it against a locally produced blob is
+      # how environment-dependent bytes get diagnosed.
+      - name: Upload regenerated blob (on drift)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: guest-polkavm-regenerated
+          path: external/neo-riscv-vm/crates/neo-riscv-guest-module/guest.polkavm
+          if-no-files-found: error
+
   sdk-typescript:
     name: TypeScript SDK
     runs-on: ubuntu-latest

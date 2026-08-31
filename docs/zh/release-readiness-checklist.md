@@ -84,6 +84,14 @@ cargo test --release --locked -- --ignored --nocapture
   失败（或从未有过成功的排班 run），发布被阻塞，直到在确切的发布候选 commit 上手动 dispatch
   `build` 并三条 lane 全部通过。nightly 负责让失败可见；发布候选 commit 上的绿色 dispatch
   才是解除阻塞的东西。
+- 确认 required `RISC-V guest blob freshness`（`riscv-guest-freshness`）为绿。该 job 用 guest
+  源码重建 `external/neo-riscv-vm` 已提交的 `guest.polkavm`（工具链钉在 `nightly-2026-08-28`，
+  经 `dtolnay/rust-toolchain` action 安装、其 ref 以 commit SHA 钉住 + polkatool 0.32.0），
+  任何漂移即失败。红或过期
+  即阻塞发布：漂移时该 job 会把再生 blob 作为 `guest-polkavm-regenerated` artifact 上传 ——
+  在发布候选 commit 上落库该 artifact 并提交。blob 字节对产出编译器的宿主构建布局敏感，
+  因此 Linux runner 是规范产出方：本地再生（同一脚本、同一旗标）的字节可能与 runner 不同，
+  未经与 CI artifact 比对不得落库 —— 测试里执行的运行时必须与所发布源码构建出的运行时一致。
 - 要求 `SDK Conformance / Shared vectors (4 SDKs)` 通过，并手动触发
   `SDK Conformance`；手工 dispatch 会自动要求 live job 及其已配置凭据。保留离线与真实环境 JSON
   汇总，任何发现或执行零个真实环境测试的报告都必须拒绝。

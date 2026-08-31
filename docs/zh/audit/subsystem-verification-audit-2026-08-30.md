@@ -154,9 +154,15 @@ opcode/parity 执行套件（107 秒真实 guest 执行）。
 不可能与 Linux runner 字节一致。修复落在子模块的再生脚本里而非 workflow：
 `regenerate-guest-blob.sh` 现在传 `-Z location-detail=none`（仅 nightly 可用；guest 的
 `#[panic_handler]` 会把 `PanicInfo` 格式化进诊断缓冲，因此 `panicked at <路径>:<行>` 前缀退化为
-无路径形式，且没有任何 host 测试断言这段文本）。已提交的 blob 如今是不含路径的 `d6959f30…`
-重建 —— 不再残留任何路径类字符串 —— 已验证两次运行确定性一致、且从第二个构建目录再生字节完全
-相同；门禁的 CI 运行就是跨操作系统交叉验证。该子模块提交同时携带 H14 的 host profile 解除
+无路径形式，且没有任何 host 测试断言这段文本）。已提交的 blob 不含任何路径类字符串，且本地
+确定（两次运行一致、从第二个构建目录再生字节相同、2-CPU 亲和掩码下不变）。但门禁的第四次红灯
+用真值闭环了：把 runner 的 blob 作为 artifact 上传并逐字节比对，发现**同尺寸（300,023 字节）、
+约 21k 字节重排** —— 同一钉住 rustc 的 Windows 与 Linux 宿主构建在 rodata 与函数布局上不同，
+与路径字符串无关，且没有任何旗标组合能弥合。跨产出主机的字节同一性因此不是门禁能够要求的性质；
+取而代之，**Linux runner 是规范产出方**：漂移时门禁把再生 blob 作为 `guest-polkavm-regenerated`
+artifact 上传，落地该 artifact 就是让红灯转绿的路径（提交的字节即 runner 自己的产出），本地再生
+则是诊断手段，其输出落地前必须与 artifact 比对。已落库的 blob（`c350ee01…`，runner 自己的再生）
+在提交前经 47/47 opcode/parity 执行套件验证。该子模块提交同时携带 H14 的 host profile 解除
 abort（见 §4 H14 状态块）：脚本为 guest 持有 `-C panic=abort`，编译期守卫测试拦下任何未来的
 abort-profile 回退。
 
@@ -1826,9 +1832,11 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     blob 字节追踪整个日期戳工具链，钉住才使重建确定，且工具链升级而没有配套的 blob 重落地按
     构造即失败。门禁的第三次红灯揭示了第二条漂移轴：`#[track_caller]` panic 位置会把构建机的
     绝对路径烧进 blob 的 rodata，Windows 本地的重生成因此永远不可能与 Linux runner 字节一致；
-    子模块再生脚本现在传 `-Z location-detail=none`，已提交 blob 是无路径的 `d6959f30…` 重建
-    （两个本地目录字节完全一致、零路径字符串），机器无关性正是让跨产出方字节比对有意义的前提
-    （细节见 §3 C3 的可移植性补记）。修复 (2)/(3) 有意不取，理由见 §3 C3 的状态块。
+    子模块再生脚本现在传 `-Z location-detail=none`，已提交 blob 携带零路径字符串。第四次红灯
+    随后给出决定性证据：残余漂移轴不可用旗标弥合 —— Linux runner 与 Windows 本地构建产出
+    同尺寸、约 21k 字节重排的 blob —— 因此 Linux runner 是规范产出方，漂移时门禁上传其再生
+    blob（`guest-polkavm-regenerated` artifact），落地它就是转绿路径（细节见 §3 C3 的可移植性
+    补记）。修复 (2)/(3) 有意不取，理由见 §3 C3 的状态块。
 11. `H14` —— 移除 `panic = "abort"` 会改变展开语义，并可能改变 guest 热路径上的吞吐；
     需要一次测量，而且它与 SP1 再执行档相互影响。
 12. `V1` —— **已在本分支定案（2026-08-31）：nightly 排班拥有 SP1 dispatch，发布清单拥有阻塞规则。**

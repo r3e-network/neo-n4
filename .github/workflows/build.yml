@@ -648,11 +648,18 @@ jobs:
     # the build machine's directories: #[track_caller] panic locations embed
     # absolute cargo/registry/rustup paths into the blob's rodata, so a blob
     # produced on one OS could never byte-match another OS's regen (the
-    # gate's second red run). regenerate-guest-blob.sh now passes
-    # -Z location-detail=none, stripping those strings; regeneration is
-    # machine-independent, and the script — not this workflow — owns the
-    # flags. To bump the toolchain: change the `toolchain` input below (and
-    # optionally the action SHA) and re-land the blob with the same pinned
+    # gate's third red run). regenerate-guest-blob.sh passes
+    # -Z location-detail=none, stripping those strings — but the gate's fourth
+    # red run then proved a residual axis no flag closes: same-size (300,023-byte)
+    # blobs with ~21k reordered bytes between the Linux runner and a Windows
+    # local build of the same pinned rustc (host-build layout sensitivity).
+    # So the Linux runner is the canonical producer: on drift, this job uploads
+    # its regenerated blob as the `guest-polkavm-regenerated` artifact, and
+    # landing that artifact — not a locally regenerated blob, whose layout can
+    # differ byte-wise from the runner's — is how the gate goes green. The
+    # script, not this workflow, owns the build flags. To bump the toolchain:
+    # change the `toolchain` input below (and optionally the action SHA) and
+    # re-land the blob from the runner's artifact with the same pinned
     # CARGO_NIGHTLY in one change.
     steps:
       - uses: actions/checkout@v7

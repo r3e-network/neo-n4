@@ -172,11 +172,20 @@ Windows-local regen could ever byte-match a Linux runner's. The fix lives in the
 script, not the workflow: `regenerate-guest-blob.sh` now passes `-Z location-detail=none`
 (nightly-only; the guest's `#[panic_handler]` formats `PanicInfo` into a diagnostics buffer, so the
 `panicked at <path>:<line>` prefix degrades to a pathless form, and no host test asserts on that
-text). The committed blob is now the path-free `d6959f30…` rebuild — zero path-like strings remain —
-verified deterministic across two runs and byte-identical from a second build directory; the gate's
-CI run is the OS-cross-check. That submodule commit also carries H14's host-profile unwind (see
-§4 H14's status block): the script owns `-C panic=abort` for the guest, and a compile-time guard
-test fails any future abort-profile regression.
+text). The committed blob is path-free — zero path-like strings remain — and locally deterministic
+(two runs, byte-identical from a second build directory, unchanged under a 2-CPU affinity mask).
+But the gate's fourth red run closed the loop with ground truth: uploading the runner's blob as an
+artifact and diffing showed **same-size (300,023-byte) blobs with ~21k reordered bytes** — rodata
+and function layout differ between the Windows and Linux builds of the same pinned rustc, no path
+strings involved, and no flag set closes the gap. Byte-identity across producing hosts is therefore
+not a property the gate can demand; instead the **Linux runner is the canonical producer**: on
+drift the gate uploads its regenerated blob as the `guest-polkavm-regenerated` artifact, landing
+that artifact is how a red gate goes green (the committed bytes are then the runner's own output),
+and a local regen is a diagnostic tool whose output must be diffed against the artifact before
+landing. The landed blob (`c350ee01…`, the runner's own regen) was verified 47/47 on the
+opcode/parity execution suite before being committed. That submodule commit also carries H14's
+host-profile unwind (see §4 H14's status block): the script owns `-C panic=abort` for the guest,
+and a compile-time guard test fails any future abort-profile regression.
 
 ### C4 — A successful fraud proof permanently kills the chain it just protected [E2]
 
@@ -270,6 +279,21 @@ This is the Rust-side twin of H1: an ordinary fault inside the execution core be
 outage rather than a rejected block. Fix: drop `panic = "abort"` (measure the unwind cost; if it
 matters, keep `abort` only for the guest crate, which has no FFI boundary to cross), or replace the
 ten arms with an explicit `extern "C"` catch surface that cannot be configured away by a profile.
+
+**Status (settled on the `fix/host-unwind-profiles` submodule branch, 2026-08-31): unwind,
+measured, guarded.** Both profiles dropped `panic = "abort"`; the guest keeps abort deliberately —
+its PolkaVM target has no unwinder — via `-C panic=abort` in `regenerate-guest-blob.sh` (which also
+passes `-Z location-detail=none`, see §3 C3's portability addendum), so the blob's semantics are
+unchanged while the flags live in exactly one place. Measurement, release lane, the 47-test
+opcode/parity execution suite: **16.99 s unwound vs 17.09 s under the audit's own abort-profile
+baseline, 47/47 passed both** — unwinding costs nothing measurable on the guest hot path. The full
+host suite is green in release (305/305, including the new guard test). That guard
+(`crates/neo-riscv-host/tests/panic_unwind_boundary.rs`) asserts `!cfg!(panic = "abort")`, so any
+future profile regression fails the suite in both dev and release lanes. The alternative fix (an
+explicit `extern "C"` catch surface) is deliberately not taken: the ten arms are that catch surface
+and are live again, and re-plumbing them adds churn the guard test doesn't reduce. The submodule
+commit (`765bc27`) lands via the C3 gitlink bump, so this item's parent-side change is
+documentation only.
 
 ### H15 — Every block in a batch executes with the same `Runtime.Block.Index` — an L1 height — and the frozen first-block timestamp [E1]
 
@@ -2043,11 +2067,13 @@ Split by whether it can land now.
     matching blob re-land fails by construction. The gate's third red run revealed a second drift
     axis: `#[track_caller]` panic locations embed the build machine's absolute paths into the
     blob's rodata, so a Windows-local regen could never byte-match a Linux runner's; the submodule
-    regen script now passes `-Z location-detail=none`, the committed blob is the path-free
-    `d6959f30…` rebuild (byte-identical across two local directories, zero path strings), and
-    machine-independence is what makes the byte comparison meaningful across producers (details in
-    §3 C3's portability addendum). Fixes (2)/(3) deliberately not taken; rationale
-    in §3 C3's status block.
+    regen script now passes `-Z location-detail=none` and the committed blob carries zero path
+    strings. The gate's fourth red run then produced the decisive evidence that a residual drift
+    axis is NOT flag-addressable: same-size blobs with ~21k reordered layout bytes between the
+    Linux runner and a Windows local build — so the Linux runner is the canonical producer, and on
+    drift the gate uploads its regenerated blob (`guest-polkavm-regenerated` artifact) whose
+    landing is how the gate goes green (details in §3 C3's portability addendum). Fixes (2)/(3)
+    deliberately not taken; rationale in §3 C3's status block.
 11. `H14` — removing `panic = "abort"` changes unwind semantics and possibly throughput on the guest
     hot path; needs a measurement, and it interacts with the SP1 re-execution profile.
 12. `V1` — **settled on this branch (2026-08-31): the nightly schedule owns the SP1 dispatch, and

@@ -31,7 +31,13 @@
   运行确定性一致）rustc 哈希相同、字节不同，且门禁首次 CI 运行即在 runner 浮动 nightly 上
   实证了跨工具链漂移。门禁现钉住工具链，升级流程写入 workflow：升级钉住的 `toolchain` 输入
   （及可选的 action SHA ref）并用同一钉住的 `CARGO_NIGHTLY` 重新落地 blob，一次变更内完成。
-  审计修复 (2)/(3) 有意不取，
+  blob 字节还曾追踪构建机器本身：`#[track_caller]` panic 位置把 cargo/registry/rustup 绝对路径
+  烧进 blob 的 rodata（门禁第三次红灯），再生脚本现传 `-Z location-detail=none`，路径类字符串
+  归零。但产出编译器宿主构建之间的布局级差异依然存在：门禁第四次红灯捕获到同尺寸（300,023
+  字节）、约 21k 字节重排的 blob —— Linux runner 对 Windows 本地构建，且没有任何旗标组合能
+  弥合 —— 因此 Linux runner 是规范产出方。漂移时门禁把再生 blob 作为 `guest-polkavm-regenerated`
+  artifact 上传；落地该 artifact（而非本地再生，其布局可能不同）才是让红灯转绿的路径，流程写入
+  发布清单 §6（EN + zh）。审计修复 (2)/(3) 有意不取，
   理由见审计 §3 C3 状态块。
 - 2026-08-31 nightly SP1 release-gate dispatch，并把发布阻塞规则写成文字：唯一产出真实
   batch 与递归 SP1 proof 的 CI job 此前仅限 `workflow_dispatch`，而必需检查 `sp1-host` 在其余

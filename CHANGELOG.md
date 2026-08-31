@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `docs/zh/CHANGELOG.md` is now what it always was: a major-change digest, with the stale lockstep promise removed — 2026-08-31
+
+- §6's finding: the zh page's header promised lockstep ("英文文档发生…安全结论变更时，本中文版本必须
+  同步更新") while containing nothing newer than 2026-07-15, and the only test over the pair asserted
+  that the counterpart *exists* — a documented invariant false under a green test. §10 item 19 asked
+  for a decision: backfill + entry-header test, or relabel.
+- **Relabel chosen, on sizing.** The English file is 10,076 lines with **724** dated `###` entries: a
+  header-compare mirror is a one-time ~700-line translation plus a permanent tax on every future
+  entry, and it would turn the zh page into a table of contents with no content — worse for a Chinese
+  reader than the digest it already declared itself to be (its 本页用途 section always said "重要变更
+  索引"). The header now states the real contract: major-change index only (security fixes, audit
+  conclusions, production-readiness changes earn entries; ordinary ones do not), English stays
+  authoritative for security conclusions and test evidence, and a digest entry must not weaken or
+  expand what the English record states.
+- The digest was refreshed at relabel time rather than left stale: the majors from 2026-08-28 →
+  2026-08-31 (C1, H12, the SP1 advisory records, C4, V4, the audit report itself, H16, H17, V6, V8,
+  H19, §7.1, H18, both V2 halves, Fix A, Fix B) are now summarized in Chinese, newest first, ahead of
+  the pre-existing 2026-07 entries. The 同步状态 section now says plainly that the only tested pair
+  property is existence (`CurrentDocumentation_EveryEnglishMarkdownHasChineseCounterpart`) — the
+  header no longer promises an invariant no test enforces. Audit report §6 + §10 item 19 updated (EN +
+  zh).
+
 ### Fixed — firstBlock/lastBlock are now bound into the public-inputs digest the settlement contract verifies — 2026-08-31
 
 - §6's block-range finding [E1]: the public-inputs preimage hashed `chainId ‖ batchNumber ‖ ten

@@ -1,19 +1,62 @@
-﻿# 中文版本：Changelog
+# 中文版本：Changelog
 
 > 对应英文文档：[CHANGELOG.md](../../CHANGELOG.md)
-> 维护规则：英文文档发生结构、命令、路径、接口、合约数量、测试证据或安全结论变更时，本中文版本必须同步更新。
+> 维护规则（2026-08-31 重定，见审计报告 §6 与 §10 第 19 项）：英文 `CHANGELOG.md`（逾万行、
+> 700+ 个带日期条目）是唯一权威的逐条记录。本页是它的**中文重大变更摘要索引**，不承诺
+> 逐条锁步：英文新增条目不自动触发本页更新，只有当一条变更属于重大类别（安全修复、
+> 审计定案、生产完备性变化）时才在此补充摘要。安全结论与测试证据以英文原文为准；
+> 本页转述不得降低或扩大英文结论的前提与限制。
 
 ## 本页用途
 
-这份文档记录项目的历史变更。中文版本作为变更日志的中文入口，维护当前结构、阅读规则和重要变更索引。
+英文 `CHANGELOG.md` 是项目历史变更的完整权威记录。本页为中文读者维护一个重大变更索引：
+按日期倒序收录安全修复、审计定案与生产完备性变化的摘要条目，并有意容忍遗漏 ——
+本页缺失某条目不代表该变更未发生；需要逐条证据时以英文原文为准。
 
 ## 中文摘要
 
-- 对应文件：CHANGELOG.md
-- 中文路径：docs/zh/CHANGELOG.md
-- 适用范围：Neo N4 项目的文档、架构、模块、工具、合约、测试或审计证据的一部分。
-- 一致性要求：术语、项目路径、命令、合约名称、模块名称、测试名称和安全结论必须与英文源文件保持一致。
-- 生产完备要求：如果英文源文件声明某模块已完成、已验证、已部署演练或已通过测试，中文版本不能降低或扩大该结论；必须同步记录同样的前提和限制。
+- 2026-08-31 结算摘要绑定块区间：public-inputs preimage 从 332 扩到 348 字节，
+  `firstBlock`/`lastBlock` 进入 settlement 合约验证的摘要；合约与全部消费方（gateway guest
+  重建、SP1 host、witness artifact、golden 向量、三份 hex fixture）同次迁移，SettlementManager
+  NEF 用钉住的 nccs 重发，三份 golden 摘要重钉。全量 38 程序集 / 2,943 测试 / 0 失败；
+  Linux SP1 通道重跑前三处 dispatch-only 钉住点仍描述旧公式（审计报告 §11 记录）。
+- 2026-08-31 devnet 按配置路由证明类型：runner 读取配置 `proofType` 而非硬编码 Multisig，
+  不兼容的标签/证明配对在构建任何东西之前以退出码 2 拒绝。
+- 2026-08-31 V2 跨边界编码对齐：321 字节 commitment 头、348 字节 public inputs、91 字节
+  chain config、48+32·N proof 分帧，通过两侧都不拥有的共享 golden 向量互钉
+  （.NET 编码器 ↔ 部署 NEF ↔ Rust 三腿，`tests/Shared/CanonicalEncodingVectors.cs`）。
+- 2026-08-31 V2 文档半：`ChainMode.L2RiscV` 从未存在（执行引擎由 `--vm`/`--executor` 选择，
+  `ChainMode` 不做运行时分发），public-inputs 编码器不是 L1 ABI。
+- 2026-08-31 H18：`SecurityLevel ⇒ ProofType` 规则曾有四处实现、两处互为拷贝且三对判错、
+  `Settled` 无 CLI 行；现在 `Neo.L2.ProofRouting` 是唯一 off-chain 表，链上
+  `IsProofTypeCompatible` 以 `[Safe]` 暴露，`tests/Shared/ProofRoutingExpectations.cs`
+  是两侧都无法改写的第三参考。
+- 2026-08-31 §7.1：生产锁覆盖 pauser set 与 challenge 窗口/赏金，直接路径加锁并配套
+  payload 绑定的 `*ViaProposal` 双胞胎。
+- 2026-08-30 执行式子系统审计报告：七轨逐子系统"审计+验证"（RISC-V VM、SP1 zkVM、桥/资金
+  路径、batch/state/DA、settlement/challenge/反审查、治理/遥测/CLI/RPC/文档），结论
+  `C1`–`H19` 与 `V1`–`V8`，EN+zh 双语入库（`docs/audit/` + `docs/zh/audit/`）。
+- 2026-08-30 C4：被接受的欺诈证明不再卡死其刚证明有欺诈的链（challenge 窗口清除、重提交
+  重武装；VM 复现测试 + 链上阴性对照）。
+- 2026-08-30 V4：40 个在 Windows 从未执行的测试现在执行（sln 探测替代脆弱的仓库根遍历）。
+- 2026-08-30 H16：暂停链现在同时停止 finalize 而不只是入金（`FinalizeBatch` 断言
+  `ChainRegistry.isActive`；`RevertBatch` 有意不设防，保留事后修正能力）。
+- 2026-08-30 H17：跨链 finality relay 从仅文档变为可部署（deployer 驱动 gateway 全局根锁引导）。
+- 2026-08-30 V8 审计：仓库唯一的 Rust 依赖门禁（cargo audit）看不到 Dependabot 报的三条公告
+  （RustSec 与 GHSA 图谱不同）；SP1 6.2.1→6.5.0 按字节对比不修复任何一条（两处被点名文件
+  逐字节相同，且无更高 `-succinct` 构建），升级在证据前被拒绝。
+- 2026-08-30 V6：唯一绕过注册表的指标在崩溃路径上；现为 `MetricNames` 常量、导出的
+  Prometheus 名不变并由测试钉住，调用点由
+  `EmissionSites_UseMetricNamesConstants_NotRawLiterals` 守卫。
+- 2026-08-30 H19：反审查 deadline 现在部署路径即有界（`[60, 86400]` 与 owner 路径同一对
+  常量；`enqueuedAt + deadline` 的 mod 2³² 截断风险以测量定案）。
+- 2026-08-29 C1：SharedBridge 存款与 MessageRouter 条目在 batcher inbox 中按 family 去重，
+  不再互相挤占或重复排空。
+- 2026-08-29 H12：三个 owner 可重写信任根（OptimisticChallenge 窗口/赏金、pauser set 等）
+  单向 `LockGovernance`；`SetOwner` 保留为密钥轮换路径，由合约 manifest 不变量测试背书。
+- 2026-08-28 SP1 6.2.1 传递性公告（Dependabot High + 两条 Medium）以文档定案：无法从当前
+  依赖图修复；`.github/dependabot.yml` 以 `ignore` 静默更新 PR（公告仍在 Security 页保持开放）。
+- 2026-08-28 Windows 本地测试 fixture 逃离 JSON 路径转义。
 - 2026-07-15 协调依赖维护：覆盖率收集器保留在 6.0.4，因为 10.0.1 会改变可执行行
   统计集合，并使同一提交在 90% 覆盖率门槛附近发生抖动；未来升级必须配套显式的覆盖率
   基线迁移。Ethereum watcher 将
@@ -103,7 +146,8 @@
 
 ## 维护检查清单
 
-- 英文源文件新增章节时，在这里补充对应中文章节或中文摘要。
+- 英文源文件出现重大变更（安全修复、审计定案、生产完备性变化）且值得中文入口呈现时，
+  在"中文摘要"顶部补充一条摘要；普通条目不强制。
 - 英文源文件新增图表、SVG、Mermaid、流程图或架构图时，必须在 docs/zh/figures/ 下补齐同名中文图表。
 - 英文源文件新增命令时，中文版本必须保留可复制命令，并说明 Windows / WSL2 前提。
 - 英文源文件新增安全结论时，中文版本必须保留风险等级、影响范围、修复状态和验证证据。
@@ -111,4 +155,8 @@
 
 ## 同步状态
 
-本文件已作为 CHANGELOG.md 的中文对应版本纳入仓库级本地化覆盖检查。后续修改由单元测试强制要求中文 counterpart 继续存在。
+本文件已作为 `CHANGELOG.md` 的中文对应文件纳入仓库级本地化覆盖检查：单元测试
+（`CurrentDocumentation_EveryEnglishMarkdownHasChineseCounterpart`）强制要求本文件继续存在，
+但该检查只覆盖"存在"，不校验条目级同步 —— 这与上方重定后的维护规则一致，不是缺陷。
+2026-08-28 至 2026-08-31 的重大条目已在本页重定时回填；更早的 2026-07 摘要条目照旧保留。
+权威的安全结论与测试证据：英文 `CHANGELOG.md`、`docs/audit/`（及其 `docs/zh/audit/` 镜像）。

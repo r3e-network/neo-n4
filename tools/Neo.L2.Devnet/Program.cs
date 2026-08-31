@@ -16,6 +16,8 @@ using Neo.L2.Messaging;
 using Neo.L2.Persistence;
 using Neo.L2.Proving;
 using Neo.L2.Proving.Attestation;
+using Neo.L2.Proving.Optimistic;
+using Neo.L2.Proving.RiscVZk;
 using Neo.L2.Sequencer;
 using Neo.L2.State;
 using Neo.L2.Audit;
@@ -23,6 +25,7 @@ using Neo.L2.Telemetry;
 using Neo.Plugins.L2;
 using Neo.Plugins.L2Rpc;
 using Neo.Network.P2P.Payloads;
+using Neo.Wallets;
 using Sample.CounterChainExecutor;
 
 namespace Neo.L2.Devnet;
@@ -55,6 +58,13 @@ internal static class Program
     /// </summary>
     private static readonly UInt160 L2BridgeNative = UInt160.Parse("0x" + new string('e', 40));
 
+    // Deterministic stand-ins for the claims the Optimistic route embeds in every proof
+    // (a real deployment names the SequencerBond contract and its funding tx) and for the
+    // verification-key id the Zk preview route pairs its prover and verifier with.
+    private static readonly UInt160 SyntheticBondContract = UInt160.Parse("0x" + new string('b', 40));
+    private static readonly UInt256 SyntheticBondTxHash = new(Enumerable.Repeat((byte)0xB7, 32).ToArray());
+    private static readonly UInt256 SyntheticZkVkId = new(Enumerable.Repeat((byte)0x5A, 32).ToArray());
+
     public static async Task<int> Main(string[] args)
     {
         if (args.Length > 0 && (args[0] == "--help" || args[0] == "-h"))
@@ -70,8 +80,18 @@ internal static class Program
         // Pull §16.2 security label from operator config so e.g. `neo-stack create-chain
         // --template validium` flows into the devnet preview without re-typing. Defaults
         // (Optimistic / NeoFS / DbftCommittee / Permissionless / gateway=off) match
-        // the repository's canonical N4 DA policy when no --config is supplied.
+        // the repository's canonical N4 DA policy when no --config is supplied. The
+        // declared proofType (or the floor route the label accepts) selects the prover
+        // below, so the commitment always matches the advertised label.
         var labelOverrides = DevnetLabelOverrides.ReadFromConfig(configPath);
+        var proofKind = labelOverrides.ProofKind;
+        if (!ProofRouting.AcceptsProofType(labelOverrides.SecurityLevel, proofKind))
+        {
+            Console.Error.WriteLine(
+                $"securityLevel={labelOverrides.SecurityLevel} does not accept proofType={proofKind}; " +
+                "fix chain.config.json or run `neo-stack validate <config>` (see ProofRouting.AcceptedProofTypes)");
+            return 2;
+        }
 
         Console.WriteLine("┌─────────────────────────────────────────────┐");
         Console.WriteLine("│  Neo Elastic Network — devnet runner v0.2    │");
@@ -102,10 +122,35 @@ internal static class Program
         var withdrawalProcessor = new WithdrawalProcessor(LocalChainId, registry);
 
         var validators = Enumerable.Range(1, 4).Select(i => GenKey((byte)i)).ToList();
-        var signers = new InMemorySignerSet(validators);
-        var prover = new AttestationProver(signers);
-        var verifier = new AttestationVerifier(validators.Select(v => v.pub), threshold: 3);
-        Console.WriteLine($"[wire] {validators.Count} validators, attestation threshold = 3");
+
+        // Route the proof through the one shared table: the config's securityLevel +
+        // proofType pick which prover/verifier pair runs, mirroring what a deployed
+        // chain of that label may settle with. The Zk route is a preview stand-in —
+        // production Zk proofs are produced out-of-process by bridge/neo-zkvm-host.
+        IL2Prover prover;
+        IL2ProofVerifier verifier;
+        switch (proofKind)
+        {
+            case ProofType.Optimistic:
+                prover = new OptimisticProver(
+                    new KeyPair(validators[0].priv),
+                    SyntheticBondContract,
+                    SyntheticBondTxHash);
+                verifier = new OptimisticVerifier(validators[0].pub);
+                Console.WriteLine("[wire] route = Optimistic (sequencer-signed attestation over the canonical public inputs)");
+                break;
+            case ProofType.Zk:
+                prover = new MockRiscVProver(SyntheticZkVkId);
+                verifier = new MockRiscVVerifier(SyntheticZkVkId);
+                Console.WriteLine("[wire] route = Zk (MockRiscVProver preview; production proving runs via bridge/neo-zkvm-host)");
+                break;
+            default: // ProofType.Multisig
+                var signers = new InMemorySignerSet(validators);
+                prover = new AttestationProver(signers);
+                verifier = new AttestationVerifier(validators.Select(v => v.pub), threshold: 3);
+                Console.WriteLine($"[wire] {validators.Count} validators, attestation threshold = 3, route = Multisig");
+                break;
+        }
 
         var verifierRegistry = new VerifierRegistry();
         verifierRegistry.Register(verifier);
@@ -382,7 +427,7 @@ internal static class Program
             {
                 PublicInputs = publicInputs,
                 Witness = ReadOnlyMemory<byte>.Empty,
-                Kind = ProofType.Multisig,
+                Kind = proofKind,
             });
 
             var commitment = new L2BatchCommitment
@@ -400,7 +445,7 @@ internal static class Program
                 L2ToL2MessageRoot = execResult.L2ToL2MessageRoot,
                 DACommitment = daReceipt.Commitment,
                 PublicInputHash = proofResult.PublicInputHash,
-                ProofType = ProofType.Multisig,
+                ProofType = proofKind,
                 Proof = proofResult.Proof,
             };
 
@@ -478,7 +523,7 @@ internal static class Program
         Console.WriteLine($"  {MetricNames.BatchesSealed,-32} {metrics.GetCounter(MetricNames.BatchesSealed)}");
         Console.WriteLine($"  {MetricNames.DepositsProcessed,-32} {metrics.GetCounter(MetricNames.DepositsProcessed)}");
         Console.WriteLine($"  {MetricNames.WithdrawalsStaged,-32} {metrics.GetCounter(MetricNames.WithdrawalsStaged)}");
-        Console.WriteLine($"  {MetricNames.ProofsGenerated,-32} {metrics.GetCounter(MetricNames.ProofsGenerated, ("kind", "Multisig"))} (kind=Multisig)");
+        Console.WriteLine($"  {MetricNames.ProofsGenerated,-32} {metrics.GetCounter(MetricNames.ProofsGenerated, ("kind", proofKind.ToString()))} (kind={proofKind})");
         Console.WriteLine($"  {MetricNames.AuditsRun,-32} {metrics.GetCounter(MetricNames.AuditsRun)}");
         var latencies = metrics.GetHistogram(MetricNames.BatchSealLatencyMs);
         if (latencies.Count > 0)

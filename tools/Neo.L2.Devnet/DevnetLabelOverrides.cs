@@ -6,20 +6,25 @@ namespace Neo.L2.Devnet;
 /// <summary>
 /// §16.2 security-label dimensions read from an operator's <c>chain.config.json</c>
 /// (typically a <c>neo-stack create-chain --template &lt;X&gt;</c> output) and applied
-/// to the devnet's <c>Neo.Plugins.L2.InMemoryL2RpcStore</c>. Defaults match the
-/// NeoFS-backed defaults; operators supply <c>--config</c> to preview a
+/// to the devnet's <c>Neo.Plugins.L2.InMemoryL2RpcStore</c> and proof route. Defaults match
+/// the NeoFS-backed defaults; operators supply <c>--config</c> to preview a
 /// template-specific label end-to-end.
 /// </summary>
 public readonly record struct DevnetLabelOverrides(
     SecurityLevel SecurityLevel,
+    ProofType ProofKind,
     DAMode DAMode,
     bool GatewayEnabled,
     SequencerModel Sequencer,
     ExitModel Exit)
 {
-    /// <summary>Devnet defaults (matches <c>InMemoryL2RpcStore</c> sane defaults — Optimistic / NeoFS / DbftCommittee / Permissionless / gateway off).</summary>
+    /// <summary>
+    /// Devnet defaults (matches <c>InMemoryL2RpcStore</c> sane defaults — Optimistic / NeoFS / DbftCommittee / Permissionless / gateway off). The proof kind is the floor route
+    /// <see cref="ProofRouting.AcceptedProofTypes"/> allows for the default label, so the
+    /// label and the commitment never disagree even without a config.
+    /// </summary>
     public static DevnetLabelOverrides Defaults { get; } = new(
-        SecurityLevel.Optimistic, DAMode.NeoFS, false,
+        SecurityLevel.Optimistic, ProofType.Optimistic, DAMode.NeoFS, false,
         SequencerModel.DbftCommittee, ExitModel.Permissionless);
 
     /// <summary>
@@ -45,9 +50,13 @@ public readonly record struct DevnetLabelOverrides(
             var root = doc.RootElement;
 
             // Each field is optional — missing or invalid → use the default for that
-            // dimension. ParseEnumOrDefault is the per-field fallback.
+            // dimension. ParseEnumOrDefault is the per-field fallback; a missing or
+            // malformed proofType falls back to the floor route the (possibly
+            // overridden) security level accepts, never to a hardcoded kind.
+            var securityLevel = ParseEnumOrDefault(root, "securityLevel", Defaults.SecurityLevel);
             return new DevnetLabelOverrides(
-                ParseEnumOrDefault(root, "securityLevel", Defaults.SecurityLevel),
+                securityLevel,
+                ParseEnumOrDefault(root, "proofType", FloorRoute(securityLevel)),
                 ParseEnumOrDefault(root, "daMode", Defaults.DAMode),
                 root.TryGetProperty("gatewayEnabled", out var ge) && ge.GetBoolean(),
                 ParseEnumOrDefault(root, "sequencerModel", Defaults.Sequencer),
@@ -58,6 +67,17 @@ public readonly record struct DevnetLabelOverrides(
             Console.Error.WriteLine($"--config parse failed ({ex.Message}); falling back to defaults");
             return Defaults;
         }
+    }
+
+    /// <summary>
+    /// The minimum <see cref="ProofType"/> the shared routing table allows for
+    /// <paramref name="securityLevel"/> — the route a chain with no declared
+    /// <c>proofType</c> previews.
+    /// </summary>
+    private static ProofType FloorRoute(SecurityLevel securityLevel)
+    {
+        var accepted = ProofRouting.AcceptedProofTypes(securityLevel);
+        return accepted.Length > 0 ? accepted[0] : Defaults.ProofKind;
     }
 
     /// <summary>

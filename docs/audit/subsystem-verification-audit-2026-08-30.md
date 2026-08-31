@@ -492,9 +492,14 @@ and `Optimistic` are operator-supplied routes by construction and the `sidechain
 not cosmetic. The honest closure is to implement those verifiers and register them in
 `LiveDeployCommand` *before* `lockGovernance` (`:866-869`); when that lands,
 `ShippedConfigWarningPolicy` is the tripwire that says delete the caveat. Also left as found:
-`tools/Neo.L2.Devnet/Program.cs:385,403` builds Multisig commitments regardless of the config's
-`proofType`, so a `--config` run exercises the label surface only (disclosed in `samples/README.md`),
-and `SecurityLevel.Settled` is legal at four pairs but no shipped template emits it.
+`SecurityLevel.Settled` is legal at four pairs but no shipped template emits it. The devnet half of
+this list closed after the audit: `tools/Neo.L2.Devnet` now reads the config's `proofType` (a missing
+or malformed value falls back to the floor route `ProofRouting.AcceptedProofTypes` allows for the
+label), aborts an incompatible pairing with exit code 2, and wires the matching prover — committee
+attestations for `Multisig`, a sequencer-signed optimistic payload for `Optimistic`, and the disclosed
+`MockRiscVProver` preview for `Zk` (`Program.cs:86`, `:132`, `:430`, `:448`). The default run itself
+changed route, and that is the finding's own lesson applied to the tool: the devnet's no-config label
+is `Optimistic`, under which the old hardcoded `Multisig` was never an acceptable commitment.
 
 **Left alone on evidence, not assumption.** The DA-mode twin
 `LocalHostOperatorStatus.IsSecurityLevelPairedWithDaMode` (`:591-599`) was re-derived against

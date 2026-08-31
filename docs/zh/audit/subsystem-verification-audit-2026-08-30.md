@@ -443,10 +443,13 @@ Sp1Groth16Verifier 三者都在为前提），带上 `GATEWAY_PROGRAM_VKEY_REPLA
 （`ContractZkVerifierContract.cs:302`），所以 `Multisig` 与 `Optimistic` 就构造而言必须是运维者自带的
 路由，`sidechain` 的那条 caveat 是准确描述而非装饰。诚实的收尾是实现这两个 verifier，并在
 `lockGovernance`（`:866-869`）*之前*把它们注册进 `LiveDeployCommand`；那一天 `ShippedConfigWarningPolicy`
-就是提示你删除 caveat 的绊线。同样按原样保留的还有：
-`tools/Neo.L2.Devnet/Program.cs:385,403` 无论配置里的 `proofType` 是什么都构造 Multisig commitment，
-因此 `--config` 跑的是标签表面（`samples/README.md` 已披露），以及 `SecurityLevel.Settled` 有四对合法
-组合却没有任何出厂模板发射它。
+就是提示你删除 caveat 的绊线。同样按原样保留的还有：`SecurityLevel.Settled` 有四对合法组合却没有任何
+出厂模板发射它。清单里的 devnet 那一半在审计之后已闭环：`tools/Neo.L2.Devnet` 现在读取配置里的
+`proofType`（缺失或非法时回退到 `ProofRouting.AcceptedProofTypes` 允许该标签的最低路由），对不兼容的
+组合以退出码 2 拒绝运行，并接上对应的 prover —— `Multisig` 走委员会 attestation，`Optimistic` 走
+sequencer 签名的 optimistic payload，`Zk` 走已披露的 `MockRiscVProver` 预览（`Program.cs:86`、`:132`、
+`:430`、`:448`）。默认运行本身换了路由，而这正是把本发现的教训用回工具自身：devnet 无配置时的标签就是
+`Optimistic`，在它之下旧的硬编码 `Multisig` 从来都不是一个可接受的 commitment。
 
 **基于证据而非假设地保留。** DA-mode 的孪生函数
 `LocalHostOperatorStatus.IsSecurityLevelPairedWithDaMode`（`:591-599`）已针对

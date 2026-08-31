@@ -15,6 +15,12 @@
     <Compile Include="$(MSBuildThisFileDirectory)Shared/RepoRoot.cs" Link="Shared\RepoRoot.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Shared/ProofRoutingExpectations.cs"
              Link="Shared\ProofRoutingExpectations.cs" />
+    <!-- CanonicalEncodingVectors is the third reference behind the cross-boundary encodings
+         (audit finding V2). It has to be visible both to the projects that call the canonical
+         encoders and to NeoHub.Contracts.VmTests, which deploys the compiled contracts and
+         hand-rolls the same buffers because it can carry no project reference. -->
+    <Compile Include="$(MSBuildThisFileDirectory)Shared/CanonicalEncodingVectors.cs"
+             Link="Shared\CanonicalEncodingVectors.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -543,11 +543,11 @@ halt。** 一次在合法最大截止期下的对照 enqueue 存下 `1,468,681,7
 ### V1 — SP1 的必需检查之所以变绿，正是*因为*那些重型通道没有运行 [E1]
 
 ```
-.github/workflows/build.yml:385-387   sp1-release-gates: if: github.event_name == 'workflow_dispatch'
-build.yml:516                          cargo test --workspace --release
-build.yml:520                          cargo test (neo-zkvm-host, real proof)
-build.yml:532                          gateway-host recursive proof
-build.yml:565-569                      if dispatch → test …= success; else test …= skipped
+.github/workflows/build.yml:394-396   sp1-release-gates: if: github.event_name == 'workflow_dispatch'
+build.yml:527                          cargo test --workspace --release
+build.yml:529                          cargo test (neo-zkvm-host, real proof)
+build.yml:541                          gateway-host recursive proof
+build.yml:574-578                      if dispatch → test …= success; else test …= skipped
 ```
 
 `sp1-release-gates` —— 唯一一个编译 workspace 并产出真实 batch 与递归 SP1 proof（含篡改门禁）的
@@ -581,15 +581,23 @@ artifact；SP1 的执行与证明栈没有被任何把关它合并的检查执�
 `L2ChainConfigSerializer`；它们手工拼出字节缓冲区（`UT_SettlementManager_Vm.cs:70-122`）并再次
 硬编码常量（`UT_ChainRegistry_Vm.cs` 重复了 `ConfigSize = 91`）。那五处真正要紧的配对已被手工核对
 且逐字节精确 —— 321 字节的 commitment 头部、332 字节的 public inputs、48+32N 的 proof 分帧、
-提取 leaf 哈希、91 字节的链配置 —— 但这种一致是靠复制粘贴的纪律维持的，而最接近“钉扎”的那个东西
-—— `UT_OnChainMerkleVerifyParity.cs` —— 只是该合约折叠的一段 C# *复制品*，而非合约本身。
+提取 leaf 哈希、91 字节的链配置 —— 但**每一侧都只是拿它自己那份布局的副本作对照，而从来没有任何
+测试把某个 encoder 产出的字节喂给一个已部署的合约**。`UT_BatchSerializer` 是拿编码器与编码器自己
+文档里写的偏移量对照，合约那一侧则只经由手工缓冲区被跑到过、而这些缓冲区从未与编码器输出比对过；
+就连编码器侧的钉扎也是局部的：`PublicInputs_ByteLayout_MatchesDocumentedOffsets` 覆盖偏移 0/4、
+`12..44` 与 `300..332`，中间那十个 root 里有八个没有被钉住，而
+`UT_MerkleProofSerializer.Encode_LayoutMatchesSpec` 只钉了长度加偏移 32 与 44。最像交叉校验的
+那两个东西都不是交叉校验：`UT_MerkleProofDecoder` 配对的是序列化器与 CLI 解码器（off-chain 的两侧），
+`UT_Mvp_Phase3_RestrictedFraudProofV4.cs:95-102` 确实调用了 `BatchSerializer.Encode`，但它把字节
+交给的是 *off-chain* 的 v4 验证器。另一个候选 `UT_OnChainMerkleVerifyParity.cs` 是该合约折叠逻辑的
+一段 C# *复制品*，而非合约本身。
 
 与此相伴，有一条文档陈述是假的：`src/Neo.L2.Batch/BatchSerializer.cs:12-14` 说该编码器产出
 "the byte format that the settlement contract reads"，这对 commitment 头部成立，
-对 public-inputs 那一半则不成立 —— 而后者从不被传输。这正是 `C2` 类编码漂移得以隐形的机制；
-只需要一个同时引用两侧的测试项目就可以把它关闭。
+对 public-inputs 那一半则不成立 —— 而后者从不被传输。这正是 `C2` 类编码漂移得以隐形的机制。
 
-**状态 —— 文档那一半已在本分支修复；该发现以其命名的跨边界测试尚未修复，仍然开放（见 §11）。**
+**状态 —— 两半都已关闭：文档那一半在更早的分支，跨边界测试这一半在本分支。** 剩下的是一条不同的
+边界，§11 的第一条 bullet 说清了是哪一条。
 
 *BatchSerializer。* `:12-14` 现在把两个边界分开陈述，而不再把它们混为一谈：commitment 头部是
 `SettlementManager.submitBatch` 解析的 ABI，而 332 字节的 public-inputs 形式**从不**到达 L1 ——
@@ -629,10 +637,124 @@ behavior"，现在改为说明它是一个不对运行时做任何分发的 oper
 `Catalog_EveryTemplateNameADeclaredChainMode` 钉扎了 `TemplateCatalog` 的四个 `ChainMode` 字符串，
 那是此前任何守卫都没有解析过的唯一一个 catalog 字段。
 
-**未关闭：** `NeoHub.Contracts.VmTests` 依然有零个 `ProjectReference`，因此仍然没有任何测试证明
-guest 或 host 按 C# writer 发出的方式读取 `StateWitnessV1` / `PublicInputs` /
-`MerkleProofSerializer` 字节。把上面那道守卫改叫 "documentation" 才是对本分支交付物的诚实命名；
-这条发现的标题描述的仍然是仓库现状。
+*跨边界测试。* `NeoHub.Contracts.VmTests` 依然有零个 `ProjectReference`，而且依然拿不到一个：上面
+那段发现正文提议的 “a single test project that references both sides” 不可能存在，因为
+`Neo.SmartContract.Testing` 自带一份 `Neo` 程序集，而对 `Neo.L2.Batch` 的 `ProjectReference` 会在它
+旁边解析到 `$(NeoCorePath)\Neo\Neo.csproj`。因此这把锁经由**两侧都不拥有的数据**而不是经由一个共享
+二进制来成立 —— 即 `tests/Shared/CanonicalEncodingVectors.cs`，沿用 `H18` 已经用
+`ProofRoutingExpectations.cs` 建立、并由 `tests/Directory.Build.props` 编译进每一个测试程序集的那个
+模式。
+
+`CanonicalEncodingVectors` 为全部四种边界格式（321 字节 commitment 头部、332 字节 public inputs、
+91 字节链配置、48+32·N proof 分帧）保存 golden 字节，外加一棵五 leaf 的 withdrawal 树及其逐 leaf
+siblings，于是头部布局与 Merkle 折叠互相绑定。这些字节由一个临时的第三实现产出 —— 用的语言两侧都
+不用 —— 而不是靠运行 C# 编码器，所以它们是规格，不是被测代码的快照。每一个 32 字节字段都带一个互
+不相同的填充值，而 `firstBlock`/`lastBlock` 刻意与 `batchNumber` 不同，因为仓库里每一份手工拼出的
+头部都把这三个设成同一个数。
+
+- `tests/Neo.L2.IntegrationTests/UT_CanonicalEncodingParity.cs`（12 个测试）把每一个**编码器**钉到
+  这些向量上：`BatchSerializer.Encode` 与 `EncodePublicInputs` 必须逐字节复现它们，向量的 `Decode`
+  必须产出文档所述的模型，偏移 284 处的 `publicInputHash` 必须是 public-inputs 向量的 `Hash256`，
+  `L2ChainConfigSerializer.Decode` 必须把它往返还原，而七个单字节配置字段每一个都必须只在自己那
+  个偏移上移动一个字节。
+- `tests/NeoHub.Contracts.VmTests/UT_CanonicalEncodingParity_Vm.cs`（8 个测试）经由该程序集自己那份
+  偏移表，把**已部署的 NEF** 钉到同一组向量上 —— 321 字节头部的布局在仓库里被重述了**七**次
+  （`SettlementManagerContract.cs:42-53`、`RestrictedExecutionFraudVerifierContract.cs:101-106`、
+  `ContractZkVerifierContract.cs:41-44`、`RestrictedFraudProofV4.cs:513-518`、
+  `BatchSerializer.cs:27-46`（文档表格加顺序写入），以及两处测试副本）。经由这张表：真实的
+  `ChainRegistry.registerChain` 必须读出 golden 配置里每一个有语义的字节；真实的
+  `SettlementManager.submitBatch` → `finalizeBatch` 必须终局化 golden commitment，并从
+  `GetCanonicalStateRoot`、`GetFinalizedTxRoot`、`GetL2ToL1MessageRoot` 与 `GetL2ToL2MessageRoot`
+  返回它的各个 root；两条链上 Merkle 折叠都必须接受全部五个 leaf，并拒绝被篡改的 sibling、错误的
+  `leafIndex` 与未知的 batch；而 `RegisterChainPublic` 那两条从未被执行过的准入分支也必须各自行使
+  职责 —— semi-permissionless 那条要就序列化器写入的那几个槽位询问治理，permissioned 那条要拒绝并
+  什么也不持久化。
+- Rust crate 根本无法引用任何 .NET 项目，所以第三条腿把同样的字节当作**数据**来走：
+  `tests/Shared/canonical_encoding_vectors.hex` 导出这些向量，
+  `SharedHexExport_MatchesTheVectors` 逐字段把该导出钉到 `CanonicalEncodingVectors` 上（并且只要文件
+  里声明了某个没有任何断言读取的键就失败），而
+  `bridge/neo-execution-core/tests/canonical_encoding_parity.rs`（3 个测试）用 `include_str!` 读它，
+  并断言那些从未与 Rust 之外的任何东西比较过的东西 —— 十二参数的 `hash_public_inputs`
+  （`src/hashing.rs:283-314`）拼接顺序就是 `EncodePublicInputs` 的写入顺序，以及 `merkle_root`
+  （`:36-54`）把那五片 withdrawal leaf 折叠成 `MerkleTree` 得到的同一个 root。这是仓库里第一份放在
+  单个文件里的跨语言向量：此前那三个把两门语言配对的摘要都是粘贴两次的，一次在
+  `native.rs::outbound_v1_roots_bind_native_abi_order_and_parameters`，再一次在
+  `UT_CanonicalNativeExecutionAdapter.cs:88-99`
+  （`OutboundV1_MatchesRustRootsAndBindsOrderAndParameters`），而后者只在两处副本都不被单独编辑时
+  才成立。
+
+一共跑了六道控制，其中一道否证了这条发现自己的措辞：
+
+1. 在 `BatchSerializer.Encode` **和** `Decode` 里对调 `txRoot`/`receiptRoot` 并**没有**悄悄通过 ——
+   早已存在的 `UT_BatchSerializer.Commitment_ByteLayout_MatchesDocumentedOffsets` 失败了。每一侧本来
+   就有一个自我钉扎；没有任何测试做过的事，是把一侧的字节喂给另一侧。§5 开篇那段与 §8 第 15 项现在
+   就这么写，取代了“往返测试仍然全绿”和范围更大的“没有任何测试执行过配对的两端”这两种说法。
+2. 在对共享向量做同样两处 root 的对调，会让 `BatchSerializer_Commitment_MatchesGoldenVector` 与
+   `BatchSerializer_DecodeOfGoldenVector_KeepsEveryField` 在 off-chain 侧失败，*并且*让 VM 程序集里的
+   `HandRolledBuilders_MatchGoldenVectors` 失败 —— 这些向量在两侧都是活的枢纽，不是两侧都忽略的一条
+   注释。
+3. 把 VM 程序集自己表里的 `OffTxRoot`/`OffReceiptRoot` 挪动 —— 那个充当“合约侧改动”的位置 —— 会让
+   `SettlementManager_SettlesTheGoldenCommitmentAndKeepsItsRoots` 在合约内部带着它自己的
+   `publicInputHash not bound to commitment roots` 中止，并连带把 withdrawal 折叠那个测试一起带下去。
+   合约的常量是靠执行合约来钉住的。
+4. `SettlementManager_RejectsTheGoldenCommitmentWhenOneRootOffsetMoves` 把那道控制作为一条永久测试
+   保留下来，而不是一次性操作：它提交把两个 root 互换过的 golden 头部并要求 FAULT。
+5. 改动共享导出的**一个字节**（`tx_root` 的第一个字节对，`03` → `05`）同时让两门语言失败：
+   `SharedHexExport_MatchesTheVectors` 报
+   `export.tx_root: byte 0 is 0x05, the vector says 0x03`，而 Rust 测试用它自己的消息失败，因为那些
+   字段不再哈希成导出的 `public_input_hash`。VM 程序集保持全绿，这是预期的形状 —— 它读的是 .NET
+   向量而不是那份导出 —— 而正是这一点证明该导出是一条独立的腿，不是其中一条的另一种渲染。
+6. 在 Rust 的**调用点**交换两个实参（把 `tx_root` 换成 `receipt_root`）只会让
+   `hash_public_inputs_assembles_the_bytes_the_dotnet_encoder_writes` 失败。这道控制证明该断言把
+   Rust 的形参顺序绑到了 .NET 的字节顺序上，而不是仅仅拿 fixture 复核它自己。
+
+有四件事只有在这些配对第一次被真正执行之后才浮现出来。
+
+`src/Neo.L2.State/MerkleProofSerializer.cs:4-7` 断言 “the L1 `NeoHub.SharedBridge` contract reads
+this format off the wire when verifying user withdrawal proofs” —— 它并没有：
+`FinalizeWithdrawalWithProof:310-337` 把结构化的 `byte[][] siblings, ulong leafIndex` 实参转发给
+`SettlementManager.verifyWithdrawalLeafWithProof`，从不解析这段分帧。唯一的链上消费者是
+`RestrictedExecutionFraudVerifier`，而它只把这个 blob 的*长度*与 `MerkleProofHeaderSize = 48`
+（`:544`）比对，不看它内部的任何字段。文档现在写出真正的消费者，这也正是一次分帧改动会破坏什么的
+准确表述：fraud 验证器的长度闸门与 off-chain 的 relayer/CLI，而不是兑付路径。
+
+`ChainRegistryContract.cs:309-310` 用字面量 `24` 切出 `verifier`、用字面量 `44` 切出
+`bridgeAdapter`。off-chain 的序列化器给同样这两个数字命了名（`L2ChainConfigSerializer.cs:43-44`），
+所以缺陷不是少了一个名字 —— 而是没有任何可执行的东西把这两句陈述联系起来，*并且*该分支从未跑到过
+那里：既有测试只覆盖 permissionless 模式与 invalid-mode 拒绝，于是模式 1 的核准集合检查与模式 0 的
+拒绝都是死代码。那里单侧的布局位移会让准入闸门去测试错误字段的核准集合成员关系，从而让一个未获核准
+的 verifier 完成注册。与 `C2` 同一个失效模式，只是早了一道闸门。两条分支现在都会被执行，而测试断言
+被切出的字节就是向量的 `0x22`/`0x33` 槽位，而不是复述合约自己的算术。
+
+`ComputePublicInputHash:452-474` 用头部字节 `0..11` 与八个头部 root 重建那 332 字节的 preimage，
+`IsProofTypeCompatible` 读取偏移 316 —— 于是提交路径钉住的就是这两个位置，尾部其余部分一概不钉。
+`firstBlock`（偏移 12）与 `lastBlock`（偏移 20）**既**不被摘要绑定，**也**不被任何 assert 绑定：
+`SubmitBatch` 存下整个头部（`:384`），而没有任何读取点索引 12 或 20，所以一个 batch 声称覆盖的 L1
+区块区间对 L1 是不透明的。向量给这两个字段取了与 `batchNumber` 不同的值，恰恰是因为仓库里每一份
+手工头部都把三者设成相等；§6 把这段绑定缺口单独立为一项。
+
+写下 Rust 那条腿时浮现出第四件事：**它本该待的那个 crate 没有任何会跑 pull request 的通道。**
+`grep -rn "neo-execution-core" .github/workflows` 是空的。唯一能触到它那些测试的命令是
+`build.yml:527` 的 `cargo test --workspace`，位于 `sp1-release-gates` 之内，而那个 job 是
+`if: ${{ github.event_name == 'workflow_dispatch' }}`（`:396`）—— 同一个 `V1` 发现，只是离钱更近了
+一个 crate：`bridge/neo-execution-core` 的 17 个测试，包括早就存在的 `batch_core.rs` 配对套件，从来
+没有在 merge 上跑过。于是 `build.yml` 增加了 `cargo test --locked -p neo-execution-core`
+（`bridge` job，`:302-309`），这正是把这条腿从文档变成闸门的那一步。该通道那条被推迟的格式化检查实际
+是什么样，这里是量出来的而不是推断的：在这棵树上 `cargo fmt --all -- --check` 只标出一处顺序缺陷，
+`bridge/neo-execution-core/src/wire.rs:1277`，它的 `use super::{ExecutionError, Reader,
+MAX_PAYLOAD_ITEMS}` 不处于 rustfmt 的排序顺序里 —— 检查要求 `MAX_PAYLOAD_ITEMS` 排在 `Reader` 之前。
+它之所以一直无人察觉，是因为这条检查位于只有 dispatch 才会跑的通道里（`build.yml:517-519`，工具链在
+`:456` 钉为 1.88.0，而且除被 vendor 进来的 `external/` 子模块之外，仓库任何位置都不存在
+`rust-toolchain` 文件，所以 `bridge` workspace 用的就是该通道装的那个版本）；1.88 的 rustfmt 是否同意
+本地 1.9.0-stable 的结论，这里没有测。同一条命令还会为 `external/neo-vm-rs` 下的每个文件打印
+`Incorrect newline style`，那是这棵 Windows 工作树的 CRLF，不是仓库缺陷。本分支没有动 `wire.rs`，且它
+自己新增的 Rust 文件在该命令下是干净的。
+
+先前那条 §11 bullet 夸大了还开放着什么。`StateWitnessV1` **本来就已经**是双侧的：被跟踪的 golden
+文件 `bridge/neo-zkvm-guest/tests/fixtures/stateful_batch_v1.hex` 被
+`neo-zkvm-guest/tests/stateful_execution.rs:11` 与 `neo-zkvm-host/tests/end_to_end.rs:5` 以
+`include_str!` 读取，也被 C# 在 `UT_StateWitnessV1Serializer.cs:112` 里读取，后者把它逐字节重新编码
+（`RustGoldenFixture_DecodesAndReencodesByteIdentically`）。仍然开放的更少，且已按现状写在 §11。
 
 ### V3 — SP1 执行器的 "funded release pin" 只是装饰，且它的拒绝路径没有任何测试 [E1]
 
@@ -904,7 +1026,7 @@ $ cargo audit --file Cargo.lock --json | head -c 300
 是 GitHub Advisory Database，而针对 `p3-challenger` 这两个数据库给出了矛盾的答案。这又是 §5 那个形状
 —— 一道因为与它所声称要断言的性质无关的原因而变绿的检查 —— 只是这里有一点值得单列的区别：与其他
 V 类发现不同，这里没有任何东西是写错的。仓库其实已经刻意地承载过一次同类的不一致，带着解释性注释和
-一条针对 `RUSTSEC-2026-0258` 的 `--ignore`（`build.yml:592-599`）。区别在于 h2 那一例是被披露的，
+一条针对 `RUSTSEC-2026-0258` 的 `--ignore`（`build.yml:601-608`）。区别在于 h2 那一例是被披露的，
 而这一例是看不见的。
 
 **这条 High 不是噪音，而一次针对本树的 grep 会把它错误地排除。** 公告标题里点名了
@@ -1318,7 +1440,9 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     §3 把强制放出忽略规则的位置写成裸的 `.gitignore:3`，而它实际位于
     `external/neo-riscv-vm/.gitignore:3`（写错了文件，而就在两行之后正是在论证 submodule 的隐形性）；
     §4 H18 写成 `Find`，而 `TemplateCatalog.cs:63` 声明的是 `Resolve(string name)`；
-    §5 V1 的围栏范围 `build.yml:563-567` 漏掉了那条断言，正确范围是 `565-569`；
+    §5 V1 的围栏范围 `build.yml:563-567` 漏掉了那条断言，今天正确的范围是 `574-578`
+    （那次修正落下去时它是 `565-569`；本分支新增的九行 `cargo test (neo-execution-core)`
+    步骤把它之下的每一处 `build.yml` 引用都推移了 9 行）；
     §5 V4 声称受影响的测试*数量*超过 §3.1 的 "~45"，而被证明的只是项目*分布*更广、
     总数从未重新统计；以及上面第 7 条称 `L2RiscV` "occurs in exactly one place in the repository"，
     而它在 13 个文件中出现 14 次 —— 该说法只对代码成立，如今那句也照此改写。
@@ -1343,6 +1467,23 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     加 5 个 env 门，§11 现已把五个逐一点名。值得记下来的是这个归类错误本身：一条消息写着 "not found"
     的跳过是证据问题、不是环境问题，而只读计数不读消息，让我把 40 个被静默停用的测试说成了主动谢绝
     执行的测试。
+15. 关闭 `V2` 这件事否证了本报告自己的三句话，另有第四句是事后才出现的。(a) 那条发现的控制结论说：
+   对调 `txRoot`/`receiptRoot` 之后 "round-trip tests stay green"；实际这次对调确实让早已存在的
+   `UT_BatchSerializer.Commitment_ByteLayout_MatchesDocumentedOffsets` 变红，也就是说这个性质是有守卫
+   的 —— 守卫的是编码器自己文档里写下的偏移量。(b) “没有任何测试执行过配对的两端”同样过宽：
+   `UT_Mvp_Phase3_RestrictedFraudProofV4.cs:95-102` 确实运行了编码器，只是把字节交给了一个 off-chain
+   验证器。存活下来、并且现在 §5 就这么写的结论更窄 —— 没有任何测试把编码器的字节喂给一个**已部署的
+   合约**。(c) §11 那条 bullet 声称 `StateWitnessV1` 与 `MerkleProofSerializer` 的 Rust 一侧是
+   "read, not cross-executed against the .NET encoder"；`StateWitnessV1` 其实早就经由一个被跟踪的
+   golden 文件被两侧共同钉住，而那三个 `outbound_v1` 摘要也配对了两种语言，只不过方式是同一个摘要
+   粘贴两份 —— 一份在 `native.rs`，一份在 `UT_CanonicalNativeExecutionAdapter.cs` —— 这正是 §5 里
+   “第一份放在单个文件里的跨语言向量”那句断言必须附带的诚实限定。(d) 在第 13 项那道机械引用扫描已经
+   通过之后，本分支往 `build.yml` 里加了一个九行步骤，于是两份报告中 302 行之后的每一处 `build.yml`
+   引用都被悄悄作废。第 13 项那趟扫描抓不到这一类缺陷，因为它校验引用所依据的是扫描发生时的那棵树；
+   十一处站点是手工对照磁盘重新编号的（本报告及其镜像里的 `385-387`→`394-396`、`516`→`527`、
+   `520`→`529`、`532`→`541`、`565-569`→`574-578`、`592-599`→`601-608`，以及 2026-08-29 报告及其镜像
+   里的 `600-607`→`609-616`）。今后任何对本报告按固定行号引用的文件的改动都会产生同样后果，
+   所以本轮学到的规则是：一次 CI 改动与一次报告改动不该放进同一个 commit，除非重新编号随它们同行。
 
 ## 9. 在执行验证下站得住的部分
 
@@ -1453,7 +1594,8 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
    `TemplateCatalog`。有意**未**收尾的部分：`Multisig` 与 `Optimistic` 的
    链上 verifier 仍未实现，那是 `doc.md` §7.5 stage 0/1 的工程量，不是一张路由表能补上的；等它落地那天，
    `ShippedConfigWarningPolicy` 就是提示你删除 caveat 的绊线。见 §4 H18 的状态段。
-9. `V2`（文档那一半）—— **已在本分支完成，而且“或者补上那个枚举成员”这个备选项是被证据否掉的，
+9. `V2`（两半）—— **第二半起初被判为无法关闭，随后以另一种方式关掉了。** *文档那一半:*
+   **“或者补上那个枚举成员”这个备选项是被证据否掉的，
    不是被我单方面否决的。** `BatchSerializer.cs:12-14` 现在把它曾混为一谈的两个边界分开陈述：
    commitment 头部是唯一那份 L1 ABI，而 332 字节的 public-inputs 形式从不抵达合约，却同时是签名
    覆盖的 preimage、artifact 摘要、执行的门槛，以及 Rust 侧重建的缓冲区（四处引用行号均在本分支
@@ -1465,9 +1607,24 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
    `CurrentDocumentation_NamesOnlyDeclaredChainModeMembers`（全仓库、两种拼法、带日期的叙述与证据
    按路径豁免）加上 `Catalog_EveryTemplateNameADeclaredChainMode` 取代了原先放任漂移的复制粘贴纪律。
    全解决方案 38 个程序集 / **2,923 个测试** / 0 失败 / 5 跳过（即第 8 条的 2,921 加上两道新守卫）。
-   有意**未**收尾的，正是这条发现以其命名的那一半：`NeoHub.Contracts.VmTests` 依然是零个
-   `ProjectReference`，因此没有任何测试把 .NET 编码器与 Rust 读取侧交叉执行 —— §11 的第一条子弹
-   原样保留。见 §5 V2 的状态段。
+   *跨边界那一半:* 这条发现以其命名的就是缺失的测试，而它正文自己提议的那个测试 ——
+   “一个同时引用两侧的项目” —— 不可能存在，因为 `NeoHub.Contracts.VmTests` 经由
+   `Neo.SmartContract.Testing` 拉进了自己的 `Neo` 程序集。于是这把锁改走两侧都不拥有的数据：
+   `tests/Shared/CanonicalEncodingVectors.cs` 为全部四种边界格式保存 golden 字节，再由
+   `UT_CanonicalEncodingParity.cs`（12 个测试）对照各个编码器、由
+   `UT_CanonicalEncodingParity_Vm.cs`（8 个测试）经由 VM 程序集自己那张偏移表对照**已部署的 NEF**
+   —— 这是任何编码器的字节第一次被一个合约执行。Rust crate 同样拿不到 .NET 引用，所以第三条腿把
+   同一批向量作为**数据**导出到 `tests/Shared/canonical_encoding_vectors.hex`，由
+   `SharedHexExport_MatchesTheVectors` 逐字段钉住该导出，再由 `canonical_encoding_parity.rs`
+   （3 个测试）`include_str!` 读入，用以把 `hash_public_inputs` 的形参顺序与 `merkle_root` 的折叠
+   绑到 .NET 的字节上。这条腿照原样写出来会是装饰品 —— `neo-execution-core` 根本没有 pull request
+   通道 —— 所以 `build.yml:302-309` 增加了 `cargo test --locked -p neo-execution-core`。
+   一共跑了六道控制：第五道改动导出的一个字节，让两种语言同时变红而 VM 程序集保持全绿；
+   第一道则否证了这条发现自己的措辞（§8 第 15 项）。两处值得留下的副产品：`ChainRegistry` 那两条
+   从未执行过的准入分支现在会被执行，而 `MerkleProofSerializer.cs:4-7` 关于 SharedBridge 解析该分帧
+   的断言被替换成它真正的消费者。全解决方案 38 个程序集 / **2,943 个测试** / 0 失败 / 5 跳过，
+   另有 `neo-execution-core` 17/17。仍然开放的部分比原先那条子弹窄，已在 §11 重述。
+   见 §5 V2 的状态段。
 
 **需要先决策再写代码的：**
 
@@ -1509,8 +1666,15 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
 
 ## 11. 本轮未验证
 
-- §V2 的 .NET ↔ Rust 那一半：没有任何测试证明 guest 或 host 按 C# writer 发出的方式读取
-  `StateWitnessV1` / `MerkleProofSerializer` 字节。Rust 一侧是被阅读的，并未与 .NET 编码器做交叉执行。
+- §V2 的 .NET ↔ Rust 那一半在第三条腿落地之后仍然剩下的东西：凡是*能够*交叉钉扎的都没有被漏掉，
+  但四种边界格式里有三种在 Rust 侧根本没有对应实现可钉。`bridge/neo-execution-core` 会重建
+  332 字节的 public-inputs preimage（`src/hashing.rs:283-314`，现已交叉钉扎），也会折叠 Merkle
+  root（`:36-54`，现已交叉钉扎）；它对 321 字节的 commitment 头部**没有**任何编码器或解析器，
+  对 91 字节的 `L2ChainConfigSerializer` 形式没有，对 48+32·N 的 `MerkleProofSerializer` 分帧也没有
+  —— Rust 读过的那个唯一 sibling 数组是执行载荷里的 forced-inclusion 那一段
+  （`wire.rs:355-373`），它带一个 `u64` nonce 且没有 path bitmap，因此是另一种编码。所以对这三种
+  格式而言，风险不是两个读取者之间的漂移，而是只存在一个实现，而再多共享数据也改变不了这一点。
+  `StateWitnessV1` 在本分支之前就已经是双侧的了。
 - 重新构建 SP1 guest：这里没有 `cargo prove` 工具链，因此 `bridge/neo-zkvm-guest` 的当前
   artifact 未被复现（此前 `A4` 一类风险，对 SP1 未定量）。
 - `H10`/`H11` 的真实增长曲线：不存在基准测试脚手架，而创建一个超出范围。记录在案的 Devnet 数字

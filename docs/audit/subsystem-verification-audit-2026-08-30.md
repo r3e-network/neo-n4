@@ -600,11 +600,11 @@ These are the ones that decide whether any other finding can be trusted.
 ### V1 — The SP1 required check goes green *because* the heavy lanes did not run [E1]
 
 ```
-.github/workflows/build.yml:385-387   sp1-release-gates: if: github.event_name == 'workflow_dispatch'
-build.yml:516                          cargo test --workspace --release
-build.yml:520                          cargo test (neo-zkvm-host, real proof)
-build.yml:532                          gateway-host recursive proof
-build.yml:565-569                      if dispatch → test …= success; else test …= skipped
+.github/workflows/build.yml:394-396   sp1-release-gates: if: github.event_name == 'workflow_dispatch'
+build.yml:527                          cargo test --workspace --release
+build.yml:529                          cargo test (neo-zkvm-host, real proof)
+build.yml:541                          gateway-host recursive proof
+build.yml:574-578                      if dispatch → test …= success; else test …= skipped
 ```
 
 `sp1-release-gates` — the only job that compiles the workspace and produces real batch and recursive
@@ -642,18 +642,27 @@ tests therefore cannot call `BatchSerializer`, `MessageHasher`, `MerkleProofSeri
 `L2ChainConfigSerializer`; they hand-roll byte buffers (`UT_SettlementManager_Vm.cs:70-122`) and
 re-hardcode constants (`UT_ChainRegistry_Vm.cs` repeats `ConfigSize = 91`). The five pairings that
 matter were checked by hand and are byte-exact — 321-byte commitment header, 332-byte public inputs,
-48+32N proof framing, withdrawal leaf hash, 91-byte chain config — but agreement is maintained by
-copy-paste discipline, and the closest thing to a pin, `UT_OnChainMerkleVerifyParity.cs`, is a C#
-*replica* of the contract's fold rather than the contract.
+48+32N proof framing, withdrawal leaf hash, 91-byte chain config — but **each side was pinned only
+against its own copy of the layout, and no test ever fed an encoder's bytes to a deployed contract**.
+`UT_BatchSerializer` checks the encoders against the encoders' own documented offsets, the contract
+side was exercised only through hand-rolled buffers nothing compared to encoder output, and even the
+encoder-side pins are partial: `PublicInputs_ByteLayout_MatchesDocumentedOffsets` covers offsets 0/4,
+`12..44` and `300..332`, leaving eight of the ten mid-buffer roots unpinned, and
+`UT_MerkleProofSerializer.Encode_LayoutMatchesSpec` pins the length plus offsets 32 and 44. The two
+closest things to a cross-check are not one: `UT_MerkleProofDecoder` pairs the serializer with the
+CLI decoder (two off-chain sides), and `UT_Mvp_Phase3_RestrictedFraudProofV4.cs:95-102` does call
+`BatchSerializer.Encode` but hands the bytes to the *off-chain* v4 verifier.
+`UT_OnChainMerkleVerifyParity.cs`, the other candidate, is a C# replica of the contract's fold rather
+than the contract.
 
 Along with it, one doc claim is false: `src/Neo.L2.Batch/BatchSerializer.cs:12-14` says the encoder
 produces "the byte format that the settlement contract reads", which holds for the commitment header
 and not for the public-inputs half, which is never transmitted. This is the mechanism by which
-`C2`-class encoding drift stays invisible; a single test project that references both sides would
-close it.
+`C2`-class encoding drift stays invisible.
 
-**Status — the documentation half is fixed on this branch; the cross-boundary test this finding is
-named for is not, and stays open (§11).**
+**Status — both halves are now closed: the documentation half on the earlier branch, the
+cross-boundary test half on this one.** What is left is a different boundary, and §11's first bullet
+says which.
 
 *BatchSerializer.* `:12-14` now separates the two boundaries instead of collapsing them: the
 commitment header is `SettlementManager.submitBatch`'s ABI, while the 332-byte public-inputs form
@@ -694,10 +703,139 @@ and a control line added to `README.md` produced
 restored byte-identical. `Catalog_EveryTemplateNameADeclaredChainMode` pins the four
 `TemplateCatalog` `ChainMode` strings, the one catalog field no earlier guard parsed.
 
-**Not closed:** `NeoHub.Contracts.VmTests` still has zero `ProjectReference`s, so no test proves the
-guest or host reads `StateWitnessV1` / `PublicInputs` / `MerkleProofSerializer` bytes the way the C#
-writer emits them. Renaming the guard above to "documentation" is the honest label for what this
-branch shipped; the finding's title still describes the repo.
+*The cross-boundary test.* `NeoHub.Contracts.VmTests` still has zero `ProjectReference`s and still
+cannot get one: the finding text above proposed "a single test project that references both sides",
+and that project cannot exist, because `Neo.SmartContract.Testing` brings its own `Neo` assembly and
+a `ProjectReference` to `Neo.L2.Batch` would resolve `$(NeoCorePath)\Neo\Neo.csproj` beside it. The
+lock therefore runs through **data neither side owns** instead of through a shared binary — the
+`tests/Shared/CanonicalEncodingVectors.cs` pattern `H18` already established with
+`ProofRoutingExpectations.cs`, which `tests/Directory.Build.props` compiles into every test assembly.
+
+`CanonicalEncodingVectors` carries golden bytes for all four boundary formats (321-byte commitment
+header, 332-byte public inputs, 91-byte chain config, 48+32·N proof framing) plus a five-leaf
+withdrawal tree with per-leaf siblings, so the header layout and the Merkle fold bind each other. The
+bytes were generated by a throwaway third implementation in a language neither side uses — not by
+running the C# encoders — so they are a spec, not a snapshot of the code under test. Every 32-byte
+field carries a distinct fill, and `firstBlock`/`lastBlock` deliberately differ from `batchNumber`,
+because every hand-rolled header in the repo sets all three equal.
+
+- `tests/Neo.L2.IntegrationTests/UT_CanonicalEncodingParity.cs` (12 tests) pins each **encoder** to
+  the vectors: `BatchSerializer.Encode` and `EncodePublicInputs` must reproduce them byte for byte,
+  `Decode` of the vector must yield the documented model, `publicInputHash` at offset 284 must be
+  `Hash256` of the public-inputs vector, `L2ChainConfigSerializer.Decode` must round-trip it, and
+  each of the seven single-byte config fields must move exactly one byte at its own offset.
+- `tests/NeoHub.Contracts.VmTests/UT_CanonicalEncodingParity_Vm.cs` (8 tests) pins the **deployed
+  NEF** to the same vectors through this assembly's own copy of the offset table — one of **seven**
+  places the 321-byte header layout is restated (`SettlementManagerContract.cs:42-53`,
+  `RestrictedExecutionFraudVerifierContract.cs:101-106`, `ContractZkVerifierContract.cs:41-44`,
+  `RestrictedFraudProofV4.cs:513-518`, `BatchSerializer.cs:27-46` as a doc table plus sequential
+  writes, and two test copies). Through that table: real
+  `ChainRegistry.registerChain` must read every semantic byte of the golden config; real
+  `SettlementManager.submitBatch` → `finalizeBatch` must settle the golden commitment and return its
+  roots from `GetCanonicalStateRoot`, `GetFinalizedTxRoot`, `GetL2ToL1MessageRoot` and
+  `GetL2ToL2MessageRoot`; both on-chain Merkle folds must accept all five leaves and reject a
+  tampered sibling, a wrong `leafIndex` and an unknown batch; and both of `RegisterChainPublic`'s
+  never-executed admission branches must behave — the semi-permissionless one has to ask governance
+  about the slots the serializer writes, the permissioned one has to reject and persist nothing.
+- A Rust crate can take no reference to a .NET project at all, so the third leg runs through the same
+  bytes as **data**: `tests/Shared/canonical_encoding_vectors.hex` exports the vectors,
+  `SharedHexExport_MatchesTheVectors` pins that export to `CanonicalEncodingVectors` field by field
+  (and fails if the file declares a key no assertion reads), and
+  `bridge/neo-execution-core/tests/canonical_encoding_parity.rs` (3 tests) `include_str!`s it and
+  asserts what no test had ever compared to anything outside Rust — that the twelve-parameter
+  `hash_public_inputs` (`src/hashing.rs:283-314`) concatenates in the order
+  `EncodePublicInputs` writes, and that `merkle_root` (`:36-54`) folds the five withdrawal leaves to
+  the same root `MerkleTree` does. That is the repo's first cross-language vector held in one file:
+  the three digests that already pair the languages are pasted twice, once in
+  `native.rs::outbound_v1_roots_bind_native_abi_order_and_parameters` and again in
+  `UT_CanonicalNativeExecutionAdapter.cs:88-99`
+  (`OutboundV1_MatchesRustRootsAndBindsOrderAndParameters`), which holds only while neither copy is
+  edited alone.
+
+Six controls were run, and one of them falsified this finding's own wording:
+
+1. Swapping `txRoot`/`receiptRoot` inside `BatchSerializer.Encode` **and** `Decode` did *not* pass
+   silently — the pre-existing `UT_BatchSerializer.Commitment_ByteLayout_MatchesDocumentedOffsets`
+   failed. Each side already had a self-pin; what no test did was feed one side's bytes to the other.
+   §5's opening paragraph and §8 item 15 now say that, replacing both "round-trip tests stay green"
+   and the broader "nothing executed both sides of a pairing".
+2. Swapping the same two roots in the shared vector failed `BatchSerializer_Commitment_MatchesGoldenVector`
+   and `BatchSerializer_DecodeOfGoldenVector_KeepsEveryField` off-chain *and*
+   `HandRolledBuilders_MatchGoldenVectors` in the VM assembly — the vectors are a live hinge on both
+   sides, not a comment both sides ignore.
+3. Moving `OffTxRoot`/`OffReceiptRoot` in the VM assembly's own table — the position that stands in
+   for a contract-side edit — made `SettlementManager_SettlesTheGoldenCommitmentAndKeepsItsRoots`
+   abort inside the contract with its own `publicInputHash not bound to commitment roots`, and took
+   the withdrawal-fold test down with it. The contract's constants are pinned by executing the
+   contract.
+4. `SettlementManager_RejectsTheGoldenCommitmentWhenOneRootOffsetMoves` keeps that control as a
+   permanent test rather than a one-off: it submits the golden header with the two roots exchanged
+   and requires the fault.
+5. Changing **one byte** of the shared export (`tx_root`'s first pair, `03` → `05`) failed both
+   languages at once: `SharedHexExport_MatchesTheVectors` reported
+   `export.tx_root: byte 0 is 0x05, the vector says 0x03`, and the Rust test failed with its own
+   message because the fields no longer hash to the exported `public_input_hash`. The VM assembly
+   stayed green, which is the expected shape — it reads the .NET vectors, not the export — and it is
+   what proves the export is a separate leg rather than a rendering of one.
+6. Exchanging two arguments at the Rust **call site** (`tx_root` for `receipt_root`) failed
+   `hash_public_inputs_assembles_the_bytes_the_dotnet_encoder_writes` alone. That is the control that
+   shows the assertion binds Rust's parameter order to the .NET byte order rather than merely
+   re-checking the fixture against itself.
+
+Four things surfaced only because the pairings were executed for the first time.
+
+`src/Neo.L2.State/MerkleProofSerializer.cs:4-7` asserted that "the L1 `NeoHub.SharedBridge` contract
+reads this format off the wire when verifying user withdrawal proofs" — it does not:
+`FinalizeWithdrawalWithProof:310-337` forwards structured `byte[][] siblings, ulong leafIndex`
+arguments to `SettlementManager.verifyWithdrawalLeafWithProof` and never parses the framing. The only
+on-chain consumer is `RestrictedExecutionFraudVerifier`, and it checks the blob's *length* against
+`MerkleProofHeaderSize = 48` (`:544`) rather than any field inside it. The doc now names the real
+consumers, which is also the accurate statement of what a framing change would break: the fraud
+verifier's length gate and the off-chain relayer/CLI, not the payout path.
+
+`ChainRegistryContract.cs:309-310` slices `verifier` at literal `24` and `bridgeAdapter` at literal
+`44`. The off-chain serializer names the same two numbers (`L2ChainConfigSerializer.cs:43-44`), so the
+defect is not a missing name — it is that nothing executable links the two statements *and* the branch
+had never run: existing tests cover only the permissionless mode and the invalid-mode rejects, so mode
+1's approved-set check and mode 0's reject were both dead. A one-sided layout shift there makes the
+admission gate test the approval-set membership of the wrong field and lets an unapproved verifier
+register. Same failure mode as `C2`, one gate earlier. Both branches now execute, and the test asserts
+the sliced bytes are the vector's `0x22`/`0x33` slots rather than repeating the contract's arithmetic.
+
+`ComputePublicInputHash:452-474` rebuilds the 332-byte preimage from header bytes `0..11` and eight
+header roots, and `IsProofTypeCompatible` reads offset 316 — so the submit path pins those positions
+and nothing else in the tail. `firstBlock` (offset 12) and `lastBlock` (offset 20) are bound by
+**neither** the digest nor any assert: `SubmitBatch` stores the whole header (`:384`) and no read site
+indexes 12 or 20, so the L1 block range a batch claims to cover is opaque to L1. The vectors give
+those two fields values distinct from `batchNumber` precisely because every hand-rolled header in the
+repo sets all three equal; §6 records the binding gap as its own item.
+
+Writing the Rust leg surfaced the fourth thing: **the crate it belongs in had no pull-request lane to
+run in.** `grep -rn "neo-execution-core" .github/workflows` was empty. The only command that reaches
+its tests is `cargo test --workspace` at `build.yml:527`, inside `sp1-release-gates`, and that job is
+`if: ${{ github.event_name == 'workflow_dispatch' }}` (`:396`) — the same `V1` finding, one crate
+nearer the money path: `bridge/neo-execution-core`'s 17 tests, including the pre-existing
+`batch_core.rs` parity suite, never ran on a merge. So `build.yml` gained
+`cargo test --locked -p neo-execution-core` in the `bridge` job (`:302-309`), which is what turns
+this leg from documentation into a gate. What that lane's deferred formatting check actually looks
+like, measured rather than assumed: `cargo fmt --all -- --check` on this tree flags exactly one
+ordering defect, `bridge/neo-execution-core/src/wire.rs:1277`, whose `use super::{ExecutionError,
+Reader, MAX_PAYLOAD_ITEMS}` is not in rustfmt's sorted order — the check wants `MAX_PAYLOAD_ITEMS`
+before `Reader`. It has gone unnoticed because the check sits in the dispatch-only lane
+(`build.yml:517-519`, toolchain pinned to 1.88.0 at `:456`, and no `rust-toolchain` file anywhere
+outside the vendored `external/` submodules, so the `bridge` workspace builds on whatever the lane
+installs); whether 1.88's rustfmt agrees with the local 1.9.0-stable verdict was not measured here.
+The same command also prints `Incorrect newline style` for every file under `external/neo-vm-rs`,
+which is this Windows working tree's CRLF rather than a repo defect. This branch leaves `wire.rs`
+untouched, and its own new Rust file is clean under that command.
+
+The earlier §11 bullet overstated what was open. `StateWitnessV1` is **already** two-sided: the
+tracked golden `bridge/neo-zkvm-guest/tests/fixtures/stateful_batch_v1.hex` is pulled in with
+`include_str!` by `neo-zkvm-guest/tests/stateful_execution.rs:11` and
+`neo-zkvm-host/tests/end_to_end.rs:5`, and read by C# in `UT_StateWitnessV1Serializer.cs:112`, which
+re-encodes it byte-identically
+(`RustGoldenFixture_DecodesAndReencodesByteIdentically`). What remains open is narrower and now
+stated in §11.
 
 ### V3 — The SP1 executor "funded release pin" is decorative, and its rejection path has no test [E1]
 
@@ -992,7 +1130,7 @@ Dependabot reads the GitHub Advisory Database, and for `p3-challenger` the two d
 is the §5 shape again — a check that is green for a reason unrelated to the property it appears to
 assert — with one twist worth naming: unlike the other V findings, nothing here is miswritten. The repo
 already carries the same kind of discrepancy once, deliberately, with an explanatory comment and an
-`--ignore` for `RUSTSEC-2026-0258` (`build.yml:592-599`). The difference is that the h2 case is
+`--ignore` for `RUSTSEC-2026-0258` (`build.yml:601-608`). The difference is that the h2 case is
 disclosed and this one is invisible.
 
 **The High is not noise, and a grep of this tree would have cleared it wrongly.** `MultiField32Challenger`
@@ -1272,6 +1410,32 @@ disagree, and only the alert state is legible to someone who has not read the no
   it is — a stale summary. Leaving it as-is is the one option that keeps a documented invariant false
   while a green test certifies the pair as complete.
 
+- **A batch's claimed L1 block range is authenticated by nothing on L1** [E1].
+  `L2BatchCommitment.FirstBlock`/`LastBlock` occupy header offsets 12 and 20, and
+  `SettlementManager.SubmitBatch` stores the whole 321-byte header (`:384`), but no read site indexes
+  either offset and `ComputePublicInputHash:457` copies only bytes `0..11` before the roots — so the
+  range a batch claims to cover reaches L1 as opaque bytes, outside the digest that binds the roots and
+  outside every assert. The consequence is bounded (roots, not the range, gate settlement), but a
+  sequencer can publish a header whose block range contradicts the state transition it committed to
+  and no on-chain check notices. Found while pinning the layout; the golden vectors give both fields
+  values distinct from `batchNumber` because every hand-rolled header in the repo sets all three
+  equal, which is why no earlier test could have seen the gap. Fix: include the range in the digest —
+  a byte-format change requiring a coordinated spec edit — or assert range continuity against the
+  previous finalized batch, which needs no format change.
+- **`permissionlessExit` is a pinned wire field that one consumer discards and the validator checks
+  in only one direction** [E1 counted]. `L2ChainConfigSerializer` writes it at offset 87 of the
+  91-byte config, and `InMemoryL2RpcStore.cs:117-119` parses it from `chain.config.json` and
+  immediately drops it (`_ = permissionlessExit;`), so the RPC chain descriptor derives exit policy
+  from `exitModel` alone. Two CLI commands print the opposite projection from the same pair
+  (`CreateChainCommand.cs:69`, `ListTemplatesCommand.cs:59`): `exit policy = permissionless` whenever
+  the bool is set, which for the shipped `rollup` template (`TemplateCatalog.cs:39` —
+  `ExitModel: "Delayed"`, `PermissionlessExit: true`) omits the challenge window that
+  `ExitModel.Delayed`'s own doc calls the substance of that mode. `ValidateChainConfigCommand.cs:178`
+  guards exactly one contradiction, `OperatorAssisted` + `true`; the mirror case
+  `Permissionless` + `false` — a chain claiming the strongest exit guarantee on-chain while its
+  config field says an operator must co-sign — passes clean. Fix: one check over both directions,
+  with the CLI line naming the window.
+
 ## 7. Status of prior findings re-checked this pass
 
 | Prior | Status now | Evidence |
@@ -1451,7 +1615,9 @@ the file, not inferred.
     `external/neo-riscv-vm/.gitignore:3` (the wrong file, two lines from an argument about
     submodule invisibility); §4 H18 named `Find` where `TemplateCatalog.cs:63` declares
     `Resolve(string name)`; §5 V1's fenced range `build.yml:563-567` missed the assertion, which is
-    `565-569`; §5 V4 claimed the affected test *count* exceeded §3.1's "~45" when only the project
+    `574-578` today (the correction landed against `565-569`; this branch's nine-line
+    `cargo test (neo-execution-core)` step shifted every later `build.yml` citation by 9); §5 V4
+    claimed the affected test *count* exceeded §3.1's "~45" when only the project
     *spread* was demonstrated and the total was never re-counted; and item 7 above said `L2RiscV`
     "occurs in exactly one place in the repository" while 14 occurrences exist across 13 files —
     true only of code, which is now how the sentence reads. I am keeping the mirror as a review step
@@ -1478,6 +1644,27 @@ the file, not inferred.
     classification error is the interesting part: a skip whose message says "not found" is an evidence
     problem, not an environment problem, and reading the counts without reading the messages let me
     label 40 silently-disabled tests as deliberately-declined ones.
+15. Closing `V2` falsified three of this report's own sentences and one more arrived after the fact.
+    (a) The finding's control claim was that "round-trip tests stay green" under a swapped
+    `txRoot`/`receiptRoot`; the swap did redden the pre-existing
+    `UT_BatchSerializer.Commitment_ByteLayout_MatchesDocumentedOffsets`, so the property was guarded —
+    against the encoder's own documented offsets. (b) "Nothing executed both sides of a pairing" is
+    likewise too wide: `UT_Mvp_Phase3_RestrictedFraudProofV4.cs:95-102` does run the encoder, it just
+    hands the bytes to an off-chain verifier. What survives, and is what §5 now says, is narrower —
+    no test fed an encoder's bytes to a **deployed contract**. (c) §11's bullet claimed the Rust side of
+    `StateWitnessV1` and `MerkleProofSerializer` was "read, not cross-executed against the .NET
+    encoder"; `StateWitnessV1` was already pinned through one tracked golden file read by both
+    languages, and the three `outbound_v1` roots pair them too, though by pasting the same digest into
+    `native.rs` and `UT_CanonicalNativeExecutionAdapter.cs` — which is the honest caveat on the "first
+    cross-language vector held in one file" claim in §5. (d) After item 13's mechanical citation scan had
+    passed, this branch added a nine-line step to `build.yml`, silently invalidating every `build.yml`
+    reference at or after line 302 in both reports. Item 13's scan cannot catch that class, because it
+    checks a citation against the tree as it was when the scan ran; eleven sites were renumbered by hand
+    against disk (`385-387`→`394-396`, `516`→`527`, `520`→`529`, `532`→`541`, `565-569`→`574-578`,
+    `592-599`→`601-608` in this report and its mirror, and `600-607`→`609-616` in the 2026-08-29 report
+    plus its mirror). Any future edit to a file this report cites at fixed line numbers has the same
+    effect, so the rule this pass learned is that a CI edit and a report edit do not belong in the same
+    commit unless the renumbering rides with them.
 
 ## 9. What held up under execution
 
@@ -1602,7 +1789,8 @@ Split by whether it can land now.
    **not** closed: the `Multisig` and `Optimistic` on-chain verifiers remain unimplemented, which is
    `doc.md` §7.5 stage 0/1 work rather than a routing-table fix, and `ShippedConfigWarningPolicy` is the
    tripwire that says delete the caveat when it lands. See §4 H18's status block.
-9. `V2` (documentation half) — **done on this branch, and the "or add the enum member" alternative is
+9. `V2` (both halves) — **the second half first read as uncloseable and then closed differently.**
+   *Documentation half:* **the "or add the enum member" alternative is
    refuted rather than declined.** `BatchSerializer.cs:12-14` now separates the two boundaries it had
    collapsed: the commitment header is the only L1 ABI, while the 332-byte public-inputs form never
    reaches the contract yet is the signed preimage, the artifact digest, the gate on execution and the
@@ -1615,10 +1803,27 @@ Split by whether it can land now.
    `CurrentDocumentation_NamesOnlyDeclaredChainModeMembers` (repo-wide, both spellings, dated narrative
    and evidence exempted by path) plus `Catalog_EveryTemplateNameADeclaredChainMode` replace the
    copy-paste discipline. Full solution 38 assemblies / **2,923 tests** / 0 failed / 5 skipped
-   (item 8's 2,921 plus the two new guards). What is deliberately **not** closed is the half the
-   finding is named for: `NeoHub.Contracts.VmTests` still has zero `ProjectReference`s, so nothing
-   cross-executes the .NET encoder against the Rust reader — §11's first bullet is unchanged. See §5
-   V2's status block.
+   (item 8's 2,921 plus the two new guards).
+   *Cross-boundary half:* the finding is named for a missing test, and the test its own text proposed —
+   "a single test project that references both sides" — cannot exist, because
+   `NeoHub.Contracts.VmTests` pulls its own `Neo` assembly through `Neo.SmartContract.Testing`. So the
+   lock runs through data neither side owns: `tests/Shared/CanonicalEncodingVectors.cs` golden bytes for
+   all four boundary formats, then `UT_CanonicalEncodingParity.cs` (12 tests) against the encoders and
+   `UT_CanonicalEncodingParity_Vm.cs` (8 tests) against the **deployed NEF** through the VM assembly's
+   own offset table — the first time any encoder's bytes were executed by a contract. A Rust crate can
+   take no .NET reference either, so a third leg exports the same vectors as
+   `tests/Shared/canonical_encoding_vectors.hex`, pins that export field-by-field in
+   `SharedHexExport_MatchesTheVectors`, and `include_str!`s it from
+   `canonical_encoding_parity.rs` (3 tests) to bind `hash_public_inputs`' parameter order and
+   `merkle_root`'s fold to the .NET bytes. That leg would have been decorative as written —
+   `neo-execution-core` had no pull-request lane at all — so `build.yml:302-309` adds
+   `cargo test --locked -p neo-execution-core`. Six controls were run; the fifth perturbed one byte of
+   the export and reddened both languages while leaving the VM assembly green, and the first falsified
+   this finding's own wording (§8 item 15). Two side effects worth keeping: the two `ChainRegistry`
+   admission branches that had never run now do, and `MerkleProofSerializer.cs:4-7`'s claim that
+   SharedBridge parses this framing was replaced by its real consumers. Full solution 38 assemblies /
+   **2,943 tests** / 0 failed / 5 skipped, plus 17/17 in `neo-execution-core`. What remains open is
+   narrower than the original bullet and is restated in §11. See §5 V2's status block.
 
 **Needs a decision before code:**
 
@@ -1666,9 +1871,16 @@ Split by whether it can land now.
 
 ## 11. Not verified in this pass
 
-- The .NET ↔ Rust half of §V2: no test proves the guest or host reads `StateWitnessV1` /
-  `MerkleProofSerializer` bytes the way the C# writer emits them. The Rust side was read, not
-  cross-executed against the .NET encoder.
+- What is left of the .NET ↔ Rust half of §V2 after the third leg landed: nothing that *can* be
+  cross-pinned has been left out, but three of the four boundary formats have no Rust counterpart to
+  pin against. `bridge/neo-execution-core` rebuilds the 332-byte public-inputs preimage
+  (`src/hashing.rs:283-314`, now cross-pinned) and folds Merkle roots (`:36-54`, now cross-pinned); it
+  has **no** encoder or parser for the 321-byte commitment header, none for the 91-byte
+  `L2ChainConfigSerializer` form, and none for the 48+32·N `MerkleProofSerializer` framing — the only
+  sibling array Rust reads is the forced-inclusion leg of the execution payload (`wire.rs:355-373`),
+  which carries a `u64` nonce and no path bitmap and is therefore a different encoding. So for those
+  three the risk is not drift between two readers, it is that only one implementation exists, and
+  no amount of shared data changes that. `StateWitnessV1` was already two-sided before this branch.
 - Rebuilding the SP1 guest: no `cargo prove` toolchain here, so `bridge/neo-zkvm-guest`'s current
   artifact was not reproduced (prior `A4`-class risk, unquantified for SP1).
 - True growth curves for `H10`/`H11`: no benchmark harness exists, and creating one was out of

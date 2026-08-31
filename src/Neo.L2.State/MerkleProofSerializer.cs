@@ -1,10 +1,14 @@
 namespace Neo.L2.State;
 
 /// <summary>
-/// Canonical wire encoding for <see cref="MerkleProof"/>. The L1 NeoHub.SharedBridge contract
-/// reads this format off the wire when verifying user withdrawal proofs, so the byte layout is
-/// part of the off-chain ↔ on-chain contract — do not break it without coordinating the
-/// matching contract change.
+/// Canonical wire encoding for <see cref="MerkleProof"/>. The byte layout is part of an
+/// off-chain ↔ on-chain contract and is not breakable without a matching change:
+/// <c>NeoHub.RestrictedExecutionFraudVerifier</c> embeds this framing as a length-prefixed blob in
+/// the v4 payload and requires that blob to be exactly <see cref="HeaderSize"/> bytes (a one-tx
+/// batch has a single-leaf tree, hence no siblings). L1 withdrawal proofs do <em>not</em> travel in
+/// this format — <c>NeoHub.SharedBridge.FinalizeWithdrawalWithProof</c> forwards
+/// <c>siblings[]</c> and <c>leafIndex</c> as structured arguments to
+/// <c>SettlementManager.verifyWithdrawalLeafWithProof</c>.
 /// </summary>
 /// <remarks>
 /// Layout (all little-endian):

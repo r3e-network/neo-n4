@@ -5,6 +5,86 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — V2 (cross-boundary half): the four canonical encodings are now pinned across .NET, the deployed contracts and Rust — 2026-08-31
+
+- `AGENTS.md`'s "off-chain ↔ on-chain encodings are paired" rule had no test behind it. Each side was
+  in fact guarded — `UT_BatchSerializer.Commitment_ByteLayout_MatchesDocumentedOffsets`,
+  `PublicInputs_ByteLayout_MatchesDocumentedOffsets`,
+  `UT_L2ChainConfigSerializer.Encode_LayoutMatchesSpec`,
+  `UT_MerkleProofSerializer.Encode_LayoutMatchesSpec` — but every one of those compares an encoder to
+  **its own** documented offsets. No test had ever fed an encoder's bytes to a deployed contract, and
+  two of those pins are partial: the public-inputs one leaves eight of the ten mid-buffer roots
+  unpinned.
+- The fix the finding proposed — "a single test project that references both sides" — cannot exist.
+  `tests/NeoHub.Contracts.VmTests.csproj` carries zero `ProjectReference`s on purpose:
+  `Neo.SmartContract.Testing` ships its own `Neo`, and referencing `Neo.L2.Batch` would resolve
+  `$(NeoCorePath)\Neo\Neo.csproj` beside it. So the lock runs through **data neither side owns**, the
+  pattern `H18` established with `ProofRoutingExpectations.cs`: `tests/Shared/CanonicalEncodingVectors.cs`
+  (compiled into every test assembly by `tests/Directory.Build.props`) carries golden bytes for the
+  321-byte commitment header, the 332-byte public inputs, the 91-byte chain config and the 48+32·N
+  proof framing, plus a five-leaf withdrawal tree with per-leaf siblings, so the header layout and the
+  Merkle fold bind each other. Every 32-byte field has a distinct fill and `firstBlock`/`lastBlock`
+  differ from `batchNumber`, because every hand-rolled header in the repo sets all three equal. The
+  bytes came from a throwaway third implementation in a language neither side uses — a spec, not a
+  snapshot of the code under test.
+- Three executed legs. `tests/Neo.L2.IntegrationTests/UT_CanonicalEncodingParity.cs` (**12 tests**,
+  40 → 52) pins each encoder to the vectors, including that `publicInputHash` at commitment offset 284
+  is `Hash256` of the public-inputs vector and that each of the seven single-byte config fields moves
+  exactly one byte at its own offset.
+  `tests/NeoHub.Contracts.VmTests/UT_CanonicalEncodingParity_Vm.cs` (**8 tests**, 585 → 593) drives the
+  **deployed NEF** through that assembly's own offset table — one of **seven** places the header layout
+  is restated — so real `ChainRegistry.registerChain` reads every semantic byte of the golden config,
+  real `submitBatch` → `finalizeBatch` settles the golden commitment and returns its roots from
+  `GetCanonicalStateRoot` / `GetFinalizedTxRoot` / `GetL2ToL1MessageRoot` / `GetL2ToL2MessageRoot`, and
+  both on-chain Merkle folds accept all five leaves and reject a tampered sibling, a wrong `leafIndex`
+  and an unknown batch. A Rust crate can take no .NET reference either, so the third leg ships the same
+  bytes as data: `tests/Shared/canonical_encoding_vectors.hex` (26 keys) is pinned field-by-field by
+  `SharedHexExport_MatchesTheVectors` — which also fails if the export declares a key no assertion
+  reads — and read via `include_str!` by
+  `bridge/neo-execution-core/tests/canonical_encoding_parity.rs` (**3 tests**), asserting that the
+  twelve-parameter `hash_public_inputs` concatenates in the order `EncodePublicInputs` writes and that
+  `merkle_root` folds the five leaves to the root `MerkleTree` produces. This is the repo's first
+  cross-language vector held in **one** file; the three `outbound_v1` digests that already pair the
+  languages are pasted twice.
+- That third leg would have been decorative: `grep -rn "neo-execution-core" .github/workflows` was
+  empty. The only command reaching that crate's tests was `cargo test --workspace` inside the
+  `workflow_dispatch`-only `sp1-release-gates` — finding `V1`, one crate nearer the money path.
+  `.github/workflows/build.yml:302-309` now runs `cargo test --locked -p neo-execution-core` in the
+  `bridge` job.
+- Four things surfaced only because the pairings were executed.
+  `src/Neo.L2.State/MerkleProofSerializer.cs:4-7` asserted that L1 `NeoHub.SharedBridge` reads this
+  framing off the wire; it does not — `FinalizeWithdrawalWithProof:310-337` forwards structured
+  `siblings[]`/`leafIndex` arguments, and the only on-chain consumer,
+  `RestrictedExecutionFraudVerifier`, checks the blob's *length* against `MerkleProofHeaderSize = 48`
+  (`:544`) and nothing inside it. The doc now names the real consumers.
+  `ChainRegistryContract.cs:309-310` slices `verifier` at literal `24` and `bridgeAdapter` at `44`,
+  and **neither** admission branch had ever run — existing tests cover only permissionless mode and the
+  invalid-mode rejects, so a one-sided layout shift there would make the gate test the approval-set
+  membership of the wrong field and let an unapproved verifier register: `C2`'s failure mode one gate
+  earlier. `ComputePublicInputHash:452-474` rebuilds the preimage from header bytes `0..11` plus eight
+  roots and `IsProofTypeCompatible` reads offset 316, so `firstBlock` (12) and `lastBlock` (20) are
+  bound by neither digest nor assert and the L1 block range a batch claims is opaque to L1 — recorded
+  as its own §6 item rather than fixed here, since closing it changes the L1 ABI.
+- Six controls, one of which falsified this finding's own wording: swapping `txRoot`/`receiptRoot`
+  inside `BatchSerializer` did **not** pass silently (the pre-existing layout test reddened), so
+  "round-trip tests stay green" and "nothing executed both sides of a pairing" are both replaced by the
+  narrower claim above. Perturbing one byte of the shared export reddened both languages while leaving
+  the VM assembly green — which is what proves the export is its own leg; and moving the two root
+  offsets in the VM table made the contract itself abort with `publicInputHash not bound to commitment
+  roots`, a control kept permanently as
+  `SettlementManager_RejectsTheGoldenCommitmentWhenOneRootOffsetMoves`.
+- Tests: full solution 38 assemblies / **2,943 tests** / 0 failed / 5 skipped (item 9's 2,923 plus the
+  12 + 8 above); `cargo test -p neo-execution-core` **17/17**, and the new file is clippy-clean under
+  `-D warnings`. `dotnet format --verify-no-changes` clean. No contract, encoding or runtime behaviour
+  changed — the additions are tests, one doc-comment correction, one CI step and the audit reports.
+  `cargo fmt --all -- --check` (local rustfmt 1.9.0-stable) flags one pre-existing ordering defect at
+  `bridge/neo-execution-core/src/wire.rs:1277`, which has gone unnoticed because that check sits in the
+  dispatch-only lane; this branch's new Rust file is clean, and `wire.rs` is deliberately untouched here.
+- Audit: §5 V2's status block, §10 item 9, §11's first bullet and §8 item 15 in
+  `docs/audit/subsystem-verification-audit-2026-08-30.md`, mirrored into `docs/zh/`. Adding the CI step
+  shifted every later `build.yml` line by 9, so eleven citations in these two reports and their mirrors
+  were renumbered against disk.
+
 ### Fixed — V2 (docs half): `ChainMode.L2RiscV` never existed, and the public-inputs encoder is not an L1 ABI — 2026-08-31
 
 - Audit §10 item 9 asked whether to correct the docs or add the enum member. **The docs were wrong.**
@@ -45,9 +125,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Negative control: a line added to `README.md` produced both
   `README.md:471 ChainMode.L2RiscV` and `README.md:471 "chainMode": "L2RiscV"`, and the guard had
   already caught its own comment on its first run; `README.md` was restored byte-identical.
-- **Not closed, deliberately:** the half `V2` is named for. `tests/NeoHub.Contracts.VmTests` still has
-  zero `ProjectReference`s, so no test cross-executes the .NET encoders against the Rust reader —
-  audit §11's first bullet stands unchanged, and the pairing is still maintained by hand.
+- ~~**Not closed, deliberately:** the half `V2` is named for.~~ **Superseded the same day** by the
+  entry above. What that entry claimed — `tests/NeoHub.Contracts.VmTests` has zero
+  `ProjectReference`s, so no test cross-executes the .NET encoders against the Rust reader — was true,
+  and the closure went through shared vectors instead of through a reference, because a VM project that
+  carries both cannot be built at all.
 - Tests: full solution 38 assemblies / **2,923 tests** / 0 failed / 5 skipped (two new `[TestMethod]`
   methods over item 8's 2,921) — `Neo.Stack.Cli.UnitTests` 195 → 196, `Neo.Hub.Deploy.UnitTests`
   115 → 116, and `NEO_N4_REQUIRE_FRESH_MANIFESTS=1 dotnet test tests/Neo.Hub.Deploy.UnitTests` is

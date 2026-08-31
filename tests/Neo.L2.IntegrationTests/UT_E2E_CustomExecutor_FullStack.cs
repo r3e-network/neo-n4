@@ -118,6 +118,15 @@ public class UT_E2E_CustomExecutor_FullStack
                 Transactions = txs,
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = Ctx(batchNum),
+                BlockTimeline = new[]
+                {
+                    new L2BatchBlock
+                    {
+                        BlockIndex = (ulong)(100 * batchNum),
+                        BlockTimestamp = Ctx(batchNum).FirstBlockTimestamp,
+                        TransactionCount = txs.Length,
+                    },
+                },
             };
             var execResult = await batchExecutor.ApplyBatchAsync(execReq);
 
@@ -265,6 +274,10 @@ public class UT_E2E_CustomExecutor_FullStack
             Transactions = txs,
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = Ctx(1),
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 100, BlockTimestamp = Ctx(1).FirstBlockTimestamp, TransactionCount = txs.Length },
+            },
         };
         var execResult = await batchExecutor.ApplyBatchAsync(execReq);
 

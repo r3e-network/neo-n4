@@ -103,6 +103,10 @@ public class UT_E2E_RealVM_FullStack
                 Transactions = new[] { (ReadOnlyMemory<byte>)serializedTx },
                 L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
                 BlockContext = Ctx(batchNum),
+                BlockTimeline = new[]
+                {
+                    new L2BatchBlock { BlockIndex = (ulong)batchNum, BlockTimestamp = Ctx(batchNum).FirstBlockTimestamp, TransactionCount = 1 },
+                },
             };
             var result = await batchExecutor.ApplyBatchAsync(req);
 
@@ -171,6 +175,10 @@ public class UT_E2E_RealVM_FullStack
             Transactions = new[] { (ReadOnlyMemory<byte>)serializedTx },
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = Ctx(1),
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 1, BlockTimestamp = Ctx(1).FirstBlockTimestamp, TransactionCount = 1 },
+            },
         };
         var result = await batchExecutor.ApplyBatchAsync(req);
 

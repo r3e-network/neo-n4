@@ -53,6 +53,7 @@ public class UT_ChallengeOrchestrator_WithBisection
                 SequencerCommitteeHash = UInt256.Zero,
                 Network = 11,
             },
+            BlockTimeline = Array.Empty<L2BatchBlock>(),
         };
     }
 
@@ -270,6 +271,10 @@ public class UT_ChallengeOrchestrator_WithBisection
                 LastBlockTimestamp = 1000,
                 SequencerCommitteeHash = UInt256.Zero,
                 Network = 11,
+            },
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 100, BlockTimestamp = 1000, TransactionCount = txs.Length },
             },
         };
     }

@@ -35,10 +35,14 @@ public sealed class BatchBuilder
         _batch = new L2Batch(chainId, batchNumber, firstBlock, preStateRoot);
     }
 
-    /// <summary>Mark a new L2 block as included in the batch (raises <see cref="L2Batch.LastBlock"/>).</summary>
-    public BatchBuilder AddBlock(ulong blockIndex)
+    /// <summary>
+    /// Mark a new L2 block as included in the batch (raises <see cref="L2Batch.LastBlock"/>).
+    /// The timestamp feeds the execution timeline so transactions of this block execute under its
+    /// own index and timestamp.
+    /// </summary>
+    public BatchBuilder AddBlock(ulong blockIndex, ulong blockTimestamp)
     {
-        _batch.AddBlock(blockIndex);
+        _batch.AddBlock(blockIndex, blockTimestamp);
         return this;
     }
 
@@ -127,6 +131,7 @@ public sealed class BatchBuilder
             PreStateRoot = _batch.PreStateRoot,
             Transactions = _batch.Transactions,
             L1MessagesConsumed = _batch.L1MessagesConsumed,
+            BlockTimeline = _batch.BlockTimeline,
             BlockContext = ctx,
         };
     }
@@ -166,7 +171,8 @@ public sealed class BatchBuilder
             _batch.Transactions,
             _batch.L1MessagesConsumed,
             context,
-            forcedProofs);
+            forcedProofs,
+            _batch.BlockTimeline);
     }
 
     /// <summary>

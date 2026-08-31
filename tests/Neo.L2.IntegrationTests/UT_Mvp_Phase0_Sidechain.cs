@@ -142,6 +142,10 @@ public class UT_Mvp_Phase0_Sidechain
             Transactions = new[] { txBytes },
             L1MessagesConsumed = System.Array.Empty<CrossChainMessage>(), // already processed above
             BlockContext = blockContext,
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 100, BlockTimestamp = blockContext.FirstBlockTimestamp, TransactionCount = 1 },
+            },
         };
         var execResult = await executor.ApplyBatchAsync(execRequest);
 
@@ -217,6 +221,7 @@ public class UT_Mvp_Phase0_Sidechain
         public ValueTask<TransactionExecutionResult> ExecuteAsync(
             ReadOnlyMemory<byte> serializedTx,
             BatchBlockContext batchContext,
+            L2BlockContext blockContext,
             CancellationToken cancellationToken = default)
             => ValueTask.FromResult(new TransactionExecutionResult
             {

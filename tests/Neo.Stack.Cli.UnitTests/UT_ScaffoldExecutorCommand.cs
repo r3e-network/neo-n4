@@ -69,6 +69,8 @@ public class UT_ScaffoldExecutorCommand
         StringAssert.Contains(src, "namespace FooExecutor;");
         StringAssert.Contains(src, "public sealed class FooExecutor : ITransactionExecutor");
         StringAssert.Contains(src, "public ValueTask<TransactionExecutionResult> ExecuteAsync");
+        StringAssert.Contains(src, "L2BlockContext blockContext",
+            "emitted executor must accept the per-block execution context (per-block header seam)");
         StringAssert.Contains(src, "Opcode.NoOp", "must contain the placeholder NoOp dispatch");
         StringAssert.Contains(src, "// Add your chain's opcode handlers here.",
             "must contain the customization marker");

@@ -11,9 +11,14 @@ namespace Neo.L2.Executor;
 public sealed class ReferenceTransactionExecutor : ITransactionExecutor
 {
     /// <inheritdoc />
+    /// <remarks>
+    /// This executor reads no block-context fields — its receipt is a hash of the transaction
+    /// bytes alone — so the per-block header is accepted and deliberately unused.
+    /// </remarks>
     public ValueTask<TransactionExecutionResult> ExecuteAsync(
         ReadOnlyMemory<byte> serializedTx,
         BatchBlockContext batchContext,
+        L2BlockContext blockContext,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

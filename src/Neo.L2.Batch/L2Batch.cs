@@ -34,6 +34,14 @@ public sealed class L2Batch
     /// <summary>L1 inbox messages that this batch consumes.</summary>
     public IReadOnlyList<CrossChainMessage> L1MessagesConsumed => _l1Messages;
 
+    /// <summary>
+    /// Per-block attribution of <see cref="Transactions"/> in execution order. Transactions added
+    /// before the first <see cref="AddBlock"/> call (forced-inclusion entries) are attributed to
+    /// the first block.
+    /// </summary>
+    /// <remarks>See doc.md §7.2.</remarks>
+    public IReadOnlyList<L2BatchBlock> BlockTimeline => BuildBlockTimeline();
+
     /// <summary>Withdrawals emitted in this batch (inserted into the withdrawal Merkle tree).</summary>
     public IReadOnlyList<WithdrawalRequest> Withdrawals => _withdrawals;
 
@@ -48,6 +56,7 @@ public sealed class L2Batch
     private readonly List<WithdrawalRequest> _withdrawals = new();
     private readonly List<CrossChainMessage> _l2ToL1 = new();
     private readonly List<CrossChainMessage> _l2ToL2 = new();
+    private readonly List<(ulong Index, ulong Timestamp, int FirstTxPos)> _blockRuns = new();
     private bool _sealed;
 
     /// <summary>
@@ -70,7 +79,7 @@ public sealed class L2Batch
     /// <summary>Number of transactions accumulated so far.</summary>
     public int TransactionCount => _transactions.Count;
 
-    internal void AddBlock(ulong blockIndex)
+    internal void AddBlock(ulong blockIndex, ulong blockTimestamp)
     {
         EnsureNotSealed();
         if (blockIndex < FirstBlock)
@@ -80,7 +89,44 @@ public sealed class L2Batch
         if (blockIndex != LastBlock && blockIndex != LastBlock + 1)
             throw new ArgumentOutOfRangeException(nameof(blockIndex),
                 $"blockIndex {blockIndex} is non-contiguous after {LastBlock}; blocks must be sequential with no gaps");
+        if (_blockRuns.Count > 0 && blockTimestamp < _blockRuns[^1].Timestamp)
+            throw new ArgumentOutOfRangeException(nameof(blockTimestamp),
+                $"blockTimestamp {blockTimestamp} precedes the previous block's timestamp {_blockRuns[^1].Timestamp}");
         LastBlock = blockIndex;
+        _blockRuns.Add((blockIndex, blockTimestamp, _transactions.Count));
+    }
+
+    /// <summary>
+    /// Materialize the per-block execution timeline. Transactions added before the first
+    /// <see cref="AddBlock"/> call (forced-inclusion entries) fold into the first block's
+    /// entry, so the first run spans from the start of the transaction list while later runs
+    /// span from their first transaction position to the next run's (or the end of the batch).
+    /// </summary>
+    internal IReadOnlyList<L2BatchBlock> BuildBlockTimeline()
+    {
+        if (_blockRuns.Count == 0)
+            return Array.Empty<L2BatchBlock>();
+        var timeline = new L2BatchBlock[_blockRuns.Count];
+        for (var index = 0; index < _blockRuns.Count; index++)
+        {
+            var run = _blockRuns[index];
+            var lastPosition = index + 1 < _blockRuns.Count
+                ? _blockRuns[index + 1].FirstTxPos
+                : _transactions.Count;
+            // FirstTxPos is the transaction count when AddBlock ran; the batcher marks the
+            // block before feeding it its transactions, so run 0 must also swallow everything
+            // appended before it (the forced-inclusion entries) or their count would vanish
+            // from the timeline and the per-block counts could no longer sum to the batch's
+            // transaction count.
+            var firstPosition = index == 0 ? 0 : run.FirstTxPos;
+            timeline[index] = new L2BatchBlock
+            {
+                BlockIndex = run.Index,
+                BlockTimestamp = run.Timestamp,
+                TransactionCount = lastPosition - firstPosition,
+            };
+        }
+        return timeline;
     }
 
     internal void AddTransaction(ReadOnlyMemory<byte> serializedTx)

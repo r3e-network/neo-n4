@@ -47,14 +47,19 @@ public interface ITransactionExecutor
 
     /// <summary>
     /// Execute a single transaction against the current state, return its receipt.
-    /// Implementations MUST be deterministic per the SPEC.md contract.
+    /// Implementations MUST be deterministic per the SPEC.md contract and MUST surface the
+    /// executing L2 block's <paramref name="blockContext"/> index and timestamp through the
+    /// engine's persisted block header (<c>Runtime.Block.Index</c> / <c>Runtime.Time</c>) —
+    /// never the batch context's L1 finalized height or frozen first-block timestamp.
     /// </summary>
     /// <param name="serializedTx">Canonical Neo-serialized transaction bytes.</param>
-    /// <param name="batchContext">Batch-level context (block height, timestamp, network…).</param>
+    /// <param name="batchContext">Batch-level context (L1 finalized height, network…).</param>
+    /// <param name="blockContext">The L2 block this transaction belongs to (doc.md §7.2).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     ValueTask<TransactionExecutionResult> ExecuteAsync(
         ReadOnlyMemory<byte> serializedTx,
         BatchBlockContext batchContext,
+        L2BlockContext blockContext,
         CancellationToken cancellationToken = default);
 }
 

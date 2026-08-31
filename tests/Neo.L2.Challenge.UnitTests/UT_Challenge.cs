@@ -25,6 +25,10 @@ public class UT_Challenge
             SequencerCommitteeHash = UInt256.Zero,
             Network = 0x4F454E,
         },
+        BlockTimeline = new[]
+        {
+            new L2BatchBlock { BlockIndex = 100, BlockTimestamp = 1_700_000_000_000, TransactionCount = 1 },
+        },
     };
 
     private static L2BatchCommitment MkCommitment(uint chainId, ulong batchNumber, UInt256 preStateRoot, UInt256 claimedPost) => new()

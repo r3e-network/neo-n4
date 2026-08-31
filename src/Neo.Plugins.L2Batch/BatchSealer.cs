@@ -238,7 +238,7 @@ public sealed class BatchSealer
             DrainL1Messages(builder);
             DrainForcedTransactions(builder);
         }
-        builder.AddBlock(blockIndex);
+        builder.AddBlock(blockIndex, blockTimestamp);
         var txIndex = 0;
         foreach (var tx in rawTransactions)
         {

@@ -128,6 +128,10 @@ public class UT_Mvp_Phase3_OptimisticChallenge
             Transactions = txs,
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = Ctx(),
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 100, BlockTimestamp = Ctx().FirstBlockTimestamp, TransactionCount = txs.Length },
+            },
         };
 
         var orchestrator = new ChallengeOrchestrator(new HonestReplayer());
@@ -187,6 +191,10 @@ public class UT_Mvp_Phase3_OptimisticChallenge
             Transactions = txs,
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = Ctx(),
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 100, BlockTimestamp = Ctx().FirstBlockTimestamp, TransactionCount = txs.Length },
+            },
         };
 
         var orchestrator = new ChallengeOrchestrator(new HonestReplayer());
@@ -230,6 +238,10 @@ public class UT_Mvp_Phase3_OptimisticChallenge
             Transactions = txs,
             L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
             BlockContext = Ctx(),
+            BlockTimeline = new[]
+            {
+                new L2BatchBlock { BlockIndex = 100, BlockTimestamp = Ctx().FirstBlockTimestamp, TransactionCount = txs.Length },
+            },
         };
 
         var fraudProof = await new ChallengeOrchestrator(new HonestReplayer()).InspectAsync(commitment, inputs);

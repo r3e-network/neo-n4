@@ -104,10 +104,12 @@ public sealed class RiscVTransactionExecutor : ITransactionExecutor
     public async ValueTask<TransactionExecutionResult> ExecuteAsync(
         ReadOnlyMemory<byte> serializedTx,
         BatchBlockContext batchContext,
+        L2BlockContext blockContext,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(batchContext);
+        ArgumentNullException.ThrowIfNull(blockContext);
         var rawHash = new UInt256(Crypto.Hash256(serializedTx.Span));
 
         Transaction transaction;
@@ -145,6 +147,7 @@ public sealed class RiscVTransactionExecutor : ITransactionExecutor
                 stateTransaction,
                 transaction,
                 batchContext,
+                blockContext,
                 _settings,
                 contract,
                 _gasLimit,

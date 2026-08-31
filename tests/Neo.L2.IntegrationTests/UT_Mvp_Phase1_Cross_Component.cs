@@ -105,7 +105,7 @@ public class UT_Mvp_Phase1_Cross_Component
             builder.AddTransaction(entry.SerializedTx);
             await src.ConfirmConsumedAsync(entry.Nonce);
         }
-        builder.AddBlock(100);
+        builder.AddBlock(100, 1_700_000_000_000);
         builder.WithBlockContext(SampleContext());
 
         Assert.AreEqual(2, builder.Batch.TransactionCount);
@@ -221,7 +221,7 @@ public class UT_Mvp_Phase1_Cross_Component
             builder.AddTransaction(e.SerializedTx);
             await src.ConfirmConsumedAsync(e.Nonce);
         }
-        builder.AddBlock(100);
+        builder.AddBlock(100, 1_700_000_000_000);
         builder.WithBlockContext(SampleContext());
 
         var executor = new ReferenceBatchExecutor(

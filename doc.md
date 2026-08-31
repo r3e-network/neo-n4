@@ -614,6 +614,29 @@ Game Chain: 1 分钟 - 5 分钟
 Enterprise Chain: 可配置
 ```
 
+### 7.2.1 Per-block 执行头（Block Timeline）
+
+Batch 内每一笔交易必须在自己的 L2 block 头下执行：executor 传给引擎的 persisted block
+header 的 index 与 timestamp 必须来自该交易所属 block（即 `Runtime.Block.Index` /
+`Runtime.Time`），而不是 batch 级的 `L1FinalizedHeight` 或冻结的 `FirstBlockTimestamp`。
+
+Batcher 在构造执行请求时携带 in-memory 的 per-block timeline（`L2BatchBlock`：
+`BlockIndex` / `BlockTimestamp` / `TransactionCount`），并满足以下 fail-closed 不变量：
+
+```text
+- timeline 非空 ⇔ batch 含交易
+- BlockIndex 连续，timestamp 单调不减，且落在 blockContext 的 [First, Last] 区间内
+- Σ TransactionCount == batch 交易总数
+- 首条目锚定 batch 的 firstBlock，条目数 == lastBlock - firstBlock + 1
+- 空 block（TransactionCount == 0）不承载执行，其头不得被任何交易继承
+```
+
+Timeline 是 batcher ↔ executor 的内存协议缝，不属于 `ExecutionPayloadV1`、witness 或
+public inputs（`blockContextHash` 仍只覆盖 5 字段 `BatchBlockContext`）。Payload V2 若把
+timeline 提升为承诺内容，需要用 Linux `cargo prove` 重建 guest blob；在此之前，确定性
+合约代码在 guest/proof 路径中禁止读取 `Runtime.Time` / block index，
+`L1FinalizedHeight` 仅作为元数据。
+
 ---
 
 ## 7.3 StateRootGenerator
@@ -720,6 +743,9 @@ ApplyBatch(
   messageRoot
 )
 ```
+
+`blockContext` 是 batch 级上下文（参与 public-inputs hash）；执行期的 block header
+（`Runtime.Block.Index` / `Runtime.Time`）来自 per-block timeline（§7.2.1），两者不可混用。
 
 也就是说：
 

@@ -11,7 +11,8 @@ ApplyBatch(
     preStateRoot:    UInt256,
     orderedTxs:      bytes[],
     l1Messages:      CrossChainMessage[],
-    blockContext:    BatchBlockContext
+    blockContext:    BatchBlockContext,
+    blockTimeline:   L2BatchBlock[]
 ) → (
     postStateRoot:    UInt256,
     txRoot:           UInt256,
@@ -23,11 +24,25 @@ ApplyBatch(
 )
 ```
 
+`blockTimeline` attributes every transaction of the batch to the L2 block it belongs to
+(`BlockIndex`, `BlockTimestamp`, `TransactionCount`). It is an in-memory batcher↔executor
+seam: it is validated fail-closed but is not part of `ExecutionPayloadV1`, the witness, or
+the public-inputs preimage. `blockContext` remains the batch-level context hashed into
+public inputs.
+
 ## Determinism contract
 
 The output is a pure function of the inputs. The executor MUST NOT read:
 
-- the wall clock (use `blockContext.FirstBlockTimestamp` / `LastBlockTimestamp`);
+- the wall clock. The execution header comes from `blockTimeline`: a transaction's
+  `Runtime.Block.Index` / `Runtime.Time` (the persisted block header) MUST be the
+  `BlockIndex` / `BlockTimestamp` of the timeline entry that transaction is attributed to
+  — never `blockContext.L1FinalizedHeight` or the frozen `FirstBlockTimestamp`. The batch
+  context's timestamp range is metadata for validation and hashing only. Until a payload
+  V2 promotes the timeline into the committed inputs (which requires a guest-blob rebuild
+  via Linux `cargo prove`), deterministic contract code proven by the N4 genesis V1
+  profile MUST NOT read `Runtime.Time` or the block index, because the guest cannot
+  observe per-block headers yet;
 - any randomness source (RNG must be derived from `blockContext` + the storage state);
 - any environment variable, config file, or CLI argument that is not part of the L2's `L2ChainConfig` or `ProtocolSettings`;
 - the file system, network sockets, or any IPC channel;
@@ -43,6 +58,7 @@ The executor MUST NOT write:
 
 1. **Apply L1 messages first.** For each `l1Messages[i]`, in the order given, the executor applies the pinned N4 genesis V1 transition below. Replay protection uses the native L2 bridge's exact per-`(sourceChain, nonce)` key. The executor MUST NOT skip or reorder. Inbox validation or adapter failure is fatal to the whole batch; it is not a transaction `FAULT` and cannot produce a synthetic receipt.
 2. **Apply transactions next.** Before execution starts, every `orderedTxs[i]` is decoded as a complete canonical Neo `Transaction` (unsigned fields, signers/scopes/rules, attributes, script, and witnesses). A decode or adapter error is fatal to the batch. Decoded transactions then execute `tx.Script` in order. Neo N4 L2 production uses NeoVM2/RISC-V; the NeoVM compatibility path uses the same opcode prices, bounded gas, block context, signer scopes, deployed contract code/manifests, and stateful syscalls as `ApplicationEngine`. A VM `FAULT` produces a failure receipt and rolls back that transaction's storage and notifications.
+   Per-block attribution: the timeline is validated fail-closed against the transaction count and the batch context's timestamp range (contiguous indexes, non-decreasing timestamps, counts summing to the transaction count). A timeline that does not describe the sealed transaction list is a fatal protocol error — hand-assembled requests are revalidated even though the sealer validated them already. Each transaction executes under its own timeline entry's header; a zero-`TransactionCount` entry hosts no execution, so no transaction may inherit its header.
 3. **Seal outboxes.** After all transactions complete, the executor computes:
    - `txRoot` = MerkleTree(txHash[0], …, txHash[N-1])
    - `receiptRoot` = MerkleTree(receiptHash[0], …, receiptHash[N-1])

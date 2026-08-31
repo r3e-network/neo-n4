@@ -45,7 +45,7 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction([(byte)OpCode.PUSH1, (byte)OpCode.RET]),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsFalse(runnerCalled);
         Assert.IsFalse(result.Receipt.Success);
@@ -63,7 +63,7 @@ public class UT_RiscVTransactionExecutor
         await Assert.ThrowsExactlyAsync<DllNotFoundException>(
             async () => await executor.ExecuteAsync(
                 RiscVTestData.BuildTransaction([(byte)OpCode.RET]),
-                RiscVTestData.Context));
+                RiscVTestData.Context, RiscVTestData.BlockContext));
     }
 
     [TestMethod]
@@ -74,7 +74,7 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction([(byte)OpCode.RET]),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.AreEqual(TransactionEffectsProfile.CanonicalNativeV1, executor.EffectsProfile);
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
@@ -120,7 +120,7 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
         CollectionAssert.AreEqual(new byte[] { 0x02 }, GetContractValue(store, contract.Id, existingKey));
@@ -157,7 +157,7 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsFalse(result.Receipt.Success);
         Assert.IsNull(GetContractValue(store, contract.Id, key));
@@ -190,7 +190,7 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsFalse(result.Receipt.Success);
         Assert.IsNull(GetContractValue(store, contract.Id, key));
@@ -220,7 +220,7 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsFalse(result.Receipt.Success);
         Assert.IsNull(GetContractValue(store, contract.Id, key));
@@ -262,7 +262,7 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
         Assert.AreEqual(2, observedKeys.Count);
@@ -311,7 +311,7 @@ public class UT_RiscVTransactionExecutor
                     ApplicationEngine.System_Runtime_CheckWitness,
                     [new ByteString(signer.GetSpan().ToArray())])[^1].GetBoolean();
 
-                Assert.AreEqual((System.Numerics.BigInteger)RiscVTestData.Context.FirstBlockTimestamp, time);
+                Assert.AreEqual((System.Numerics.BigInteger)RiscVTestData.BlockContext.BlockTimestamp, time);
                 Assert.AreEqual((System.Numerics.BigInteger)RiscVTestData.Context.Network, network);
                 Assert.IsInstanceOfType<Array>(container);
                 Assert.AreEqual(1, ((Array)signers).Count);
@@ -321,9 +321,39 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction([(byte)OpCode.RET], signer: signer),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(result.Receipt.Success);
+    }
+
+    [TestMethod]
+    public async Task PersistingBlock_MapsPerBlockContextIndexAndTimestamp()
+    {
+        // The synthetic persisted block header must carry the executing L2 block's index and
+        // timestamp (the per-block header seam), never the batch context's L1 finalized height
+        // or frozen first-block timestamp — RiscVTestData.BlockContext is deliberately distinct
+        // from both so a regression to the batch-level values flips these assertions.
+        ulong? observedIndex = null;
+        ulong? observedTimestamp = null;
+        using var store = RiscVTestData.CreateStore();
+        var executor = Executor(
+            store,
+            (_, context) =>
+            {
+                observedIndex = context.PersistingBlock.Index;
+                observedTimestamp = context.PersistingBlock.Timestamp;
+                return RiscVTestData.Halt(context);
+            });
+
+        var result = await executor.ExecuteAsync(
+            RiscVTestData.BuildTransaction([(byte)OpCode.RET]),
+            RiscVTestData.Context, RiscVTestData.BlockContext);
+
+        Assert.IsTrue(result.Receipt.Success);
+        Assert.IsNotNull(observedIndex, "the runner never observed the persisted block");
+        Assert.IsNotNull(observedTimestamp, "the runner never observed the persisted block");
+        Assert.AreEqual(RiscVTestData.BlockContext.BlockIndex, observedIndex!.Value);
+        Assert.AreEqual(RiscVTestData.BlockContext.BlockTimestamp, observedTimestamp!.Value);
     }
 
     [TestMethod]
@@ -348,7 +378,7 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction([(byte)OpCode.RET]),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
         Assert.AreEqual(expected, result.Receipt.GasConsumed);
@@ -377,7 +407,7 @@ public class UT_RiscVTransactionExecutor
 
         var result = await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsFalse(result.Receipt.Success);
         Assert.IsNull(GetContractValue(store, contract.Id, key));
@@ -397,7 +427,7 @@ public class UT_RiscVTransactionExecutor
                 return RiscVTestData.Halt(context);
             });
 
-        var result = await executor.ExecuteAsync(new byte[] { 0xFF, 0xFE }, RiscVTestData.Context);
+        var result = await executor.ExecuteAsync(new byte[] { 0xFF, 0xFE }, RiscVTestData.Context, RiscVTestData.BlockContext);
 
         Assert.IsFalse(called);
         Assert.IsFalse(result.Receipt.Success);
@@ -459,7 +489,7 @@ public class UT_RiscVTransactionExecutor
             contract);
         return await executor.ExecuteAsync(
             RiscVTestData.BuildTransaction(script, nonce),
-            RiscVTestData.Context);
+            RiscVTestData.Context, RiscVTestData.BlockContext);
     }
 
     private static void PutContractValue(

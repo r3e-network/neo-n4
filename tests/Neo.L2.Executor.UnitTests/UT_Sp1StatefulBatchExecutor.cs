@@ -257,8 +257,34 @@ public sealed class UT_Sp1StatefulBatchExecutor
         using var harness = new ExecutorHarness();
         var executor = harness.CreateExecutor(new WritingProcess());
 
+        // A sealed batch carrying transactions but no per-block timeline refuses to produce
+        // an execution request at all — the fail-closed guard fires at the source, before any
+        // executor sees the request.
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            harness.Batch().ToExecutionRequest());
+        StringAssert.Contains(ex.Message, "no block timeline");
+
+        // A hand-assembled request that bypasses the sealed-batch boundary is still rejected
+        // by the executor: SP1 stateful execution requires the complete SealedBatch boundary.
+        var handAssembled = new BatchExecutionRequest
+        {
+            ChainId = 1099,
+            BatchNumber = 1,
+            PreStateRoot = harness.InitialRoot,
+            Transactions = new ReadOnlyMemory<byte>[] { new byte[] { 0x01 } },
+            L1MessagesConsumed = Array.Empty<CrossChainMessage>(),
+            BlockTimeline = Array.Empty<L2BatchBlock>(),
+            BlockContext = new BatchBlockContext
+            {
+                L1FinalizedHeight = 1234,
+                FirstBlockTimestamp = 1_750_000_000_000,
+                LastBlockTimestamp = 1_750_000_000_000,
+                SequencerCommitteeHash = Hash(0x33),
+                Network = 0x334f_454e,
+            },
+        };
         Assert.ThrowsExactly<NotSupportedException>(() =>
-            executor.ApplyBatchAsync(harness.Batch().ToExecutionRequest()).AsTask()
+            executor.ApplyBatchAsync(handAssembled).AsTask()
                 .GetAwaiter().GetResult());
     }
 

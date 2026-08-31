@@ -30,6 +30,14 @@ public class UT_ApplicationEngineTransactionExecutor
         Network = 0x4F454E,
     };
 
+    // Deliberately distinct from Ctx's batch-level values: pins that fail back to
+    // L1FinalizedHeight / FirstBlockTimestamp would be caught by the value mismatches.
+    private static readonly L2BlockContext BlockCtx = new()
+    {
+        BlockIndex = 777,
+        BlockTimestamp = 1_700_000_001_234,
+    };
+
     private static byte[] BuildTx(byte[] script)
     {
         // Construct a minimal Neo transaction: 1 signer, no attributes, empty witness.
@@ -83,7 +91,7 @@ public class UT_ApplicationEngineTransactionExecutor
 
         using var store = new InMemoryKeyValueStore();
         var executor = new ApplicationEngineTransactionExecutor(store, DefaultSettings);
-        var result = await executor.ExecuteAsync(serialized, Ctx);
+        var result = await executor.ExecuteAsync(serialized, Ctx, BlockCtx);
 
         Assert.IsFalse(result.Receipt.Success);
         Assert.AreEqual(UInt256.Zero, result.Receipt.StorageDeltaHash);
@@ -102,7 +110,7 @@ public class UT_ApplicationEngineTransactionExecutor
         using var store = new InMemoryKeyValueStore();
         var executor = new ApplicationEngineTransactionExecutor(store, DefaultSettings);
 
-        var result = await executor.ExecuteAsync(malformed, Ctx);
+        var result = await executor.ExecuteAsync(malformed, Ctx, BlockCtx);
         Assert.IsFalse(result.Receipt.Success);
         Assert.AreNotEqual(UInt256.Zero, result.TxHash, "raw-bytes hash must still be set");
     }
@@ -122,7 +130,7 @@ public class UT_ApplicationEngineTransactionExecutor
         NeoVMGenesisBootstrap.Run(store, settings);
         var executor = new ApplicationEngineTransactionExecutor(store, settings);
 
-        var result = await executor.ExecuteAsync(serialized, Ctx);
+        var result = await executor.ExecuteAsync(serialized, Ctx, BlockCtx);
 
         Assert.AreEqual(TransactionEffectsProfile.CanonicalNativeV1, executor.EffectsProfile);
         Assert.IsTrue(result.Receipt.Success, result.FailureReason);
@@ -151,6 +159,54 @@ public class UT_ApplicationEngineTransactionExecutor
     }
 
     [TestMethod]
+    public async Task BootstrappedGetTime_ExposesExecutingBlockTimestamp()
+    {
+        // Runtime.Time must surface the executing L2 block's timestamp (the per-block header
+        // seam, doc.md §7.2), not the batch context's frozen FirstBlockTimestamp. BlockCtx is
+        // deliberately distinct from Ctx so a regression to the batch-level value FAULTs here.
+        var script = new ScriptBuilder()
+            .EmitSysCall(ApplicationEngine.System_Runtime_GetTime)
+            .EmitPush(new System.Numerics.BigInteger(BlockCtx.BlockTimestamp))
+            .Emit(OpCode.NUMEQUAL)
+            .Emit(OpCode.ASSERT)
+            .ToArray();
+        var serialized = BuildTx(script);
+
+        using var store = new InMemoryKeyValueStore();
+        var settings = NeoVMGenesisBootstrap.DefaultBootstrapSettings;
+        NeoVMGenesisBootstrap.Run(store, settings);
+        var executor = new ApplicationEngineTransactionExecutor(store, settings);
+
+        var result = await executor.ExecuteAsync(serialized, Ctx, BlockCtx);
+
+        Assert.IsTrue(result.Receipt.Success, result.FailureReason);
+    }
+
+    [TestMethod]
+    public async Task BootstrappedGetTime_NoLongerSurfacesBatchContextTimestamp()
+    {
+        // Complement to the positive pin: the batch context's frozen FirstBlockTimestamp must
+        // NOT be observable through Runtime.Time. The script asserts equality against it and
+        // must FAULT.
+        var script = new ScriptBuilder()
+            .EmitSysCall(ApplicationEngine.System_Runtime_GetTime)
+            .EmitPush(new System.Numerics.BigInteger(Ctx.FirstBlockTimestamp))
+            .Emit(OpCode.NUMEQUAL)
+            .Emit(OpCode.ASSERT)
+            .ToArray();
+        var serialized = BuildTx(script);
+
+        using var store = new InMemoryKeyValueStore();
+        var settings = NeoVMGenesisBootstrap.DefaultBootstrapSettings;
+        NeoVMGenesisBootstrap.Run(store, settings);
+        var executor = new ApplicationEngineTransactionExecutor(store, settings);
+
+        var result = await executor.ExecuteAsync(serialized, Ctx, BlockCtx);
+
+        Assert.IsFalse(result.Receipt.Success, "Runtime.Time must not surface the batch context's frozen timestamp");
+    }
+
+    [TestMethod]
     public async Task IndependentRuns_FailureMode_AreDeterministic()
     {
         // Two independent executors against fresh (un-bootstrapped) stores produce
@@ -165,8 +221,8 @@ public class UT_ApplicationEngineTransactionExecutor
         var e1 = new ApplicationEngineTransactionExecutor(s1, DefaultSettings);
         var e2 = new ApplicationEngineTransactionExecutor(s2, DefaultSettings);
 
-        var r1 = await e1.ExecuteAsync(serialized, Ctx);
-        var r2 = await e2.ExecuteAsync(serialized, Ctx);
+        var r1 = await e1.ExecuteAsync(serialized, Ctx, BlockCtx);
+        var r2 = await e2.ExecuteAsync(serialized, Ctx, BlockCtx);
 
         Assert.AreEqual(r1.Receipt.TxHash, r2.Receipt.TxHash);
         Assert.AreEqual(r1.Receipt.Success, r2.Receipt.Success);

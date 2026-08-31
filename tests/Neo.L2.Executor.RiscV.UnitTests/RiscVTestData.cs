@@ -21,6 +21,14 @@ internal static class RiscVTestData
         Network = 0x4F454E,
     };
 
+    // Deliberately distinct from Context's batch-level values: pins that fail back to
+    // L1FinalizedHeight / FirstBlockTimestamp would be caught by the value mismatches.
+    public static L2BlockContext BlockContext { get; } = new()
+    {
+        BlockIndex = 777,
+        BlockTimestamp = 1_700_000_001_234,
+    };
+
     public static InMemoryKeyValueStore CreateStore()
     {
         var store = new InMemoryKeyValueStore();

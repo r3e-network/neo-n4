@@ -32,6 +32,12 @@ public class UT_CounterChainExecutor
         Network = 0x4E454F00,  // "NEO\0"
     };
 
+    private static L2BlockContext BlockCtx() => new()
+    {
+        BlockIndex = 1,
+        BlockTimestamp = 1_700_000_000_000UL,
+    };
+
     private static (CounterChainExecutor exec, InMemoryCounterChainState state) NewExecutor()
     {
         var state = new InMemoryCounterChainState();
@@ -47,7 +53,7 @@ public class UT_CounterChainExecutor
 
         // First increment: 0 + 100 = 100.
         var tx1 = CounterTxBuilder.IncrementCounter(sender, 100);
-        var r1 = await exec.ExecuteAsync(tx1, Context());
+        var r1 = await exec.ExecuteAsync(tx1, Context(), BlockCtx());
         Assert.IsTrue(r1.Receipt.Success);
         Assert.AreEqual(CounterChainExecutor.GasIncrementCounter, r1.Receipt.GasConsumed);
         Assert.AreEqual(0, r1.Withdrawals.Count);
@@ -60,7 +66,7 @@ public class UT_CounterChainExecutor
 
         // Second increment: 100 + 50 = 150 (exercises the read-then-add path).
         var tx2 = CounterTxBuilder.IncrementCounter(sender, 50);
-        var r2 = await exec.ExecuteAsync(tx2, Context());
+        var r2 = await exec.ExecuteAsync(tx2, Context(), BlockCtx());
         Assert.IsTrue(r2.Receipt.Success);
         Assert.IsTrue(state.TryGet(key, out var v2));
         Assert.AreEqual(150UL, BinaryPrimitives.ReadUInt64LittleEndian(v2));
@@ -72,8 +78,8 @@ public class UT_CounterChainExecutor
         var (exec, state) = NewExecutor();
         var alice = Addr(0xAA);
         var bob = Addr(0xBB);
-        await exec.ExecuteAsync(CounterTxBuilder.IncrementCounter(alice, 10), Context());
-        await exec.ExecuteAsync(CounterTxBuilder.IncrementCounter(bob, 20), Context());
+        await exec.ExecuteAsync(CounterTxBuilder.IncrementCounter(alice, 10), Context(), BlockCtx());
+        await exec.ExecuteAsync(CounterTxBuilder.IncrementCounter(bob, 20), Context(), BlockCtx());
 
         Assert.IsTrue(state.TryGet(BuildCounterKey(alice), out var aliceVal));
         Assert.AreEqual(10UL, BinaryPrimitives.ReadUInt64LittleEndian(aliceVal));
@@ -97,7 +103,7 @@ public class UT_CounterChainExecutor
 
         // Add 10 → wraparound to 4.
         var tx = CounterTxBuilder.IncrementCounter(sender, 10);
-        var r = await exec.ExecuteAsync(tx, Context());
+        var r = await exec.ExecuteAsync(tx, Context(), BlockCtx());
         Assert.IsTrue(r.Receipt.Success);
 
         Assert.IsTrue(state.TryGet(key, out var v));
@@ -111,7 +117,7 @@ public class UT_CounterChainExecutor
         var (exec, _) = NewExecutor();
         var truncated = new byte[5];  // way below 1+20+8
         truncated[0] = (byte)CounterChainExecutor.Opcode.IncrementCounter;
-        var r = await exec.ExecuteAsync(truncated, Context());
+        var r = await exec.ExecuteAsync(truncated, Context(), BlockCtx());
         Assert.IsFalse(r.Receipt.Success);
         // Failed txs still charge their declared gas — same as Neo Native's HALT-vs-FAULT.
         Assert.AreEqual(CounterChainExecutor.GasIncrementCounter, r.Receipt.GasConsumed);
@@ -124,7 +130,7 @@ public class UT_CounterChainExecutor
         var recipient = Addr(0xEE);
         var token = Addr(0xFF);
         var tx = CounterTxBuilder.EmitWithdrawal(recipient, token, 1234);
-        var r = await exec.ExecuteAsync(tx, Context());
+        var r = await exec.ExecuteAsync(tx, Context(), BlockCtx());
 
         Assert.IsTrue(r.Receipt.Success);
         Assert.AreEqual(1, r.Withdrawals.Count);
@@ -141,7 +147,7 @@ public class UT_CounterChainExecutor
     {
         var (exec, _) = NewExecutor();
         var tx = CounterTxBuilder.EmitWithdrawal(Addr(0xEE), Addr(0xFF), 0);
-        var r = await exec.ExecuteAsync(tx, Context());
+        var r = await exec.ExecuteAsync(tx, Context(), BlockCtx());
         Assert.IsFalse(r.Receipt.Success);
         Assert.AreEqual(0, r.Withdrawals.Count);
     }
@@ -152,7 +158,7 @@ public class UT_CounterChainExecutor
         var (exec, _) = NewExecutor();
         var body = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF };
         var tx = CounterTxBuilder.EmitMessage(destChainId: 1200, body);
-        var r = await exec.ExecuteAsync(tx, Context());
+        var r = await exec.ExecuteAsync(tx, Context(), BlockCtx());
 
         Assert.IsTrue(r.Receipt.Success);
         Assert.AreEqual(1, r.Messages.Count);
@@ -171,7 +177,7 @@ public class UT_CounterChainExecutor
         // The executor must fail at execution time rather than emit a doomed message.
         var (exec, _) = NewExecutor();
         var tx = CounterTxBuilder.EmitMessage(destChainId: SampleChainId, ReadOnlySpan<byte>.Empty);
-        var r = await exec.ExecuteAsync(tx, Context());
+        var r = await exec.ExecuteAsync(tx, Context(), BlockCtx());
         Assert.IsFalse(r.Receipt.Success);
         Assert.AreEqual(0, r.Messages.Count);
     }
@@ -193,7 +199,7 @@ public class UT_CounterChainExecutor
     {
         var (exec, _) = NewExecutor();
         var unknown = new byte[] { 0xFF, 1, 2, 3 };  // 0xFF isn't a valid opcode
-        var r = await exec.ExecuteAsync(unknown, Context());
+        var r = await exec.ExecuteAsync(unknown, Context(), BlockCtx());
         Assert.IsFalse(r.Receipt.Success);
         Assert.AreEqual(0L, r.Receipt.GasConsumed,
             "unknown opcodes charge zero gas — chain operator decides whether to charge a base fee");
@@ -203,7 +209,7 @@ public class UT_CounterChainExecutor
     public async Task Execute_EmptyTx_Failed()
     {
         var (exec, _) = NewExecutor();
-        var r = await exec.ExecuteAsync(Array.Empty<byte>(), Context());
+        var r = await exec.ExecuteAsync(Array.Empty<byte>(), Context(), BlockCtx());
         Assert.IsFalse(r.Receipt.Success);
         Assert.AreEqual(0L, r.Receipt.GasConsumed);
     }
@@ -218,8 +224,8 @@ public class UT_CounterChainExecutor
         var (e2, s2) = NewExecutor();
         var sender = Addr(0xAB);
         var tx = CounterTxBuilder.IncrementCounter(sender, 7);
-        var r1 = await e1.ExecuteAsync(tx, Context());
-        var r2 = await e2.ExecuteAsync(tx, Context());
+        var r1 = await e1.ExecuteAsync(tx, Context(), BlockCtx());
+        var r2 = await e2.ExecuteAsync(tx, Context(), BlockCtx());
         Assert.AreEqual(r1.Receipt.TxHash, r2.Receipt.TxHash);
         Assert.AreEqual(r1.Receipt.GasConsumed, r2.Receipt.GasConsumed);
         Assert.AreEqual(r1.Receipt.StorageDeltaHash, r2.Receipt.StorageDeltaHash);
@@ -255,7 +261,7 @@ public class UT_CounterChainExecutor
         var totalMessages = 0;
         foreach (var tx in batch)
         {
-            var r = await exec.ExecuteAsync(tx, Context());
+            var r = await exec.ExecuteAsync(tx, Context(), BlockCtx());
             Assert.IsTrue(r.Receipt.Success);
             totalGas += r.Receipt.GasConsumed;
             totalWithdrawals += r.Withdrawals.Count;
@@ -308,7 +314,19 @@ public class UT_CounterChainExecutor
         var (exec, _) = NewExecutor();
         var tx = CounterTxBuilder.IncrementCounter(Addr(0xAA), 1);
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
-            await exec.ExecuteAsync(tx, batchContext: null!));
+            await exec.ExecuteAsync(tx, batchContext: null!, blockContext: null!));
+    }
+
+    [TestMethod]
+    public async Task Execute_NullBlockContext_Rejected()
+    {
+        // The per-block execution context is part of the executor contract (doc.md §7.2):
+        // a null blockContext means the batch driver failed to attribute transactions to
+        // L2 blocks, so it must be rejected at the boundary like a null batchContext.
+        var (exec, _) = NewExecutor();
+        var tx = CounterTxBuilder.IncrementCounter(Addr(0xAA), 1);
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(async () =>
+            await exec.ExecuteAsync(tx, Context(), blockContext: null!));
     }
 
     [TestMethod]
@@ -323,6 +341,6 @@ public class UT_CounterChainExecutor
         var cts = new System.Threading.CancellationTokenSource();
         cts.Cancel();
         await Assert.ThrowsExactlyAsync<System.OperationCanceledException>(async () =>
-            await exec.ExecuteAsync(tx, Context(), cts.Token));
+            await exec.ExecuteAsync(tx, Context(), BlockCtx(), cts.Token));
     }
 }

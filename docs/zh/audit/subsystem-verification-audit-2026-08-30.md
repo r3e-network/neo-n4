@@ -251,6 +251,18 @@ mock，所以 `SubmitBatch` 自己的那条重新提交分支，只是通过这�
 因为它没有需要跨越的 FFI 边界），或者把那十个分支替换成一处显式的 `extern "C"` 捕获表面，
 使其无法被 profile 配置掉。
 
+**状态（2026-08-31 在 `fix/host-unwind-profiles` 子模块分支上定案）：解除 abort、实测、加守卫。**
+两个 profile 均已去掉 `panic = "abort"`；guest 有意保留 abort —— 其 PolkaVM 目标没有展开器 ——
+由 `regenerate-guest-blob.sh` 传入 `-C panic=abort` 实现（该脚本同时传入 `-Z location-detail=none`，
+见 §3 C3 的可移植性补记），因此 blob 语义不变，而标志只活在一处。实测（release lane，47 项
+opcode/parity 执行套件）：**解除后 16.99 s 对审计自己 abort 基线的 17.09 s，两次均 47/47 通过**
+—— 展开在 guest 热路径上的代价不可测量。完整 host 套件在 release 下全绿（305/305，含新守卫
+测试）。该守卫（`crates/neo-riscv-host/tests/panic_unwind_boundary.rs`）断言
+`!cfg!(panic = "abort")`，任何未来的 abort profile 回归都会让 dev 与 release 两条 lane 的套件
+失败。另一个修复方案（显式 `extern "C"` 捕获表面）有意不取：那十个分支本身就是该捕获表面且
+已复活，重新布线只会增加守卫测试所不能抵消的折腾。子模块提交（`765bc27`）经 C3 gitlink bump
+落地，因此本项在父仓库侧的变更是纯文档。
+
 ### H15 — batch 中每个区块都以同一个 `Runtime.Block.Index`（一个 L1 高度）与冻结的首区块时间戳执行 [E1]
 
 `BatchSealer.SealBatch` 每个 batch 恰好构建一个上下文：
@@ -1837,8 +1849,16 @@ timelock、action 字节绑定全部参数、proposal id 只能消费一次。�
     同尺寸、约 21k 字节重排的 blob —— 因此 Linux runner 是规范产出方，漂移时门禁上传其再生
     blob（`guest-polkavm-regenerated` artifact），落地它就是转绿路径（细节见 §3 C3 的可移植性
     补记）。修复 (2)/(3) 有意不取，理由见 §3 C3 的状态块。
-11. `H14` —— 移除 `panic = "abort"` 会改变展开语义，并可能改变 guest 热路径上的吞吐；
-    需要一次测量，而且它与 SP1 再执行档相互影响。
+11. `H14` —— **已在 `fix/host-unwind-profiles` 子模块分支定案（2026-08-31），经 C3 gitlink bump
+    落地：解除 abort、实测、加守卫。** 两个 profile 均已去掉 `panic = "abort"`；guest 有意保留
+    abort（其 PolkaVM 目标没有展开器），由 `regenerate-guest-blob.sh` 传入 `-C panic=abort`，
+    该脚本同时持有 `-Z location-detail=none`。在 release lane 的 47 项 opcode/parity 执行套件上
+    实测：**解除后 16.99 s 对审计自己 abort 基线的 17.09 s，两次均 47/47 通过** —— 展开在
+    guest 热路径上的代价不可测量；完整 host 套件在 release 下 305/305 全绿，含新的编译期守卫
+    （`crates/neo-riscv-host/tests/panic_unwind_boundary.rs`），任何未来的 abort profile 回归
+    都会让 dev 与 release 两条 lane 失败。另一个修复方案（显式 `extern "C"` 捕获表面）有意
+    不取 —— 那十个分支本身就是该捕获表面且已复活。父仓库侧的变更是纯文档。见 §4 H14 的
+    状态块。
 12. `V1` —— **已在本分支定案（2026-08-31）：nightly 排班拥有 SP1 dispatch，发布清单拥有阻塞规则。**
     `build.yml` 新增 nightly `schedule` 触发，且两处以 `workflow_dispatch` 为键的位置
     （`sp1-release-gates` 的 `if`、`sp1-host` 的成功断言）以完全相同的方式接受 `schedule`，沿用

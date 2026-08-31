@@ -15,6 +15,20 @@
 
 ## 中文摘要
 
+- 2026-08-31 FFI panic 边界恢复可展开（H14）：`external/neo-riscv-vm` 此前在 **两个** profile
+  （`[profile.release]` 与 `[profile.dev]`）下都设 `panic = "abort"`，而 `neo-riscv-host` 的十个
+  `catch_unwind(AssertUnwindSafe(…))` FFI 分支 —— 把执行核心内部的 Rust panic 转换成回呈给
+  Neo 的 `FAULT` receipt 的表面 —— 无物可捕：进程会在十个分支中任一分支的首次 panic 处死亡，
+  一次普通故障即变成 sequencer 宕服（H1 的 Rust 侧孪生）。两个 profile 现已恢复展开；guest
+  有意保留 abort（其 PolkaVM 目标没有展开器），由 `regenerate-guest-blob.sh` 传入
+  `-C panic=abort` 实现（该脚本同时持有 `-Z location-detail=none`，见 guest blob 条目），
+  blob 语义不变而标志只活在一处。实测而非假设（release lane，47 项 opcode/parity 执行套件）：
+  **解除后 16.99 s 对审计自己 abort 基线的 17.09 s，两次均 47/47** —— 展开在 guest 热路径上的
+  代价不可测量。完整 host 套件在 release 下 305/305 全绿，含新编译期守卫
+  `crates/neo-riscv-host/tests/panic_unwind_boundary.rs`（断言 `!cfg!(panic = "abort")`），
+  任何未来的 abort profile 回归都会让 dev 与 release 两条 lane 失败。另一修复方案（显式
+  `extern "C"` 捕获表面）有意不取：那十个分支本身就是该捕获表面且已复活。子模块提交
+  （`765bc27`）经 C3 gitlink bump 落地，父仓库侧变更为纯文档。
 - 2026-08-31 RISC-V guest blob 恢复新鲜，并由 CI 门禁保持：此前每一条 RISC-V 测试执行的
   已提交 `guest.polkavm` 都落后 guest 源码三轮安全加固，且没有任何机制能发现；发布打包路径则
   无条件重建 —— 测试认证一个二进制、发布的又是另一个。现 `build.yml` 在每个事件上运行

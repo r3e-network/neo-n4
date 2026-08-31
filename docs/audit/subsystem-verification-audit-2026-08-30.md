@@ -2074,8 +2074,17 @@ Split by whether it can land now.
     drift the gate uploads its regenerated blob (`guest-polkavm-regenerated` artifact) whose
     landing is how the gate goes green (details in §3 C3's portability addendum). Fixes (2)/(3)
     deliberately not taken; rationale in §3 C3's status block.
-11. `H14` — removing `panic = "abort"` changes unwind semantics and possibly throughput on the guest
-    hot path; needs a measurement, and it interacts with the SP1 re-execution profile.
+11. `H14` — **settled on the `fix/host-unwind-profiles` submodule branch (2026-08-31), landing via
+    the C3 gitlink bump: unwind, measured, guarded.** Both profiles dropped `panic = "abort"`; the
+    guest keeps abort deliberately (its PolkaVM target has no unwinder) via `-C panic=abort` in
+    `regenerate-guest-blob.sh`, which also owns `-Z location-detail=none`. Measured on the release
+    lane's 47-test opcode/parity execution suite: **16.99 s unwound vs 17.09 s under the audit's
+    own abort-profile baseline, 47/47 passed both** — unwinding costs nothing measurable on the
+    guest hot path; the full host suite is 305/305 green in release, including the new compile-time
+    guard (`crates/neo-riscv-host/tests/panic_unwind_boundary.rs`) that fails any future
+    abort-profile regression in both dev and release lanes. The alternative fix (an explicit
+    `extern "C"` catch surface) is deliberately not taken — the ten arms are that catch surface
+    and are live again. The parent-side change is documentation only. See §4 H14's status block.
 12. `V1` — **settled on this branch (2026-08-31): the nightly schedule owns the SP1 dispatch, and
     the release checklist owns the blocking rule.** `build.yml` gains a nightly `schedule` trigger
     and both `workflow_dispatch`-keyed places (`sp1-release-gates`'s `if`, `sp1-host`'s success

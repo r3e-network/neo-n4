@@ -2341,7 +2341,7 @@ dependencies = [
 name = "neo-execution-core"
 version = "0.1.0"
 dependencies = [
- "num-bigint 0.4.6",
+ "num-bigint 0.5.1",
  "num-traits",
  "p256",
  "ripemd",
@@ -2370,7 +2370,7 @@ dependencies = [
 name = "neo-vm-rs"
 version = "0.1.0"
 dependencies = [
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "num-traits",
  "serde",
  "sha2 0.11.0",
@@ -2471,7 +2471,7 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
 dependencies = [
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "num-complex",
  "num-integer",
  "num-iter",
@@ -2492,9 +2492,19 @@ dependencies = [
 
 [[package]]
 name = "num-bigint"
-version = "0.4.6"
+version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
+checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
+dependencies = [
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -2556,7 +2566,7 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
 dependencies = [
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "num-integer",
  "num-traits",
 ]
@@ -2689,7 +2699,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d80b9c0a27092644dc22fd8fd6768dab62d325c6f7d121cf896e6bb3789779cf"
 dependencies = [
  "cfg-if",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "p3-field",
  "p3-mds",
  "p3-poseidon2",
@@ -2706,7 +2716,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "577200e3fa7e49e2b21e940a6dc7399dc63acb8581da088558cdf7c455adafc0"
 dependencies = [
  "ff",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "p3-field",
  "p3-poseidon2",
  "p3-symmetric",
@@ -2762,7 +2772,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2df7cebaa4079b24e0dd7e3aad59eebcbb99a67c1271f79ad884a7c032f5f183"
 dependencies = [
  "itertools 0.12.1",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "num-traits",
  "p3-util",
  "rand 0.8.8",
@@ -2820,7 +2830,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6cea0ba3389b034b6088d566aea8b57aa29dd2e180966e0c8056f61331c92b4e"
 dependencies = [
  "cfg-if",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "p3-field",
  "p3-mds",
  "p3-poseidon2",
@@ -4743,7 +4753,7 @@ dependencies = [
  "futures",
  "hashbrown 0.14.5",
  "itertools 0.14.0",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "num-traits",
  "num_cpus",
  "rayon",
@@ -4820,7 +4830,7 @@ dependencies = [
  "hex",
  "itertools 0.14.0",
  "lazy_static",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "serde",
  "sha2 0.10.9",
  "slop-algebra",
@@ -4852,7 +4862,7 @@ dependencies = [
  "itertools 0.14.0",
  "lru",
  "mti",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "opentelemetry",
  "pin-project",
  "rand 0.8.8",
@@ -5016,7 +5026,7 @@ dependencies = [
  "bindgen",
  "cfg-if",
  "hex",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -5069,7 +5079,7 @@ dependencies = [
  "indicatif",
  "itertools 0.14.0",
  "k256",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "serde",
  "sha2 0.10.9",
  "sp1-build",
@@ -5247,7 +5257,7 @@ dependencies = [
  "cfg-if",
  "crunchy",
  "lazy_static",
- "num-bigint 0.4.6",
+ "num-bigint 0.4.8",
  "rand 0.8.8",
  "rustc-hex",
 ]

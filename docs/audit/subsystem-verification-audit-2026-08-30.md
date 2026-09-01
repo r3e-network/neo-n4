@@ -1486,6 +1486,15 @@ decision.
   `SealedBatch` cannot reconstruct what the withdrawal root committed to. Latent today because the
   plugin path uses `BatchExecutionResult` / `ToCommitment`; it is an API that will silently lose
   data the first time it is used as a transport.
+  **Status — fixed on this branch (2026-09-01).** `SealedBatch` now carries the staged message
+  side — `Withdrawals`, `L2ToL1Messages`, `L2ToL2Messages` — deep-copied like every other field,
+  and `BatchBuilder.SealArtifact` populates them from `_batch`, so a receiver of the hand-off
+  artifact can reconstruct every root the batch commits to. The constructor parameters are
+  optional and null means "payload-decoded instance" (the same convention as `blockTimeline`):
+  `ExecutionPayloadV1` does not carry the message side, so decoded instances cannot invent it —
+  extending the DA payload format is a spec change (doc.md §8.1), deliberately out of scope here.
+  Pinned by three new tests (carries the staged side, deep-copy isolation, null default), 75/75
+  in Neo.L2.Batch.UnitTests; settlement (171) and executor (121) suites stay green.
 - **`ContractManifest.ToJson()` bytes enter the state-root leaf** [E1].
   `Sp1StateWitnessSource.cs:271` serializes each contract's manifest to UTF-8 JSON and feeds it to
   `StateWitnessV1Serializer.ContractBindingHash` (call site `:73`), so the canonical root now depends

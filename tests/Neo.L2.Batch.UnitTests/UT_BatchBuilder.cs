@@ -324,4 +324,96 @@ public class UT_BatchBuilder
             });
         Assert.AreEqual(1, timed.ToExecutionRequest().BlockTimeline!.Count);
     }
+
+    [TestMethod]
+    public void SealArtifact_CarriesStagedMessageSide()
+    {
+        // The sealed batch is the batcher's hand-off artifact: a receiver must be able to
+        // reconstruct what the withdrawal and message roots commit to, so everything staged
+        // through AddWithdrawal / AddL2ToL1Message / AddL2ToL2Message has to survive sealing.
+        var message = new CrossChainMessage
+        {
+            SourceChainId = 1001,
+            TargetChainId = 1,
+            Nonce = 7,
+            Sender = new UInt160(Enumerable.Repeat((byte)0x11, UInt160.Length).ToArray()),
+            Receiver = new UInt160(Enumerable.Repeat((byte)0x22, UInt160.Length).ToArray()),
+            MessageType = MessageType.Call,
+            Payload = new byte[] { 0x33 },
+            MessageHash = UInt256.Zero,
+        };
+        message = message with { MessageHash = Neo.L2.State.MessageHasher.HashMessage(message) };
+        var withdrawal = new WithdrawalRequest
+        {
+            EmittingContract = message.Sender,
+            L2Sender = message.Sender,
+            L1Recipient = message.Receiver,
+            L2Asset = new UInt160(Enumerable.Repeat((byte)0x44, UInt160.Length).ToArray()),
+            Amount = 5,
+            Nonce = 8,
+            ChainId = 1001,
+        };
+        var builder = new BatchBuilder(1001, 1, 100, UInt256.Zero)
+            .AddBlock(100, 1_700_000_000_100)
+            .AddTransaction(new byte[] { 0xaa })
+            .AddWithdrawal(withdrawal)
+            .AddL2ToL1Message(message)
+            .AddL2ToL2Message(message)
+            .WithBlockContext(SampleContext());
+
+        var sealedBatch = builder.SealArtifact();
+
+        Assert.AreEqual(1, sealedBatch.Withdrawals!.Count);
+        Assert.AreEqual(withdrawal, sealedBatch.Withdrawals[0]);
+        Assert.AreEqual(message, sealedBatch.L2ToL1Messages!.Single());
+        Assert.AreEqual(message, sealedBatch.L2ToL2Messages!.Single());
+    }
+
+    [TestMethod]
+    public void SealArtifact_MessageSideIsDeepCopied()
+    {
+        var payload = new byte[] { 0x11, 0x22 };
+        var messageWithoutHash = new CrossChainMessage
+        {
+            SourceChainId = 1001,
+            TargetChainId = 1,
+            Nonce = 7,
+            Sender = new UInt160(new byte[UInt160.Length]),
+            Receiver = new UInt160(Enumerable.Repeat((byte)1, UInt160.Length).ToArray()),
+            MessageType = MessageType.Call,
+            Payload = payload,
+            MessageHash = UInt256.Zero,
+        };
+        var message = messageWithoutHash with
+        {
+            MessageHash = Neo.L2.State.MessageHasher.HashMessage(messageWithoutHash),
+        };
+        var builder = new BatchBuilder(1001, 1, 100, UInt256.Zero)
+            .AddBlock(100, 1_700_000_000_100)
+            .AddL2ToL1Message(message)
+            .WithBlockContext(SampleContext());
+
+        var sealedBatch = builder.SealArtifact();
+        payload[0] = 0xff;
+
+        CollectionAssert.AreEqual(
+            new byte[] { 0x11, 0x22 }, sealedBatch.L2ToL1Messages![0].Payload.ToArray());
+    }
+
+    [TestMethod]
+    public void SealedBatch_MessageSideDefaultsToAbsent()
+    {
+        // Payload-decoded instances cannot re-derive the message side, so the constructor
+        // leaves it null rather than inventing empty lists — the same convention as the
+        // block timeline.
+        var sealedBatch = new SealedBatch(
+            1001, 1, 100, 100, UInt256.Zero,
+            Array.Empty<ReadOnlyMemory<byte>>(),
+            Array.Empty<CrossChainMessage>(),
+            SampleContext());
+
+        Assert.IsNull(sealedBatch.Withdrawals);
+        Assert.IsNull(sealedBatch.L2ToL1Messages);
+        Assert.IsNull(sealedBatch.L2ToL2Messages);
+    }
 }

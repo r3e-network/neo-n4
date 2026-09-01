@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — SealedBatch carries the staged message side through the hand-off — 2026-09-01
+
+- `BatchBuilder.SealArtifact` returned a `SealedBatch` holding only transactions, L1 messages
+  and forced inclusions, silently dropping everything staged through `AddWithdrawal`,
+  `AddL2ToL1Message` and `AddL2ToL2Message` — a caller handing off the sealed artifact could not
+  reconstruct what the withdrawal and message roots commit to. The sealed batch now carries the
+  staged message side (`Withdrawals`, `L2ToL1Messages`, `L2ToL2Messages`), deep-copied like every
+  other field, and `SealArtifact` populates it; the optional constructor parameters follow the
+  `blockTimeline` convention where null means payload-decoded instance (`ExecutionPayloadV1` does
+  not carry the message side, so decoded instances cannot invent it).
+- Pinned by three new tests (carries the staged side, deep-copy isolation, null default);
+  Neo.L2.Batch 75/75, settlement 171, executor suites green.
+
 ### Docs — witness ceiling, forced-inclusion safety property, DA simulation boundary — 2026-09-01
 
 - §8.5 now states the `NEO4STW1` bounds as a hard operator constraint (65,536 entries,

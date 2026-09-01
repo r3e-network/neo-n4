@@ -133,6 +133,9 @@ public sealed class JsonRpcL1DAWriter : IDAWriter, IDisposable
         if (!receipt.HasRequiredMetadata(Mode, ReceiptKind)
             || receipt.Pointer.Length != UInt256.Length)
         {
+            Logs.RuntimeLogger.Warning(
+                "JsonRpcL1DAWriter cannot probe availability: the receipt does not match this writer "
+                + "(mode/kind metadata or pointer length) — it was likely published by a different DA writer");
             return false;
         }
 
@@ -143,18 +146,41 @@ public sealed class JsonRpcL1DAWriter : IDAWriter, IDisposable
             BuildIsAvailableParams(receipt.Commitment),
         };
         var result = await _rpc.CallAsync("invokefunction", paramsArray, cancellationToken).ConfigureAwait(false);
-        if (result is not JObject obj) return false;
+        if (result is not JObject obj)
+        {
+            Logs.RuntimeLogger.Warning(
+                "JsonRpcL1DAWriter isAvailable probe returned a non-object response from {Contract}.{Method} "
+                + "— the method may not exist on the target DA contract",
+                _daContractHash.ToString(), _isAvailableRpcMethod);
+            return false;
+        }
 
         var state = obj["state"]?.AsString();
-        if (state != "HALT") return false;
+        if (state != "HALT")
+        {
+            Logs.RuntimeLogger.Warning(
+                "JsonRpcL1DAWriter isAvailable probe FAULTed (state={State}) on {Contract}.{Method} — "
+                + "the DA contract itself rejected the invocation; this is a contract fault, not data unavailability",
+                state ?? "<null>", _daContractHash.ToString(), _isAvailableRpcMethod);
+            return false;
+        }
 
-        if (obj["stack"] is not JArray stack || stack.Count == 0) return false;
-        var stackItem = stack[0];
-        if (stackItem is not JObject stackObj) return false;
-
-        // Boolean-typed stack item — Neo serializes as type:"Boolean" value:"true"|"false".
-        var typeStr = stackObj["type"]?.AsString();
-        if (typeStr != "Boolean") return false;
+        if (obj["stack"] is not JArray stack || stack.Count == 0)
+        {
+            Logs.RuntimeLogger.Warning(
+                "JsonRpcL1DAWriter isAvailable probe returned no stack result from {Contract}.{Method} "
+                + "— unexpected response shape",
+                _daContractHash.ToString(), _isAvailableRpcMethod);
+            return false;
+        }
+        if (stack[0] is not JObject stackObj || stackObj["type"]?.AsString() != "Boolean")
+        {
+            Logs.RuntimeLogger.Warning(
+                "JsonRpcL1DAWriter isAvailable probe returned a non-Boolean stack item from {Contract}.{Method} "
+                + "— the contract does not implement the documented Boolean return",
+                _daContractHash.ToString(), _isAvailableRpcMethod);
+            return false;
+        }
         return stackObj["value"]?.AsString() == "true";
     }
 

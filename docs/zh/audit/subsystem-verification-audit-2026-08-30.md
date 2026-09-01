@@ -1365,6 +1365,13 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   所拒绝的语义模拟 writer 变得可达。doc-comment 把该方法的作用域限定为
   "development and integration environments"，但没有任何东西强制这一点，也没有任何一行日志说明
   该保证已被放弃。
+  **状态 —— 本分支已修复（2026-09-01）。** `WithWriter` 现在在真正放弃什么东西时会打一条警告：
+  当前 profile 为 Production 时，这次替换会被点名 —— 换入的 writer 类型、降级到 Development、
+  以及"生产必须使用 `WithProductionBackend`"的指示 —— 于是绕过 fail-closed 守卫的宿主
+  无法再悄无声息地这么做。该方法的 XML 文档写明降级无条件发生、警告何时触发。其余部分
+  有意不动：该方法对它文档所限定的开发/集成组合依然合法，而
+  `CreateLocalFromChainDirectory`（对全新的 Development-profile 插件调用 `WithWriter`）
+  继续无噪音地工作。
 - **提交线程上的 sync-over-async** [E1]。`src/Neo.Plugins.L2Batch/L2BatchPlugin.cs` 中有五处
   `.AsTask().GetAwaiter().GetResult()` —— `:385`、`:387`、`:583`、`:652`、`:655` ——
   从 `Committed` 路径上阻塞在 L1 I/O 上；2026-08-29 报告的健壮性结论已经点到这一点；
@@ -1375,6 +1382,13 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   以及一次真正的不可用，全都返回同一个 `false`，于是配置错误的 DA 层与确实已经消失的数据无法区分，
   而节点会静默地偏向它的回退路径。传输失败是唯一会浮现出来的情形，因为 `CallAsync` 会抛异常，
   而不会被吞成 `false`。
+  **状态 —— 本分支已修复（2026-09-01）。** 每一个异常的 `false` 现在都会打出自己独特的、
+  可操作的缘由：与本 writer 不匹配的 receipt（"由另一个 DA writer 发布"）、非对象的
+  `invokefunction` 响应（"目标 DA 合约上可能不存在该方法"）、FAULT 状态（"这是合约故障，
+  不是数据不可用"），以及两种畸形响应形态（无 stack 结果、非 Boolean stack 项）。保持沉默的
+  唯一分支是真正的"数据已消失"回答 —— HALT 且 Boolean stack 值为 `"false"` —— 于是原先混在一起的
+  信号如今读日志即可区分。返回值不变；既有的返回矩阵测试钉住每个分支
+  （`Neo.Plugins.L2DA.UnitTests` 109/109）。
 - **每一个内置 DA writer 都是模拟，而这里不交付任何真实后端** [E1]。
   `NeoFsLikeDAWriter` 是一个进程内的 `ConcurrentDictionary`，它自己的文件头就说它
   "does not contact NeoFS or survive process restarts"（`src/Neo.Plugins.L2DA/NeoFsLikeDAWriter.cs:1-27`，
@@ -1409,6 +1423,12 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   （`external/neo/src/Neo/Plugins/Plugin.cs:126`）。于是那条静默忽略已更新设置的分支，
   是为一个永不触发的触发器而存在的，而运维者可见的效果是：编辑 batch 阈值看起来成功了。
   修复：去掉这种臆测，并在读取设置的那个位置明确说明需要重启。
+  **状态 —— 本分支已修复（2026-09-01），按药方执行。** 臆测已去掉：`Configure` 的 XML 文档
+  现在在读取设置的位置陈述运维事实 —— 设置只读一次，batch 阈值变更需要重启节点，核心的
+  config watcher 永远不会重新调用 `Configure`（它会记录 "please restart node"），而存活的
+  sealer 保留它被构建时的设置，因为重建它将丢弃 batch 编号状态与进行中的 builder。sealer
+  的保活本身保留：它对宿主实际执行的一次性设置读取来说是正确行为；改变的是，不再有任何
+  注释声称存在一个会重新触发的触发器。
 - **未被文档记录的每 batch 状态 witness 上限** [E1]。
   `src/Neo.L2.Batch/StateWitnessV1.cs:133` 设了 `MaxEntries = 65_536`，而 `:305` 拒绝任何超过它的
   witness，因此一个触及超过 64K 个状态键的 batch 会在 durable-artifact 路径上硬性 FAULT，

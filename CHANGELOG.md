@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — DA observability: the dropped guarantee and every anomalous "unavailable" now speak — 2026-09-01
+
+- `L2DAPlugin.WithWriter` still downgrades the deployment profile to Development
+  unconditionally, but when a production backend was configured it now logs a warning naming
+  the replacement writer, the dropped independent-reader guarantee, and the
+  `WithProductionBackend` instruction — stepping around the fail-closed production guards can
+  no longer be silent.
+- `JsonRpcL1DAWriter.IsAvailableAsync` returned the same `false` for a receipt published by a
+  different writer, a missing `invokefunction` method, a FAULTed DA contract, and malformed
+  response shapes. Each anomalous branch now logs its own distinct, operator-actionable
+  reason; only the genuine "HALT + Boolean false" (the data really is gone) stays silent.
+  Return values are unchanged.
+- `L2BatchPlugin.Configure` no longer speculates about a config-watcher re-fire the core never
+  produces: its doc states plainly that settings are read once, batch-threshold changes
+  require a node restart, and the live sealer keeps its captured settings.
+- Audit report status blocks updated (EN + zh mirror). `Neo.Plugins.L2DA.UnitTests` 109/109,
+  `Neo.Plugins.L2Batch.UnitTests` 70/70.
+
 ### Fixed — SealedBatch carries the staged message side through the hand-off — 2026-09-01
 
 - `BatchBuilder.SealArtifact` returned a `SealedBatch` holding only transactions, L1 messages

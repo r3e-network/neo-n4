@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the duplicate-nonce gate's true scope is stated and pinned; two deep findings documented as decisions — 2026-09-01
+
+- The per-executor duplicate-nonce gate (`_consumedNonces` in both
+  `ApplicationEngineTransactionExecutor` and `RiscVTransactionExecutor`) behaved as object-lifetime
+  state while the track report implied batch scope. Both audit-suggested remedies were assessed and
+  declined with evidence: Neo's `Transaction.Nonce` is a user-chosen tx field, not a state-backed
+  per-account counter (inventing one changes the canonical state format), and persisting the gate
+  through the batch checkpoint needs a lifecycle seam no current host can use. What shipped is the
+  accurate object-lifetime comment naming the durable replay authorities (native contracts'
+  state-backed per-`(sourceChain, nonce)` keys for inbox messages; committed tx hashes in durable
+  batch artifacts) plus four tests pinning both boundaries — same-executor rejection across
+  would-be-separate batches, fresh-executor acceptance of the same pair.
+- The audit's manifest-JSON and sync-over-async findings are resolved as documented decisions in the
+  report (EN + zh): the state-root leaf committing to exact manifest bytes is commitments working as
+  intended (canonicalization would be a paired `NEO4STW1` byte-format change across C#, Rust guest
+  and doc.md §8.5, with no demonstrated nondeterminism), and the synchronous block-to-batch hand-off
+  is a doc.md §7.2 property whose decoupling would be a spec change, with the post-H1 blast radius
+  already bounded by `StopPlugin` and the single pending-batch retry.
 ### Fixed — DA observability: the dropped guarantee and every anomalous "unavailable" now speak — 2026-09-01
 
 - `L2DAPlugin.WithWriter` still downgrades the deployment profile to Development

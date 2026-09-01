@@ -122,6 +122,12 @@ public sealed class RiscVTransactionExecutor : ITransactionExecutor
             return Failed(rawHash, $"deserialize failed: {ex.Message}");
         }
 
+        // Object-lifetime duplicate-nonce defense: (sender, nonce) pairs already seen by THIS
+        // executor instance are rejected. It is neither batch-scoped nor durable — a host that
+        // builds an executor per batch loses cross-batch detection, and a process-lifetime
+        // executor retains one entry per distinct pair. The durable replay authorities are the
+        // native contracts' state-backed per-(sourceChain, nonce) keys for inbox messages and
+        // the committed transaction hashes recorded in the durable batch artifacts.
         var nonceKey = (transaction.Sender, transaction.Nonce);
         lock (_nonceGate)
         {

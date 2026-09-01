@@ -1500,6 +1500,16 @@ decision.
   `StateWitnessV1Serializer.ContractBindingHash` (call site `:73`), so the canonical root now depends
   on upstream manifest JSON ordering. Any change to `nccs`' manifest emission — including a
   compiler-sync commit that touches no N4 source — moves every root.
+  **Status — documented decision, no change (2026-09-01).** A state-root leaf that commits to the
+  exact deployed manifest bytes is commitments working as intended: when the committed bytes change,
+  the root SHOULD move, and the derivation is deterministic for a given compiler build (Neo's
+  manifest JSON emission is insertion-ordered, so the same artifacts always yield the same root).
+  Canonicalizing the JSON (sorted-key re-serialization) would stabilize against upstream ordering
+  but is a byte-format change to the pinned `NEO4STW1` encoding that must land simultaneously in C#
+  (`StateWitnessV1Serializer`), the Rust guest (`neo-zkvm-guest` re-derives the same binding hash),
+  and doc.md §8.5 — declined here because no nondeterminism (the actual failure mode that would
+  demand it) has been demonstrated. If `nccs` ever emits nondeterministic manifest JSON, that is the
+  compiler bug to fix at the source.
 - **A reorg stops the node instead of rewinding** [E1]. `RecoverAndProcessCommittedBlocks` throws
   `"committed L2 block {index} is missing from the local ledger; recovery cannot skip it"`
   (`src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:497-500`), the handler rethrows (`:479`), and
@@ -1538,6 +1548,16 @@ decision.
   `src/Neo.Plugins.L2Batch/L2BatchPlugin.cs` — `:385`, `:387`, `:583`, `:652`, `:655` — block on L1
   I/O from the `Committed` path, which the 2026-08-29 report's robustness verdict already flags; it
   is the delivery mechanism for H1's remote-expressible outage.
+  **Status — documented defer (2026-09-01).** The synchronous block-to-batch hand-off is itself a
+  doc.md §7.2 property: a committed L2 block is not acknowledged until its batch is durably
+  persisted and the validated post-state root is returned, so decoupling them (an ordered async
+  pump over the `Blockchain.Committed` event, whose sync signature belongs to the L1 core) would
+  let block N+1 commit before batch N is durable — a spec change, not a bug fix. Post-H1 the blast
+  radius is bounded regardless: the two restore sites (`WithSealedBatchSink`) run once at wiring
+  time off the commit path, and the commit-path sites block at most one persist attempt plus one
+  pending-batch retry before `ExceptionPolicy => StopPlugin` detaches the batcher and the chain
+  keeps importing blocks. An async delivery redesign remains worthwhile for throughput, tracked as
+  a spec-level item rather than folded into this audit.
 - **`JsonRpcL1DAWriter.IsAvailableAsync` conflates four states into one `false`** [E1]
   (`src/Neo.Plugins.L2DA/JsonRpcL1DAWriter.cs:127-158`): a pointer/metadata that does not match this
   writer's mode (`:133-136`), a non-object response, `state != "HALT"` — i.e. the DA contract itself
@@ -1585,6 +1605,20 @@ decision.
   per batch loses replay detection silently. (The track report also asserted a comment claiming batch
   scope at `:126-128`; there is no such comment — corrected in §8.) Fix: read the account nonce from
   the state store as the single source of truth, or persist the gate with the batch checkpoint.
+  **Status — fixed on this branch (2026-09-01): the gate's true scope is now stated and pinned.**
+  Both suggested remedies were assessed and declined with evidence. Reading "the account nonce"
+  from state is impossible under Neo semantics: `Transaction.Nonce` is a user-chosen tx-field, not
+  a per-account counter in state — inventing one would change the canonical state format and
+  require a spec change. Persisting the gate through the batch checkpoint needs a lifecycle seam
+  across `ITransactionExecutor`/`ISealedBatchSink` that no current host can use (the only
+  production-style construction remains the devnet's one-object-per-process, where the gate is
+  process-durable); it is deferred until a per-batch-executor host actually exists. What shipped:
+  the misleading per-batch comment is replaced by an accurate object-lifetime statement naming the
+  durable replay authorities (the native contracts' state-backed per-`(sourceChain, nonce)` keys
+  for inbox messages and the committed tx hashes in durable batch artifacts), and four new tests
+  pin both boundaries — same-executor rejection across what would be separate batches, and
+  fresh-executor acceptance of the same pair — so any future scope change is a deliberate,
+  test-visible decision. Neo.L2.Executor 122/123 (1 pre-existing skip), RiscV 34/34.
 - **A guard defending against a scenario the host does not produce** [E1].
   `L2BatchPlugin.cs:457-460` keeps `_sealer` alive across `Configure()` "if Configure ever runs more
   than once (config-watcher re-fire, host re-init)". The core's config watcher does not re-invoke

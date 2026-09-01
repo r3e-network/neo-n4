@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="RocksDB" Version="10.10.1.649" GeneratePathProperty="true" />
+    <PackageReference Include="RocksDB" Version="11.8.1.4423" GeneratePathProperty="true" />
     <Content Include="$(PkgRocksDB)\runtimes\win-x64\native\rocksdb.dll"
              Link="runtimes\win-x64\native\rocksdb.dll"
              CopyToOutputDirectory="PreserveNewest"

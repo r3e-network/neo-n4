@@ -1342,6 +1342,14 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   `StateWitnessV1Serializer.ContractBindingHash`（调用点 `:73`），因此规范 root 现在取决于上游
   manifest 的 JSON 顺序。对 `nccs` manifest 发出的任何改动 —— 包括一次不触碰任何 N4 源码的
   编译器同步 commit —— 都会移动每一个 root。
+  **状态 —— 已记录决定，不做变更（2026-09-01）。** 对确切部署 manifest 字节的 state-root leaf
+  提交，正是承诺机制按设计工作：当被提交的字节变化时，root 就应当移动，且对给定编译器构建
+  该推导是确定性的（Neo 的 manifest JSON 发射是插入序的，因此同一批 artifact 总是产生同一个
+  root）。把 JSON 规范化（按键排序再序列化）确实能对上游顺序稳定，但那是对钉住的 `NEO4STW1`
+  编码的字节格式变更，必须同时落在 C#（`StateWitnessV1Serializer`）、Rust guest
+  （`neo-zkvm-guest` 重新推导同一个 binding hash）与 doc.md §8.5 三处 —— 此处拒绝，
+  因为尚未演示出任何非确定性（真正会要求这样做的故障模式）。如果 `nccs` 哪天发出非确定性的
+  manifest JSON，那是要在源头修的编译器 bug。
 - **一次重组会停止节点而不是回退** [E1]。`RecoverAndProcessCommittedBlocks` 抛出
   `"committed L2 block {index} is missing from the local ledger; recovery cannot skip it"`
   （`src/Neo.Plugins.L2Batch/L2BatchPlugin.cs:497-500`），处理器重新抛出（`:479`），而
@@ -1376,6 +1384,14 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   `.AsTask().GetAwaiter().GetResult()` —— `:385`、`:387`、`:583`、`:652`、`:655` ——
   从 `Committed` 路径上阻塞在 L1 I/O 上；2026-08-29 报告的健壮性结论已经点到这一点；
   它就是 H1 那个可远程表达的宕服的投递机制。
+  **状态 —— 记录为延后（2026-09-01）。** 同步的"区块到 batch"交接本身就是 doc.md §7.2 的一条
+  属性：已提交的 L2 区块在其 batch 被持久化、且校验过的后状态 root 返回之前不得确认，所以
+  解耦它们（对 `Blockchain.Committed` 事件做一个有序 async 泵，其同步签名属于 L1 核心）会让
+  区块 N+1 在 batch N 持久化之前就提交 —— 那是规范变更，不是 bug 修复。H1 之后的爆炸半径
+  无论如何已被限住：两处恢复位点（`WithSealedBatchSink`）只在接线时运行一次、不在 commit
+  路径上，而 commit 路径上的位点至多阻塞一次 persist 尝试外加一次待处理 batch 重试，随后
+  `ExceptionPolicy => StopPlugin` 把 batcher 摘下、链继续导入区块。异步投递的重新设计对吞吐
+  仍然值得做，作为规范级事项追踪，而非折进这次审计。
 - **`JsonRpcL1DAWriter.IsAvailableAsync` 把四种状态混成一个 `false`** [E1]
   （`src/Neo.Plugins.L2DA/JsonRpcL1DAWriter.cs:127-158`）：一个与本 writer 的模式不匹配的
   指针/元数据（`:133-136`）、一个非对象响应、`state != "HALT"` —— 也就是 DA 合约自身 FAULT 了 ——
@@ -1416,6 +1432,17 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   宿主都会静默失去重放检测。（track 报告还断言 `:126-128` 处有一条声称 batch 作用域的注释；
   并不存在这样的注释 —— 已在 §8 更正。）修复：把账户 nonce 从状态存储中读出，作为唯一权威来源，
   或者把这道闸门连同 batch checkpoint 一起持久化。
+  **状态 —— 本分支已修复（2026-09-01）：闸门的真实作用域已写明并钉住。** 两条建议的修复都被
+  评估并以证据拒绝。在 Neo 语义下"从状态读账户 nonce"不可行：`Transaction.Nonce` 是用户自选的
+  交易字段，不是状态里的逐账户计数器 —— 凭空造一个会改变规范状态格式，需要规范变更。把闸门
+  随 batch checkpoint 持久化，需要一条横跨 `ITransactionExecutor`/`ISealedBatchSink` 的生命周期
+  接缝，而没有任何现役宿主能用上它（唯一生产风格的构造点仍是 devnet 的每进程单对象，在那里
+  闸门本就是进程耐久的）；在按 batch 构建执行器的宿主真实出现之前延后。本次落地的是：把误导性
+  的逐 batch 注释替换为准确的对象生命周期陈述，点名耐久的重放权威（原生合约为收件箱消息持有的
+  状态内 per-`(sourceChain, nonce)` 键，以及耐久 batch artifact 里记录的已提交交易哈希），并用
+  四个新测试钉住两条边界 —— 同一执行器跨"本应分开的 batch"持续拒绝，以及新执行器接受同一对
+  —— 让未来任何作用域变更都成为测试可见的自觉决定。Neo.L2.Executor 122/123（1 项既有跳过），
+  RiscV 34/34。
 - **一道在防御宿主根本不会产生的场景的守卫** [E1]。
   `L2BatchPlugin.cs:457-460` 让 `_sealer` 跨 `Configure()` 存活，理由是 "if Configure ever runs more
   than once (config-watcher re-fire, host re-init)"。核心的 config watcher 并不会重新调用

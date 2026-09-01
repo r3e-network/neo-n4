@@ -230,4 +230,47 @@ public class UT_ApplicationEngineTransactionExecutor
         Assert.AreEqual(r1.Receipt.StorageDeltaHash, r2.Receipt.StorageDeltaHash);
         Assert.AreEqual(r1.Receipt.EventsHash, r2.Receipt.EventsHash);
     }
+
+    [TestMethod]
+    public async Task DuplicateNonceGate_IsScopedToTheExecutorObject()
+    {
+        // The gate is an object-lifetime defense, not a batch- or state-scoped one: the same
+        // executor rejects a repeated (sender, nonce) pair even across what would be separate
+        // batches, and a failed execution still consumes the pair. Pin this so the scope
+        // cannot silently drift in either direction.
+        var script = new byte[] { (byte)OpCode.PUSH1 };
+        var serialized = BuildTx(script);
+
+        using var store = new InMemoryKeyValueStore();
+        var executor = new ApplicationEngineTransactionExecutor(store, DefaultSettings);
+
+        var first = await executor.ExecuteAsync(serialized, Ctx, BlockCtx);
+        StringAssert.StartsWith(first.FailureReason, "engine setup failed");
+
+        var second = await executor.ExecuteAsync(serialized, Ctx, BlockCtx);
+        StringAssert.StartsWith(second.FailureReason, "duplicate nonce");
+    }
+
+    [TestMethod]
+    public async Task DuplicateNonceGate_IsNotSharedAcrossExecutors()
+    {
+        // A freshly constructed executor starts with an empty gate: the same serialized tx
+        // that failed for e1 runs the gate again for e2. This is the mirror risk the audit
+        // flagged — a host that builds an executor per batch loses cross-batch duplicate
+        // detection silently. Pin the boundary as it IS, so any change to that scope is a
+        // deliberate decision.
+        var script = new byte[] { (byte)OpCode.PUSH1 };
+        var serialized = BuildTx(script);
+
+        using var s1 = new InMemoryKeyValueStore();
+        using var s2 = new InMemoryKeyValueStore();
+        var e1 = new ApplicationEngineTransactionExecutor(s1, DefaultSettings);
+        var e2 = new ApplicationEngineTransactionExecutor(s2, DefaultSettings);
+
+        var r1 = await e1.ExecuteAsync(serialized, Ctx, BlockCtx);
+        var r2 = await e2.ExecuteAsync(serialized, Ctx, BlockCtx);
+
+        StringAssert.StartsWith(r1.FailureReason, "engine setup failed");
+        StringAssert.StartsWith(r2.FailureReason, "engine setup failed");
+    }
 }

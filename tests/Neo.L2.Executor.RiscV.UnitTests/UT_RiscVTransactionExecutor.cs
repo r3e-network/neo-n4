@@ -433,6 +433,44 @@ public class UT_RiscVTransactionExecutor
         Assert.IsFalse(result.Receipt.Success);
     }
 
+    [TestMethod]
+    public async Task DuplicateNonceGate_IsScopedToTheExecutorObject()
+    {
+        // The gate is an object-lifetime defense, not a batch- or state-scoped one: the same
+        // executor rejects a repeated (sender, nonce) pair even across what would be separate
+        // batches. Pin this so the scope cannot silently drift in either direction.
+        using var store = RiscVTestData.CreateStore();
+        var executor = Executor(store, (_, context) => RiscVTestData.Halt(context));
+        var tx = RiscVTestData.BuildTransaction([(byte)OpCode.RET]);
+
+        var first = await executor.ExecuteAsync(tx, RiscVTestData.Context, RiscVTestData.BlockContext);
+        Assert.IsTrue(first.Receipt.Success, first.FailureReason);
+
+        var second = await executor.ExecuteAsync(tx, RiscVTestData.Context, RiscVTestData.BlockContext);
+        Assert.IsFalse(second.Receipt.Success);
+        StringAssert.StartsWith(second.FailureReason, "duplicate sender nonce");
+    }
+
+    [TestMethod]
+    public async Task DuplicateNonceGate_IsNotSharedAcrossExecutors()
+    {
+        // A freshly constructed executor starts with an empty gate even against the same
+        // state — a host that builds an executor per batch loses cross-batch duplicate
+        // detection silently. Pin the boundary as it IS, so any change to that scope is a
+        // deliberate decision.
+        using var store = RiscVTestData.CreateStore();
+        var tx = RiscVTestData.BuildTransaction([(byte)OpCode.RET]);
+
+        var e1 = Executor(store, (_, context) => RiscVTestData.Halt(context));
+        var e2 = Executor(store, (_, context) => RiscVTestData.Halt(context));
+
+        var r1 = await e1.ExecuteAsync(tx, RiscVTestData.Context, RiscVTestData.BlockContext);
+        var r2 = await e2.ExecuteAsync(tx, RiscVTestData.Context, RiscVTestData.BlockContext);
+
+        Assert.IsTrue(r1.Receipt.Success, r1.FailureReason);
+        Assert.IsTrue(r2.Receipt.Success, r2.FailureReason);
+    }
+
     private static RiscVTransactionExecutor Executor(
         IL2KeyValueStore store,
         RiscVTransactionExecutor.ProgramRunner runner,

@@ -138,7 +138,9 @@ public sealed class BatchBuilder
 
     /// <summary>
     /// Seal the exact executable inputs without inventing execution roots, a DA commitment,
-    /// public-input hash, or proof.
+    /// public-input hash, or proof. The sealed artifact also carries the staged message side
+    /// (withdrawals, L2 → L1, L2 → L2 messages) so a receiver can reconstruct every root the
+    /// batch commits to.
     /// </summary>
     public SealedBatch SealArtifact()
     {
@@ -172,7 +174,10 @@ public sealed class BatchBuilder
             _batch.L1MessagesConsumed,
             context,
             forcedProofs,
-            _batch.BlockTimeline);
+            _batch.BlockTimeline,
+            _batch.Withdrawals,
+            _batch.L2ToL1Messages,
+            _batch.L2ToL2Messages);
     }
 
     /// <summary>

@@ -16,6 +16,9 @@ public sealed class SealedBatch
     private readonly IReadOnlyList<CrossChainMessage> _l1Messages;
     private readonly IReadOnlyList<ForcedInclusionConsumptionProof> _forcedInclusions;
     private readonly IReadOnlyList<L2BatchBlock>? _blockTimeline;
+    private readonly IReadOnlyList<WithdrawalRequest>? _withdrawals;
+    private readonly IReadOnlyList<CrossChainMessage>? _l2ToL1Messages;
+    private readonly IReadOnlyList<CrossChainMessage>? _l2ToL2Messages;
 
     /// <summary>L2 chain identifier.</summary>
     public uint ChainId { get; }
@@ -49,6 +52,27 @@ public sealed class SealedBatch
     public BatchBlockContext BlockContext { get; }
 
     /// <summary>
+    /// Withdrawals the batcher staged for the withdrawal Merkle tree; the leaf material behind
+    /// <c>WithdrawalRoot</c>. <c>null</c> only for instances reconstructed from decoded payloads,
+    /// which carry no message side.
+    /// </summary>
+    public IReadOnlyList<WithdrawalRequest>? Withdrawals => _withdrawals;
+
+    /// <summary>
+    /// L2 → L1 messages the batcher staged; the leaf material behind <c>L2ToL1MessageRoot</c>.
+    /// <c>null</c> only for instances reconstructed from decoded payloads, which carry no
+    /// message side.
+    /// </summary>
+    public IReadOnlyList<CrossChainMessage>? L2ToL1Messages => _l2ToL1Messages;
+
+    /// <summary>
+    /// L2 → L2 messages the batcher staged; the leaf material behind <c>L2ToL2MessageRoot</c>.
+    /// <c>null</c> only for instances reconstructed from decoded payloads, which carry no
+    /// message side.
+    /// </summary>
+    public IReadOnlyList<CrossChainMessage>? L2ToL2Messages => _l2ToL2Messages;
+
+    /// <summary>
     /// Per-block execution timeline, when this batch was sealed by a batcher that attributed its
     /// transactions to blocks. <c>null</c> only for instances reconstructed from decoded payloads,
     /// which cannot re-derive block attribution; <see cref="ToExecutionRequest"/> refuses those.
@@ -66,7 +90,10 @@ public sealed class SealedBatch
         IReadOnlyList<CrossChainMessage> l1Messages,
         BatchBlockContext blockContext,
         IReadOnlyList<ForcedInclusionConsumptionProof>? forcedInclusions = null,
-        IReadOnlyList<L2BatchBlock>? blockTimeline = null)
+        IReadOnlyList<L2BatchBlock>? blockTimeline = null,
+        IReadOnlyList<WithdrawalRequest>? withdrawals = null,
+        IReadOnlyList<CrossChainMessage>? l2ToL1Messages = null,
+        IReadOnlyList<CrossChainMessage>? l2ToL2Messages = null)
     {
         ArgumentNullException.ThrowIfNull(preStateRoot);
         ArgumentNullException.ThrowIfNull(transactions);
@@ -149,12 +176,23 @@ public sealed class SealedBatch
                 nameof(forcedInclusions));
         _forcedInclusions = Array.AsReadOnly(forcedCopies);
 
-        var messageCopies = new CrossChainMessage[l1Messages.Count];
-        for (var index = 0; index < l1Messages.Count; index++)
+        _l1Messages = CopyMessages(l1Messages, nameof(l1Messages))!;
+        _withdrawals = CopyWithdrawals(withdrawals);
+        _l2ToL1Messages = CopyMessages(l2ToL1Messages, nameof(l2ToL1Messages));
+        _l2ToL2Messages = CopyMessages(l2ToL2Messages, nameof(l2ToL2Messages));
+    }
+
+    private static IReadOnlyList<CrossChainMessage>? CopyMessages(
+        IReadOnlyList<CrossChainMessage>? messages, string paramName)
+    {
+        if (messages is null)
+            return null;
+        var messageCopies = new CrossChainMessage[messages.Count];
+        for (var index = 0; index < messages.Count; index++)
         {
-            var message = l1Messages[index]
+            var message = messages[index]
                 ?? throw new ArgumentException(
-                    $"l1Messages[{index}] is null", nameof(l1Messages));
+                    $"{paramName}[{index}] is null", paramName);
             ArgumentNullException.ThrowIfNull(message.Sender);
             ArgumentNullException.ThrowIfNull(message.Receiver);
             ArgumentNullException.ThrowIfNull(message.MessageHash);
@@ -166,7 +204,29 @@ public sealed class SealedBatch
                 MessageHash = new UInt256(message.MessageHash.GetSpan()),
             };
         }
-        _l1Messages = Array.AsReadOnly(messageCopies);
+        return Array.AsReadOnly(messageCopies);
+    }
+
+    private static IReadOnlyList<WithdrawalRequest>? CopyWithdrawals(
+        IReadOnlyList<WithdrawalRequest>? withdrawals)
+    {
+        if (withdrawals is null)
+            return null;
+        var withdrawalCopies = new WithdrawalRequest[withdrawals.Count];
+        for (var index = 0; index < withdrawals.Count; index++)
+        {
+            var withdrawal = withdrawals[index]
+                ?? throw new ArgumentException(
+                    $"withdrawals[{index}] is null", nameof(withdrawals));
+            withdrawalCopies[index] = withdrawal with
+            {
+                EmittingContract = new UInt160(withdrawal.EmittingContract.GetSpan()),
+                L2Sender = new UInt160(withdrawal.L2Sender.GetSpan()),
+                L1Recipient = new UInt160(withdrawal.L1Recipient.GetSpan()),
+                L2Asset = new UInt160(withdrawal.L2Asset.GetSpan()),
+            };
+        }
+        return Array.AsReadOnly(withdrawalCopies);
     }
 
     /// <summary>Build the exact executor request represented by this sealed batch.</summary>

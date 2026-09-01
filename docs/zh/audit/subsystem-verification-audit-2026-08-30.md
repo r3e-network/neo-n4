@@ -1330,6 +1330,13 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   （`src/Neo.L2.Batch/SealedBatch.cs:15-17`）。一个交出 `SealedBatch` 的调用方无法重建提取 root
   当初承诺了什么。今天它是潜伏的，因为插件路径使用的是 `BatchExecutionResult` / `ToCommitment`；
   这是一个一旦被当作传输载体就会静默丢数据的 API。
+  **状态 —— 本分支已修复（2026-09-01）。** `SealedBatch` 现在携带暂存的消息侧 —— `Withdrawals`、
+  `L2ToL1Messages`、`L2ToL2Messages` —— 与其余字段一样深拷贝，`BatchBuilder.SealArtifact` 会用
+  `_batch` 里的内容填充它们，因此交出 artifact 的接收方可以重建 batch 承诺的每一个 root。构造函数
+  参数是可选的，null 表示"payload 解码实例"（与 `blockTimeline` 同一惯例）：`ExecutionPayloadV1`
+  不携带消息侧，所以解码实例无法凭空补齐 —— 扩展 DA payload 格式属于 spec 变更（doc.md §8.1），
+  此处有意不做。由三个新测试钉住（携带暂存侧、深拷贝隔离、null 默认值），Neo.L2.Batch.UnitTests
+  75/75 通过；settlement（171）与 executor（121）套件保持绿色。
 - **`ContractManifest.ToJson()` 的字节进入了 state-root leaf** [E1]。
   `Sp1StateWitnessSource.cs:271` 把每个合约的 manifest 序列化为 UTF-8 JSON 并馈入
   `StateWitnessV1Serializer.ContractBindingHash`（调用点 `:73`），因此规范 root 现在取决于上游

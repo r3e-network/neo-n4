@@ -1976,7 +1976,7 @@ dependencies = [
  "jni-sys",
  "log",
  "simd_cesu8",
- "thiserror 2.0.18",
+ "thiserror 2.0.20",
  "walkdir",
  "windows-link",
 ]
@@ -2314,7 +2314,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "sha3",
- "thiserror 2.0.18",
+ "thiserror 2.0.20",
  "toml",
  "tracing",
  "tracing-subscriber",
@@ -2348,7 +2348,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
- "thiserror 2.0.18",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2362,7 +2362,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
- "thiserror 2.0.18",
+ "thiserror 2.0.20",
  "tokio",
 ]
 
@@ -2402,7 +2402,7 @@ dependencies = [
  "sp1-sdk",
  "sp1-verifier",
  "tempfile",
- "thiserror 2.0.18",
+ "thiserror 2.0.20",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3226,7 +3226,7 @@ dependencies = [
  "rustc-hash 2.1.2",
  "rustls",
  "socket2 0.6.3",
- "thiserror 2.0.18",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
  "web-time",
@@ -3248,7 +3248,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.18",
+ "thiserror 2.0.20",
  "tinyvec",
  "tracing",
  "web-time",
@@ -5114,7 +5114,7 @@ dependencies = [
  "sp1-recursion-machine",
  "strum",
  "substrate-bn-succinct-rs",
- "thiserror 2.0.18",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -5375,11 +5375,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.18"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
+checksum = "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f"
 dependencies = [
- "thiserror-impl 2.0.18",
+ "thiserror-impl 2.0.20",
 ]
 
 [[package]]
@@ -5395,13 +5395,13 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.18"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
+checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.117",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -5744,7 +5744,7 @@ checksum = "050686193eb999b4bb3bc2acfa891a13da00f79734704c4b8b4ef1a10b368a3c"
 dependencies = [
  "crossbeam-channel",
  "symlink",
- "thiserror 2.0.18",
+ "thiserror 2.0.20",
  "time",
  "tracing-subscriber",
 ]

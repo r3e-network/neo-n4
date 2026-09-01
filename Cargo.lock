@@ -2308,7 +2308,7 @@ dependencies = [
  "hex",
  "k256",
  "libc",
- "rand 0.8.6",
+ "rand 0.9.4",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -2694,7 +2694,7 @@ dependencies = [
  "p3-mds",
  "p3-poseidon2",
  "p3-symmetric",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rustc_version",
  "serde",
 ]
@@ -2710,7 +2710,7 @@ dependencies = [
  "p3-field",
  "p3-poseidon2",
  "p3-symmetric",
- "rand 0.8.6",
+ "rand 0.8.8",
  "serde",
 ]
 
@@ -2765,7 +2765,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "num-traits",
  "p3-util",
- "rand 0.8.6",
+ "rand 0.8.8",
  "serde",
 ]
 
@@ -2825,7 +2825,7 @@ dependencies = [
  "p3-mds",
  "p3-poseidon2",
  "p3-symmetric",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rustc_version",
  "serde",
 ]
@@ -2840,7 +2840,7 @@ dependencies = [
  "p3-field",
  "p3-maybe-rayon",
  "p3-util",
- "rand 0.8.6",
+ "rand 0.8.8",
  "serde",
  "tracing",
 ]
@@ -2866,7 +2866,7 @@ dependencies = [
  "p3-matrix",
  "p3-symmetric",
  "p3-util",
- "rand 0.8.6",
+ "rand 0.8.8",
 ]
 
 [[package]]
@@ -2896,7 +2896,7 @@ dependencies = [
  "p3-field",
  "p3-mds",
  "p3-symmetric",
- "rand 0.8.6",
+ "rand 0.8.8",
  "serde",
 ]
 
@@ -3297,9 +3297,9 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
 name = "rand"
-version = "0.8.6"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
+checksum = "e058c7de0b26af77780c769414d6257830bb240f3c38477dbc2c16e5f54d6d4c"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
@@ -4137,7 +4137,7 @@ checksum = "d3fe45ae8840223fb6a1bc9cf1d97c91d0017246b168280242d75c6aa4dfb785"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
- "rand 0.8.6",
+ "rand 0.8.8",
  "serde",
  "slop-algebra",
  "slop-alloc",
@@ -4243,7 +4243,7 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "num_cpus",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rayon",
  "serde",
  "slop-algebra",
@@ -4344,7 +4344,7 @@ dependencies = [
  "derive-where",
  "futures",
  "num_cpus",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rayon",
  "serde",
  "slop-algebra",
@@ -4433,7 +4433,7 @@ dependencies = [
  "arrayvec",
  "derive-where",
  "itertools 0.14.0",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rayon",
  "serde",
  "slop-algebra",
@@ -4473,7 +4473,7 @@ dependencies = [
  "derive-where",
  "futures",
  "itertools 0.14.0",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rayon",
  "serde",
  "slop-algebra",
@@ -4830,7 +4830,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "opentelemetry",
  "pin-project",
- "rand 0.8.6",
+ "rand 0.8.8",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -4903,7 +4903,7 @@ checksum = "c809d2ff42f22ebeafac078f7fae717e50f9658bcd1a5e847c0c7d7d7bf94019"
 dependencies = [
  "bincode",
  "itertools 0.14.0",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rayon",
  "serde",
  "slop-air",
@@ -5012,7 +5012,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e60fd9a5f5b9bc39e3ddb39c5ac49da32b6aa7ab63c4fef7b6bb2565c2e98b9e"
 dependencies = [
  "itertools 0.14.0",
- "rand 0.8.6",
+ "rand 0.8.8",
  "slop-air",
  "slop-algebra",
  "slop-basefold",
@@ -5105,7 +5105,7 @@ dependencies = [
  "getrandom 0.3.4",
  "lazy_static",
  "libm",
- "rand 0.8.6",
+ "rand 0.8.8",
  "sha2 0.10.9",
  "slop-algebra",
  "sp1-lib",
@@ -5223,7 +5223,7 @@ dependencies = [
  "crunchy",
  "lazy_static",
  "num-bigint 0.4.6",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rustc-hex",
 ]
 
@@ -5646,7 +5646,7 @@ dependencies = [
  "indexmap 1.9.3",
  "pin-project",
  "pin-project-lite",
- "rand 0.8.6",
+ "rand 0.8.8",
  "slab",
  "tokio",
  "tokio-util",

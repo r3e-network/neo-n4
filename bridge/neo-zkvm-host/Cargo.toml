@@ -39,7 +39,7 @@ libc = "0.2"
 
 [dev-dependencies]
 # For test builds — not pulled in for the production lib.
-serial_test = "3.0"
+serial_test = "4.0"
 neo-zkvm-guest = { path = "../neo-zkvm-guest" }
 neo-execution-core = { path = "../neo-execution-core" }
 

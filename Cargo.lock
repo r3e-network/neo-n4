@@ -2397,7 +2397,7 @@ dependencies = [
  "neo-zkvm-host",
  "serde",
  "serde_json",
- "serial_test",
+ "serial_test 4.0.1",
  "sha2 0.11.0",
  "sp1-sdk",
  "sp1-verifier",
@@ -2429,7 +2429,7 @@ dependencies = [
  "neo-zkvm-guest",
  "serde",
  "serde_json",
- "serial_test",
+ "serial_test 4.0.1",
  "sha2 0.11.0",
  "sp1-sdk",
  "sp1-verifier",
@@ -3929,7 +3929,21 @@ dependencies = [
  "log",
  "once_cell",
  "parking_lot",
- "serial_test_derive",
+ "serial_test_derive 3.5.0",
+]
+
+[[package]]
+name = "serial_test"
+version = "4.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6df5ed973ad8d834e09f824f9e9f449af6b9a3745f78dec7cc752770bd3bf11"
+dependencies = [
+ "futures-executor",
+ "futures-util",
+ "log",
+ "once_cell",
+ "parking_lot",
+ "serial_test_derive 4.0.1",
 ]
 
 [[package]]
@@ -3941,6 +3955,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "serial_test_derive"
+version = "4.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a22144e767da4ddd8416dbf383700542ffd8a5dc493dfecedfe1fe3ad03c98ae"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -4834,7 +4859,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
- "serial_test",
+ "serial_test 3.5.0",
  "sha2 0.10.9",
  "slop-air",
  "slop-algebra",

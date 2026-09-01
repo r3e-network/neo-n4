@@ -38,7 +38,7 @@ sp1-sdk = { version = "=6.2.1", features = ["blocking"] }
 [dev-dependencies]
 neo-execution-core = { path = "../neo-execution-core" }
 neo-zkvm-host = { path = "../neo-zkvm-host" }
-serial_test = "3"
+serial_test = "4"
 tempfile = "3"
 
 [[bin]]

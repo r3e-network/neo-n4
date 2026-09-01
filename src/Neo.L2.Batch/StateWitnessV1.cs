@@ -129,7 +129,10 @@ public static class StateWitnessV1Serializer
     /// <summary>Maximum complete witness size (128 MiB).</summary>
     public const int MaxEncodedBytes = 128 * 1024 * 1024;
 
-    /// <summary>Maximum number of state entries.</summary>
+    /// <summary>
+    /// Maximum number of state entries: a hard operator constraint (doc.md §8.5) — a batch whose
+    /// complete pre-state touches more keys is rejected at witness validation and must be split.
+    /// </summary>
     public const uint MaxEntries = 65_536;
 
     /// <summary>Maximum state-key size.</summary>
@@ -302,8 +305,14 @@ public static class StateWitnessV1Serializer
             throw new ArgumentException(
                 "State witness protocol configuration differs from N4 genesis V1",
                 nameof(witness));
-        if (witness.Entries.Count is 0 || (uint)witness.Entries.Count > MaxEntries)
-            throw new ArgumentException("State witness entry count is invalid", nameof(witness));
+        if (witness.Entries.Count is 0)
+            throw new ArgumentException(
+                "State witness must contain at least one entry", nameof(witness));
+        if ((uint)witness.Entries.Count > MaxEntries)
+            throw new ArgumentException(
+                $"State witness entry count {witness.Entries.Count} exceeds the {MaxEntries}-entry "
+                + "durable-artifact ceiling; split the batch so its complete pre-state fits",
+                nameof(witness));
         if (witness.Contracts.Count is 0 || (uint)witness.Contracts.Count > MaxContracts)
             throw new ArgumentException("State witness contract count is invalid", nameof(witness));
 

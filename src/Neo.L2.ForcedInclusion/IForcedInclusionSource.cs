@@ -35,7 +35,14 @@ public interface IForcedInclusionSource
 
     /// <summary>
     /// True if any unconsumed entry has its deadline past <paramref name="nowUnixSeconds"/>.
-    /// The batcher uses this to decide whether to halt finalization for censorship reasons.
+    /// This is an operator-status signal, not a finalization gate: it feeds
+    /// <c>CensorshipDetector</c>'s advisory report (which an operator submits to
+    /// <c>NeoHub.ForcedInclusion.ReportCensorship</c>) and the status/health surfaces.
+    /// Finalization safety does not come from a halt here — the batcher instead drains the queue
+    /// at the start of every fresh batch and prepends the entries before any transaction,
+    /// failing closed on a bad drain, so a censoring sequencer cannot skip a forced transaction
+    /// (doc.md §15.4). Do not add a finalization halt keyed on this flag: it would stall healthy
+    /// chains that simply have no overdue entries to report.
     /// </summary>
     ValueTask<bool> HasOverdueEntryAsync(uint nowUnixSeconds, CancellationToken cancellationToken = default);
 }

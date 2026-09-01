@@ -1379,6 +1379,12 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   而且没有任何东西校验该适配器的声称是真的、而非仅仅格式良好。这是一条关于组合边界的观察而非缺陷 ——
   fail-closed 的默认值（§9）正是对它的正确回应 —— 但它应当写进 `doc.md` §12，
   而不是留待人们通过读 `L2DAPlugin.cs:134-136` 那处抛出来自己发现。
+  **状态 —— 本分支已写入规范（2026-09-01）。** `doc.md` §12 现在把这条组合边界作为显式声明
+  写出：内置 writer 全部是语义模拟（进程内、不重启耐久、receipt kind `SemanticSimulation`），
+  `MetricsEmittingProductionDAWriter` 是套在注入内部 writer 之上的度量装饰器而非后端，
+  生产 `NeoFS` / `External` / `DAC` 链必须由运维者提供自己的 `IDAWriter` 适配器、其可用性/
+  独立性声称由运维者负责，而插件的 fail-closed Production 默认值 —— 拒绝内置模拟 writer
+  落地的那处 —— 被点名为执行点，这条保证不再只活在一个抛出位置上。
 - **batch 内的 nonce 闸门以执行器对象为作用域，而非以 batch 或状态为作用域** [E1]。
   `_consumedNonces` 在两个执行器上都是一个 `readonly HashSet<(UInt160, uint)>`
   （`src/Neo.L2.Executor/ApplicationEngineTransactionExecutor.cs:60`、`.Add:133`；
@@ -1400,6 +1406,11 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   `src/Neo.L2.Batch/StateWitnessV1.cs:133` 设了 `MaxEntries = 65_536`，而 `:305` 拒绝任何超过它的
   witness，因此一个触及超过 64K 个状态键的 batch 会在 durable-artifact 路径上硬性 FAULT，
   而没有任何面向运维者的文档说明这个上限。
+  **状态 —— 本分支已写入规范（2026-09-01）。** `doc.md` §8.5 现在把 `NEO4STW1` 的边界作为
+  硬性运维约束写出（条目数 ≤ 65,536、合约数 ≤ 4,096、编码上限 128 MiB），并明确禁止放宽
+  常量去迁就超限 batch —— batch 必须拆小。`MaxEntries` 的 XML 文档在数字所在之处说了同一
+  件事，且校验 FAULT 不再只说 "entry count is invalid"：零条目与超限两支拆开，超限消息点名
+  实际条目数、上限与拆分指示 —— 这正是运维者在故障时刻真正读到的那段文字。
 - **`OnBlockCommitted` 没有测试** [E1]。`UT_L2BatchPlugin.cs:206`、`:229`、`:304`、`:351`
   只经由 `ProcessCommittedBlock` 钉住重试路径；没有任何测试引用 `OnBlockCommitted`，
   而 `InvokeCommitted` 出现在零个测试中。H1 的修复所依赖的那个恢复行为，
@@ -1430,6 +1441,13 @@ fork 的这一次跳变在这个 crate 上同样没有带上任何安全变更�
   强制交易，而文档所描述的那个 "halt finalization" 机制既不存在也不必要 —— 但一位读接口的运维者
   会去找一个错的安全属性，而更糟的是，未来某次重构可能“恢复”一道会把健康链停滞住的 halt。
   修复只涉及文档：把那个真实存在的 prepend-and-drain 保证描述清楚。
+  **状态 —— 本分支已修复（2026-09-01），如药方仅涉及文档。**
+  `IForcedInclusionSource.HasOverdueEntryAsync` 的文档如今点名真实消费者 ——
+  `CensorshipDetector` 的建议性报告（由运维者提交给 `ReportCensorship`）与状态/健康表面
+  —— 并直说终局化安全并不来自某道 halt 闸门：batcher 在每个新 batch 开头排空队列、把条目
+  前置到任何交易之前、对坏排空 fail closed，因此搞审查的 sequencer 无法跳过一笔强制交易。
+  文档还告诫了该发现所担忧的那次未来重构：以这个 flag 为键的 halt 会把健康链停滞住，
+  所以这个不存在的机制必须继续保持不存在。
 - **2026-08-29 那条关于 escape hatch "faults without manual pauser registration" 的论断，
   对 live 部署器而言如今已被推翻** [E1]。`ReportCensorship` 只能经由
   `ChainRegistryContract.cs:482-485`（`CheckWitness(owner) || IsPauser(callingScriptHash)`）暂停，

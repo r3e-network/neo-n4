@@ -170,15 +170,20 @@ internal static class ValidateChainConfigCommand
                 Console.WriteLine($"⚠ chainMode=L2ValidiumMode pairs with securityLevel=Validium (L1 ZK proof + off-chain DA); got {sec}");
             }
 
-            // ExitModel.OperatorAssisted vs permissionlessExit=true: per the
-            // ExitModel doc, OperatorAssisted means "user exit requires the
-            // operator to co-sign or pre-stage exit batches." That's the opposite
-            // of permissionless. A chain claiming both is internally
-            // contradictory — pin so the operator doesn't ship a chain config
-            // that promises permissionlessness it can't deliver.
+            // ExitModel vs permissionlessExit, both directions (audit §6): per the
+            // ExitModel doc, OperatorAssisted means "user exit requires the operator
+            // to co-sign or pre-stage exit batches" — the opposite of permissionless —
+            // while Permissionless claims the strongest exit guarantee with no operator
+            // cooperation at all. Either pairing with the wrong bool is internally
+            // contradictory; pin both so an operator can't ship a config that promises
+            // an exit posture its own config field denies.
             if (exit == ExitModel.OperatorAssisted && permExit)
             {
                 Console.WriteLine($"⚠ exitModel=OperatorAssisted contradicts permissionlessExit=true; OperatorAssisted means user exit requires operator co-sign — flip permissionlessExit to false or change exitModel");
+            }
+            if (exit == ExitModel.Permissionless && !permExit)
+            {
+                Console.WriteLine($"⚠ exitModel=Permissionless contradicts permissionlessExit=false; Permissionless claims the strongest exit guarantee (no operator cooperation) while the config field says an operator must co-sign — flip permissionlessExit to true or change exitModel");
             }
 
             Console.WriteLine($"✅ valid: chainId={chainId} vm={vm} chainMode={chainMode} securityLevel={sec} daMode={da} " +

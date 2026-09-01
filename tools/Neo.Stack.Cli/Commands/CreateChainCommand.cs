@@ -66,7 +66,7 @@ internal static class CreateChainCommand
         Console.WriteLine($"  sequencerModel = {t.SequencerModel}");
         Console.WriteLine($"  exitModel      = {t.ExitModel}");
         Console.WriteLine($"  gateway        = {(t.GatewayEnabled ? "enabled" : "disabled")}");
-        Console.WriteLine($"  exit policy    = {(t.PermissionlessExit ? "permissionless" : "operator-gated")}");
+        Console.WriteLine($"  exit policy    = {TemplateCatalog.DescribeExitPolicy(t.ExitModel, t.PermissionlessExit)}");
         Console.WriteLine($"  config file    = {configPath}");
         Console.WriteLine();
         Console.WriteLine($"Templates: {TemplateCatalog.ValidNames} (default: {TemplateCatalog.All[0].Name}). Run `neo-stack list-templates` for use-case descriptions.");

@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — exit policy: validate guards both directions, the CLI line names the window — 2026-09-01
+
+- `neo-stack validate` guarded only one direction of the `(exitModel, permissionlessExit)`
+  contradiction (`OperatorAssisted` + `true`). The mirror case — `exitModel=Permissionless` with
+  `permissionlessExit=false`, a chain claiming the strongest exit guarantee while its config field
+  says an operator must co-sign — passed clean. The validator now warns on both, each with a
+  fix-it tail ("flip permissionlessExit to … or change exitModel"), under one shared comment.
+- `create-chain` and `list-templates` printed the same bare `permissionless`/`operator-gated`
+  ternary independently, which for the shipped `rollup` template (`Delayed` + `true`) omitted the
+  challenge window that `ExitModel.Delayed`'s own doc calls the substance of the mode. Both now
+  render through `TemplateCatalog.DescribeExitPolicy(exitModel, permissionlessExit)` — a single
+  projection that names the Delayed challenge window whenever one applies and names the
+  contradiction in the two incoherent combinations — so the two commands cannot drift.
+- Pinned by: the mirror-direction warning test, a coherent-pairing control (`Permissionless` +
+  `true` with a served proof type emits zero `⚠`), a catalog guard asserting every template ships
+  one of the four coherent pairs, a six-combination pin over `DescribeExitPolicy`, and a rollup
+  `list-templates` line asserting the window text. `Neo.Stack.Cli.UnitTests` 201/201.
+- Remaining by decision: `InMemoryL2RpcStore` still parses and discards `permissionlessExit` —
+  giving the wire field an RPC read path is a `doc.md` §16.2 spec change and is deferred there.
+  Audit report status blocks updated (EN + zh mirror).
+
 ### Fixed — execution sees the per-block header, not a batch-frozen one — 2026-09-01
 
 - §10 item 13 (`H15`): a batch spans multiple L2 blocks, but both executors gave every

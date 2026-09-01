@@ -83,6 +83,54 @@ public class UT_ListTemplatesCommand
     }
 
     [TestMethod]
+    public void Catalog_EveryTemplateExitPairIsCoherent()
+    {
+        // exitModel and permissionlessExit describe the same exit posture; a template
+        // pairing them contradictorily (audit §6's mirror case: Permissionless + false)
+        // ships a config whose two exit fields disagree. `validate` now warns on both
+        // contradiction directions, so a template must never emit one.
+        var coherent = new HashSet<(string, bool)>
+        {
+            ("Permissionless", true), ("Delayed", true),
+            ("Delayed", false), ("OperatorAssisted", false),
+        };
+        foreach (var t in TemplateCatalog.All)
+        {
+            Assert.IsTrue(coherent.Contains((t.ExitModel, t.PermissionlessExit)),
+                $"template '{t.Name}' pairs exitModel={t.ExitModel} with permissionlessExit={t.PermissionlessExit}, "
+                + "which `validate` flags as internally contradictory");
+        }
+    }
+
+    [TestMethod]
+    public void DescribeExitPolicy_NamesTheWindow_WheneverOneApplies()
+    {
+        // §16.2: Delayed means "user exit is permissionless but subject to a fixed
+        // challenge window" — the window is the substance of the mode, so printing only
+        // "permissionless" (pre-fix rollup line) under-communicates it. Pin all six
+        // projections, including the contradictory ones validate warns about.
+        StringAssert.Contains(TemplateCatalog.DescribeExitPolicy("Delayed", true), "challenge window");
+        StringAssert.Contains(TemplateCatalog.DescribeExitPolicy("Delayed", true), "permissionless");
+        StringAssert.Contains(TemplateCatalog.DescribeExitPolicy("Delayed", false), "challenge window");
+        StringAssert.Contains(TemplateCatalog.DescribeExitPolicy("Permissionless", true), "no challenge window");
+        StringAssert.Contains(TemplateCatalog.DescribeExitPolicy("Permissionless", false), "contradicts");
+        StringAssert.Contains(TemplateCatalog.DescribeExitPolicy("OperatorAssisted", true), "contradicts");
+        StringAssert.Contains(TemplateCatalog.DescribeExitPolicy("OperatorAssisted", false), "operator co-sign");
+    }
+
+    [TestMethod]
+    public void ListTemplates_Rollup_ExitPolicyLineNamesTheDelayedWindow()
+    {
+        // The audit's exact complaint: the shipped rollup template (Delayed + true)
+        // printed "exit policy = permissionless", omitting the challenge window that
+        // ExitModel.Delayed's own doc calls the substance of the mode.
+        var (rc, output) = CaptureOutput(() => ListTemplatesCommand.Run(new[] { "--template", "rollup" }));
+        Assert.AreEqual(0, rc);
+        StringAssert.Contains(output, "exit policy");
+        StringAssert.Contains(output, "Delayed challenge window");
+    }
+
+    [TestMethod]
     public void LaunchingGuide_TemplateTable_MatchesTheCatalog()
     {
         // `docs/launching-an-l2.md` is the operator walkthrough, and its Templates table is a hand-typed

@@ -1525,6 +1525,15 @@ decision.
   requirement is waived, and the semantic-simulation writer that Production refuses becomes reachable.
   The doc-comment scopes the method to "development and integration environments" but nothing
   enforces that, and no log line says the guarantee was dropped.
+  **Status — fixed on this branch (2026-09-01).** `WithWriter` now logs a warning whenever it
+  actually drops something: when the current profile is Production, the switch is announced
+  with the replacement writer's type, the downgrade to Development, and the instruction that
+  production must use `WithProductionBackend` — so a host that steps around the fail-closed
+  guards can no longer do so silently. The method's XML doc states that the downgrade happens
+  unconditionally and when the warning fires. Nothing else was tightened on purpose: the
+  method stays legal for the development/integration composition its doc scopes it to, and
+  `CreateLocalFromChainDirectory` (which calls `WithWriter` on a fresh, Development-profile
+  plugin) keeps working without noise.
 - **Sync-over-async on the commit thread** [E1]. Five `.AsTask().GetAwaiter().GetResult()` sites in
   `src/Neo.Plugins.L2Batch/L2BatchPlugin.cs` — `:385`, `:387`, `:583`, `:652`, `:655` — block on L1
   I/O from the `Committed` path, which the 2026-08-29 report's robustness verdict already flags; it
@@ -1536,6 +1545,15 @@ decision.
   indistinguishable from data that has genuinely vanished, and the node silently prefers its
   fallback. A transport failure is the one case that does surface, because `CallAsync` throws rather
   than being caught into `false`.
+  **Status — fixed on this branch (2026-09-01).** Each anomalous `false` now logs its own
+  distinct, operator-actionable reason: a receipt that does not match this writer ("published by
+  a different DA writer"), a non-object `invokefunction` response ("the method may not exist on
+  the target DA contract"), a FAULTed state ("a contract fault, not data unavailability"), and
+  the two malformed-shape cases (no stack result, non-Boolean stack item). The one branch that
+  stays silent is the genuine "data has vanished" answer — a HALTed call whose Boolean stack
+  value is `"false"` — so the previously conflated signal is now separable by reading the log.
+  Return values are unchanged; the existing return-matrix tests pin every branch
+  (`Neo.Plugins.L2DA.UnitTests` 109/109).
 - **Every built-in DA writer is a simulation, and no real backend ships here** [E1].
   `NeoFsLikeDAWriter` is an in-process `ConcurrentDictionary` whose own header says it "does not
   contact NeoFS or survive process restarts" (`src/Neo.Plugins.L2DA/NeoFsLikeDAWriter.cs:1-27`,
@@ -1575,6 +1593,14 @@ decision.
   settings exists for a trigger that never fires, and the operator-visible effect is that editing
   batch thresholds appears to succeed. Fix: drop the speculation and say plainly that a restart is
   required, at the point where the settings are read.
+  **Status — fixed on this branch (2026-09-01), as prescribed.** The speculation is gone:
+  `Configure`'s XML doc now states the operational fact where the settings are read — settings
+  are read once, batch-threshold changes require a node restart, the core's config watcher
+  never re-invokes `Configure` (it logs "please restart node"), and the live sealer keeps its
+  captured settings because recreating it would discard batch-numbering state and the
+  in-progress builder. The sealer keep-alive itself stays: it is the correct behavior for the
+  one-shot settings read the host actually performs; what changed is that no comment any
+  longer claims a re-fire trigger exists.
 - **Undocumented per-batch state-witness ceiling** [E1].
   `src/Neo.L2.Batch/StateWitnessV1.cs:133` sets `MaxEntries = 65_536` and `:305` rejects any witness
   above it, so a batch touching more than 64K state keys hard-faults on the durable-artifact path with

@@ -160,9 +160,20 @@ public sealed class L2DAPlugin : Plugin
     /// Override the writer for development and integration environments. Production must
     /// use <see cref="WithProductionBackend"/> so an independent reader is mandatory.
     /// </summary>
+    /// <remarks>
+    /// This call unconditionally downgrades the deployment profile to Development, stepping
+    /// around the fail-closed production guards. When a production backend was configured,
+    /// a warning is logged because the independent-reader guarantee has been dropped.
+    /// </remarks>
     public void WithWriter(IDAWriter writer)
     {
         ArgumentNullException.ThrowIfNull(writer);
+        if (_profile == DADeploymentProfile.Production)
+            Logs.RuntimeLogger.Warning(
+                "L2DA WithWriter replaced the configured production backend with {Writer} and "
+                + "downgraded the deployment profile to Development — the independent-reader "
+                + "guarantee no longer applies; use WithProductionBackend in production",
+                writer.GetType().Name);
         var previous = Unwrap(_writer);
         if (!ReferenceEquals(previous, writer) && previous is IDisposable disposable)
             disposable.Dispose();

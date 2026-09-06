@@ -27,9 +27,9 @@
   `commitment.PublicInputHash == hash(publicInputs)` —— 阻止恶意证明者用与承诺
   不一致的 inputs 签名。
 - **ZK verifier 边界。** `ProofType.Zk` 通过可部署的
-  `NeoHub.ContractZkVerifier` router 路由。该合约先校验 commitment/proof envelope
+  `NeoHub.ZkVerifier` router 路由。该合约先校验 commitment/proof envelope
   和已登记 verification-key id，再调用已登记终端验证器的 `verifyZkProof(...)`。
-  生产 SP1 路径把 immutable `Sp1Groth16Verifier` 作为可部署验证器合约：它接收精确的 356-byte SP1
+  `ZkVerifier` 作为可部署验证器路由，整合所有 ZK 证明验证路径。生产 SP1 路径把 immutable `Sp1Groth16Verifier` 作为可部署验证器合约：它接收精确的 356-byte SP1
   proof，重建 5 个 public inputs，并通过 Neo 当前 BN254 interops 执行完整的、兼容
   SP1 6.2.x 使用的 v6.1-compatible Groth16 wrapper pairing equation。生产部署在启用 `ProofType.Zk` 路由前
   永久关闭 `ProofSystem.Sp1` 的 envelope-only acceptance。
@@ -56,7 +56,7 @@
 终端验证器和部署 wiring 全部正确时，Phase 4 才能提供密码学状态转换有效性。
 Phase 3(乐观)让验证器信任程度等同于二分博弈的挑战窗口。
 Phase 0–2 在多签之上叠加治理(Neo Council、排序器保证金)。
-生产 SP1 Phase 4 路径中，`VerifierRegistry` 指向 `ContractZkVerifier`，后者固定绑定
+生产 SP1 Phase 4 路径中，`VerifierRegistry` 指向 `NeoHub.ZkVerifier`，后者固定绑定
 immutable `Sp1Groth16Verifier`。两个合约、固定的 SP1 circuit/VK 和 Neo BN254 interops
 共同属于 L1 trusted computing base。当前 VM suite 已接受 Rust 生成的正向 SP1 proof
 通过 terminal 与 router，并覆盖 artifact integrity、常量、篡改拒绝、pairing 路径和
@@ -124,7 +124,7 @@ DAC 链(就标 DAC,不要营销话术粉饰)。
   transition 禁止增删替换 deployed-contract descriptor；未覆盖行为 fail closed。这是
   安全属性，不是通用 NeoVM/native-contract 覆盖声明；扩大能力必须协调升级版本化
   guest、VK 与 verifier route。
-- **Contract ZK verifier router。** `ContractZkVerifier` 会在委托给
+- **Contract ZK verifier router。** `NeoHub.ZkVerifier` 会在委托给
   `verifyZkProof(...)` 前拒绝非 ZK commitment、畸形 `RiscVProofPayload` envelope、
   未登记 verification key、以及未设置终端验证器合约 hash 的配置。生产 SP1 deploy
   plan 会绑定 immutable `Sp1Groth16Verifier`，并在登记 ZK route 前调用不可逆的

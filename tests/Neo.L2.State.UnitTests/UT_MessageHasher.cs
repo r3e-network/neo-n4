@@ -423,4 +423,215 @@ public class UT_MessageHasher
         BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(84, 4), 1);
         Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeWithdrawal(encoded));
     }
+
+    // === PROPERTY-BASED FUZZ TESTS FOR WITHDRAWAL RECORDS ===
+
+    [TestMethod]
+    public void HashWithdrawal_RandomInputs_ProducesConsistentHash()
+    {
+        var rng = new Random(unchecked((int)0xDEADBEEF));
+        
+        for (int i = 0; i < 100; i++)
+        {
+            var withdrawal = GenerateRandomWithdrawal(rng);
+            var hash1 = MessageHasher.HashWithdrawal(withdrawal);
+            var hash2 = MessageHasher.HashWithdrawal(withdrawal);
+            
+            Assert.AreEqual(hash1, hash2, $"Non-deterministic hash at iteration {i}");
+        }
+    }
+
+    [TestMethod]
+    public void HashWithdrawal_VaryingAmountSizes_AllValid()
+    {
+        var rng = new Random(unchecked((int)0xCAFEBABE));
+        
+        // Test various amount sizes: 1 byte up to 64 bytes
+        for (int byteLen = 1; byteLen <= 64; byteLen += Math.Max(1, byteLen / 4))
+        {
+            for (int i = 0; i < 20; i++)
+            {
+                var amountBytes = new byte[byteLen];
+                rng.NextBytes(amountBytes);
+                if (amountBytes.All(b => b == 0)) amountBytes[0] = 1;
+                
+                var amount = new BigInteger(amountBytes, isUnsigned: true, isBigEndian: false);
+                
+                var wd = new WithdrawalRequest
+                {
+                    ChainId = (uint)rng.Next(1, int.MaxValue),
+                    EmittingContract = RandomUInt160(rng),
+                    L2Sender = RandomUInt160(rng),
+                    L1Recipient = RandomUInt160(rng),
+                    L2Asset = RandomUInt160(rng),
+                    Amount = amount,
+                    Nonce = (ulong)rng.Next(0, int.MaxValue)
+                };
+
+                var hash = MessageHasher.HashWithdrawal(wd);
+                Assert.AreNotEqual(UInt256.Zero, hash, 
+                    $"Hash should not be zero for {byteLen}-byte amount at iteration {i}");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void EncodeMessage_RandomMessages_ProducesValidWireFormat()
+    {
+        var rng = new Random(unchecked((int)0x98765432));
+        
+        for (int i = 0; i < 100; i++)
+        {
+            var message = GenerateRandomCrossChainMessage(rng);
+            var encoded = MessageHasher.EncodeMessage(message);
+            
+            // Verify encoded size matches expected layout
+            var expectedSize = 4 + 4 + 8 + 20 + 20 + 1 + 4 + message.Payload.Length;
+            Assert.AreEqual(expectedSize, encoded.Length, 
+                $"Encoded size mismatch at iteration {i}");
+            
+            var decoded = MessageHasher.DecodeMessage(encoded);
+            
+            Assert.AreEqual(message.SourceChainId, decoded.SourceChainId, $"Iteration {i}");
+            Assert.AreEqual(message.TargetChainId, decoded.TargetChainId, $"Iteration {i}");
+            Assert.AreEqual(message.Nonce, decoded.Nonce, $"Iteration {i}");
+            Assert.AreEqual(message.Sender, decoded.Sender, $"Iteration {i}");
+            Assert.AreEqual(message.Receiver, decoded.Receiver, $"Iteration {i}");
+            Assert.AreEqual(message.MessageType, decoded.MessageType, $"Iteration {i}");
+            CollectionAssert.AreEqual(message.Payload.ToArray(), decoded.Payload.ToArray(), 
+                $"Payload mismatch at iteration {i}");
+        }
+    }
+
+    [TestMethod]
+    public void DecodeMessage_RandomEncodings_RejectsInvalidInputs()
+    {
+        var rng = new Random(unchecked((int)0xAABBCCDD));
+        
+        for (int i = 0; i < 100; i++)
+        {
+            var badInput = CreateMalformedMessage(rng);
+            Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeMessage(badInput));
+        }
+    }
+
+    private static CrossChainMessage GenerateRandomCrossChainMessage(Random rng)
+    {
+        var payloadSize = rng.Next(0, 257); // 0 to 256 bytes payload
+        var payload = new byte[payloadSize];
+        if (payloadSize > 0)
+            rng.NextBytes(payload);
+
+        return new CrossChainMessage
+        {
+            SourceChainId = (uint)rng.Next(1, int.MaxValue),
+            TargetChainId = (uint)rng.Next(0, int.MaxValue),
+            Nonce = (ulong)rng.Next(0, int.MaxValue),
+            Sender = RandomUInt160(rng),
+            Receiver = RandomUInt160(rng),
+            MessageType = (MessageType)rng.Next(0, 3),
+            Payload = payload,
+            MessageHash = UInt256.Zero
+        };
+    }
+
+    private static WithdrawalRequest GenerateRandomWithdrawal(Random rng)
+    {
+        var amountBytes = new byte[rng.Next(1, 65)]; // 1 to 64 bytes
+        rng.NextBytes(amountBytes);
+        var amount = new BigInteger(amountBytes, isUnsigned: true, isBigEndian: false);
+
+        return new WithdrawalRequest
+        {
+            ChainId = (uint)rng.Next(1, int.MaxValue),
+            EmittingContract = RandomUInt160(rng),
+            L2Sender = RandomUInt160(rng),
+            L1Recipient = RandomUInt160(rng),
+            L2Asset = RandomUInt160(rng),
+            Amount = amount,
+            Nonce = (ulong)rng.Next(1, int.MaxValue)
+        };
+    }
+
+    private static byte[] CreateMalformedMessage(Random rng)
+    {
+        // Create various types of malformed messages
+        var variant = rng.Next(0, 5);
+        
+        switch (variant)
+        {
+            case 0:
+                // Too short (less than header)
+                return new byte[rng.Next(0, 43)];
+            case 1:
+                // Valid header but wrong type
+                var validHeader = MessageHasher.EncodeMessage(new CrossChainMessage
+                {
+                    SourceChainId = 1,
+                    TargetChainId = 2,
+                    Nonce = 1,
+                    Sender = RandomUInt160(rng),
+                    Receiver = RandomUInt160(rng),
+                    MessageType = MessageType.Call,
+                    Payload = Array.Empty<byte>(),
+                    MessageHash = UInt256.Zero
+                });
+                validHeader[56] = byte.MaxValue; // Invalid type (MessageType is at offset 56)
+                return validHeader;
+            case 2:
+                // Negative payload length
+                var header = MessageHasher.EncodeMessage(new CrossChainMessage
+                {
+                    SourceChainId = 1,
+                    TargetChainId = 2,
+                    Nonce = 1,
+                    Sender = RandomUInt160(rng),
+                    Receiver = RandomUInt160(rng),
+                    MessageType = MessageType.Call,
+                    Payload = Array.Empty<byte>(),
+                    MessageHash = UInt256.Zero
+                });
+                BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(57, 4), -1);
+                return header;
+            case 3:
+                // Oversized payload length
+                var header2 = MessageHasher.EncodeMessage(new CrossChainMessage
+                {
+                    SourceChainId = 1,
+                    TargetChainId = 2,
+                    Nonce = 1,
+                    Sender = RandomUInt160(rng),
+                    Receiver = RandomUInt160(rng),
+                    MessageType = MessageType.Call,
+                    Payload = Array.Empty<byte>(),
+                    MessageHash = UInt256.Zero
+                });
+                BinaryPrimitives.WriteInt32LittleEndian(header2.AsSpan(57, 4), 
+                    MessageHasher.MaxMessagePayloadBytes + 1);
+                return header2;
+            case 4:
+                // Truncated payload
+                var full = MessageHasher.EncodeMessage(new CrossChainMessage
+                {
+                    SourceChainId = 1,
+                    TargetChainId = 2,
+                    Nonce = 1,
+                    Sender = RandomUInt160(rng),
+                    Receiver = RandomUInt160(rng),
+                    MessageType = MessageType.Call,
+                    Payload = new byte[32],
+                    MessageHash = UInt256.Zero
+                });
+                return full[..^16]; // Remove last 16 bytes
+            default:
+                throw new InvalidOperationException();
+        }
+    }
+
+    private static UInt160 RandomUInt160(Random rng)
+    {
+        var bytes = new byte[20];
+        rng.NextBytes(bytes);
+        return new UInt160(bytes);
+    }
 }

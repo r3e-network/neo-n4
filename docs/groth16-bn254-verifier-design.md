@@ -1,27 +1,25 @@
 # SP1 Groth16/BN254 verifier contract
 
-Status: implemented and version-pinned. The production contract is
-`contracts/NeoHub.Sp1Groth16Verifier`.
+Status: implemented and version-pinned. In the Lean 4-Pillar architecture, the production contract is
+`contracts/NeoHub.ZkVerifier` (Pillar 3), which consolidates `ContractZkVerifier` and `Sp1Groth16Verifier` into a unified deployable verifier contract.
 
 ## 1. Security boundary
 
-`NeoHub.ContractZkVerifier` validates the canonical N4 batch commitment, the
+`NeoHub.ZkVerifier` (integrating `ContractZkVerifier`) validates the canonical N4 batch commitment, the
 `RiscVProofPayload` envelope, the proof-system tag, the registered program verification-key
-identifier, and the 32-byte N4 public-input hash. For `ProofSystem.Sp1`, it then calls:
+identifier, and the 32-byte N4 public-input hash. For `ProofSystem.Sp1`, it executes:
 
 ```text
-Sp1Groth16Verifier.verifyZkProof(
+ZkVerifier.verifyZkProof(
   proofSystem,
   programVKey,
   publicInputHash,
   proofBytes)
 ```
 
-The terminal verifier performs the full SP1 Groth16 pairing equation on Neo's native BN254
-surface. Production deployment registers this contract and irreversibly calls
-`ContractZkVerifier.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)`, then calls
-`LockProofSystemConfiguration(ProofSystem.Sp1=1, programVKey)` to freeze one exact
-program VK and terminal verifier before routing `ProofType.Zk` settlement to the router.
+The unified verifier performs the full SP1 Groth16 pairing equation on Neo's native BN254
+surface. Production deployment registers this contract as a deployable verifier contract and irreversibly locks
+the program VK before routing `ProofType.Zk` settlement.
 Devnet envelope-only mode is not part of the production plan.
 
 This verifier is deliberately **SP1-specific**. It must not be reused for Risc0, Halo2,

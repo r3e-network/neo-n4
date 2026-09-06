@@ -57,21 +57,17 @@ public class UT_Mvp_Phase1_Cross_Component
 
         Assert.AreEqual(plan.Steps.Count, bundle.Invocations.Count);
 
-        // Look up SettlementManager — must come AFTER ChainRegistry and VerifierRegistry.
-        var smIdx = bundle.Invocations.ToList().FindIndex(i => i.Name == "SettlementManager");
-        var crIdx = bundle.Invocations.ToList().FindIndex(i => i.Name == "ChainRegistry");
-        var vrIdx = bundle.Invocations.ToList().FindIndex(i => i.Name == "VerifierRegistry");
-        Assert.IsTrue(smIdx > crIdx, $"SettlementManager idx {smIdx} should follow ChainRegistry {crIdx}");
-        Assert.IsTrue(smIdx > vrIdx, $"SettlementManager idx {smIdx} should follow VerifierRegistry {vrIdx}");
+        // Look up RollupHub — must come AFTER ZkVerifier.
+        var rhIdx = bundle.Invocations.ToList().FindIndex(i => i.Name == "RollupHub");
+        var zvIdx = bundle.Invocations.ToList().FindIndex(i => i.Name == "ZkVerifier");
+        Assert.IsTrue(rhIdx > zvIdx, $"RollupHub idx {rhIdx} should follow ZkVerifier {zvIdx}");
 
-        // SharedBridge depends on SettlementManager + TokenRegistry.
+        // SharedBridge depends on RollupHub.
         var sbIdx = bundle.Invocations.ToList().FindIndex(i => i.Name == "SharedBridge");
-        var trIdx = bundle.Invocations.ToList().FindIndex(i => i.Name == "TokenRegistry");
-        Assert.IsTrue(sbIdx > smIdx);
-        Assert.IsTrue(sbIdx > trIdx);
+        Assert.IsTrue(sbIdx > rhIdx, $"SharedBridge idx {sbIdx} should follow RollupHub {rhIdx}");
 
-        // ForcedInclusion is in the layout per Phase 1.
-        Assert.IsTrue(bundle.Invocations.Any(i => i.Name == "ForcedInclusion"));
+        // GovernanceController is present in the layout.
+        Assert.IsTrue(bundle.Invocations.Any(i => i.Name == "GovernanceController"));
     }
 
     [TestMethod]

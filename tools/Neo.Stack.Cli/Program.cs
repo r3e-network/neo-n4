@@ -38,6 +38,8 @@ internal static class Program
                 "scaffold-executor" => ScaffoldExecutorCommand.Run(rest),
                 "new-l2" => NewL2Command.Run(rest),
                 "list-templates" => ListTemplatesCommand.Run(rest),
+                "rocksdb-backup" => RocksdbBackupCommand.Run(rest),
+                "rocksdb-restore" => RocksdbRestoreCommand.Run(rest),
                 "--help" or "-h" or "help" => PrintHelp(),
                 _ => Unknown(subcommand),
             };
@@ -79,6 +81,8 @@ internal static class Program
               scaffold-executor     Generate a starter custom-ITransactionExecutor project
               new-l2                Composite: create-chain + init-l2 + scaffold-executor --with-tests
               list-templates        Print the available chain-config templates + use-case descriptions
+              rocksdb-backup        Create compressed snapshot backup of RocksDB data directory
+              rocksdb-restore       Restore RocksDB data from a compressed snapshot archive
               help                  Show this message
 
             Signed L1 execution:

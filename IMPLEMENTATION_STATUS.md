@@ -35,14 +35,15 @@ These components have production-shaped implementations and focused local covera
 This label is not a mainnet-readiness claim; live deployment evidence, external audits,
 and every open release gate still apply:
 
-- **All 26 NeoHub L1 contract projects** type-check via
+- **All 4 NeoHub L1 contract projects** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
-  the `.nef` + `.manifest.json` artifacts. The 24-contract production bundle
-  excludes advisory `GovernanceFraudVerifier` and test-only `ExternalBridgeStubVerifier`, and includes
-  `ContractZkVerifier` plus immutable `Sp1Groth16Verifier`: the router validates
-  proof envelopes and dispatches SP1 proofs to the terminal BN254 verifier. NeoHub is intentionally shipped as
-  deployed contracts plus plugin/service integration, not as L1 Neo core native
-  contracts. Production deployment requires explicit M-of-N GovernanceController admission and
+  the `.nef` + `.manifest.json` artifacts. The 4-contract production bundle
+  implements the 4-Pillar Lean Architecture (`NeoHub.RollupHub`, `NeoHub.SharedBridge`, `NeoHub.ZkVerifier`, `NeoHub.GovernanceController`).
+  NeoHub is intentionally shipped as deployed contracts plus plugin/service integration, not as L1 Neo core native
+  contracts. The lean architecture roadmap ([`docs/audit/neohub-lean-consolidation.md`](docs/audit/neohub-lean-consolidation.md))
+  consolidates micro-contracts into 4 pillars (RollupHub, SharedBridge, ZkVerifier, GovernanceController),
+  while SettlementManager supports atomic `SubmitAndFinalizeBatch` to eliminate 2-step transaction overhead
+  for ZK validity rollups. Production deployment requires explicit M-of-N GovernanceController admission and
   irreversibly locks SettlementManager against hot-owner dependency rewiring or direct rollback;
   exceptional finalized-head rollback is proposal-bound, threshold-approved, timelocked, and
   one-time. **All 10 N4 L2 system contracts**
@@ -290,13 +291,14 @@ deployments for the documented process/signing seams.
 | `Neo.Plugins.L2Gateway`      | `BinaryTreeAggregator` with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation; emits `l2.gateway.aggregations/batches_aggregated/aggregation_rounds/aggregation_latency_ms` |
 | `Neo.Plugins.L2Metrics`      | **Composition root**: hosts the shared `IL2Metrics` sink + `MetricsHttpServer`; other plugins call `metricsPlugin.Metrics` and pass to their `WithMetrics()` setters; configurable bind address + port + readiness predicate |
 
-### Smart contracts - 26 NeoHub projects + 10 Neo core native L2 contracts
+### Smart contracts - 4 NeoHub projects + 10 Neo core native L2 contracts
 
-**NeoHub L1 suite (26 projects / 24 production + 1 advisory + 1 test-only stub):**
-Phase 0-4: `ChainRegistry` · `SharedBridge` · `SettlementManager` · `VerifierRegistry` · **`ContractZkVerifier`** (ProofType.Zk router -> deployable proof-verifier contracts) · **`Sp1Groth16Verifier`** (immutable SP1-compatible BN254 terminal verifier) · `MessageRouter` · `TokenRegistry` · `DARegistry` · **`DAValidator`** · **`L1TxFilter`** · `GovernanceController` · `EmergencyManager` · `ForcedInclusion` · `SequencerBond` · `SequencerRegistry` · `OptimisticChallenge` (exact executable-v4 chain/semantic/replay profile + global claim replay protection + CEI) · **`RestrictedExecutionFraudVerifier`** (SettlementManager-bound executable v4 for one existing-key Counter Increment; not general NeoVM). `GovernanceFraudVerifier` remains an advisory structural v1/v2 artifact and is excluded from the production plan; restricted v3 is likewise non-state-changing.
+**NeoHub L1 suite (4 core Pillar projects / 4 production):**
+- **`NeoHub.RollupHub`** (Pillar 1): Unified chain registry, batch settlement, and DA verification.
+- **`NeoHub.SharedBridge`** (Pillar 2): Canonical asset escrow, token registry, and cross-chain message router.
+- **`NeoHub.ZkVerifier`** (Pillar 3): Unified ZK validity router and SP1 Groth16/BN254 pairing verifier.
+- **`NeoHub.GovernanceController`** (Pillar 4): Council multisig, timelock, emergency pause, and sequencer bond staking/slashing.
 
-External-bridge stack (doc.md §11.3 — cross-foreign-chain to Eth/Tron/Sol):
-**`MpcCommitteeVerifier`** (Phase B M-of-N secp256k1/ed25519 verifier; Phase C-extended with per-signer bond-holder binding via `RegisterCommitteeWithMembers`) · **`ExternalBridgeRegistry`** (pluggable verifier dispatch; same upgrade-via-governance shape as `VerifierRegistry`) · **`ExternalBridgeEscrow`** (locks NEP-17 outbound; inbound performs atomic direct NEP-17 release only for an explicit L1 domain or mandatory pinned payout-v1 adapter credit for L2, with immutable/reverse-unique routes, exact domain/value binding, replay rollback, and proposal-only production governance) · **`L2PayoutAdapter`** (immutable escrow-authenticated payout-v1 queue for one Neo L2, with exact canonical field binding, duplicate idempotency, and relay-witness acknowledgement) · **`ExternalBridgeBond`** (committee bonding + slashing-on-equivocation; mirrors `SequencerBond` 1:1) · **`ExternalBridgeStubVerifier`** (Phase-A devnet acceptance verifier; bridgeKind=0 to refuse production deployments) · **`MpcCommitteeFraudVerifier`** (Phase C — proves equivocation cryptographically + slashes full bond + pays reporter; replay-protected per `(chainId, signerIdx)`)
 
 **L2 native (10):**
 `L2BridgeContract` · `L2MessageContract` · `L2BatchInfoContract` · `L2FeeContract` · `L2PaymasterContract` · `L2SystemConfigContract` · **`L2NativeExternalBridgeContract`** (relay-witness-gated external payout endpoint; recomputes the canonical message hash, validates every field and local asset mapping, persists message/L2-transaction receipt before one-time mint, and rejects replay) · **`BridgedNep17Contract`** (canonical mint/burn NEP-17 representation for bridged L1 assets) · **`L2AccountAbstraction`** (validator/paymaster/nonce entry point) · **`L2InteropVerifier`** (L2-side global message-root mirror and inclusion verifier)

@@ -621,8 +621,21 @@ public class UT_ProofWitnessStore
         ulong batchNumber = 257,
         bool forcedInclusion = false)
     {
-        ReadOnlyMemory<byte> transaction = new byte[] { 0x01, 0x02, 0x03 };
-        var transactionHash = new UInt256(Crypto.Hash256(transaction.Span));
+        // Decode-time validation re-derives forced-inclusion leaves from the transaction bytes
+        // (TransactionHasher), so a forced artifact must carry a parseable transaction and its
+        // canonical id; non-forced artifacts never hit that path and keep opaque bytes.
+        ReadOnlyMemory<byte> transaction;
+        UInt256 transactionHash;
+        if (forcedInclusion)
+        {
+            transaction = SampleSignedTransaction();
+            transactionHash = TransactionHasher.Hash(transaction);
+        }
+        else
+        {
+            transaction = new byte[] { 0x01, 0x02, 0x03 };
+            transactionHash = new UInt256(Crypto.Hash256(transaction.Span));
+        }
         var payload = new ExecutionPayloadV1
         {
             ChainId = SampleChainId,
@@ -708,4 +721,34 @@ public class UT_ProofWitnessStore
 
     private static UInt256 H(byte value)
         => new(Enumerable.Repeat(value, UInt256.Length).ToArray());
+
+    private static ReadOnlyMemory<byte> SampleSignedTransaction()
+    {
+        var transaction = new Neo.Network.P2P.Payloads.Transaction
+        {
+            Nonce = 42,
+            SystemFee = 1_000_000,
+            NetworkFee = 1_000_000,
+            ValidUntilBlock = 1_000,
+            Signers =
+            [
+                new Neo.Network.P2P.Payloads.Signer
+                {
+                    Account = new UInt160(Enumerable.Repeat((byte)0x33, UInt160.Length).ToArray()),
+                    Scopes = Neo.Network.P2P.Payloads.WitnessScope.CalledByEntry,
+                },
+            ],
+            Attributes = Array.Empty<Neo.Network.P2P.Payloads.TransactionAttribute>(),
+            Script = new byte[] { 0x01 },
+            Witnesses =
+            [
+                new Neo.Network.P2P.Payloads.Witness
+                {
+                    InvocationScript = Array.Empty<byte>(),
+                    VerificationScript = Array.Empty<byte>(),
+                },
+            ],
+        };
+        return Neo.Extensions.IO.ISerializableExtensions.ToArray(transaction);
+    }
 }

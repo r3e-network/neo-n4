@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Neo.Cryptography;
+using Neo.L2.Batch;
 using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 
@@ -316,10 +317,13 @@ public sealed class RpcForcedInclusionSource : IForcedInclusionSource, IDisposab
             throw new InvalidDataException(
                 $"forced-tx entry size {bytes.Length} != expected {FixedHeader + txLen + FixedTrailer} for txLen={txLen}");
         var tx = bytes.Slice(56, txLen).ToArray();
-        var encodedTxHash = new UInt256(Crypto.Hash256(tx));
+        // The queue's txHash is the canonical transaction id (TransactionHasher): the same value
+        // BatchBuilder re-derives when the drained entry enters a batch and the SP1 guest folds
+        // into the commitment txRoot.
+        var encodedTxHash = TransactionHasher.Hash(tx);
         if (!encodedTxHash.Equals(txHash))
             throw new InvalidDataException(
-                $"forced-tx entry nonce {nonce} txHash does not match Hash256(encodedTx)");
+                $"forced-tx entry nonce {nonce} txHash does not match the canonical transaction id of encodedTx");
         var deadline = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(56 + txLen, 4));
         return new ForcedInclusionEntry
         {

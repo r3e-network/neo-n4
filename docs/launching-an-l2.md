@@ -88,6 +88,165 @@ WIF from `NEO_N4_OPERATOR_WIF`; production HSM/KMS integrations use the
 fail-closed `--signer-command` protocol without changing transaction
 construction. See [operator signer-command protocol](./operator-signer-command-protocol.md).
 
+### Signed Operations: Complete Wallet Integration Walkthrough
+
+The Phase-6 CLI wallet integration enables **fully automated L1 operations**
+for chain registration, bridge deployment, and batch submission. All three
+commands support two signing modes:
+
+1. **WIF mode** — Simple development/testing with `--wif-env NEO_N4_OPERATOR_WIF`
+2. **Signer-command mode** — Production-grade external HSM/KMS integration via `--signer-command`
+
+---
+
+#### 1. Chain Registration (`neo-stack register-chain --broadcast`)
+
+Register your L2 chain on L1 NeoHub.ChainRegistry:
+
+```bash
+# Step 1: Prepare the operator's private key
+export NEO_N4_OPERATOR_WIF="<your WIF string>"
+
+# Step 2: Generate config and genesis manifest
+neo-stack create-chain --chain-id 1099 --template rollup --output ./my-l2
+neo-stack bootstrap-genesis --chain-id 1099 --output ./my-l2
+
+# Step 3: Plan the registration (dry-run)
+neo-stack register-chain \
+    --chain-id 1099 \
+    --output ./my-l2 \
+    --operator <operator-manager-hash> \
+    --verifier <verifier-registry-hash> \
+    --bridge <shared-bridge-hash> \
+    --message <message-router-hash> \
+    --genesis-state-root <root-from-genesis-manifest>
+
+# Step 4: Broadcast with wallet integration
+neo-stack register-chain \
+    --chain-id 1099 \
+    --output ./my-l2 \
+    --operator <operator-manager-hash> \
+    --verifier <verifier-registry-hash> \
+    --bridge <shared-bridge-hash> \
+    --message <message-router-hash> \
+    --genesis-state-root <root-from-genesis-manifest> \
+    --rollup-hub <chain-registry-hash> \
+    --broadcast \
+    --rpc https://your-l1-rpc.example:10332 \
+    --expected-network 894710606
+
+# Success output:
+# ✓ L2 chain 1099 registered successfully on L1
+#   Contract         : NeoHub.ChainRegistry @ 0x...
+#   Genesis state    : 0x...
+#   Verification     : ChainRegistry.isActive(1099) = true
+```
+
+#### 2. Bridge Adapter Deployment (`neo-stack deploy-bridge-adapter --broadcast`)
+
+Configure asset mappings across L1 and L2:
+
+```bash
+# Deploy to both sides (L1 SharedBridge + L2 native contracts)
+neo-stack deploy-bridge-adapter \
+    --chain-id 1099 \
+    --broadcast \
+    --rpc https://your-l1-rpc.example:10332 \
+    --expected-network 894710606 \
+    --bridge 0x<token-registry-hash> \
+    --side both \
+    --l1-asset 0x<nep17-asset-hash> \
+    --l2-asset 0x<l2-native-asset-hash> \
+    --asset-type PlatformUsdt \
+    --l1-decimals 6 \
+    --l2-decimals 6
+
+# For L2-only operations:
+neo-stack deploy-bridge-adapter \
+    --chain-id 1099 \
+    --broadcast \
+    --rpc https://your-l2-rpc.example:10332 \
+    --expected-network <l2-magic> \
+    --side l2 \
+    --l1-asset 0x<asset> \
+    --l2-asset 0x<asset> \
+    --asset-type PlatformUsdt \
+    --l1-decimals 6 \
+    --l2-decimals 6 \
+    --l2-owner <owner-script-hash> \
+    --l2-system-account <system-account-hash>
+
+# Success output:
+# ✓ L1 bridge adapter deployed for chain 1099:
+#   Contract         : NeoHub.SharedBridge @ 0x...
+#   Mapping          : 0x<hex>
+```
+
+#### 3. Batch Submission (`neo-stack submit-batch --broadcast`)
+
+Submit batches to L1 SettlementManager with automatic atomic finalization:
+
+```bash
+# Validate the batch before broadcasting (dry-run)
+neo-stack submit-batch --file ./my-l2/batches/batch-00000042.bin
+
+# Broadcast with ZK proof (atomic finalize automatically triggered)
+neo-stack submit-batch \
+    --file ./my-l2/batches/batch-00000042.bin \
+    --broadcast \
+    --rpc https://your-l1-rpc.example:10332 \
+    --expected-network 894710606 \
+    --settlement-manager <settlement-manager-hash> \
+    --l1-message-hash <l1-message-commitment> \
+    --block-context-hash <block-context-commitment>
+
+# Success output:
+# ✓ Batch 42 submitted to L1 SettlementManager:
+#   Method           : submitAndFinalizeBatch
+#   Chain ID         : 1099
+#   Block range      : 100-150
+#   Pre-state root   : 0x...
+#   Post-state root  : 0x...
+#   Proof type       : Zk
+#   Atomic finalize  : true
+```
+
+### Security Best Practices
+
+**Key management:**
+
+```
+Development (test networks only):
+  NEO_N4_OPERATOR_WIF="<plaintext-wif>"
+  ⚠️ Never commit WIF to version control!
+  ⚠️ Never use mainnet keys in dev environments!
+
+Production (HSM/KMS required):
+  --signer-command /path/to/signer-daemon
+    --signer-account 0x...
+    --signer-verification-script 0x...
+    --signer-placeholder-invocation-script 0x...
+  ✨ Key never leaves HSM
+  ✨ Deterministic script shape verification
+```
+
+**Preflight validations:**
+
+All commands validate RPC URLs (HTTP(S) only), network magic matching, non-zero hashes,
+and proper configuration BEFORE any signature attempt. Invalid inputs are rejected early
+with descriptive error messages.
+
+**Common exit codes:**
+
+- 0: Success
+- 1-6: Command-specific validation errors
+- 10: Invalid RPC endpoint format
+- 12: Missing or invalid wallet configuration (WIF/signer-command)
+- 13: Transaction failed after broadcast (VM state check)
+- 130: User cancellation
+
+For complete error code documentation, see each command's usage help.
+
 ### Production settlement composition
 
 `L2SettlementPlugin.WireProduction(...)` is the production composition root for L1
@@ -886,15 +1045,14 @@ be whatever the operator needs.
 
 ## Going to L1: deploying NeoHub
 
-Before `register-chain` works, the 24 production NeoHub contracts must be
-deployed on the target L1. Advisory `GovernanceFraudVerifier` and test-only
-`ExternalBridgeStubVerifier` are not part of the default deploy bundle. The `neo-hub-deploy` tool emits a deploy
+Before `register-chain` works, the 5 production NeoHub contracts must be
+deployed on the target L1. The `neo-hub-deploy` tool emits a deploy
 bundle that names each contract, its dependencies, and the resolved hashes
 after a topological sort:
 
 ```bash
-# 1. Scaffold a starter plan (24 production NeoHub deploy steps in dependency
-#    order, including ContractZkVerifier, Sp1Groth16Verifier, and executable-v4 fraud verifier).
+# 1. Scaffold a starter plan (5 production NeoHub deploy steps in dependency
+#    order: RollupHub, SharedBridge, ZkVerifier, Sp1Groth16Verifier, GovernanceController).
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 
@@ -974,7 +1132,7 @@ council threshold and timelock. `OptimisticChallenge` retains only its immediate
 > returns each real hash; combine those four hashes with the signed genesis root in the five
 > required `register-chain` flags below — NOT the stub hashes from the bundle.
 
-After all 24 deploys + post-deploy wiring complete, capture the
+After all 5 deploys + post-deploy wiring complete, capture the
 **real on-chain** contract hashes and the signed genesis root into
 `register-chain`. Prefer the deploy evidence report so hashes are not hand-copied:
 

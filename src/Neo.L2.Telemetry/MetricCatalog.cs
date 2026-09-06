@@ -85,5 +85,13 @@ public static class MetricCatalog
         // Audit
         [MetricNames.AuditsRun] = "Times the chain auditor ran",
         [MetricNames.AuditFailures] = "Audit findings that failed the audit",
+
+        // Transaction Signing (KMS/HSM)
+        [MetricNames.SignSuccess] = "Successful signing operations, tagged by signer_type",
+        [MetricNames.SignLatencyMs] = "Signing latency in milliseconds, tagged by signer_type",
+        [MetricNames.SignFailures] = "Signing failures, tagged by signer_type and error_type",
+        [MetricNames.SignatureCacheHits] = "Signature cache hits, tagged by signer_type",
+        [MetricNames.KeyResolutionCount] = "Key resolution operations for external key providers, tagged by signer_type",
+        [MetricNames.SignatureCacheSize] = "Current signature cache size, tagged by signer_type",
     };
 }

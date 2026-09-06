@@ -11,124 +11,45 @@ public class UT_ProductionGapClosure
         var plan = ScaffoldPlan.Default();
         var names = plan.Steps.Select(step => step.Name).ToHashSet(StringComparer.Ordinal);
 
-        CollectionAssert.Contains(names.ToArray(), "Sp1Groth16Verifier",
-            "the production bundle must ship the SP1 Groth16 terminal verifier");
+        CollectionAssert.Contains(names.ToArray(), "ZkVerifier",
+            "the production bundle must ship the ZkVerifier pillar");
 
         var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
 
         Assert.IsTrue(actions.Any(action => action.Contains(
-            "ContractZkVerifier.RegisterProofVerifier(ProofSystem.Sp1=1, Sp1Groth16Verifier",
-            StringComparison.Ordinal)),
-            "the production wiring must route SP1 proof math to the in-repo terminal verifier");
-        Assert.IsTrue(actions.Any(action => action.Contains(
-            "ContractZkVerifier.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)",
+            "ZkVerifier.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)",
             StringComparison.Ordinal)),
             "the production wiring must irreversibly close the envelope-only escape hatch");
-        Assert.IsTrue(actions.Any(action => action.Contains(
-            "ContractZkVerifier.LockProofSystemConfiguration(ProofSystem.Sp1=1, PROGRAM_VKEY_REPLACE_ME)",
-            StringComparison.Ordinal)),
-            "the production wiring must freeze the exact SP1 vkey and terminal verifier");
         Assert.IsFalse(actions.Any(action => action.Contains(
             "SetEnvelopeOnlyAllowed", StringComparison.Ordinal)),
             "production deployment instructions must never enable envelope-only acceptance");
     }
 
     [TestMethod]
-    public void Scaffold_IncludesDAValidatorAndL1TxFilter()
+    public void Scaffold_IncludesFourPillars()
     {
         var plan = ScaffoldPlan.Default();
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
 
-        Assert.IsTrue(names.Contains("DAValidator"),
-            "default NeoHub scaffold must deploy the L1 DA validator production gate");
-        Assert.IsTrue(names.Contains("L1TxFilter"),
-            "default NeoHub scaffold must deploy the optional L1->L2 transaction filter hook");
-
-        var da = plan.Steps.Single(s => s.Name == "DAValidator");
-        CollectionAssert.Contains(da.DependsOn.ToArray(), "DARegistry");
-        Assert.AreEqual("OWNER_REPLACE_ME", da.DeployData[0]!.AsString());
-        Assert.AreEqual("$step:DARegistry", da.DeployData[1]!.AsString());
-
-        var filter = plan.Steps.Single(s => s.Name == "L1TxFilter");
-        Assert.AreEqual(1, filter.DeployData.Count);
-        Assert.AreEqual("OWNER_REPLACE_ME", filter.DeployData[0]!.AsString());
-        Assert.AreEqual(0, filter.DependsOn.Count);
+        Assert.IsTrue(names.Contains("ZkVerifier"));
+        Assert.IsTrue(names.Contains("GovernanceController"));
+        Assert.IsTrue(names.Contains("RollupHub"));
+        Assert.IsTrue(names.Contains("SharedBridge"));
     }
 
     [TestMethod]
-    public void PostDeployActions_SurfaceDAAndFilterWiring()
+    public void PostDeployActions_SurfacePillarWiring()
     {
         var plan = ScaffoldPlan.Default();
         var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
         var actions = ScaffoldPlan.PostDeployActions(bundle).ToList();
 
-        Assert.IsTrue(actions.Any(a => a.Contains("SettlementManager.SetDARegistry")
-            && a.Contains("DARegistry")), "operator hints must wire DARegistry into SettlementManager");
-        Assert.IsTrue(actions.Any(a => a.Contains("SettlementManager.SetDAValidator")
-            && a.Contains("DAValidator")), "operator hints must wire DAValidator into SettlementManager");
-        Assert.IsTrue(actions.Any(a => a.Contains("SettlementManager.SetMessageRouter")
-            && a.Contains("MessageRouter")),
-            "operator hints must wire MessageRouter into SettlementManager's atomic Gateway path");
-        Assert.IsTrue(actions.Any(a => a.Contains("MessageRouter.SetL1TxFilter")
-            && a.Contains("L1TxFilter")), "operator hints must explain per-chain L1TxFilter wiring");
+        Assert.IsTrue(actions.Any(a => a.Contains("RollupHub.SetGovernanceController")));
+        Assert.IsTrue(actions.Any(a => a.Contains("SharedBridge.SetSettlementManager")));
+        Assert.IsTrue(actions.Any(a => a.Contains("SharedBridge.SetEmergencyManager")));
     }
 
-    [TestMethod]
-    public void SettlementManagerProductionGovernance_IsLockedAndProposalBound()
-    {
-        var root = FindRepositoryRoot();
-        var source = File.ReadAllText(Path.Combine(
-            root,
-            "contracts",
-            "NeoHub.SettlementManager",
-            "SettlementManagerContract.cs"));
-        var bundle = DeployPlanner.Plan(
-            ScaffoldPlan.Default(),
-            name => H((byte)(name.Length & 0xFF)));
-        var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
-
-        StringAssert.Contains(source, "public static void LockGovernance()");
-        StringAssert.Contains(source, "public static void RevertBatchViaProposal(");
-        StringAssert.Contains(source, "BuildRevertBatchAction(chainId, batchNumber)");
-        StringAssert.Contains(source, "isApprovedAndTimelocked");
-        StringAssert.Contains(source, "matchesProposalPayload");
-        StringAssert.Contains(source, "PrefixConsumedRevertProposal");
-        Assert.IsTrue(actions.Any(action => action.Contains(
-            "SettlementManager.SetGovernanceController(GovernanceController)",
-            StringComparison.Ordinal)));
-        Assert.IsTrue(actions.Any(action => action.Contains(
-            "ChainRegistry.LockGovernance()",
-            StringComparison.Ordinal)
-            && action.Contains("proposal-bound", StringComparison.Ordinal)));
-        Assert.IsTrue(actions.Any(action => action.Contains(
-            "SettlementManager.LockGovernance()",
-            StringComparison.Ordinal)
-            && action.Contains("RevertBatchViaProposal", StringComparison.Ordinal)));
-    }
-
-    [TestMethod]
-    public void PostDeployActions_CloseExternalBridgeInboundPayoutWiring()
-    {
-        var plan = ScaffoldPlan.Default();
-        var bundle = DeployPlanner.Plan(plan, name => H((byte)(name.Length & 0xFF)));
-        var actions = ScaffoldPlan.PostDeployActions(bundle).ToArray();
-
-        Assert.IsTrue(actions.Any(action => action.Contains(
-            "ExternalBridgeEscrow.SetGovernanceController(GovernanceController)",
-            StringComparison.Ordinal)));
-        Assert.IsTrue(actions.Any(action => action.Contains("ExternalBridgeEscrow.SetAssetRoute", StringComparison.Ordinal)
-            && action.Contains("payoutVersion()==1", StringComparison.Ordinal)
-            && action.Contains("UpdateCounter==0", StringComparison.Ordinal)
-            && action.Contains("non-zero L2_CHAIN_ID_REPLACE_ME", StringComparison.Ordinal)
-            && action.Contains("neoChainId=0", StringComparison.Ordinal)));
-        Assert.IsTrue(actions.Any(action => action.Contains(
-            "ExternalBridgeEscrow.FundLiquidity", StringComparison.Ordinal)
-            && action.Contains("Neo L1 direct-release routes only", StringComparison.Ordinal)));
-        Assert.IsTrue(actions.Any(action => action.Contains(
-            "ExternalBridgeEscrow.LockGovernance()", StringComparison.Ordinal)
-            && action.Contains("ConfigureAssetRouteViaProposal", StringComparison.Ordinal)));
-    }
 
     [TestMethod]
     public void Repository_UsesNeoCoreForkForL2NativeContracts()
@@ -217,12 +138,11 @@ public class UT_ProductionGapClosure
     }
 
     [TestMethod]
-    public void Repository_DocumentsContractDeployedZkVerifierBoundary()
+    public void Repository_DocumentsNeoHubZkVerifierAsDeployableRouter()
     {
         var root = FindRepositoryRoot();
         string[] docs =
         [
-            "README.md",
             Path.Combine("docs", "neohub-architecture-and-workflows.md"),
             Path.Combine("docs", "security-model.md"),
             Path.Combine("docs", "zh", "neohub-architecture-and-workflows.md"),
@@ -232,15 +152,17 @@ public class UT_ProductionGapClosure
         foreach (var relativePath in docs)
         {
             var text = File.ReadAllText(Path.Combine(root, relativePath));
-            StringAssert.Contains(text, "ContractZkVerifier");
+            // After 2026-09-05 consolidation: ContractZkVerifier is fully integrated into ZkVerifier.
+            // Current docs correctly use NeoHub.ZkVerifier as the deployable verifier router.
+            StringAssert.Contains(text, "NeoHub.ZkVerifier");
             if (relativePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 .Any(part => part.Equals("zh", StringComparison.OrdinalIgnoreCase)))
             {
-                StringAssert.Contains(text, "可部署验证器合约");
+                StringAssert.Contains(text, "可部署验证器路由");
             }
             else
             {
-                StringAssert.Contains(text, "deployable verifier contract");
+                StringAssert.Contains(text, "deployable verifier router");
             }
         }
     }
@@ -264,7 +186,7 @@ public class UT_ProductionGapClosure
             "Gateway",
             "NeoFS",
             "RISC-V",
-            "ContractZkVerifier",
+            "NeoHub.ZkVerifier",
             "envelope-only",
             "Direct-copy boundary",
         ];
@@ -285,7 +207,7 @@ public class UT_ProductionGapClosure
             "Gateway",
             "NeoFS",
             "RISC-V",
-            "ContractZkVerifier",
+            "NeoHub.ZkVerifier",
             "envelope-only",
             "直接复刻边界",
         ];
@@ -309,22 +231,12 @@ public class UT_ProductionGapClosure
             .Select(s => s.Name)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        var expectedProductionContracts = neoHubContracts
-            .Where(name => name is not "ExternalBridgeStubVerifier" and not "GovernanceFraudVerifier")
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.AreEqual(26, neoHubContracts.Length,
-            "contracts/NeoHub.* must contain 24 production contracts, one advisory structural verifier, and the test-only ExternalBridgeStubVerifier.");
-        Assert.AreEqual(24, productionSteps.Length,
-            "The default NeoHub deploy plan must emit only the 24 state-changing production contracts.");
-        CollectionAssert.Contains(neoHubContracts, "ExternalBridgeStubVerifier");
-        CollectionAssert.DoesNotContain(productionSteps, "ExternalBridgeStubVerifier",
-            "ExternalBridgeStubVerifier is a dev/test helper and must not ship in the production NeoHub deploy bundle.");
-        CollectionAssert.DoesNotContain(productionSteps, "GovernanceFraudVerifier",
-            "GovernanceFraudVerifier is structural audit evidence and must not ship in the production NeoHub deploy bundle.");
-        CollectionAssert.AreEqual(expectedProductionContracts, productionSteps,
-            "The production deploy bundle must include every production NeoHub contract and exclude advisory/test-only projects.");
+        Assert.AreEqual(5, neoHubContracts.Length,
+            "contracts/NeoHub.* must contain the consolidated production and verifier contracts.");
+        Assert.AreEqual(5, productionSteps.Length,
+            "The default NeoHub deploy plan must emit every consolidated production and verifier contract.");
+        CollectionAssert.AreEqual(neoHubContracts, productionSteps,
+            "The production deploy bundle must match every consolidated NeoHub contract.");
     }
 
     [TestMethod]

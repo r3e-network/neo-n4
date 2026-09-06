@@ -360,4 +360,51 @@ public class UT_EmergencyManager_Vm
             em.EscapeHatchExitWithProof(ChainA, engine.Sender, Root, new List<object>(), 0),
             "consumed escape leaf must fault on replay");
     }
+
+    [TestMethod]
+    public void EscapeHatchExit_ZeroChainId_Faults()
+    {
+        var engine = new TestEngine(true);
+        var sm = UInt160.Parse("0x" + new string('5', 40));
+        var em = Deploy(engine, settlementManager: sm);
+        em.Pause();
+
+        Assert.ThrowsExactly<TestException>(() =>
+            em.EscapeHatchExit(0, engine.Sender, Root),
+            "chainId 0 is reserved for L1");
+    }
+
+    [TestMethod]
+    public void EscapeHatchExitWithProof_ZeroChainId_Faults()
+    {
+        var engine = new TestEngine(true);
+        var sm = UInt160.Parse("0x" + new string('5', 40));
+        var em = Deploy(engine, settlementManager: sm);
+        em.Pause();
+
+        Assert.ThrowsExactly<TestException>(() =>
+            em.EscapeHatchExitWithProof(0, engine.Sender, Root, new List<object>(), 0),
+            "chainId 0 is reserved for L1");
+    }
+
+    [TestMethod]
+    public void IsEscapeHatchConsumed_ReturnsCorrectStatus()
+    {
+        var engine = new TestEngine(true);
+        var sm = UInt160.Parse("0x" + new string('5', 40));
+        var em = Deploy(engine, settlementManager: sm);
+        engine.FromHash<Mock_EmergencyManager_SettlementManager>(sm, m =>
+            m.Setup(c => c.GetCanonicalStateRoot(It.IsAny<BigInteger?>())).Returns(Root),
+            checkExistence: false);
+
+        // Before exit: should return false
+        Assert.IsFalse(em.IsEscapeHatchConsumed(ChainA, Root));
+
+        em.Pause();
+        em.EscapeHatchExit(ChainA, engine.Sender, Root);
+
+        // After exit: should return true for ChainA, but false for ChainB
+        Assert.IsTrue(em.IsEscapeHatchConsumed(ChainA, Root));
+        Assert.IsFalse(em.IsEscapeHatchConsumed(ChainB, Root));
+    }
 }

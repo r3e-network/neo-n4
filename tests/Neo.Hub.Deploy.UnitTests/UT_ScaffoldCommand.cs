@@ -41,7 +41,7 @@ public class UT_ScaffoldCommand
         // + 1 Phase-C MpcCommitteeFraudVerifier + 1 immutable L2 payout adapter).
         var json = File.ReadAllText(output);
         var roundtripped = DeployPlan.FromJson(json);
-        Assert.AreEqual(24, roundtripped.Steps.Count);
+        Assert.AreEqual(5, roundtripped.Steps.Count);
         Assert.AreEqual(ScaffoldPlan.Default().Steps.Count, roundtripped.Steps.Count);
     }
 

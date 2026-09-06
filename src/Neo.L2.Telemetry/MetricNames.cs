@@ -144,4 +144,24 @@ public static class MetricNames
 
     /// <summary>Counter: failed audit findings.</summary>
     public const string AuditFailures = "l2.audit.failures";
+
+    // ---- Transaction Signing (KMS/HSM) ----
+
+    /// <summary>Counter: successful signing operations by signer type.</summary>
+    public const string SignSuccess = "l2.signing.success";
+
+    /// <summary>Histogram: signing latency in ms, tagged by signer_type.</summary>
+    public const string SignLatencyMs = "l2.signing.latency_ms";
+
+    /// <summary>Counter: signing failures, tagged by signer_type and error_type.</summary>
+    public const string SignFailures = "l2.signing.failures";
+
+    /// <summary>Counter: signature cache hits, tagged by signer_type.</summary>
+    public const string SignatureCacheHits = "l2.signing.cache_hits";
+
+    /// <summary>Counter: key resolution operations, tagged by signer_type.</summary>
+    public const string KeyResolutionCount = "l2.signing.key_resolution";
+
+    /// <summary>Gauge: current cache size, tagged by signer_type.</summary>
+    public const string SignatureCacheSize = "l2.signing.cache_size";
 }

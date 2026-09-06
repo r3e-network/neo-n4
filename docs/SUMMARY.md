@@ -72,8 +72,7 @@
 - [Testing approach](./testing-approach.md)
 - [Test coverage](./test-coverage.md)
 - [System verification plan](./system-verification-plan.md)
-- [Neo N4 Unified Experience Hub design](./superpowers/specs/2026-05-19-neo-n4-unified-experience-hub-design.md)
-- [Neo N4 Experience Hub phase 1 plan](./superpowers/plans/2026-05-19-neo-n4-experience-hub-phase-1.md)
+- [NeoHub Lean Architecture Consolidation](./audit/neohub-lean-consolidation.md)
 
 # Audit evidence
 

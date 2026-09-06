@@ -64,7 +64,7 @@ fractional withdrawals such as non-whole L1 NEO exits.
 The static [`Neo N4 Experience Hub`](./docs/experience-hub/index.html) is the
 readable cockpit for the architecture. It turns the same redacted report schema
 used by tests and devnet rehearsals into an interactive view of NeoHub deployed
-contracts, ContractZkVerifier, deployable proof verifier contracts, NeoVM2/RISC-V
+contracts, deployable proof verifier contracts, NeoVM2/RISC-V
 L2 execution, optional N4 L2 execution profiles, and NeoFS as the data
 availability layer.
 
@@ -256,14 +256,13 @@ For deeper diagrams, see:
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 26 contract projects (24 production contracts, one advisory-only structural fraud verifier, and one test-only stub) grouped into
-  six concerns: *Settlement* (SettlementManager · VerifierRegistry · ContractZkVerifier), *Bridge*
-  (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
-  *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
-  *Governance* (GovernanceController · EmergencyManager), and *External Bridge*
-  (MPC verifier, registry, escrow, bonds, and fraud verifier). Owns assets,
-  settlement, message routing, and governance. `ContractZkVerifier` keeps NeoHub deployable
-  while routing ZK proof-system work to governance-registered deployable verifier contracts.
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 5 contract projects grouped
+  into four concerns: *Settlement* (RollupHub · ZkVerifier), *Bridge*
+  (SharedBridge · Sp1Groth16Verifier), *Security* (SequencerBond · ForcedInclusion · OptimisticChallenge, all within RollupHub), and *Governance*
+  (GovernanceController). Owns assets,
+  settlement, message routing, and governance. `ZkVerifier` integrates the former
+  `ContractZkVerifier` + `Sp1Groth16Verifier` functionality and validates ZK proof
+  envelopes over Neo's BN254 interops.
 - **Neo Gateway (Phase 5, optional)** — aggregates many L2s' proofs into one settlement
   post on L1. `BinaryTreeAggregator` reduces in log-N rounds; `IRoundProver` ships in
   two production-grade implementations (`MultisigRoundProver` for committee-attested
@@ -289,7 +288,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | RPC adapter libraries | **2** | `Neo.L2.Gateway.Rpc` · `Neo.L2.Settlement.Rpc` |
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
-| Smart contracts   | **26 projects + 10 L2 native** | 26 NeoHub L1 contract projects: 24 production contracts, advisory-only `GovernanceFraudVerifier`, and test-only `ExternalBridgeStubVerifier`. The production bundle excludes both non-state-changing helpers and includes the concrete immutable `L2PayoutAdapter`, `ContractZkVerifier` router, and immutable `Sp1Groth16Verifier` terminal verifier. 10 L2 system contracts are Neo core native contracts in the r3e `external/neo` fork. |
+| Smart contracts   | **5 projects + 10 L2 native** | 5 NeoHub L1 contract projects: RollupHub, SharedBridge, ZkVerifier, Sp1Groth16Verifier, GovernanceController (production/deployable). 10 L2 system contracts are Neo core native contracts in the r3e `external/neo` fork. |
 | CLI tools         | **7**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge` |
 | App SDK sources   | **4**     | `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/` (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) · `sdk/python/` (`neo-n4-sdk`) — all 10 RPC methods, same wire shape, same 4-class error taxonomy; no package-release evidence is claimed |
 | Static web experiences | **4** | `sdk/web-explorer/index.html` (operator explorer) · `docs/experience-hub/index.html` (architecture tour) · `docs/interactive-runtime/index.html` (runtime theater) · `docs/interactive-math/index.html` (proof math lab) |
@@ -315,7 +314,7 @@ neo4/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
-│   ├── NeoHub.* (26)                       # L1 suite: 24 production + 1 advisory + 1 test stub
+│   ├── NeoHub.* (5)                        # L1 suite: RollupHub, SharedBridge, ZkVerifier, Sp1Groth16Verifier, GovernanceController
 ├── external/neo/                            # r3e Neo fork with N4 L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)
@@ -357,8 +356,8 @@ Detailed coverage per project: [`IMPLEMENTATION_STATUS.md`](./IMPLEMENTATION_STA
 > **L1 trust model — what settlement actually verifies today.** On-chain, a settled batch
 > trusts one of: a real secp256r1 committee under
 > `ProofType.Multisig` (Stage 0); an optimistic fraud-proof window under `ProofType.Optimistic`
-> (Stage 1 — a divergence from ZKsync's pure validity-rollup model); or, under `ProofType.Zk`
-> (Stage 2), `ContractZkVerifier` plus the immutable in-repo `Sp1Groth16Verifier`, which
+> (Stage 1 — a divergence from Zksync's pure validity-rollup model); or, under `ProofType.Zk`
+> (Stage 2), `ZkVerifier` plus the immutable in-repo `Sp1Groth16Verifier`, which
 > executes the complete pinned SP1 Groth16/BN254 pairing equation. The production deploy
 > plan permanently disables SP1 `envelope-only`; private devnets must opt into that unsafe
 > shortcut explicitly. Production execution additionally requires the SHA-256-pinned
@@ -422,7 +421,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
 # --- L1 deploy (when ready) ---
 
-# Generate a NeoHub deploy bundle (24 production contracts, declarative, dependency-resolved)
+# Generate a NeoHub deploy bundle (5 production contracts, declarative, dependency-resolved)
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json
 

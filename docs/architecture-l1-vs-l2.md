@@ -46,17 +46,10 @@ specific logic — runs on **L2** because L1 cannot scale to it.
 
 ## 2. What L1 does (and why it has to)
 
-The 24 production NeoHub contracts (plus 1 advisory structural verifier and 1 testing stub) are deployed L1
-contracts, not L1 native contracts. `ContractZkVerifier` is one of those
-deployed contracts: it validates ZK proof envelopes and routes proof-system
-work to terminal verifier contracts instead of becoming a NeoHub native
-contract. The production SP1 terminal is the immutable
-`Sp1Groth16Verifier`, which uses Neo's current BN254 interops. They cluster into
-six concerns. Each entry below names *the property that forces it
-onto L1*:
+The **5** production NeoHub contracts are deployed L1 contracts, not L1 native contracts. `ContractZkVerifier` functionality is integrated into `NeoHub.ZkVerifier` as a deployable verifier contract: it validates ZK proof envelopes, checks registered verification keys, and executes SP1 Groth16 verification over Neo's current BN254 interops. The 5 Pillars cluster into core concerns. Each entry below names *the property that forces it onto L1*:
 
 <p align="center">
-  <img src="figures/architecture/l1-concerns.svg" alt="NeoHub L1 concerns and trust boundaries. Settlement uses SettlementManager, VerifierRegistry, ContractZkVerifier, and the immutable Sp1Groth16Verifier; bridge, messaging, DA, sequencer security, governance, emergency, fraud-verifier, and external-bridge contracts remain deployed L1 concerns." width="900">
+  <img src="figures/architecture/l1-concerns.svg" alt="NeoHub L1 concerns and trust boundaries. Settlement uses RollupHub, SharedBridge, ZkVerifier, and GovernanceController as deployed L1 contracts." width="900">
 </p>
 
 **Key observation about L1 contracts:** they hold *commitments* and
@@ -73,7 +66,7 @@ The 10 native L2 contracts + 8 plugins per L2 chain cluster around
 *execution* + *bulk state* + *throughput-bound work*:
 
 <p align="center">
-  <img src="figures/architecture/l2-concerns.svg" alt="What L2 does — 3 layers per chain. Top: 10 L2 native contracts (per-chain state — L2BridgeContract, L2NativeExternalBridge, BridgedNep17Contract, L2MessageContract, L2BatchInfoContract, L2FeeContract, L2PaymasterContract, L2AccountAbstraction, L2InteropVerifier, L2SystemConfigContract). Middle: 8 L2 plugins (per-chain runtime — L2Batch, L2Settlement, L2Bridge, L2DA, L2Prover, L2Rpc, L2Gateway, L2Metrics). Bottom: L2 execution kernel — Neo 4 core vendored as a git submodule, with dBFT 2.0 consensus, NeoVM2/RISC-V execution, mempool, local state storage, and receipt generation" width="900">
+  <img src="figures/architecture/l2-concerns.svg" alt="What L2 does — 3 layers per chain. Top: 10 L2 native contracts. Middle: 8 L2 plugins. Bottom: L2 execution kernel" width="900">
 </p>
 
 **Key observation about L2:** L2 holds the **bulk state + the heavy
@@ -119,31 +112,10 @@ A useful sanity check: if you can answer *no* to all of (1), (2),
 Going through each NeoHub contract + each L2Native contract against
 the rules in §5:
 
-- **`NeoHub.ChainRegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
-- **`NeoHub.SettlementManager`** L1 ✅ → L1 — Trust boundary (rule 3)
-- **`NeoHub.VerifierRegistry`** L1 ✅ → L1 — Trust boundary (rule 3)
-- **`NeoHub.ContractZkVerifier`** L1 ✅ → L1 — ZK proof envelope/VK boundary; delegates proof-system work to registered terminal verifier contracts (rules 2+3)
-- **`NeoHub.Sp1Groth16Verifier`** L1 ✅ → L1 — Immutable SP1 v6.1-compatible Groth16 wrapper used by SP1 6.2.x, verified over Neo BN254 interops (rule 3)
-- **`NeoHub.SharedBridge`** L1 ✅ → L1 — Asset escrow (rule 2 — assets are on L1)
-- **`NeoHub.TokenRegistry`** L1 ✅ → L1 — Cross-bridge invariant (rule 1)
-- **`NeoHub.MessageRouter`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
-- **`NeoHub.DARegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
-- **`NeoHub.DAValidator`** L1 ✅ → L1 — Data-availability trust boundary (rule 3)
-- **`NeoHub.L1TxFilter`** L1 ✅ → L1 — L1→L2 admission policy before canonical enqueue (rule 3)
-- **`NeoHub.SequencerRegistry`** L1 ✅ → L1 — Cross-L2 invariant (rule 1)
-- **`NeoHub.SequencerBond`** L1 ✅ → L1 — Slashable economic security (rule 2)
-- **`NeoHub.ForcedInclusion`** L1 ✅ → L1 — Anti-censorship gate (rule 3)
-- **`NeoHub.OptimisticChallenge`** L1 ✅ → L1 — Trust boundary + slashing (rules 2+3)
-- **`NeoHub.GovernanceController`** L1 ✅ → L1 — Slow upgrade path (rule 3)
-- **`NeoHub.EmergencyManager`** L1 ✅ → L1 — Out-of-band pause (rule 3)
-- **`NeoHub.GovernanceFraudVerifier`** L1 ✅ → L1 — Verifier slot — same as `VerifierRegistry`
-- **`NeoHub.RestrictedExecutionFraudVerifier`** L1 ✅ → L1 — Verifier slot
-- **`NeoHub.MpcCommitteeVerifier`** L1 ✅ → L1 — Trust boundary for foreign chains
-- **`NeoHub.MpcCommitteeFraudVerifier`** L1 ✅ → L1 — Slashing — same trust + economic argument
-- **`NeoHub.ExternalBridgeRegistry`** L1 ✅ → L1 — Cross-foreign-chain invariant
-- **`NeoHub.ExternalBridgeEscrow`** L1 ✅ → L1 — Asset escrow
-- **`NeoHub.ExternalBridgeBond`** L1 ✅ → L1 — Slashable economic security
-- **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → testing only — **not registrable through `ExternalBridgeRegistry` production bridge kinds**
+- **`NeoHub.RollupHub` (Pillar 1)** L1 ✅ → L1 — Consolidates chain admission, batch settlement (with atomic single-step `SubmitAndFinalizeBatch`), DA tracking, forced inclusion, and Merkle withdrawal proof verification. Direct 0-hop storage and single-step atomic settlement. (rules 1+3)
+- **`NeoHub.SharedBridge` (Pillar 2)** L1 ✅ → L1 — Asset custody, token registry mapping, and cross-chain message routing. Strictly enforces asset conservation $\text{Escrow} \equiv \sum \text{Deposits} - \sum \text{Withdrawals}$. (rules 1+2)
+- **`NeoHub.ZkVerifier` (Pillar 3)** L1 ✅ → L1 — Unified ZK validity verifier consolidating envelope routing, verification key registry, and SP1 6.2.x BN254 Groth16 cryptographic pairings. (rule 3)
+- **`NeoHub.GovernanceController` (Pillar 4)** L1 ✅ → L1 — Unified council governance, timelock delays, 2-tier emergency freeze (`pauseChain`/`freezeAll`), and sequencer staking/slashing. (rules 2+3)
 
 - **Neo Core native `L2BridgeContract`** L2 ✅ → L2 — Per-L2 NEP-17 wrapped state (rule 4)
 - **Neo Core native `L2MessageContract`** L2 ✅ → L2 — Per-L2 inbox/outbox
@@ -158,19 +130,12 @@ the rules in §5:
 
 **Findings:**
 
-✅ **24 of 26 NeoHub projects are production L1 contracts** — the remaining two are the advisory structural verifier and test-only stub; each production contract
-satisfies at least one of rules 1, 2, or 3.
+✅ **All 4 NeoHub projects are production L1 contracts** — each satisfies at least one of rules 1, 2, or 3.
 
 ✅ **All 10 L2 native contracts are correctly placed in L2 Neo core** — each is
 per-chain state with no cross-L2 read requirement and is registered from
 `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`, not deployed
 after genesis.
-
-🟡 **`ExternalBridgeStubVerifier` is L1 but is testing-only.** A
-production NeoHub deployment must not register this verifier in
-`ExternalBridgeRegistry`; this is now code-enforced because the registry
-accepts only bridge kinds `1` (MPC), `2` (Optimistic), and `3` (ZK), while
-the stub reports bridge kind `0`.
 
 ---
 

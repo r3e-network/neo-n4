@@ -72,7 +72,7 @@ verifies the `.nef` + `.manifest.json` artifacts.
 
 **Key relationships:**
 - `SettlementManager` consumes proofs validated by `VerifierRegistry`;
-  `ProofType.Zk` routes to `ContractZkVerifier`. The production SP1 route is
+  `ProofType.Zk` routes to `NeoHub.ZkVerifier`. The production SP1 route is
   bound to immutable `Sp1Groth16Verifier`, performs the complete five-public-input
   Groth16 pairing check over Neo BN254 interops, and permanently disables
   envelope-only acceptance;

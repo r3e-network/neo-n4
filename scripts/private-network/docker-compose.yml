@@ -1,0 +1,214 @@
+version: "3.9"
+
+# Neo N4 Private Network - Reproducible Local Test Cluster
+# 
+# This compose file defines the infrastructure services for running a deterministic
+# private network cluster locally. It mirrors the orchestration in Test-PrivateNetwork.ps1
+# but with container-based isolation for reproducible test environments.
+#
+# Usage:
+#   docker compose -f scripts/private-network/docker-compose.yml up -d
+#   docker compose -f scripts/private-network/docker-compose.yml logs -f
+#   docker compose -f scripts/private-network/docker-compose.yml down -v
+#
+# Services define: sequencer node, batcher node, prover daemon, settlement RPC,
+# metrics collection. RocksDB volumes persist state across restarts. Health checks
+# verify each service is ready before starting dependent components.
+
+services:
+  # Sequencer Node - runs neo-cli with L2 plugins
+  sequencer:
+    image: mcr.microsoft.com/dotnet/aspnet:10.0-alpine
+    platform: linux/amd64
+    container_name: neo-n4-sequencer
+    working_dir: /app
+    volumes:
+      # Persist RocksDB state across container restarts
+      - sequencer-data:/app/data
+      # Mount chain configuration from host
+      - ./chain.config.json:/app/config/chain.config.json:ro
+      # Mount reviewed operator deployment
+      - ${SEQUENCER_CLI:-./operator/sequencer}:/app/deployment:ro
+    ports:
+      - "3303:3303"   # P2P port
+      - "3304:3304"   # RPC port
+    environment:
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - DOTNET_ENVIRONMENT=Development
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3304 && echo 'RPC ready'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    depends_on:
+      - prometheus
+    networks:
+      - neo-n4-private
+
+  # Batcher Node - collects transactions into batches
+  batcher:
+    image: mcr.microsoft.com/dotnet/aspnet:10.0-alpine
+    platform: linux/amd64
+    container_name: neo-n4-batcher
+    working_dir: /app
+    volumes:
+      - batcher-data:/app/data
+      - ./batcher.config.json:/app/config/batcher.config.json:ro
+      - ${BATCHER_CLI:-./operator/batcher}:/app/deployment:ro
+    environment:
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - DOTNET_ENVIRONMENT=Development
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f Neo.Plugins.L2Batch || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    depends_on:
+      - sequencer
+      - prometheus
+      - grafana
+    networks:
+      - neo-n4-private
+
+  # Prover Daemon - generates ZK proofs for batch validation
+  prover:
+    image: ubuntu:24.04
+    platform: linux/amd64
+    container_name: neo-n4-prover
+    working_dir: /app
+    volumes:
+      - prover-data:/app/data
+      # Mount Rust toolchain cache for SP1 proving
+      - cargo-cache:/root/.cargo
+      - rustup-cache:/root/.rustup
+      # Mount production prover binary
+      - ${PROVER_BIN:-./bin/neo-zkvm-host}:/app/neo-zkvm-host:ro
+    environment:
+      - RUSTUP_IO_THREADS=1
+      - SP1_PROVER_LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD-SHELL", "test -x /app/neo-zkvm-host && pgrep -f neo-zkvm-host || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+    depends_on:
+      - batcher
+    networks:
+      - neo-n4-private
+    # Use resource limits to prevent runaway proving jobs
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8G
+
+  # Settlement RPC - exposes read-only API for L1 contract verification
+  settlement-rpc:
+    image: mcr.microsoft.com/dotnet/aspnet:10.0-alpine
+    platform: linux/amd64
+    container_name: neo-n4-settlement-rpc
+    working_dir: /app
+    volumes:
+      - settlement-rpc-data:/app/state
+      # Mount NeoHub contracts for verification
+      - ./contracts:/app/contracts:ro
+      - ./deploy-plan.json:/app/deploy-plan.json:ro
+    ports:
+      - "8080:8080"
+    environment:
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - ASPNETCORE_URLS=http://+:8080
+      - DOTNET_ENVIRONMENT=Production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    depends_on:
+      - sequencer
+    networks:
+      - neo-n4-private
+
+  # Metrics Collection - Prometheus scraper + Grafana dashboard
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    platform: linux/amd64
+    container_name: neo-n4-prometheus
+    volumes:
+      - prometheus-data:/prometheus
+      - ./metrics/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - neo-n4-private
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    platform: linux/amd64
+    container_name: neo-n4-grafana
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./metrics/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./metrics/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - prometheus
+    networks:
+      - neo-n4-private
+
+networks:
+  neo-n4-private:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  # Per-service persistence volumes
+  sequencer-data:
+    name: neo-n4-sequencer-data
+    driver: local
+  batcher-data:
+    name: neo-n4-batcher-data
+    driver: local
+  prover-data:
+    name: neo-n4-prover-data
+    driver: local
+  settlement-rpc-data:
+    name: neo-n4-settlement-rpc-data
+    driver: local
+  prometheus-data:
+    name: neo-n4-prometheus-data
+    driver: local
+  grafana-data:
+    name: neo-n4-grafana-data
+    driver: local
+  # Shared caches for build artifacts
+  cargo-cache:
+    name: neo-n4-cargo-cache
+    driver: local
+  rustup-cache:
+    name: neo-n4-rustup-cache
+    driver: local

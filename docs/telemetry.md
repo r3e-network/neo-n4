@@ -166,6 +166,21 @@ backend automatically participates.
 - `l2.da.published` — counter — `mode` — DA payloads published successfully
 - `l2.da.publish_latency_ms` — histogram — `mode` — Wall-clock milliseconds for each DA publish
 - `l2.da.publish_failures` — counter — `mode` — DA publishes that threw
+- `l2.da.is_available_checks` — counter — `mode` — Availability probe attempts
+- `l2.da.is_available_results` — gauge — `mode` — Result of latest availability check (1 = available, 0 = unavailable)
+- `l2.da.pending_batches` — gauge — Batches awaiting DA confirmation
+
+**Mode-Specific Metrics:**
+
+#### NeoFS REST Gateway
+- `l2.da.neofs_upload_size_bytes` — histogram — Upload payload sizes
+- `l2.da.neofs_replica_count` — gauge — Current replica count for published objects
+- `l2.da.neofs_read_after_write_failures` — counter — Verification failures on upload
+
+#### L1 Transaction Anchor
+- `l2.da.l1_tx_count` — gauge — Number of L1 transactions in most recent batch
+- `l2.da.l1_gas_used` — histogram — GAS consumed per batch publication
+- `l2.da.l1_confirmation_blocks` — histogram — Blocks until confirmation
 
 ### RPC (`Neo.Plugins.L2Rpc.L2RpcMethods`)
 
@@ -202,6 +217,15 @@ backend automatically participates.
 
 - `l2.audit.runs` — counter — Times the chain auditor ran
 - `l2.audit.failures` — counter — Audit findings that failed the audit
+
+### Signing (`Neo.L2.Settlement.Rpc.{AwsKms,HsmCli}TransactionSigner`)
+
+- `l2.signing.success` — counter — `signer_type` — Successful signing operations
+- `l2.signing.latency_ms` — histogram — `signer_type` — Signing latency in milliseconds
+- `l2.signing.failures` — counter — `signer_type`, `error_type` — Signing failures
+- `l2.signing.cache_hits` — counter — `signer_type` — Signature cache hits
+- `l2.signing.key_resolution` — counter — `signer_type` — Key resolution operations for external key providers
+- `l2.signing.cache_size` — gauge — `signer_type` — Current signature cache size
 
 ## Prometheus rendering
 

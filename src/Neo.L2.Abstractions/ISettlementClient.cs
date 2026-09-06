@@ -20,6 +20,16 @@ public interface ISettlementClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Atomically submit and finalize <paramref name="commitment"/> and public inputs in a single L1 step.
+    /// Used by Validity (ZK) proofs on <c>NeoHub.RollupHub</c>. Default implementation calls <see cref="SubmitBatchAsync"/>.
+    /// </summary>
+    ValueTask<UInt256> SubmitAndFinalizeBatchAsync(
+        L2BatchCommitment commitment,
+        PublicInputs publicInputs,
+        CancellationToken cancellationToken = default)
+        => SubmitBatchAsync(commitment, publicInputs, cancellationToken);
+
+    /// <summary>
     /// Read the canonical (finalized) state root recorded by NeoHub for a given chain.
     /// </summary>
     ValueTask<UInt256> GetCanonicalStateRootAsync(
@@ -30,6 +40,27 @@ public interface ISettlementClient
     /// Look up the lifecycle status of a previously submitted batch.
     /// </summary>
     ValueTask<BatchStatus> GetBatchStatusAsync(
+        uint chainId,
+        ulong batchNumber,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>Optional client for the on-chain optimistic challenge lifecycle.</summary>
+/// <remarks>See doc.md §17. Implementations must preserve idempotent retry semantics and expose the
+/// on-chain deadline/status rather than treating local clock state as authoritative.</remarks>
+public interface IOptimisticChallengeClient
+{
+    ValueTask<uint> GetChallengeDeadlineAsync(uint chainId, ulong batchNumber, CancellationToken cancellationToken = default);
+
+    ValueTask SubmitChallengeAsync(
+        uint chainId,
+        ulong batchNumber,
+        UInt160 challenger,
+        ReadOnlyMemory<byte> fraudProofBytes,
+        UInt160 fraudVerifier,
+        CancellationToken cancellationToken = default);
+
+    ValueTask FinalizeIfPastWindowAsync(
         uint chainId,
         ulong batchNumber,
         CancellationToken cancellationToken = default);

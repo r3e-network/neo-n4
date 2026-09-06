@@ -1,0 +1,47 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'neo-n4-private'
+    environment: 'local'
+
+scrape_configs:
+  # Sequencer node metrics
+  - job_name: 'sequencer'
+    static_configs:
+      - targets: ['sequencer:9090']
+    metrics_path: '/metrics'
+    scheme: 'http'
+
+  # Batcher node metrics
+  - job_name: 'batcher'
+    static_configs:
+      - targets: ['batcher:9090']
+    metrics_path: '/metrics'
+    scheme: 'http'
+
+  # Prover daemon metrics
+  - job_name: 'prover'
+    static_configs:
+      - targets: ['prover:9090']
+    metrics_path: '/metrics'
+    scheme: 'http'
+
+  # Settlement RPC metrics
+  - job_name: 'settlement-rpc'
+    static_configs:
+      - targets: ['settlement-rpc:8080']
+    metrics_path: '/metrics'
+    scheme: 'http'
+
+  # Grafana self-monitoring
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    metrics_path: '/metrics'
+    scheme: 'http'
+
+  # Prometheus itself (self-monitoring)
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

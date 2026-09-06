@@ -82,7 +82,8 @@ SP1 Groth16/BN254 终端验证器。今天一个 L1 批次结算实际信任什�
   挑战窗口(`OptimisticChallenge`)。这是相对 ZKsync(纯有效性 rollup)的**乐观 rollup
   分歧**。v1/v2/v3 仅是审计用结构性证据，不能改变状态；独立 v4 profile 会绑定 committed batch
   并执行一笔 existing-key Counter Increment。通用 NeoVM 与多交易 fraud proof fail closed。
-- **`ProofType.Zk`(Stage 2)**——`ContractZkVerifier` 校验规范 batch/proof 信封，并把
+- **`ProofType.Zk`(Stage 2)**——`NeoHub.ZkVerifier`整合了前
+  身 `ContractZkVerifier` + `Sp1Groth16Verifier` 的功能并校验规范 batch/proof 信封，并把
   SP1 证明路由到仓库内不可变的 `Sp1Groth16Verifier`；后者通过 Neo Core 原生 BN254
   interop 执行完整的固定 SP1 Groth16 pairing 方程。证明前，
   `Sp1SettlementExecutionStack` 运行 SHA-256 锁定、同 runtime 的 native executor，校验
@@ -116,7 +117,9 @@ profile 对应的无信任结算边界，不是对每个 RISC-V executor 的笼�
 | **`TransactionFilterer`**(每链 L1→L2 过滤钩子) | `MessageRouter.SetL1TxFilter` + `NeoHub.L1TxFilter` | 对等于 L1→L2 入队过滤；L2 mempool 过滤保留为运维策略 |
 | **`L2AdminFactory` / 每链 `ChainAdmin`** | 缺 —— 链管理在 Hub 侧 `ChainRegistry.L2ChainConfig` 的 `operatorManager` | 有意分歧 |
 | **`BridgedStandardERC20`** —— 规范 L2 代币 | Neo Core 原生 `BridgedNep17Contract` | 对等于规范桥接代币层 |
-| **Boojum / Plonk 验证器合约** —— 链上有效性证明数学 | `NeoHub.ContractZkVerifier` 将 `ProofType.Zk` 路由到不可变的 `NeoHub.Sp1Groth16Verifier`；后者固定 SP1 wrapper VK 并通过 Neo Core 执行 Groth16/BN254 数学 | 安全边界等价、证明栈不同 —— SP1 Groth16 替代 Boojum/Plonk；生产永久关闭 SP1 `envelope-only`。详见上文 **L1 信任模型**。 |
+| **Boojum / Plonk 验证器合约** —— 链上有效性证明数学 | `NeoHub.ZkVerifier` 整合了前身
+  `ContractZkVerifier` + `Sp1Groth16Verifier`；将 `ProofType.Zk` 路由到不可变的 `NeoHub.Sp1Groth16Verifier`
+  ；后者固定 SP1 wrapper VK 并通过 Neo Core 执行 Groth16/BN254 数学 | 安全边界等价、证明栈不同 —— SP1 Groth16 替代 Boojum/Plonk；生产永久关闭 SP1 `envelope-only`。详见上文 **L1 信任模型**。 |
 | **`CalldataDA` / `ValidiumL1DAValidator` / `RollupDAManager` / `RelayedSLDAValidator`** | `NeoHub.DARegistry` + `NeoHub.DAValidator` + `Neo.Plugins.L2DA` writer | 部分 —— DAC attestation gate 已有；更丰富的 NeoFS / 外部包含证明 adapter 属于运维扩展 |
 | **`BytecodesSupplier` / `*Upgrade` 系列 / `UpgradeStageValidator`** | `GovernanceController` 提案管线，含通知、执行、冷却窗口 | 对等于分阶段时序；NeoVM 不需要 bytecode supplier |
 | **L2 `Bootloader`** | 缺 —— NeoVM2/RISC-V runtime 提供原生派发 | 有意分歧 |

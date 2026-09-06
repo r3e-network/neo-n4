@@ -40,13 +40,13 @@
 
 ## 2. L1 做什么(以及为什么必须由 L1 做)
 
-24 个生产 NeoHub 合约（另有 1 个仅审计用结构验证器和 1 个测试 stub）是可部署 L1 合约，不是 L1 原生合约。
-`ContractZkVerifier` 也保持为可部署合约：它校验 ZK proof envelope / VK 边界，
-再把proof-system 验证工作路由到 L1 可部署验证器合约。它们聚成 6 个关注点。每条都点出*把它强制放在
+4 个生产 NeoHub 核心支柱合约是可部署 L1 合约，不是 L1 原生合约。
+`ContractZkVerifier` 功能已作为可部署验证器合约整合进 `ZkVerifier`：它校验 ZK proof envelope / VK 边界，
+并基于 Neo N3 原生 BN254 原语执行 SP1 Groth16 配对密码学验证。它们聚成核心关注点。每条都点出*把它强制放在
 L1 的属性*:
 
 <p align="center">
-  <img src="../figures/architecture/l1-concerns.svg" alt="26 个 NeoHub L1 项目：24 个生产合约、1 个仅审计用结构验证器和 1 个测试 stub。Settlement 定义信任边界；GovernanceFraudVerifier 仅审计，RestrictedExecutionFraudVerifier 仅对精确注册 v4 执行状态变更" width="900">
+  <img src="../figures/architecture/l1-concerns.svg" alt="NeoHub 4 大核心支柱体系：RollupHub、SharedBridge、ZkVerifier、GovernanceController 作为可部署 L1 合约" width="900">
 </p>
 
 **关于 L1 合约的关键观察:** 它们持有的是*承诺*与*权限*,而非批量状态。NeoHub 的
@@ -100,30 +100,10 @@ L1 上多半是*过早中心化*。
 
 按 §5 的规则把每个 NeoHub 合约 + 每个 L2Native 合约过一遍:
 
-- **`NeoHub.ChainRegistry`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
-- **`NeoHub.SettlementManager`** L1 ✅ → L1 — 信任边界(规则 3)
-- **`NeoHub.VerifierRegistry`** L1 ✅ → L1 — 信任边界(规则 3)
-- **`NeoHub.ContractZkVerifier`** L1 ✅ → L1 — ZK proof envelope / VK 边界；把证明系统数学委派给 L1 可部署验证器合约(规则 2+3)
-- **`NeoHub.SharedBridge`** L1 ✅ → L1 — 资产托管(规则 2 —— 资产在 L1)
-- **`NeoHub.TokenRegistry`** L1 ✅ → L1 — 跨桥不变量(规则 1)
-- **`NeoHub.MessageRouter`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
-- **`NeoHub.DARegistry`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
-- **`NeoHub.DAValidator`** L1 ✅ → L1 — 数据可用性信任边界(规则 3)
-- **`NeoHub.L1TxFilter`** L1 ✅ → L1 — L1→L2 入站准入策略(规则 3)
-- **`NeoHub.SequencerRegistry`** L1 ✅ → L1 — 跨 L2 不变量(规则 1)
-- **`NeoHub.SequencerBond`** L1 ✅ → L1 — 可罚没经济安全(规则 2)
-- **`NeoHub.ForcedInclusion`** L1 ✅ → L1 — 抗审查门(规则 3)
-- **`NeoHub.OptimisticChallenge`** L1 ✅ → L1 — 信任边界 + 罚没(规则 2+3)
-- **`NeoHub.GovernanceController`** L1 ✅ → L1 — 慢升级路径(规则 3)
-- **`NeoHub.EmergencyManager`** L1 ✅ → L1 — 带外暂停(规则 3)
-- **`NeoHub.GovernanceFraudVerifier`** L1 ✅ → L1 — Verifier 槽 —— 同 `VerifierRegistry`
-- **`NeoHub.RestrictedExecutionFraudVerifier`** L1 ✅ → L1 — Verifier 槽
-- **`NeoHub.MpcCommitteeVerifier`** L1 ✅ → L1 — 外链信任边界
-- **`NeoHub.MpcCommitteeFraudVerifier`** L1 ✅ → L1 — 罚没 —— 同信任 + 经济安全论据
-- **`NeoHub.ExternalBridgeRegistry`** L1 ✅ → L1 — 跨外链不变量
-- **`NeoHub.ExternalBridgeEscrow`** L1 ✅ → L1 — 资产托管
-- **`NeoHub.ExternalBridgeBond`** L1 ✅ → L1 — 可罚没经济安全
-- **`NeoHub.ExternalBridgeStubVerifier`** L1 🟡 → 仅测试 — **不能通过 `ExternalBridgeRegistry` 的生产 bridge kind 注册**
+- **`NeoHub.RollupHub` (支柱 1)** L1 ✅ → L1 — 整合链准入、批次结算（提供原子单步 `submitAndFinalizeBatch`）、DA 承诺记录、强制入列队列与 Merkle 提款证明验证。0-hop 原生存储与单步原子终局化。(规则 1+3)
+- **`NeoHub.SharedBridge` (支柱 2)** L1 ✅ → L1 — 资产金库、代币注册表映射与跨链消息路由。严格遵循资产守恒 $\text{Escrow} \equiv \sum \text{Deposits} - \sum \text{Withdrawals}$。(规则 1+2)
+- **`NeoHub.ZkVerifier` (支柱 3)** L1 ✅ → L1 — 统一有效性证明器，整合信封路由、验证密钥注册表（VK）与基于 Neo N3 原生原语的 SP1 6.2.x BN254 Groth16 配对密码学计算。(规则 3)
+- **`NeoHub.GovernanceController` (支柱 4)** L1 ✅ → L1 — 统一理事会多签、时间锁延时、双层紧急暂停（`pauseChain`/`freezeAll`）与定序器质押罚没。(规则 2+3)
 
 - **Neo Core 原生 `L2BridgeContract`** L2 ✅ → L2 — 按 L2 的 NEP-17 包装资产状态(规则 4)
 - **Neo Core 原生 `L2MessageContract`** L2 ✅ → L2 — 按 L2 的 inbox/outbox
@@ -138,14 +118,9 @@ L1 上多半是*过早中心化*。
 
 **结论:**
 
-✅ **26 个 NeoHub 项目中的 24 个生产合约被正确作为可部署 L1 合约放到 L1** —— 其余两个分别是仅审计用结构验证器与测试 stub；每个生产合约都至少满足规则 1、2 或 3
-其一。
+✅ **4 个 NeoHub 核心支柱项目均为生产 L1 合约** —— 每个生产合约都至少满足规则 1、2 或 3 其一。
 
 ✅ **10 个 L2 原生合约都被正确放到 L2** —— 每个都是按链状态、无跨 L2 读需求。
-
-🟡 **`ExternalBridgeStubVerifier` 在 L1 但仅供测试。** 生产 NeoHub 部署不得在
-`ExternalBridgeRegistry` 中注册它;现在已经由代码强制:registry 只接受
-`1`(MPC)、`2`(Optimistic)、`3`(ZK) 三种 bridge kind,而 stub 返回 `0`。
 
 ---
 

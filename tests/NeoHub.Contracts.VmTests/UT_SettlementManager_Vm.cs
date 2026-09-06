@@ -1096,4 +1096,40 @@ public class UT_SettlementManager_Vm
             new UInt256(R(0xD1)),
             new byte[] { 0xCA }));
     }
+
+    [TestMethod]
+    public void SubmitAndFinalizeBatch_NonOptimistic_SuccessfullyFinalizesInOneCall()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        var postState = R(0x20);
+        var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: GenesisState,
+            postState: postState,
+            withdrawalRoot: R(0x30),
+            proofType: 3); // ProofTypeZk
+
+        settlementManager.SubmitAndFinalizeBatch(commitment, l1MessageHash, blockContextHash);
+
+        Assert.AreEqual((BigInteger)3, settlementManager.GetBatchStatus(ChainId, 1));
+        Assert.AreEqual((BigInteger)1, settlementManager.GetLatestFinalizedBatch(ChainId));
+        Assert.AreEqual(new UInt256(postState), settlementManager.GetCanonicalStateRoot(ChainId));
+    }
+
+    [TestMethod]
+    public void SubmitAndFinalizeBatch_OptimisticBatch_Rejects()
+    {
+        var engine = new TestEngine(true);
+        var settlementManager = Deploy(engine);
+        var (commitment, l1MessageHash, blockContextHash) = BuildCommitment(
+            batch: 1,
+            preState: GenesisState,
+            postState: R(0x20),
+            withdrawalRoot: R(0x30),
+            proofType: 2); // ProofTypeOptimistic
+
+        Assert.ThrowsExactly<TestException>(() =>
+            settlementManager.SubmitAndFinalizeBatch(commitment, l1MessageHash, blockContextHash));
+    }
 }

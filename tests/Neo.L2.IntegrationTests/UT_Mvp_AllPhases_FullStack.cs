@@ -64,8 +64,10 @@ public class UT_Mvp_AllPhases_FullStack
             return new UInt160(bytes);
         });
         Assert.AreEqual(plan.Steps.Count, bundle.Invocations.Count);
-        Assert.IsTrue(bundle.Invocations.Any(i => i.Name == "SettlementManager"));
-        Assert.IsTrue(bundle.Invocations.Any(i => i.Name == "ForcedInclusion"));
+        Assert.IsTrue(bundle.Invocations.Any(i => i.Name == "RollupHub"));
+        Assert.IsTrue(bundle.Invocations.Any(i => i.Name == "SharedBridge"));
+        Assert.IsTrue(bundle.Invocations.Any(i => i.Name == "ZkVerifier"));
+        Assert.IsTrue(bundle.Invocations.Any(i => i.Name == "GovernanceController"));
 
         // ───── Phase 0/2: real off-chain stack with state continuity ─────
         var stateStore = new KeyedStateStore();

@@ -730,13 +730,41 @@ public class UT_L2BatchPlugin
 
     private static ForcedInclusionEntry ForcedEntry(ulong nonce, byte value)
     {
-        var transaction = new[] { value };
+        // BatchBuilder validates the drain hash against the encoded bytes using the canonical
+        // transaction id, so the entry must carry a parseable transaction and TransactionHasher's
+        // digest over it.
+        var transaction = new Neo.Network.P2P.Payloads.Transaction
+        {
+            Nonce = (uint)nonce,
+            SystemFee = 1_000_000,
+            NetworkFee = 1_000_000,
+            ValidUntilBlock = 1_000,
+            Signers =
+            [
+                new Neo.Network.P2P.Payloads.Signer
+                {
+                    Account = UInt160.Parse("0x" + new string('a', 40)),
+                    Scopes = Neo.Network.P2P.Payloads.WitnessScope.CalledByEntry,
+                },
+            ],
+            Attributes = Array.Empty<Neo.Network.P2P.Payloads.TransactionAttribute>(),
+            Script = new[] { value },
+            Witnesses =
+            [
+                new Neo.Network.P2P.Payloads.Witness
+                {
+                    InvocationScript = Array.Empty<byte>(),
+                    VerificationScript = Array.Empty<byte>(),
+                },
+            ],
+        };
+        var serialized = Neo.Extensions.IO.ISerializableExtensions.ToArray(transaction);
         return new ForcedInclusionEntry
         {
             Nonce = nonce,
             Sender = UInt160.Zero,
-            TxHash = new UInt256(Crypto.Hash256(transaction)),
-            SerializedTx = transaction,
+            TxHash = TransactionHasher.Hash(serialized),
+            SerializedTx = serialized,
             DeadlineUnixSeconds = 1000,
         };
     }

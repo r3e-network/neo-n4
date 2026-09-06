@@ -2414,6 +2414,8 @@ dependencies = [
  "hex",
  "neo-execution-core",
  "neo-vm-rs",
+ "p256",
+ "sha2 0.11.0",
  "sp1-zkvm",
 ]
 

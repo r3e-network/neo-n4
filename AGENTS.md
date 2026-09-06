@@ -56,14 +56,14 @@ but does NOT need to extend in place.
 
 **Before writing a new component, search this repo's existing libs first** (the per-component
 table in `IMPLEMENTATION_STATUS.md` has 16 core off-chain libs + 2 RPC adapter libs + 8 plugins +
-26 NeoHub projects (24 production + 1 advisory verifier + 1 test-only stub) + 10 Neo core native L2 contracts; many
+4 NeoHub projects (4 production: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`) + 10 Neo core native L2 contracts; many
 features that look missing are already there).
 
 ## Mapping `doc.md` to code (current state)
 
 | `doc.md` § | Topic                       | Code location |
 | ---------- | --------------------------- | ------------- |
-| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (26 projects = 24 production + advisory-only `GovernanceFraudVerifier` + test-only `ExternalBridgeStubVerifier`: Phase 0–3 core + DA validator/filter + immutable `Sp1Groth16Verifier` + external-bridge stack. Fraud-proof v1/v2 are structural audit formats, v3 self-consistency is rejected by the production challenge path, and permissionless v4 binds committed roots while re-executing exactly one registered Counter transaction; general NeoVM fraud proofs remain unsupported.) |
+| §3.2 NeoHub                | L1 contract suite          | `contracts/NeoHub.*` (4 Pillar projects: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`). Direct 0-hop native storage, atomic single-step settlement, full ZK Groth16 validity verification, and council governance. |
 | §4 Neo Gateway             | Phase-5 aggregation        | `src/Neo.Plugins.L2Gateway` (`BinaryTreeAggregator` + `IRoundProver`) |
 | §5 L2 node internals       | Per-L2 plugin layout       | `src/Neo.Plugins.L2{Batch,Settlement,Bridge,DA,Prover,Rpc,Gateway,Metrics}` |
 | §7.1 Sequencer / dBFT      | Committee selection        | `contracts/NeoHub.SequencerRegistry` + `src/Neo.L2.Sequencer` |

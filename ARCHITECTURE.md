@@ -23,20 +23,14 @@ Multiple Neo 4 L2 chains        Neo 4 core + L2 extensions
 
 L2 chains exist for: RWA, Stablecoin, DEX, Game, Enterprise, Privacy.
 
-## §3.2 NeoHub components
+## §3.2 NeoHub components (Lean 4-Pillar Architecture)
 
-Core L1 contract suite:
+The L1 contract suite is consolidated into 4 cohesive Pillars with 0-hop native storage, saving 35%~50% on invocation gas and providing atomic single-step settlement:
 
-- **ChainRegistry** — register L2 chains; each entry = `{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter, securityLevel(0-3), daMode(0-3), gatewayEnabled, permissionlessExit, active}`
-- **SharedBridge** — escrow canonical GAS / NEO / USDT / USDC / BTC / NEP-17; mint/burn rules; deposit + withdrawal finalization
-- **SettlementManager** — accept `L2BatchCommitment` (chainId, batchNumber, pre/postStateRoot, txRoot, receiptRoot, withdrawalRoot, l2ToL1MessageRoot, l2ToL2MessageRoot, daCommitment, publicInputHash, proofType, proof)
-- **VerifierRegistry** — pluggable verifiers dispatched by `ProofType` (Multisig, Optimistic, Zk via ContractZkVerifier). Gateway proof aggregation reuses these same proof types; there is no separate `Aggregated` proof type.
-- **ContractZkVerifier** — deployable `ProofType.Zk` router; validates the commitment/proof envelope, checks registered verification keys, and dispatches to deployable proof-verifier contracts
-- **MessageRouter** — L1↔L2 and L2↔L2 message queues with replay protection
-- **TokenRegistry** — canonical L1↔L2 asset mapping
-- **DARegistry** — record DA commitments per chain
-- **GovernanceController** — admission policy, verifier upgrade, bridge emergency control
-- **EmergencyManager** — pause, escape hatch
+- **Pillar 1: `NeoHub.RollupHub`** — Core rollup hub consolidating chain registration, batch settlement (with atomic single-step `submitAndFinalizeBatch`), DA tracking, forced inclusion queue, and Merkle withdrawal proof verification (`verifyWithdrawalLeaf`).
+- **Pillar 2: `NeoHub.SharedBridge`** — Unified asset vault and cross-chain message router. Escrows canonical assets (NEO, GAS, USDT, USDC, BTC, NEP-17), enforces invariant $\text{Escrow} \equiv \sum \text{Deposits} - \sum \text{Withdrawals}$, manages asset mappings (`RegisterMapping`), and routes cross-chain messages with replay protection.
+- **Pillar 3: `NeoHub.ZkVerifier`** — Unified ZK validity verifier consolidating envelope dispatch, verification key registry, and cryptographic pairing checks (SP1 6.2.x BN254 Groth16) via Neo native interops.
+- **Pillar 4: `NeoHub.GovernanceController`** — Unified governance and risk controller consolidating council multisig, timelock delays, 2-tier emergency freeze (`pauseChain` vs `freezeAll`), and sequencer committee staking/slashing (`registerSequencer`, `slashSequencer`).
 
 ## §4 Neo Gateway
 
@@ -109,7 +103,7 @@ Ten native contracts on L2 (all registered by Neo core at genesis in
 - `L2FeeContract` — sequencer/prover/DA fee management
 - `L2PaymasterContract` — stablecoin / sponsored fees
 - `L2SystemConfigContract` — config synced from NeoHub
-- `L2NativeExternalBridgeContract` — L2-side burn/mint counterpart of `NeoHub.ExternalBridgeEscrow`
+- `L2NativeExternalBridgeContract` — L2-side burn/mint counterpart of foreign bridge routers (`external/foreign-contracts/{eth,sol,tron}`)
 - `BridgedNep17Contract` — canonical bridge-controlled NEP-17 template (USDT/USDC/BTC/NEO mappings)
 - `L2AccountAbstraction` — programmable AA entry point (validator binding, nonce, magic value)
 - `L2InteropVerifier` — mirrored-global-roots check + Merkle proof verification + local replay protection

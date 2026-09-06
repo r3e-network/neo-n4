@@ -111,12 +111,13 @@ contain 24 production contracts, one advisory structural fraud verifier, and one
   proofType, proof). Forward verification to `VerifierRegistry`.
 - **`VerifierRegistry`** — Pluggable verifier dispatch by `ProofType`:
   `Multisig` (1), `Optimistic` (2), and `Zk` (3, routed through
-  `ContractZkVerifier`). Gateway proof aggregation reuses these same proof
+  `NeoHub.ZkVerifier`). Gateway proof aggregation reuses these same proof
   types; there is no distinct `Aggregated` proof type.
-- **`ContractZkVerifier`** — Deployable `ProofType.Zk` router. It validates
-  the N4 commitment/proof envelope, verification-key id, and public-input hash
-  boundary, then calls a registered terminal verifier contract for
-  `verifyZkProof(...)`.
+- **`NeoHub.ZkVerifier`** — Deployable `ProofType.Zk` router that integrates the former
+  `ContractZkVerifier` + `Sp1Groth16Verifier` functionality. Validates the N4 commitment/proof
+  envelope, verification-key id, and public-input hash boundary, then calls registered terminal
+  verifier contracts for `verifyZkProof(...)`. The integration consolidates both legacy routes
+  into a single deployable contract.
 - **`Sp1Groth16Verifier`** — Immutable production SP1 terminal verifier. It pins
   the SP1 wrapper selector, recursion VK root, Groth16 verification key, successful
   exit code, and five-public-input layout; consumes the exact 356-byte SP1 proof;
@@ -158,9 +159,10 @@ contain 24 production contracts, one advisory structural fraud verifier, and one
   existing-key Counter Increment transaction. It is trustless inside that
   declared profile; multi-transaction and general NeoVM fraud proofs fail closed.
 
-All 26 contract projects type-check against `Neo.SmartContract.Framework`. The
-`Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved 24-step
-production deploy bundle; the advisory structural verifier and test-only stub are excluded.
+All 5 contract projects type-check against `Neo.SmartContract.Framework`. The
+`Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved 5-step
+production deploy bundle; each contract is deployable (no advisory/test stubs in the current
+consolidated portfolio).
 
 The principle behind NeoHub is **one suite of L1 trust roots for all L2s**. A new L2 does
 not deploy a new bridge or a new verifier; it registers in `ChainRegistry` and inherits the

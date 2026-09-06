@@ -165,9 +165,27 @@ public class UT_L2SettlementSettings
         var hash = "0x" + new string('1', 40);
         var settings = ValidProductionSettings(
             settlementManagerHash: hash,
-            forcedInclusionHash: hash);
+            sharedBridgeHash: hash);
 
         Assert.ThrowsExactly<InvalidDataException>(() => settings.ValidateProduction());
+    }
+
+    [TestMethod]
+    public void ValidateProduction_RollupHub_AllowsSameSettlementAndForcedInclusionHash()
+    {
+        var hubHash = "0x" + new string('1', 40);
+        var bridgeHash = "0x" + new string('2', 40);
+        var settings = ValidProductionSettings(
+            settlementManagerHash: hubHash,
+            forcedInclusionHash: hubHash,
+            sharedBridgeHash: bridgeHash,
+            messageRouterHash: bridgeHash);
+
+        var config = settings.ValidateProduction();
+        Assert.AreEqual(UInt160.Parse(hubHash), config.SettlementManagerHash);
+        Assert.AreEqual(UInt160.Parse(hubHash), config.ForcedInclusionHash);
+        Assert.AreEqual(UInt160.Parse(bridgeHash), config.SharedBridgeHash);
+        Assert.AreEqual(UInt160.Parse(bridgeHash), config.MessageRouterHash);
     }
 
     [TestMethod]
@@ -490,14 +508,20 @@ public class UT_L2SettlementSettings
         string endpoint = "https://l1.example.invalid:10331/rpc",
         uint? expectedNetwork = 860833102,
         string? settlementManagerHash = null,
-        string? forcedInclusionHash = null)
+        string? forcedInclusionHash = null,
+        string? sharedBridgeHash = null,
+        string? messageRouterHash = null,
+        string? rollupHubHash = null)
         => new()
         {
             ChainId = chainId,
             L1RpcEndpoint = endpoint,
             ExpectedNetwork = expectedNetwork,
+            RollupHubHash = rollupHubHash ?? "",
             SettlementManagerHash = settlementManagerHash ?? "0x" + new string('1', 40),
             ForcedInclusionHash = forcedInclusionHash ?? "0x" + new string('2', 40),
+            SharedBridgeHash = sharedBridgeHash ?? "",
+            MessageRouterHash = messageRouterHash ?? "",
             ProofType = (byte)ProofType.Multisig,
         };
 }

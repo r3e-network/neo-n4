@@ -58,6 +58,7 @@ The executor MUST NOT write:
 
 1. **Apply L1 messages first.** For each `l1Messages[i]`, in the order given, the executor applies the pinned N4 genesis V1 transition below. Replay protection uses the native L2 bridge's exact per-`(sourceChain, nonce)` key. The executor MUST NOT skip or reorder. Inbox validation or adapter failure is fatal to the whole batch; it is not a transaction `FAULT` and cannot produce a synthetic receipt.
 2. **Apply transactions next.** Before execution starts, every `orderedTxs[i]` is decoded as a complete canonical Neo `Transaction` (unsigned fields, signers/scopes/rules, attributes, script, and witnesses). A decode or adapter error is fatal to the batch. Decoded transactions then execute `tx.Script` in order. Neo N4 L2 production uses NeoVM2/RISC-V; the NeoVM compatibility path uses the same opcode prices, bounded gas, block context, signer scopes, deployed contract code/manifests, and stateful syscalls as `ApplicationEngine`. A VM `FAULT` produces a failure receipt and rolls back that transaction's storage and notifications.
+   Validity window: a transaction whose `validUntilBlock` no longer covers its executing height is **expired** — it yields a failure receipt without executing and without consuming its `(sender, nonce)` slot. Per-block executors compare against the exact L2 block index; the guest, whose payload carries a flat transaction list with no per-transaction block assignment, enforces the same obligation batch-wide by requiring `validUntilBlock >= lastBlock`, so a transaction is unexpired at every height it could possibly execute at.
    Per-block attribution: the timeline is validated fail-closed against the transaction count and the batch context's timestamp range (contiguous indexes, non-decreasing timestamps, counts summing to the transaction count). A timeline that does not describe the sealed transaction list is a fatal protocol error — hand-assembled requests are revalidated even though the sealer validated them already. Each transaction executes under its own timeline entry's header; a zero-`TransactionCount` entry hosts no execution, so no transaction may inherit its header.
 3. **Seal outboxes.** After all transactions complete, the executor computes:
    - `txRoot` = MerkleTree(txHash[0], …, txHash[N-1])
@@ -70,8 +71,12 @@ The executor MUST NOT write:
 ## Hashing rules
 
 - All multi-byte integers in canonical encodings: little-endian.
-- Every transaction leaf is `Hash256(encodedTx)` over the exact sealed bytes; executors MUST NOT
-  substitute a decoded or witness-stripped transaction hash.
+- Every transaction leaf is the **canonical transaction id**: `Hash256` over the unsigned preimage
+  (version through script, everything before the witness section) — the same value Neo N3's
+  `Transaction.Hash` and `neo-execution-core::parse_transaction` derive. Executors MUST NOT hash
+  the full serialized bytes instead: the two digests differ for any transaction carrying
+  witnesses, which would fork the batch `txRoot` away from the root the guest proves and L1
+  verifies.
 - All Merkle trees use Neo's `Hash256` (double-SHA256) for inner-node combination, with the rightmost-leaf duplicated when the level has odd cardinality (matches `Neo.Cryptography.MerkleTree`).
 - `CrossChainMessage` and `WithdrawalRequest` leaf hashes use the encodings in `Neo.L2.State.MessageHasher`.
 

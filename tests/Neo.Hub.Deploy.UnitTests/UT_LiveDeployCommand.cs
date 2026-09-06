@@ -215,8 +215,73 @@ public class UT_LiveDeployCommand
         var emergencyCouncil = new UInt160(Enumerable.Repeat((byte)3, UInt160.Length).ToArray());
         var payoutRelay = new UInt160(Enumerable.Repeat((byte)4, UInt160.Length).ToArray());
 
+        var plan = new DeployPlan
+        {
+            Version = 1,
+            Network = "neo-n3-testnet",
+            Steps = new[]
+            {
+                new DeployStep
+                {
+                    Name = "SettlementManager",
+                    NefPath = "test.nef",
+                    ManifestPath = "test.manifest.json",
+                    DeployData = new JArray(),
+                    DependsOn = []
+                },
+                new DeployStep
+                {
+                    Name = "GovernanceController",
+                    NefPath = "test.nef",
+                    ManifestPath = "test.manifest.json",
+                    DeployData = new JArray { "OWNER_REPLACE_ME", new JArray { "GOVERNANCE_COUNCIL_REPLACE_ME" }, "GOVERNANCE_THRESHOLD_REPLACE_ME", 3600 },
+                    DependsOn = []
+                },
+                new DeployStep
+                {
+                    Name = "EmergencyManager",
+                    NefPath = "test.nef",
+                    ManifestPath = "test.manifest.json",
+                    DeployData = new JArray { "OWNER_REPLACE_ME", "EMERGENCY_COUNCIL_REPLACE_ME" },
+                    DependsOn = []
+                },
+                new DeployStep
+                {
+                    Name = "ExternalBridgeEscrow",
+                    NefPath = "test.nef",
+                    ManifestPath = "test.manifest.json",
+                    DeployData = new JArray { "OWNER_REPLACE_ME", "$step:SettlementManager", "L2_CHAIN_ID_REPLACE_ME" },
+                    DependsOn = ["SettlementManager"]
+                },
+                new DeployStep
+                {
+                    Name = "L2PayoutAdapter",
+                    NefPath = "test.nef",
+                    ManifestPath = "test.manifest.json",
+                    DeployData = new JArray { "OWNER_REPLACE_ME", "$step:SettlementManager", "L2_CHAIN_ID_REPLACE_ME", "L2_PAYOUT_RELAY_ACCOUNT_REPLACE_ME" },
+                    DependsOn = ["SettlementManager"]
+                },
+                new DeployStep
+                {
+                    Name = "OptimisticChallenge",
+                    NefPath = "test.nef",
+                    ManifestPath = "test.manifest.json",
+                    DeployData = new JArray { "OWNER_REPLACE_ME", "$step:SettlementManager" },
+                    DependsOn = []
+                },
+                new DeployStep
+                {
+                    Name = "RestrictedExecutionFraudVerifier",
+                    NefPath = "test.nef",
+                    ManifestPath = "test.manifest.json",
+                    DeployData = new JArray { "$step:SettlementManager", "FRAUD_REPLAY_DOMAIN_REPLACE_ME" },
+                    DependsOn = new[] { "SettlementManager" }
+                }
+            }
+        };
+
         var substituted = LiveDeployCommand.SubstituteOperatorPlaceholders(
-            ScaffoldPlan.Default(), owner, gas, GovernanceCouncil(), 2, emergencyCouncil, 1001,
+            plan, owner, gas, GovernanceCouncil(), 2, emergencyCouncil, 1001,
             FraudReplayDomain, payoutRelay);
         var escrow = substituted.Steps.Single(s => s.Name == "ExternalBridgeEscrow");
         var payoutAdapter = substituted.Steps.Single(s => s.Name == "L2PayoutAdapter");

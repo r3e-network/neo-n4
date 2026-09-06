@@ -125,11 +125,15 @@ public static class BatchSerializer
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), commitment.FirstBlock); pos += 8;
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), commitment.LastBlock); pos += 8;
 
-        foreach (var root in new[] {
-            commitment.PreStateRoot, commitment.PostStateRoot, commitment.TxRoot,
-            commitment.ReceiptRoot, commitment.WithdrawalRoot, commitment.L2ToL1MessageRoot,
-            commitment.L2ToL2MessageRoot, commitment.DACommitment, commitment.PublicInputHash,
-        }) WriteUInt256(span, ref pos, root);
+        WriteUInt256(span, ref pos, commitment.PreStateRoot);
+        WriteUInt256(span, ref pos, commitment.PostStateRoot);
+        WriteUInt256(span, ref pos, commitment.TxRoot);
+        WriteUInt256(span, ref pos, commitment.ReceiptRoot);
+        WriteUInt256(span, ref pos, commitment.WithdrawalRoot);
+        WriteUInt256(span, ref pos, commitment.L2ToL1MessageRoot);
+        WriteUInt256(span, ref pos, commitment.L2ToL2MessageRoot);
+        WriteUInt256(span, ref pos, commitment.DACommitment);
+        WriteUInt256(span, ref pos, commitment.PublicInputHash);
 
         span[pos++] = (byte)commitment.ProofType;
         BinaryPrimitives.WriteInt32LittleEndian(span.Slice(pos, 4), commitment.Proof.Length); pos += 4;
@@ -237,11 +241,16 @@ public static class BatchSerializer
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), inputs.FirstBlock); pos += 8;
         BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), inputs.LastBlock); pos += 8;
 
-        foreach (var root in new[] {
-            inputs.PreStateRoot, inputs.PostStateRoot, inputs.TxRoot, inputs.ReceiptRoot,
-            inputs.WithdrawalRoot, inputs.L2ToL1MessageRoot, inputs.L2ToL2MessageRoot,
-            inputs.L1MessageHash, inputs.DACommitment, inputs.BlockContextHash,
-        }) WriteUInt256(span, ref pos, root);
+        WriteUInt256(span, ref pos, inputs.PreStateRoot);
+        WriteUInt256(span, ref pos, inputs.PostStateRoot);
+        WriteUInt256(span, ref pos, inputs.TxRoot);
+        WriteUInt256(span, ref pos, inputs.ReceiptRoot);
+        WriteUInt256(span, ref pos, inputs.WithdrawalRoot);
+        WriteUInt256(span, ref pos, inputs.L2ToL1MessageRoot);
+        WriteUInt256(span, ref pos, inputs.L2ToL2MessageRoot);
+        WriteUInt256(span, ref pos, inputs.L1MessageHash);
+        WriteUInt256(span, ref pos, inputs.DACommitment);
+        WriteUInt256(span, ref pos, inputs.BlockContextHash);
 
         if (pos != buffer.Length)
             throw new InvalidOperationException($"EncodePublicInputs internal length mismatch: pos={pos}, buf={buffer.Length}");

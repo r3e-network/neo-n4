@@ -78,8 +78,7 @@
 - [测试方法论](./testing-approach.md)
 - [测试覆盖](./test-coverage.md)
 - [系统化验证计划](./system-verification-plan.md)
-- [Neo N4 统一体验中心设计](./superpowers/specs/2026-05-19-neo-n4-unified-experience-hub-design.md)
-- [Neo N4 统一体验中心第一期计划](./superpowers/plans/2026-05-19-neo-n4-experience-hub-phase-1.md)
+- [NeoHub 精简 4 核心支柱架构规范](./audit/neohub-lean-consolidation.md)
 
 # 审计证据
 

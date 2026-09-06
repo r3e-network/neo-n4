@@ -107,6 +107,7 @@ public static class L2ChainConfigSerializer
         var msg = new UInt160(bytes.Slice(OffsetMessage, 20));
 
         // Range-check enum bytes so a stored-but-corrupt config doesn't silently
+        // Range-check enum bytes so a stored-but-corrupt config doesn't silently
         // round-trip as a `(SecurityLevel)99` cast that misleads downstream code.
         var securityByte = bytes[OffsetSecurityLevel];
         if (securityByte > 4) throw new ArgumentException($"securityLevel byte out of range: {securityByte}");
@@ -117,6 +118,15 @@ public static class L2ChainConfigSerializer
         var exitByte = bytes[OffsetExitModel];
         if (exitByte > 2) throw new ArgumentException($"exitModel byte out of range: {exitByte}");
 
+        // Strict canonical boolean check (0 or 1). Rejects malleable encodings where
+        // non-zero bytes (e.g. 2 or 0xFF) would decode as true and re-encode as 1.
+        var gwByte = bytes[OffsetGatewayEnabled];
+        if (gwByte > 1) throw new ArgumentException($"gatewayEnabled byte out of range (expected 0 or 1): {gwByte}");
+        var exitPermByte = bytes[OffsetPermissionlessExit];
+        if (exitPermByte > 1) throw new ArgumentException($"permissionlessExit byte out of range (expected 0 or 1): {exitPermByte}");
+        var activeByte = bytes[OffsetActive];
+        if (activeByte > 1) throw new ArgumentException($"active byte out of range (expected 0 or 1): {activeByte}");
+
         return new L2ChainConfig
         {
             ChainId = chainId,
@@ -126,11 +136,11 @@ public static class L2ChainConfigSerializer
             MessageAdapter = msg,
             SecurityLevel = (SecurityLevel)securityByte,
             DAMode = (DAMode)daByte,
-            GatewayEnabled = bytes[OffsetGatewayEnabled] != 0,
-            PermissionlessExit = bytes[OffsetPermissionlessExit] != 0,
+            GatewayEnabled = gwByte == 1,
+            PermissionlessExit = exitPermByte == 1,
             Sequencer = (SequencerModel)sequencerByte,
             Exit = (ExitModel)exitByte,
-            Active = bytes[OffsetActive] != 0,
+            Active = activeByte == 1,
         };
     }
 }

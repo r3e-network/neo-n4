@@ -225,6 +225,133 @@ public class UT_WireFormat_Fuzz
         }
     }
 
+    /// <summary>
+    /// Fuzz <see cref="L2ChainConfigSerializer.Decode"/> with random byte sequences of random length.
+    /// Must throw ArgumentException or InvalidDataException on invalid inputs and never crash the host.
+    /// </summary>
+    [TestMethod]
+    [DataRow(0x10101010u)]
+    [DataRow(0x20202020u)]
+    [DataRow(0x30303030u)]
+    [DataRow(0x40404040u)]
+    public void L2ChainConfigSerializer_Decode_NeverCrashes(uint seed)
+    {
+        var rng = new Random((int)(seed ^ 0x55AA_FF00u));
+        for (var i = 0; i < IterationsPerSeed; i++)
+        {
+            var len = rng.Next(0, 256);
+            var buf = new byte[len];
+            rng.NextBytes(buf);
+            try
+            {
+                _ = L2ChainConfigSerializer.Decode(buf);
+            }
+            catch (ArgumentException) { /* expected */ }
+            catch (System.IO.InvalidDataException) { /* expected */ }
+            catch (Exception ex) when (
+                ex is not OutOfMemoryException &&
+                ex is not StackOverflowException &&
+                ex is not OperationCanceledException)
+            {
+                Assert.Fail($"seed 0x{seed:X8} iter {i}: L2ChainConfigSerializer.Decode threw " +
+                    $"{ex.GetType().Name} on random {len}-byte input");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Strict boolean validation fuzz: takes valid configs, corrupts boolean bytes (offsets 86, 87, 90)
+    /// with non-canonical values in [2, 255]. Decoder must reject to eliminate encoding malleability.
+    /// </summary>
+    [TestMethod]
+    [DataRow(0x5555AAAAu)]
+    [DataRow(0xAAAA5555u)]
+    public void L2ChainConfigSerializer_Decode_RejectsNonCanonicalBooleans(uint seed)
+    {
+        var rng = new Random((int)(seed ^ 0x1234_5678u));
+        var boolOffsets = new[] { 86, 87, 90 }; // GatewayEnabled, PermissionlessExit, Active
+
+        for (var i = 0; i < 50; i++)
+        {
+            var config = FuzzConfig(rng);
+            var encoded = L2ChainConfigSerializer.Encode(config);
+
+            foreach (var offset in boolOffsets)
+            {
+                var corrupted = (byte[])encoded.Clone();
+                var badVal = (byte)rng.Next(2, 256);
+                corrupted[offset] = badVal;
+
+                var caught = false;
+                try
+                {
+                    _ = L2ChainConfigSerializer.Decode(corrupted);
+                }
+                catch (ArgumentException)
+                {
+                    caught = true;
+                }
+                Assert.IsTrue(caught,
+                    $"seed 0x{seed:X8} iter {i}: non-canonical boolean byte {badVal} at offset {offset} accepted");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Round-trip property test: any valid randomly generated <see cref="L2ChainConfig"/>
+    /// must encode and decode to an identical record and re-encode to identical bytes.
+    /// </summary>
+    [TestMethod]
+    [DataRow(0x71717171u)]
+    [DataRow(0x82828282u)]
+    [DataRow(0x93939393u)]
+    public void L2ChainConfigSerializer_RoundTrip_IsIdentity_AcrossFuzzedFields(uint seed)
+    {
+        var rng = new Random((int)(seed ^ 0xFEED_FACEu));
+        for (var i = 0; i < 100; i++)
+        {
+            var original = FuzzConfig(rng);
+            var encoded = L2ChainConfigSerializer.Encode(original);
+            Assert.AreEqual(L2ChainConfigSerializer.ConfigSize, encoded.Length);
+
+            var decoded = L2ChainConfigSerializer.Decode(encoded);
+            Assert.AreEqual(original.ChainId, decoded.ChainId);
+            Assert.AreEqual(original.OperatorManager, decoded.OperatorManager);
+            Assert.AreEqual(original.Verifier, decoded.Verifier);
+            Assert.AreEqual(original.BridgeAdapter, decoded.BridgeAdapter);
+            Assert.AreEqual(original.MessageAdapter, decoded.MessageAdapter);
+            Assert.AreEqual(original.SecurityLevel, decoded.SecurityLevel);
+            Assert.AreEqual(original.DAMode, decoded.DAMode);
+            Assert.AreEqual(original.GatewayEnabled, decoded.GatewayEnabled);
+            Assert.AreEqual(original.PermissionlessExit, decoded.PermissionlessExit);
+            Assert.AreEqual(original.Sequencer, decoded.Sequencer);
+            Assert.AreEqual(original.Exit, decoded.Exit);
+            Assert.AreEqual(original.Active, decoded.Active);
+
+            var reEncoded = L2ChainConfigSerializer.Encode(decoded);
+            CollectionAssert.AreEqual(encoded, reEncoded);
+        }
+    }
+
+    private static L2ChainConfig FuzzConfig(Random rng)
+    {
+        return new L2ChainConfig
+        {
+            ChainId = (uint)rng.Next(1, int.MaxValue),
+            OperatorManager = new UInt160(NonZeroBytes(rng, 20)),
+            Verifier = new UInt160(NonZeroBytes(rng, 20)),
+            BridgeAdapter = new UInt160(NonZeroBytes(rng, 20)),
+            MessageAdapter = new UInt160(NonZeroBytes(rng, 20)),
+            SecurityLevel = (SecurityLevel)rng.Next(0, 5),
+            DAMode = (DAMode)rng.Next(0, 4), // 0..3 are public DA modes
+            GatewayEnabled = rng.Next(2) == 1,
+            PermissionlessExit = rng.Next(2) == 1,
+            Sequencer = (SequencerModel)rng.Next(0, 3),
+            Exit = (ExitModel)rng.Next(0, 3),
+            Active = rng.Next(2) == 1,
+        };
+    }
+
     private static byte[] NonZeroBytes(Random rng, int len)
     {
         var b = new byte[len];

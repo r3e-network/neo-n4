@@ -18,16 +18,8 @@ public sealed class UT_FreshContractArtifacts
             Sp1Groth16VerifierArtifact.ManifestJson);
     }
 
-    [TestMethod]
-    public void ContractZkVerifier_FreshArtifactsMatchPinnedAudit()
-    {
-        if (!FreshArtifactsAreRequired()) return;
-
-        AssertFreshArtifact(
-            "NeoHub.ContractZkVerifier",
-            ContractZkVerifierArtifact.Nef,
-            ContractZkVerifierArtifact.ManifestJson);
-    }
+    // ContractZkVerifier was deleted in the 5-contract consolidation refactor (2026-09-05)
+    // Removed test: ContractZkVerifier_FreshArtifactsMatchPinnedAudit
 
     private static bool FreshArtifactsAreRequired()
     {

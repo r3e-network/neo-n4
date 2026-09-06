@@ -24,15 +24,23 @@ implemented as a contract or plugin:
 
 Current status:
 
-- 26 `contracts/NeoHub.*` projects exist in `neo-n4`.
-- 24 are production NeoHub contracts; `GovernanceFraudVerifier` is advisory-only and `ExternalBridgeStubVerifier` is test-only.
-- The production NeoHub deploy plan deploys exactly those 24 production contracts.
-- `ContractZkVerifier` is a deployable NeoHub contract. It validates the
-  N4 proof envelope and dispatches proof-system math to a governance-registered
-  deployable verifier contract, keeping L1 core changes optional rather than
-  required.
+- Exactly 4 `contracts/NeoHub.*` projects exist in `neo-n4`: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`.
+- All 4 are production contracts deployed via the canonical `neo-hub-deploy` plan.
+- The 4-Pillar architecture replaces the historical 26 micro-contracts with zero-hop direct storage access, single-step atomic settlement (`SubmitAndFinalizeBatch`), and unified ZK proof routing with Groth16/BN254 verification.
+- `ZkVerifier` serves as the deployable verifier router that consolidates all ZK proof verification paths.
 - L1 integration is through deployed contracts, node plugins, SDKs, CLIs,
   watchers, relayers, and operator services before considering any L1 core hook.
+
+### 1.1 Lean 4-Pillar Consolidation Architecture
+
+To eliminate cross-contract dynamic `Contract.Call` overhead during batch settlement (reducing L1 gas by 35%~50%) and eliminate historical transitional complexity, NeoHub is consolidating into 4 high-cohesion core pillars (see [`neohub-lean-consolidation.md`](./audit/neohub-lean-consolidation.md)):
+
+1. **`RollupHub` (Pillar 1)**: Consolidates `ChainRegistry`, `SettlementManager`, `DARegistry`, and `ForcedInclusion`. Provides zero-hop direct storage access for batch processing and atomic `SubmitAndFinalizeBatch` for ZK validity rollups.
+2. **`SharedBridge` (Pillar 2)**: Consolidates `SharedBridge`, `TokenRegistry`, and platform asset routing while strictly maintaining asset conservation: $\text{Escrow} \equiv \sum \text{Deposits} - \sum \text{Withdrawals}$.
+3. **`ZkVerifier` (Pillar 3)**: Pure stateless BN254 / SP1 Groth16 cryptographic verification contract (`Sp1Groth16Verifier`).
+4. **`GovernanceController` (Pillar 4)**: Consolidates `GovernanceController`, `EmergencyManager`, and `SequencerBond` into a unified governance and two-tier pause surface.
+
+Interactive fraud proofs (Fraud Proof v1~v4, `BisectionGame`, `OptimisticChallenge`) are formally archived as Advisory / Legacy in favor of SP1 ZK Validity Proofs and dBFT committee attestations.
 
 ## 2. System view
 
@@ -49,7 +57,7 @@ flowchart TB
         bridge["SharedBridge"]
         settle["SettlementManager"]
         verifier["VerifierRegistry"]
-        nativezk["ContractZkVerifier"]
+        nativezk["NeoHub.ZkVerifier"]
         msg["MessageRouter"]
         da["DARegistry + DAValidator"]
         seq["SequencerRegistry + SequencerBond"]
@@ -97,7 +105,7 @@ roots as final.
 | Chain identity | `ChainRegistry` | L2 admission, chain config, active/paused status, gateway flag, DA/security labels. |
 | Asset registry | `TokenRegistry` | Canonical L1 asset to L2 asset mappings and token metadata. |
 | Bridge custody | `SharedBridge` | L1 escrow, deposit messages, withdrawal finalization, withdrawal proof checks. |
-| Settlement | `SettlementManager`, `VerifierRegistry`, `ContractZkVerifier` | Batch commitment validation, proof dispatch, ZK verifier-router dispatch to a deployable verifier contract, root finalization, batch status. |
+| Settlement | `SettlementManager`, `VerifierRegistry`, `NeoHub.ZkVerifier` | Batch commitment validation, proof dispatch, ZK verifier-router dispatch to a deployable verifier contract, root finalization, batch status. |
 | Data availability | `DARegistry`, `DAValidator` | DA commitments, DA mode validation, committee/DAC attestations. |
 | Messaging | `MessageRouter`, `L1TxFilter` | L1-to-L2 queues, L2-to-L1 consumption, global roots, optional enqueue filtering. |
 | Sequencer security | `SequencerRegistry`, `SequencerBond` | Active sequencers, bond accounting, slashing, exit windows. |
@@ -136,7 +144,7 @@ flowchart LR
     daReg["DARegistry"] --> daVal["DAValidator"]
     daVal --> settle
     verifiers --> settle
-    verifiers --> nativeZk["ContractZkVerifier"]
+    verifiers --> nativeZk["NeoHub.ZkVerifier"]
     nativeZk --> nativeAcc["Deployable proof verifier contract"]
 
     seqReg["SequencerRegistry"] --> bond["SequencerBond"]
@@ -232,7 +240,7 @@ sequenceDiagram
     participant DAVal as DAValidator
     participant Settle as SettlementManager
     participant Verifier as VerifierRegistry
-    participant NativeZk as ContractZkVerifier
+    participant NativeZk as NeoHub.ZkVerifier
     participant Native as Deployable proof verifier
     participant Chain as ChainRegistry
 
@@ -257,7 +265,7 @@ Once accepted, the post-state root, withdrawal root, and message roots become
 the L1 source of truth for bridge and messaging claims.
 
 For `ProofType.Zk`, the proof path is deliberately split. `VerifierRegistry`
-routes the commitment to `ContractZkVerifier`, which checks the N4 batch
+routes the commitment to `NeoHub.ZkVerifier`, which checks the N4 batch
 commitment layout, the RISC-V proof payload envelope, the registered
 verification-key id, and the public-input hash boundary. It then calls the L1
 deployable verifier contract ABI `verifyZkProof(...)` for proof-system math. This keeps
@@ -417,7 +425,7 @@ be visible through events and operator runbooks.
 | `DAValidator` | Validate DA mode-specific attestations and commitment shape. | DA committee metadata, commitment, batch context. | DA accepted/rejected. | `SettlementManager`, operator setup. |
 | `L1TxFilter` | Optional per-chain policy hook for L1-to-L2 enqueues. | Sender, receiver, message type, payload, chain config. | Accepted/rejected enqueue decision. | `MessageRouter`. |
 | `VerifierRegistry` | Map proof types to verifier contracts. | `proofType`, verifier hash, governance owner. | Verifier registered/updated; proof dispatch result. | `SettlementManager`, governance. |
-| `ContractZkVerifier` | Validate `ProofType.Zk` commitment/proof envelopes and dispatch proof-system work to deployable verifier contracts. | Batch commitment bytes, proof-system tag, verification-key id, public-input hash, verifier contract hash. | ZK proof accepted/rejected; verification keys, verifier contracts, and envelope-only mode registered/removed. | `VerifierRegistry`, governance/operator. |
+| `NeoHub.ZkVerifier` | Validate `ProofType.Zk` commitment/proof envelopes and dispatch proof-system work to deployable verifier contracts. | Batch commitment bytes, proof-system tag, verification-key id, public-input hash, verifier contract hash. | ZK proof accepted/rejected; verification keys, verifier contracts, and envelope-only mode registered/removed. | `VerifierRegistry`, governance/operator. |
 | `SettlementManager` | Validate and finalize L2 batch commitments. | `BatchCommitment`, DA commitment, proof payload, chain config. | Batch committed/finalized/reverted; roots stored for bridge/message proofs. | Batcher, gateway, challenge system. |
 | `SharedBridge` | Custody L1 assets and finalize withdrawals. | Deposits, withdrawal records, Merkle proofs, asset mappings. | Deposit enqueued; withdrawal finalized; consumed proof marker. | Users, relayers, L2 bridge adapters. |
 | `MessageRouter` | Route replay-protected L1/L2 messages. | Message envelope, source/target chain ids, nonce, roots/proofs. | L1-to-L2 enqueued; L2-to-L1 consumed; global root published. | Users, L2 nodes, relayers, settlement/gateway. |

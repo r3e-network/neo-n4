@@ -84,6 +84,7 @@ public sealed class UT_Sp1NativeExecutionOutputSerializer
     private static byte[] FixtureBytes(string fileName)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName);
-        return Convert.FromHexString(File.ReadAllText(path).Trim());
+        return Convert.FromHexString(string.Concat(
+            File.ReadAllText(path).Where(static value => !char.IsWhiteSpace(value))));
     }
 }

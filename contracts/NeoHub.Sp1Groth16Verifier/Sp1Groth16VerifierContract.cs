@@ -79,6 +79,8 @@ public class Sp1Groth16VerifierContract : SmartContract
         ExecutionEngine.Assert(proofSystem == ProofSystemSp1, "proofSystem must be SP1");
         ExecutionEngine.Assert(verificationKeyId.Length == ProgramVKeySize,
             "SP1 program vkey must be 32 bytes");
+        ExecutionEngine.Assert(BytesEqual(verificationKeyId, 0, ExpectedProgramVKey()),
+            "SP1 program vkey is not the released guest VK");
         ExecutionEngine.Assert(publicInputHash.Length == PublicInputHashSize,
             "publicInputHash must be 32 bytes");
         ExecutionEngine.Assert(proofBytes.Length == Sp1ProofSize,
@@ -169,6 +171,12 @@ public class Sp1Groth16VerifierContract : SmartContract
         for (var i = 0; i < count; i++) result[i] = value[offset + i];
         return result;
     }
+
+    private static byte[] ExpectedProgramVKey() => new byte[]
+    {
+        0x00, 0xA6, 0x19, 0xE3, 0xA8, 0x91, 0x08, 0x2A, 0x2D, 0x23, 0xE2, 0x2B, 0x96, 0x6A, 0xC4, 0x66,
+        0x47, 0x25, 0x75, 0x34, 0x6F, 0xC6, 0x0E, 0xDA, 0x17, 0xE7, 0xF5, 0xC6, 0xFC, 0x71, 0x79, 0xEF,
+    };
 
     private static byte[] ExpectedSelector() => new byte[] { 0x43, 0x88, 0xA2, 0x1C };
 

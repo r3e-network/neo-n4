@@ -56,8 +56,8 @@ public class UT_PlanCommand
         var json = File.ReadAllText(bundlePath);
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         var invocations = doc.RootElement.GetProperty("invocations");
-        Assert.AreEqual(24, invocations.GetArrayLength(),
-            "default scaffold -> 24 resolved invocations in the bundle");
+        Assert.AreEqual(5, invocations.GetArrayLength(),
+            "default scaffold -> 5 resolved invocations in the bundle");
 
         foreach (var invocation in invocations.EnumerateArray())
         {
@@ -110,23 +110,11 @@ public class UT_PlanCommand
         }));
         Assert.AreEqual(0, rc);
         StringAssert.Contains(output, "Required post-deploy actions:");
-        StringAssert.Contains(output, "SequencerBond.RegisterSlasher");
-        StringAssert.Contains(output, "ChainRegistry.SetGovernanceController");
-        StringAssert.Contains(output, "ChainRegistry.LockGovernance");
-        StringAssert.Contains(output, "SettlementManager.SetGovernanceController");
-        StringAssert.Contains(output, "SettlementManager.SetDAValidator");
-        StringAssert.Contains(output, "SettlementManager.SetMessageRouter");
-        StringAssert.Contains(output, "SettlementManager.LockGovernance");
-        StringAssert.Contains(output, "RevertBatchViaProposal");
-        StringAssert.Contains(output, "MessageRouter.SetL1TxFilter");
-        StringAssert.Contains(output, "ContractZkVerifier.RegisterProofVerifier");
-        StringAssert.Contains(output, "ContractZkVerifier.DisableEnvelopeOnlyPermanently");
-        StringAssert.Contains(output, "ContractZkVerifier.LockProofSystemConfiguration");
-        StringAssert.Contains(output, "Sp1Groth16Verifier");
-        StringAssert.Contains(output, "VerifierRegistry.RegisterVerifier(ProofType.Zk=3, ContractZkVerifier)");
-        Assert.IsFalse(output.Contains("GovernanceFraudVerifier", StringComparison.Ordinal),
-            "the production plan must not deploy or register the structural v1/v2 verifier");
-        StringAssert.Contains(output, "RestrictedExecutionFraudVerifier");
+        StringAssert.Contains(output, "RollupHub.SetGovernanceController");
+        StringAssert.Contains(output, "SharedBridge.SetSettlementManager");
+        StringAssert.Contains(output, "SharedBridge.SetEmergencyManager");
+        StringAssert.Contains(output, "ZkVerifier.RegisterVerificationKey");
+        StringAssert.Contains(output, "ZkVerifier.DisableEnvelopeOnlyPermanently");
     }
 
     [TestMethod]

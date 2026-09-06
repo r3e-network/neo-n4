@@ -92,11 +92,16 @@ public static class StateRootCalculator
         BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(pos, 8), inputs.FirstBlock); pos += 8;
         BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(pos, 8), inputs.LastBlock); pos += 8;
 
-        foreach (var root in new[] {
-            inputs.PreStateRoot, inputs.PostStateRoot, inputs.TxRoot, inputs.ReceiptRoot,
-            inputs.WithdrawalRoot, inputs.L2ToL1MessageRoot, inputs.L2ToL2MessageRoot,
-            inputs.L1MessageHash, inputs.DACommitment, inputs.BlockContextHash,
-        }) WriteRoot(buffer, ref pos, root);
+        WriteRoot(buffer, ref pos, inputs.PreStateRoot);
+        WriteRoot(buffer, ref pos, inputs.PostStateRoot);
+        WriteRoot(buffer, ref pos, inputs.TxRoot);
+        WriteRoot(buffer, ref pos, inputs.ReceiptRoot);
+        WriteRoot(buffer, ref pos, inputs.WithdrawalRoot);
+        WriteRoot(buffer, ref pos, inputs.L2ToL1MessageRoot);
+        WriteRoot(buffer, ref pos, inputs.L2ToL2MessageRoot);
+        WriteRoot(buffer, ref pos, inputs.L1MessageHash);
+        WriteRoot(buffer, ref pos, inputs.DACommitment);
+        WriteRoot(buffer, ref pos, inputs.BlockContextHash);
 
         return new UInt256(Crypto.Hash256(buffer));
     }

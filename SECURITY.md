@@ -88,7 +88,11 @@ auth gates. Operators are responsible for:
 - **L1 signer integration** — implement `INeoTransactionSigner` with a KMS / HSM
   or threshold wallet and use it through `RpcTransactionSender`. The bundled
   `LocalKeyTransactionSigner` is for controlled local/test deployments, not a
-  production key-custody design. See `docs/wallet-integration.md`.
+  production key-custody design. Production implementations available:
+  `AwsKmsTransactionSigner` (AWS Cloud KMS), 
+  `AzureKeyVaultTransactionSigner` (Azure Key Vault HSM), 
+  `HsmCliTransactionSigner` (external HSM CLI). See 
+  [`docs/wallet-integration.md`](docs/wallet-integration.md) for detailed setup.
 - **Key management** — `neo-external-bridge genkey` writes private keys 0600
   on POSIX; rotate via committee-replacement governance proposals.
 - **Production deployment refusal** — do NOT register
@@ -111,12 +115,23 @@ auth gates. Operators are responsible for:
   off-chain crypto paths is strongly recommended before any deployment that
   custody user funds.
 
-## Bug bounty
+## KMS and HSM security guidelines
 
-A bounty program is not currently active. We do publicly credit reporters in
-the CHANGELOG and offer to coordinate disclosure with `cve.org` and the
-`r3e-network` GitHub advisory database. Reporters who wish to remain anonymous
-will be credited as "Anonymous" or under a handle of their choosing.
+When using cloud KMS or hardware security modules, operators must implement:
+
+- **Least-privilege IAM** — KMS signing permissions should be scoped to exact key ARNs. Never use `*` wildcards in KeyId patterns. Separate signing keys from encryption keys and data decryption operations.
+- **Key rotation policies** — Configure automatic rotation for AWS KMS (default 1 year) or Azure Key Vault lifecycle management (recommended 90 days). Verify new key material before deprecating old keys via `CheckKeyStatusAsync()`. Use signature cache invalidation (`InvalidateSignatureCache`) after successful migration.
+- **Network partition tolerance** — All signers implement fallback strategies for temporary network unavailability:
+  - Cached signatures reduce KMS dependency during transient outages
+  - Command timeout configuration prevents indefinite blocking
+  - Circuit breaker patterns prevent cascading failures
+- **Audit trail requirements** — CloudWatch Logs (AWS) or Azure Monitor (Azure) must capture all KMS API calls. Retain logs for minimum 90 days for compliance review.
+- **Disaster recovery procedures** — Document key export paths with proper authorization chains: multi-party approval (3-of-5 or 4-of-7 council) for production key exports. Test restoration procedures quarterly with simulated disaster scenarios.
+- **Access control boundaries** — Separate dev/test/staging/production environments with distinct KMS instances or key aliases. Never share keys across accounts. Use separate managed identities for each environment.
+- **Secret management hygiene** — Never store private keys in plaintext. WIF-based local testing (`LocalKeyTransactionSigner`) is production-prohibited. Rotate environment variable access tokens every 30 days.
+- **Hardware security boundary** — HSM CLI integration must maintain memory-safe external processes. Validate JSON input/output with schema validation. Clear sensitive data from process memory space via secure cleanup routines.
+
+For detailed operational procedures, see [`docs/wallet-integration.md`](docs/wallet-integration.md).
 
 ## Verifying releases
 

@@ -340,15 +340,10 @@ specifically by `DAAvailabilityCheck` against a writer that never saw the payloa
 
 ## Where each `doc.md` section lives in code
 
-- **§3.2 ChainRegistry** — L2 admission registry. `contracts/NeoHub.ChainRegistry/` + `Neo.L2.L2ChainConfig` model.
-- **§3.2 SharedBridge** — Asset escrow. `contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*`.
-- **§3.2 SettlementManager** — Batch ↦ canonical state. `contracts/NeoHub.SettlementManager/` + `Neo.L2.Settlement.Rpc`.
-- **§3.2 VerifierRegistry** — Pluggable proof dispatch. `contracts/NeoHub.VerifierRegistry/` + `Neo.L2.Proving.VerifierRegistry`.
-- **§3.2 MessageRouter** — L1↔L2 / L2↔L2 messaging. `contracts/NeoHub.MessageRouter/` + `Neo.L2.Messaging.*`.
-- **§3.2 TokenRegistry** — L1↔L2 asset mapping. `contracts/NeoHub.TokenRegistry/` + `Neo.L2.AssetMapping`.
-- **§3.2 DARegistry** — DA commitment store. `contracts/NeoHub.DARegistry/`.
-- **§3.2 GovernanceController** — Council + timelocks. `contracts/NeoHub.GovernanceController/`.
-- **§3.2 EmergencyManager** — Pause + escape hatch. `contracts/NeoHub.EmergencyManager/`.
+- **§3.2 NeoHub (Pillar 1: RollupHub)** — Consolidated L2 admission registry, batch settlement (with atomic single-step `submitAndFinalizeBatch`), DA tracking, forced inclusion, and Merkle withdrawal proof verification. `contracts/NeoHub.RollupHub/` + `Neo.L2.Settlement.Rpc`.
+- **§3.2 NeoHub (Pillar 2: SharedBridge)** — Consolidated platform asset vault and cross-chain message router. `contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*` + `Neo.L2.Messaging.*`.
+- **§3.2 NeoHub (Pillar 3: ZkVerifier)** — Consolidated ZK validity verifier, proof routing, verification key registry, and SP1 6.2.x BN254 Groth16 cryptographic pairing verification. `contracts/NeoHub.ZkVerifier/` + `Neo.L2.Proving.RiscVZk`.
+- **§3.2 NeoHub (Pillar 4: GovernanceController)** — Consolidated council governance, timelock delays, 2-tier emergency controls (`pauseChain`/`freezeAll`), and sequencer committee staking/slashing. `contracts/NeoHub.GovernanceController/` + `Neo.L2.Sequencer`.
 - **§4 Neo Gateway** — Proof aggregation. `Neo.Plugins.L2Gateway` plus `bridge/neo-zkvm-gateway-{guest,host}` for the SP1 recursive terminal proof.
 - **§5 L2 chain internals** — per-L2 plugin layout. `Neo.Plugins.L2Batch / L2Settlement / L2Bridge / L2DA / L2Prover / L2Rpc`.
 - **§7.1 Sequencer / dBFT** — Committee selection. `contracts/NeoHub.SequencerRegistry/` + `Neo.L2.Sequencer`.

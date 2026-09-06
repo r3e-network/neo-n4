@@ -1,102 +1,27 @@
 {
   "schemaVersion": "1.0.0",
   "generatedAt": "2026-05-20T09:31:21.458Z",
+  "note": "This manifest documents the production contract suite as of the consolidation refactor on 2026-09-05. Historical audit files in docs/audit/full-stack-validation-2026-05-20/ are preserved as immutable compliance records.",
   "contracts": [
-    {
-      "name": "NeoHub.ChainRegistry",
-      "path": "contracts/NeoHub.ChainRegistry"
-    },
-    {
-      "name": "NeoHub.ContractZkVerifier",
-      "path": "contracts/NeoHub.ContractZkVerifier"
-    },
-    {
-      "name": "NeoHub.DARegistry",
-      "path": "contracts/NeoHub.DARegistry"
-    },
-    {
-      "name": "NeoHub.DAValidator",
-      "path": "contracts/NeoHub.DAValidator"
-    },
-    {
-      "name": "NeoHub.EmergencyManager",
-      "path": "contracts/NeoHub.EmergencyManager"
-    },
-    {
-      "name": "NeoHub.ExternalBridgeBond",
-      "path": "contracts/NeoHub.ExternalBridgeBond"
-    },
-    {
-      "name": "NeoHub.ExternalBridgeEscrow",
-      "path": "contracts/NeoHub.ExternalBridgeEscrow"
-    },
-    {
-      "name": "NeoHub.ExternalBridgeRegistry",
-      "path": "contracts/NeoHub.ExternalBridgeRegistry"
-    },
-    {
-      "name": "NeoHub.ExternalBridgeStubVerifier",
-      "path": "contracts/NeoHub.ExternalBridgeStubVerifier"
-    },
-    {
-      "name": "NeoHub.ForcedInclusion",
-      "path": "contracts/NeoHub.ForcedInclusion"
-    },
     {
       "name": "NeoHub.GovernanceController",
       "path": "contracts/NeoHub.GovernanceController"
     },
     {
-      "name": "NeoHub.GovernanceFraudVerifier",
-      "path": "contracts/NeoHub.GovernanceFraudVerifier"
-    },
-    {
-      "name": "NeoHub.L1TxFilter",
-      "path": "contracts/NeoHub.L1TxFilter"
-    },
-    {
-      "name": "NeoHub.MessageRouter",
-      "path": "contracts/NeoHub.MessageRouter"
-    },
-    {
-      "name": "NeoHub.MpcCommitteeFraudVerifier",
-      "path": "contracts/NeoHub.MpcCommitteeFraudVerifier"
-    },
-    {
-      "name": "NeoHub.MpcCommitteeVerifier",
-      "path": "contracts/NeoHub.MpcCommitteeVerifier"
-    },
-    {
-      "name": "NeoHub.OptimisticChallenge",
-      "path": "contracts/NeoHub.OptimisticChallenge"
-    },
-    {
-      "name": "NeoHub.RestrictedExecutionFraudVerifier",
-      "path": "contracts/NeoHub.RestrictedExecutionFraudVerifier"
-    },
-    {
-      "name": "NeoHub.SequencerBond",
-      "path": "contracts/NeoHub.SequencerBond"
-    },
-    {
-      "name": "NeoHub.SequencerRegistry",
-      "path": "contracts/NeoHub.SequencerRegistry"
-    },
-    {
-      "name": "NeoHub.SettlementManager",
-      "path": "contracts/NeoHub.SettlementManager"
+      "name": "NeoHub.RollupHub",
+      "path": "contracts/NeoHub.RollupHub"
     },
     {
       "name": "NeoHub.SharedBridge",
       "path": "contracts/NeoHub.SharedBridge"
     },
     {
-      "name": "NeoHub.TokenRegistry",
-      "path": "contracts/NeoHub.TokenRegistry"
+      "name": "NeoHub.Sp1Groth16Verifier",
+      "path": "contracts/NeoHub.Sp1Groth16Verifier"
     },
     {
-      "name": "NeoHub.VerifierRegistry",
-      "path": "contracts/NeoHub.VerifierRegistry"
+      "name": "NeoHub.ZkVerifier",
+      "path": "contracts/NeoHub.ZkVerifier"
     }
   ],
   "tools": [

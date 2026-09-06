@@ -48,7 +48,9 @@ internal static class RiscVTestData
             Nonce = nonce,
             SystemFee = 0,
             NetworkFee = 0,
-            ValidUntilBlock = 100,
+            // Must cover BlockContext.BlockIndex (777): the executor rejects transactions
+            // expired at their executing height.
+            ValidUntilBlock = 1000,
             Script = script,
             Signers =
             [

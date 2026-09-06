@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <RootNamespace>NeoHub.GovernanceFraudVerifier</RootNamespace>
-    <AssemblyName>NeoHub.GovernanceFraudVerifier</AssemblyName>
-  </PropertyGroup>
-
-</Project>

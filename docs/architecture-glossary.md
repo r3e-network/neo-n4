@@ -43,7 +43,7 @@
 | **MerkleProofSerializer**     | Canonical encoder for Merkle proofs (used by withdrawals + cross-L2 messages).                                 |
 | **MessageHasher**             | Canonical encoder for `CrossChainMessage` (cross-L2). Both endpoints recompute the hash.                       |
 | **min_confirmations**         | Watcher-config field: refuse to emit events from blocks shallower than N confirmations from foreign-chain head. |
-| **NeoHub**                    | The 26-project L1 suite: 24 production contracts, one advisory structural verifier, and one test-only stub. See §2 below. |
+| **NeoHub**                    | The 4-Pillar consolidated L1 suite: RollupHub, SharedBridge, ZkVerifier, GovernanceController. See §2 below. |
 | **nonce** (deposit/message)   | Per-(srcChain, direction) monotonic counter. Replay-protected.                                                 |
 | **operatorManager**           | UInt160. Multisig that manages a registered L2 (set-verifier, pause, etc.). In the chain config.               |
 | **postStateRoot**             | UInt256. State root after a batch's last tx. Carried in `BatchCommitment`.                                     |
@@ -52,63 +52,24 @@
 | **publicInputHash**           | UInt256. SHA256 of `PublicInputs` (332 bytes). The verifier recomputes this from the on-chain commitment.      |
 | **securityLevel**             | byte 0..3. 0 = sidechain, 3 = full ZK rollup. Operators pick per chain.                                        |
 | **sequencerModel**            | byte. 0=Solo, 1=Committee, 2=Permissionless. How L2 blocks are produced.                                       |
-| **SettlementManager**         | NeoHub L1 contract. Verifies submitted batches; the load-bearing trust boundary.                               |
+| **RollupHub**                 | NeoHub L1 contract (Pillar 1). Verifies submitted batches, tracks DA, and manages chain registry.               |
 | **§16.2 dimensions**          | The 5-dimension chain config: securityLevel, daMode, sequencerModel, exitModel, gatewayEnabled.                |
 | **trust boundary**            | A point where bytes cross between trust domains. The system has 5 cross-tier boundaries.                       |
-| **VerifierRegistry**          | NeoHub L1 contract. Dispatches proof verification by `proofType`.                                              |
+| **ZkVerifier**                | NeoHub L1 contract (Pillar 3). Validates ZK Groth16 proofs over BN254 interops.                                |
 | **watcher**                   | Off-chain daemon that relays foreign-chain events (Eth/Tron/Solana → Neo).                                     |
 | **wire format**               | The canonical byte layout for a logical value. See [`architecture-wire-formats.md`](./architecture-wire-formats.md). |
 | **withdrawalRoot**            | UInt256. Merkle root of L2→L1 withdrawals in this batch. User claims via Merkle proof.                         |
 
 ---
 
-## 2. NeoHub L1 contracts (26)
+## 2. NeoHub L1 contracts (4 Pillars)
 
-Lives at `contracts/NeoHub.*`. Each is a compiled .nef + .manifest.json.
+Lives at `contracts/NeoHub.*`. The 4-Pillar lean architecture consolidates 26 historical micro-contracts into 4 production pillars with direct zero-hop storage access:
 
-### Core 5 (touched on every batch)
-
-- **`SettlementManager`** — Verifies submitted batches; finalizes state root + withdrawals; dispatches to verifier.
-- **`VerifierRegistry`** — Per-`proofType` verifier dispatch (Multisig / RiscVZk / Optimistic / ...).
-- **`ChainRegistry`** — Registers L2 chains; stores 91-byte `L2ChainConfig` per chain id.
-- **`SharedBridge`** — L1 deposits + withdrawals across all registered chains. Holds escrowed assets.
-- **`MessageRouter`** — Routes cross-L2 messages by recomputing canonical hash; per-(srcChain, dstChain) inbox.
-
-### Bridge and message support (5)
-
-- **`TokenRegistry`** — Canonical L1↔L2 asset mapping metadata, including
-  per-side decimals. Used by `SharedBridge` and mirrored into L2
-  `L2BridgeContract`; platform mappings pin NEO at 0→8, GAS at 8→8,
-  USDT/USDC at 6→6, and BTC at 8→8.
-- **`DARegistry`** — Records published `daCommitment` hashes; `L2DAPlugin` writes here on each batch.
-- **`DAValidator`** — Validates DA commitments and DAC attestations before batch finalization.
-- **`L1TxFilter`** — Optional per-chain L1-to-L2 enqueue policy hook used by `MessageRouter`.
-
-### Security (5)
-
-- **`SequencerRegistry`** — Lists registered sequencers per chain. Bonds attached.
-- **`SequencerBond`** — Slashable bonds for sequencers. Slashed by `OptimisticChallenge` on accepted fraud.
-- **`ForcedInclusion`** — Anti-censorship: a user posts a transaction on L1; an overdue entry can pause the L2, while governance slashes only after finalized dBFT evidence attributes responsibility.
-- **`OptimisticChallenge`** — Bisection-game-driven fraud-proof window. Settlements wait `challengeWindow` before final.
-- **`EmergencyManager`** — Operator-multisig pause for individual chains (e.g. while debugging a critical issue).
-
-### Governance (2)
-
-- **`GovernanceController`** — Multisig + timelock for verifier upgrades + protocol parameter changes.
-- **`GovernanceFraudVerifier`** — Advisory v1/v2 structural checker for offline audit diagnostics; excluded from the production challenge route.
-
-### Specialized fraud verifiers (1)
-
-- **`RestrictedExecutionFraudVerifier`** — advisory structural v3 plus SettlementManager-bound executable v4 for one existing-key Counter Increment transaction; only an exact registered v4 profile is state-changing and it is not a general NeoVM verifier.
-
-### External bridge — Phase B/C (6)
-
-- **`MpcCommitteeVerifier`** — Verifies M-of-N committee signatures over canonical `ExternalCrossChainMessage`.
-- **`ExternalBridgeRegistry`** — Per-chain (verifier, bridgeKind) entries. Routes to MPC vs ZK light-client (Phase D).
-- **`ExternalBridgeEscrow`** — Locks outbound NEP-17; verified inbound atomically releases funded NEP-17 only for an L1-bound instance, while every L2 destination requires a version/update-counter-pinned payout/credit adapter. Routes and governance are replay-protected and fail closed.
-- **`ExternalBridgeBond`** — Slashable bonds for external-bridge committee members.
-- **`ExternalBridgeStubVerifier`** — v0 stub for testing — auto-accepts any message. NOT for production.
-- **`MpcCommitteeFraudVerifier`** — Phase C: cryptographically proves committee equivocation; slashes via `ExternalBridgeBond`.
+- **Pillar 1: `NeoHub.RollupHub`** — Core rollup hub consolidating chain registration, batch settlement (with atomic single-step `submitAndFinalizeBatch`), DA tracking, forced inclusion queue, and Merkle withdrawal proof verification (`verifyWithdrawalLeaf`).
+- **Pillar 2: `NeoHub.SharedBridge`** — Unified asset vault and cross-chain message router. Escrows canonical assets (NEO, GAS, USDT, USDC, BTC, NEP-17), enforces invariant $\text{Escrow} \equiv \sum \text{Deposits} - \sum \text{Withdrawals}$, manages asset mappings (`RegisterMapping`), and routes cross-chain messages with replay protection.
+- **Pillar 3: `NeoHub.ZkVerifier`** — Unified ZK validity verifier consolidating envelope dispatch, verification key registry, and cryptographic pairing checks (SP1 6.2.x BN254 Groth16) via Neo native interops.
+- **Pillar 4: `NeoHub.GovernanceController`** — Unified governance and risk controller consolidating council multisig, timelock delays, 2-tier emergency freeze (`pauseChain` vs `freezeAll`), and sequencer committee staking/slashing (`registerSequencer`, `slashSequencer`).
 
 ---
 

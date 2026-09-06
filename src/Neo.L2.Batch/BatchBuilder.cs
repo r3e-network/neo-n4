@@ -1,4 +1,3 @@
-using Neo.Cryptography;
 using Neo.L2.State;
 
 namespace Neo.L2.Batch;
@@ -56,6 +55,12 @@ public sealed class BatchBuilder
     /// <summary>
     /// Prepend metadata for a forced-inclusion transaction without marking its L1 nonce consumed.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="txHash"/> must be the canonical transaction id
+    /// (<see cref="TransactionHasher.Hash"/>) of <paramref name="serializedTx"/> — the same value
+    /// the L1 forced-inclusion queue records and the SP1 guest re-derives. A hash over the full
+    /// serialized bytes (witnesses included) does not match and is rejected here.
+    /// </remarks>
     public BatchBuilder AddForcedTransaction(
         ulong nonce,
         UInt256 txHash,
@@ -68,7 +73,7 @@ public sealed class BatchBuilder
         if (_forcedInclusions.Any(entry => entry.Nonce == nonce))
             throw new InvalidOperationException(
                 $"forced-inclusion nonce {nonce} is already in this batch");
-        var encodedHash = new UInt256(Crypto.Hash256(serializedTx.Span));
+        var encodedHash = TransactionHasher.Hash(serializedTx);
         if (!encodedHash.Equals(txHash))
             throw new InvalidOperationException(
                 $"forced-inclusion nonce {nonce} tx hash does not match encoded transaction");
@@ -142,26 +147,36 @@ public sealed class BatchBuilder
     /// (withdrawals, L2 → L1, L2 → L2 messages) so a receiver can reconstruct every root the
     /// batch commits to.
     /// </summary>
+    /// <remarks>
+    /// The forced-inclusion consumption tree is only built when the batch actually carries forced
+    /// inclusions, and its leaves are canonical transaction ids
+    /// (<see cref="TransactionHasher.Hash"/>): the consumption proof must fold to the commitment's
+    /// txRoot, which the SP1 guest computes over canonical ids.
+    /// </remarks>
     public SealedBatch SealArtifact()
     {
         var context = _batch.BlockContext
             ?? throw new InvalidOperationException("BlockContext must be set before sealing");
-        var transactionHashes = _batch.Transactions
-            .Select(static transaction => new UInt256(Crypto.Hash256(transaction.Span)))
-            .ToArray();
-        var transactionTree = new Neo.L2.State.MerkleTree(transactionHashes);
-        var forcedProofs = new ForcedInclusionConsumptionProof[_forcedInclusions.Count];
-        for (var index = 0; index < forcedProofs.Length; index++)
+        var forcedProofs = Array.Empty<ForcedInclusionConsumptionProof>();
+        if (_forcedInclusions.Count > 0)
         {
-            var entry = _forcedInclusions[index];
-            var proof = transactionTree.GetProof(index);
-            forcedProofs[index] = new ForcedInclusionConsumptionProof
+            var transactionHashes = _batch.Transactions
+                .Select(TransactionHasher.Hash)
+                .ToArray();
+            var transactionTree = new Neo.L2.State.MerkleTree(transactionHashes);
+            forcedProofs = new ForcedInclusionConsumptionProof[_forcedInclusions.Count];
+            for (var index = 0; index < forcedProofs.Length; index++)
             {
-                Nonce = entry.Nonce,
-                LeafIndex = checked((uint)index),
-                TxHash = entry.TxHash,
-                Siblings = proof.Siblings,
-            };
+                var entry = _forcedInclusions[index];
+                var proof = transactionTree.GetProof(index);
+                forcedProofs[index] = new ForcedInclusionConsumptionProof
+                {
+                    Nonce = entry.Nonce,
+                    LeafIndex = checked((uint)index),
+                    TxHash = entry.TxHash,
+                    Siblings = proof.Siblings,
+                };
+            }
         }
         _batch.Seal();
         return new SealedBatch(

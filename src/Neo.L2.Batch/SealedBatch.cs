@@ -1,4 +1,3 @@
-using Neo.Cryptography;
 using Neo.L2.State;
 
 namespace Neo.L2.Batch;
@@ -133,10 +132,18 @@ public sealed class SealedBatch
             throw new ArgumentException(
                 "forced-inclusion nonce count exceeds transaction count",
                 nameof(forcedInclusions));
-        var transactionHashes = transactionCopies
-            .Select(static transaction => new UInt256(Crypto.Hash256(transaction.Span)))
-            .ToArray();
-        var transactionTree = new Neo.L2.State.MerkleTree(transactionHashes);
+        // Leaf identity is the canonical transaction id (TransactionHasher): the same value the
+        // SP1 guest folds into the commitment txRoot, so a consumption proof that survives this
+        // validation also folds to the finalized root on L1. Full-serialized-bytes hashes belong
+        // to no consumer of this tree.
+        var transactionHashes = forcedCopies.Length > 0
+            ? transactionCopies
+                .Select(TransactionHasher.Hash)
+                .ToArray()
+            : Array.Empty<UInt256>();
+        var transactionTree = forcedCopies.Length > 0
+            ? new Neo.L2.State.MerkleTree(transactionHashes)
+            : null;
         var nonces = new HashSet<ulong>();
         for (var index = 0; index < forcedSource.Count; index++)
         {
@@ -157,7 +164,7 @@ public sealed class SealedBatch
                 throw new ArgumentException(
                     $"forced-inclusion tx hash {index} does not match encoded transaction",
                     nameof(forcedInclusions));
-            var canonicalProof = transactionTree.GetProof(index);
+            var canonicalProof = transactionTree!.GetProof(index);
             if (!canonicalProof.Siblings.SequenceEqual(proof.Siblings))
                 throw new ArgumentException(
                     $"forced-inclusion proof {index} is not canonical for the batch transaction root",

@@ -60,14 +60,11 @@ fractional withdrawals such as non-whole L1 NEO exits.
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 26 contract projects
-  (24 production, 1 advisory-only structural fraud verifier, and 1 test-only stub) grouped into six concerns: *Settlement*
-  (SettlementManager · VerifierRegistry · ContractZkVerifier · Sp1Groth16Verifier), *Bridge*
-  (SharedBridge · TokenRegistry · ChainRegistry), *Messaging* (MessageRouter · DARegistry),
-  *Security* (SequencerRegistry · SequencerBond · ForcedInclusion · OptimisticChallenge),
-  *Governance* (GovernanceController · EmergencyManager · GovernanceFraudVerifier · RestrictedExecutionFraudVerifier),
-  and *External Bridge* (MpcCommitteeVerifier · ExternalBridgeRegistry · ExternalBridgeEscrow · ExternalBridgeBond · MpcCommitteeFraudVerifier · ExternalBridgeStubVerifier). Owns assets, settlement,
-  message routing, and governance. `ContractZkVerifier` keeps ZK settlement in the deployable NeoHub path while routing proof-system work to governance-registered deployable verifier contracts.
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 5 contract projects
+  grouped into six concerns: *Settlement*
+  (RollupHub · ZkVerifier · Sp1Groth16Verifier), *Bridge*
+  (SharedBridge · GovernanceController), and Security Controls including SequencerBond, ForcedInclusion, OptimisticChallenge within RollupHub. Owns assets, settlement,
+  message routing, and governance.
 - **Neo Gateway (Phase 5, optional)** — aggregates many L2s' proofs into one settlement
   post on L1. `BinaryTreeAggregator` reduces in log-N rounds; `IRoundProver` ships in
   two production-grade implementations (`MultisigRoundProver` for committee-attested
@@ -97,12 +94,8 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   [`docs/persistence.md`](./persistence.md).
 - **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`.
-- **Smart contracts (26 NeoHub + 10 L2 native)** — 26 NeoHub L1 contract projects (24 production, advisory-only `GovernanceFraudVerifier`, and test-only `ExternalBridgeStubVerifier`, incl. `DAValidator`, `L1TxFilter`, `ContractZkVerifier`, immutable `Sp1Groth16Verifier`,
-  `RestrictedExecutionFraudVerifier` executable restricted-v4 verifier, and the 6
-  cross-foreign-chain bridge contracts: `MpcCommitteeVerifier` /
-  `ExternalBridgeRegistry` / `ExternalBridgeEscrow` /
-  `ExternalBridgeBond` / `ExternalBridgeStubVerifier` /
-  `MpcCommitteeFraudVerifier`) type-check via `Neo.SmartContract.Framework`.
+- **Smart contracts (5 NeoHub + 10 L2 native)** — 5 NeoHub L1 contract projects
+  (`GovernanceController`, `RollupHub`, `SharedBridge`, `Sp1Groth16Verifier`, `ZkVerifier`) type-check via `Neo.SmartContract.Framework`.
   The 10 L2 system contracts are Neo core native contracts in
   `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`.
 - **CLI tools (7)** — `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`,
@@ -145,7 +138,7 @@ neo4/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
-│   ├── NeoHub.* (26)                       # L1 suite: 24 production + 1 advisory + 1 test stub
+│   ├── NeoHub.* (5)                      # L1 suite: 5 production contracts
 ├── external/neo/                            # r3e Neo fork with N4 L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)

@@ -20,53 +20,25 @@ fork.
 
 ```bash
 dotnet build contracts/
-nccs contracts/NeoHub.ChainRegistry/
+nccs contracts/NeoHub.RollupHub/
 ```
 
 `dotnet build` type-checks the C# contract surface. CI and deployment
 rehearsals run `nccs` explicitly to emit deployable bytecode artifacts.
 
-## Layout
+## Layout (5-component Lean Architecture)
 
 ```text
 contracts/
-|-- NeoHub.ChainRegistry/                       # L2 chain admission + config registry
-|-- NeoHub.SharedBridge/                        # canonical asset escrow + deposit/withdraw
-|-- NeoHub.SettlementManager/                   # batch submission + finalization
-|-- NeoHub.VerifierRegistry/                    # pluggable proof verifier dispatch
-|-- NeoHub.ContractZkVerifier/                  # ProofType.Zk router -> deployable verifier contracts
-|-- NeoHub.Sp1Groth16Verifier/                  # immutable SP1 Groth16/BN254 terminal verifier
-|-- NeoHub.MessageRouter/                       # L1<->L2 / L2<->L2 message queues
-|-- NeoHub.TokenRegistry/                       # canonical L1<->L2 asset mappings
-|-- NeoHub.DARegistry/                          # DA layer commitment store
-|-- NeoHub.DAValidator/                         # DA attestation / validation gate
-|-- NeoHub.L1TxFilter/                          # optional L1->L2 admission filter
-|-- NeoHub.SequencerRegistry/                   # per-chain committee membership
-|-- NeoHub.SequencerBond/                       # bonded stake + slashing
-|-- NeoHub.ForcedInclusion/                     # anti-censorship forced-tx queue
-|-- NeoHub.OptimisticChallenge/                 # Phase-3 fraud-proof challenge window
-|-- NeoHub.GovernanceController/                # L2 admission policy / verifier upgrades
-|-- NeoHub.GovernanceFraudVerifier/             # advisory-only v1/v2 structural evidence; excluded from production plan
-|-- NeoHub.RestrictedExecutionFraudVerifier/    # advisory v3 + committed-root-bound executable v4; only exact v4 is state-changing
-|-- NeoHub.EmergencyManager/                    # pause / escape hatch
-|-- NeoHub.MpcCommitteeVerifier/                # foreign-chain committee verifier
-|-- NeoHub.MpcCommitteeFraudVerifier/           # external-bridge equivocation slasher
-|-- NeoHub.ExternalBridgeRegistry/              # externalChainId -> verifier routing
-|-- NeoHub.ExternalBridgeEscrow/                # foreign-chain asset escrow
-|-- NeoHub.L2PayoutAdapter/                     # immutable L1-to-L2 payout request adapter
-|-- NeoHub.ExternalBridgeBond/                  # foreign-chain committee bonds
-`-- NeoHub.ExternalBridgeStubVerifier/          # dev/test only; excluded from production bundle
+|-- NeoHub.RollupHub/                           # Pillar 1: Chain registry, batch settlement, DA verification
+|-- NeoHub.SharedBridge/                        # Pillar 2: Asset escrow, token registry, cross-chain messaging
+|-- NeoHub.ZkVerifier/                          # Pillar 3: ZK validity verifier + SP1 Groth16/BN254 pairing math
+|-- NeoHub.Sp1Groth16Verifier/                  # Dedicated SP1 Groth16/BN254 verifier (real release parameters)
+`-- NeoHub.GovernanceController/                # Pillar 4: Council multisig, timelock, emergency pause, sequencer staking
 ```
 
-There are 26 `NeoHub.*` projects in this directory: 24 production contracts,
-the advisory-only structural `NeoHub.GovernanceFraudVerifier`, and the test-only
-`NeoHub.ExternalBridgeStubVerifier`. `neo-hub-deploy` emits the 24-step
-production bundle and excludes both non-production projects.
-`NeoHub.ContractZkVerifier` is part of that production bundle: it validates
-`ProofType.Zk` envelopes and registered verification-key ids, then calls the
-configured deployable verifier contract for `verifyZkProof(...)`. Private
-devnets can explicitly enable envelope-only mode per proof system while a real
-verifier contract is being integrated.
+There are 5 `NeoHub.*` projects in this directory: 5 production contracts. `neo-hub-deploy` emits the 5-step
+production bundle.
 
 The L2 native contract set lives in Neo core under
 `../external/neo/src/Neo/SmartContract/Native/`:

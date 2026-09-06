@@ -158,6 +158,43 @@ public class UT_DeployBridgeAdapterCommand
         Assert.AreEqual(6, rc);
     }
 
+    [TestMethod]
+    public async Task DeployBridge_BroadcastWithInvalidRpcUrl_FailsClosed()
+    {
+        // Preflight validation must reject malformed RPC endpoints before any L1/L2 submission
+        var rc = await DeployBridgeAdapterCommand.RunAsync(MappingArgs(
+            "--side", "both",
+            "--broadcast",
+            "--l1-decimals", "6",
+            "--l2-decimals", "6",
+            "--rpc", "file:///invalid-local-file", // Non-HTTP(S) scheme
+            "--expected-network", "894710606",
+            "--bridge", "0x" + new string('f', 40),
+            "--l2-owner", "0x" + new string('a', 40),
+            "--l2-system-account", "0x" + new string('b', 40)));
+
+        // Should fail at RPC validation (exit code 10) or missing WIF (exit code 12)
+        Assert.IsTrue(rc == 10 || rc == 12, $"Invalid RPC URL must be rejected early (got {rc})");
+    }
+
+    [TestMethod]
+    public async Task DeployBridge_AspectRatioValidation_EmptyHexRejected()
+    {
+        // Empty hex values are rejected with clear error messages
+        var rc = await DeployBridgeAdapterCommand.RunAsync(new[]
+        {
+            "--chain-id", "1099",
+            "--broadcast",
+            "--l1-asset", "0x",
+            "--l2-asset", "0x" + new string('2', 40),
+            "--asset-type", "PlatformUsdt",
+            "--l1-decimals", "6",
+            "--l2-decimals", "6",
+        });
+
+        Assert.AreEqual(3, rc, "Empty hex asset addresses must be rejected");
+    }
+
     private static string[] MappingArgs(params string[] additional)
     {
         return new[]

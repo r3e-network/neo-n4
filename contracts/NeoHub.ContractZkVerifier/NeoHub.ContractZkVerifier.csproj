@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <RootNamespace>NeoHub.ContractZkVerifier</RootNamespace>
-    <AssemblyName>NeoHub.ContractZkVerifier</AssemblyName>
-  </PropertyGroup>
-
-</Project>

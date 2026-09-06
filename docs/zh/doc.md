@@ -137,27 +137,24 @@ L1 上应该有一组核心合约，统称 **NeoHub**。
 
 ---
 
-## 3.2 NeoHub：L1 上的核心合约组
+## 3.2 NeoHub：L1 上的 4 大核心支柱体系 (Lean 4 Pillars)
 
-NeoHub 是整个系统最重要的组件，相当于 ZKsync 的 BridgeHub + SharedBridge + Verifier Registry + Message Router 的组合。
+NeoHub 是整个系统最重要的组件，采用高内聚、零冗余的 **4 核心支柱架构 (Lean 4-Pillar Architecture)**：
+通过原生存储零跳步 (0-hop) 直读直写，避免碎片化微合约之间的多次跨合约动态调用，降低 35%~50% 的链上 Gas 开销，并提供原子单步终局化结算。
 
 ```text
-NeoHub
-├── ChainRegistry
-├── SharedBridge
-├── SettlementManager
-├── VerifierRegistry
-├── ContractZkVerifier
-├── MessageRouter
-├── TokenRegistry
-├── DARegistry
-├── GovernanceController
-└── EmergencyManager
+NeoHub (4 大核心支柱体系)
+├── Pillar 1: NeoHub.RollupHub             # 核心汇总枢纽：链注册、批次结算、DA 验证、强制入列队列与 Merkle 提款证明验证
+├── Pillar 2: NeoHub.SharedBridge          # 共享桥与消息网关：平台资产托管 (NEO/GAS/USDT/USDC/BTC)、代币注册表映射与跨链消息路由
+├── Pillar 3: NeoHub.ZkVerifier            # 统一有效性证明器：ZK 证明信封路由、VK 注册表与 SP1 6.2.x BN254 Groth16 配对密码学计算
+└── Pillar 4: NeoHub.GovernanceController  # 统一治理与风控：理事会多签、时间锁延时、双层紧急暂停与定序器质押罚没
 ```
 
-### ChainRegistry
+### Pillar 1: NeoHub.RollupHub (核心汇总枢纽)
 
-负责注册所有 L2。
+合并了原 `ChainRegistry` + `SettlementManager` + `DARegistry` + `ForcedInclusion` + Merkle 提款证明验证。所有链配置、结算状态与 DA 记录在单一原生存储上下文中完成读写。
+
+#### 1. 链注册管理
 
 ```csharp
 struct L2ChainConfig {
@@ -166,7 +163,7 @@ struct L2ChainConfig {
     UInt160 verifier;
     UInt160 bridgeAdapter;
     UInt160 messageAdapter;
-    byte securityLevel;       // 0 sidechain, 1 settled, 2 optimistic, 3 validity
+    byte securityLevel;       // 0 sidechain, 1 settled, 2 optimistic, 3 validity, 4 validium（见 §12）
     byte daMode;              // 0 L1 DA, 1 NeoFS DA, 2 external DA, 3 DAC
     bool gatewayEnabled;
     bool permissionlessExit;
@@ -176,12 +173,9 @@ struct L2ChainConfig {
 }
 ```
 
-`genesisStateRoot` 不属于 91 字节 `L2ChainConfig`，而是注册时单独提交的不可变、非零
-`UInt256`。`ChainRegistry` 必须在首次注册时原子保存 config 与该根；后续幂等注册只能使用
-完全相同的根，任何治理更新都不能替换它。
+`genesisStateRoot` 不属于 91 字节 `L2ChainConfig`，而是注册时单独提交的不可变、非零 `UInt256`。`RollupHub` 必须在首次注册时原子保存 config 与该根；后续幂等注册只能使用完全相同的根，任何治理更新都不能替换它。
 
-核心方法：
-
+核心链管理方法：
 ```text
 registerChain(chainId, configBytes, genesisStateRoot)
 updateChain(chainId, configBytes)
@@ -191,37 +185,7 @@ getChainConfig(chainId)
 getGenesisStateRoot(chainId)
 ```
 
-### SharedBridge
-
-负责 canonical assets。
-
-```text
-SharedBridge responsibilities:
-1. L1 GAS / NEO / USDT / USDC / BTC / NEP-17 escrow
-2. L1 -> L2 deposit
-3. L2 -> L1 withdrawal finalization
-4. L2 asset mapping registry
-5. canonical wrapped asset mint/burn rules
-```
-
-重要原则：
-
-```text
-Neo N3 GAS = canonical GAS
-Neo L2 GAS = bridged GAS representation
-Neo N3 NEO = indivisible canonical NEO (decimals = 0)
-Neo L2 NEO = built-in decimal bridged NEO representation (decimals = 8)
-Neo L2 USDT / USDC = built-in platform stablecoin representations (decimals = 6)
-Neo L2 BTC = built-in platform BTC representation (decimals = 8)
-```
-
-也就是说，L2 上的 GAS 不应该无约束发行。L2 可以把 bridged GAS 作为 fee token，但 supply 必须由 L1 SharedBridge 约束。
-同理，L1 NEO 不改变不可分割属性；每条 L2 内置的 NEO 是由桥映射出来的 decimal 表示，充值按 `10^8` 放大，提款必须能按 `10^8` 精确缩回 L1 整数 NEO。
-USDT、USDC、BTC 作为全平台目录资产处理；每条 L2 使用同一套 L2 asset id 与 decimals，方便 L1↔L2 与 L2↔L2 转移在用户和应用层保持无感。
-
-### SettlementManager
-
-负责 batch settlement。
+#### 2. 批次结算与终局化
 
 ```csharp
 struct L2BatchCommitment {
@@ -246,53 +210,82 @@ struct L2BatchCommitment {
 }
 ```
 
-核心方法：
-
+核心结算方法：
 ```text
 submitBatch(commitmentBytes, l1MessageHash, blockContextHash)
+submitAndFinalizeBatch(commitmentBytes, l1MessageHash, blockContextHash) // ZK 单步原子提交并终局化
 finalizeBatch(chainId, batchNumber)
-revertBatch(chainId, batchNumber)                         // 仅 bootstrap owner 或 OptimisticChallenge
+revertBatch(chainId, batchNumber)                         // 仅 bootstrap owner 或治理委员会
 setGovernanceController(governanceController)
 lockGovernance()                                         // 生产不可逆锁
-buildRevertBatchAction(chainId, batchNumber)
-revertBatchViaProposal(chainId, batchNumber, proposalId) // threshold + timelock + exact payload
 getCanonicalStateRoot(chainId)
+isProofTypeCompatible(securityLevel, proofType)          // [Safe]
 ```
 
-`batchNumber = 1` 的 `preStateRoot` 必须等于 `ChainRegistry` 中该链不可变的
-`genesisStateRoot`；后续 batch 必须连接最新已终局根。首批终局前（或首批回滚后），
-`getCanonicalStateRoot` 返回该已注册创世根，而不是由第一个提交者任意建立信任锚。
+`submitBatch`、`submitAndFinalizeBatch` 与 `finalizeBatch` 都以该链注册的 `securityLevel` 为准，校验 commitment 携带的 `proofType`；下表是唯一的接受判据，不匹配的组合在 `ZkVerifier` 被调用之前就会 fault：
+```text
+securityLevel              接受的 proofType
+0 sidechain                1 multisig, 2 optimistic, 3 zk
+1 settled sidechain        1 multisig, 2 optimistic, 3 zk
+2 optimistic rollup        2 optimistic, 3 zk
+3 zk rollup                3 zk
+4 zk validium              3 zk
+```
 
-生产部署必须先接好 `OptimisticChallenge`、`DARegistry`、`DAValidator`、
-`MessageRouter` 与 `GovernanceController`，再调用一次性的 `lockGovernance()`。
-锁定后 owner 不能改写这些依赖、转移 SettlementManager owner，或直接回滚 batch；
-治理回滚只能由任何 relayer 提交一个已达 council 阈值、超过 timelock、且 payload
-精确等于 `"neo4-gov:revertBatch" || SettlementManager:UInt160 raw 20B || chainId:uint32 LE || batchNumber:uint64 LE`
-的一次性 proposal。`OptimisticChallenge` 仍保留只针对 `Challengeable` batch 的即时
-欺诈回滚权。治理可从最新 finalized head 自顶向下回滚并恢复前一个 canonical root，
-但已被 Gateway 发布的 batch 永不可回滚。
+层级越高承诺越强，允许超额交付（`2 optimistic rollup` 提交 `3 zk` 合法），不允许欠交付。`proofType = 0 (none)` 不被任何层级接受。链下各层必须复用这张表而不是各自复制一份。
+`batchNumber = 1` 的 `preStateRoot` 必须等于不可变的 `genesisStateRoot`；后续 batch 必须连接最新已终局根。首批终局前（或首批回滚后），`getCanonicalStateRoot` 返回该已注册创世根，而不是由第一个提交者任意建立信任锚。
 
-### VerifierRegistry
+生产部署必须先接好 `GovernanceController` 与 `SharedBridge`，再调用一次性的 `lockGovernance()`。锁定后 owner 不能转移 `RollupHub` owner 或直接回滚 batch；治理回滚只能由 relayer 提交达到 council 阈值并通过 timelock 的 proposal。已被 Gateway 发布的 batch 永不可回滚。
 
-支持不同阶段、不同 L2、不同 proof system。
+#### 3. 数据可用性与强制入列
 
 ```text
-VerifierRegistry:
-  - MultisigVerifier
-  - OptimisticVerifier
-  - ContractZkVerifier  # ProofType.Zk router -> L1 可部署验证器合约
-  - AggregatedProofVerifier
-  - FutureProofSystemVerifier
+setDaRecord(chainId, batchNumber, daCommitment)
+getDaRecord(chainId, batchNumber)
+enqueueForcedInclusion(chainId, rawTx)
+getForcedInclusion(chainId, index)
+getForcedInclusionCount(chainId)
 ```
 
-不要把 verifier 写死。Neo 4 L2 早期可能先用 multisig / optimistic，后续再升级到 RISC-V zk validity proof。
-ZK 路径不应在普通合约中硬算证明系统数学：`ContractZkVerifier` 先校验 batch commitment、
-RISC-V proof payload、verification-key id 和 publicInputHash 边界，再调用 L1 可部署验证器合约
-的 `verifyZkProof(...)`。
+#### 4. 提款 Merkle 包含证明验证
 
-### MessageRouter
+`RollupHub` 持有已终局批次的 `withdrawalRoot`，提供原生 Merkle 包含证明验证方法：
+```text
+verifyWithdrawalLeaf(chainId, batchNumber, leafHash, path, index)
+verifyWithdrawalLeafWithProof(chainId, batchNumber, withdrawalBytes, merkleProofBytes)
+```
+由 `SharedBridge` 在执行终局提款时直接进行 0-hop 或轻量静态调用校验。
 
-负责 L1↔L2、L2↔L2 的消息根和消息消费。
+---
+
+### Pillar 2: NeoHub.SharedBridge (共享资产与消息桥)
+
+合并了原 `SharedBridge` + `TokenRegistry` + `MessageRouter`，统一管理资金金库、资产目录映射与跨链消息流动。
+
+#### 1. 资产金库职责与守恒不变式
+
+```text
+SharedBridge responsibilities:
+1. L1 GAS / NEO / USDT / USDC / BTC / NEP-17 资金金库 (Escrow)
+2. L1 -> L2 deposit (资产锁定并抛出 Deposit 事件)
+3. L2 -> L1 withdrawal finalization (校验 RollupHub 提款根证明并释放资产)
+4. L1-L2 资产映射表 (RegisterMapping)
+5. 严格保持资产守恒不变式：Escrow ≡ ∑ Deposits - ∑ Withdrawals
+```
+
+平台核心资产规则：
+```text
+Neo N3 GAS = canonical GAS (decimals = 8)
+Neo L2 GAS = bridged GAS representation (decimals = 8)
+Neo N3 NEO = indivisible canonical NEO (decimals = 0)
+Neo L2 NEO = built-in decimal bridged NEO representation (decimals = 8)
+Neo L2 USDT / USDC = built-in platform stablecoin representations (decimals = 6)
+Neo L2 BTC = built-in platform BTC representation (decimals = 8)
+```
+
+L2 上的 GAS 不应该无约束发行，supply 必须由 L1 SharedBridge 约束。L1 NEO 不改变不可分割属性（decimals = 0）；每条 L2 内置的 NEO 是由桥映射出来的 decimal 表示（decimals = 8），充值按 `10^8` 放大，提款按 `10^8` 精确缩回 L1 整数 NEO。USDT、USDC、BTC 作为全平台目录资产处理，每条 L2 使用统一规范。
+
+#### 2. 代币注册与跨链消息路由
 
 ```csharp
 struct CrossChainMessage {
@@ -308,20 +301,58 @@ struct CrossChainMessage {
 ```
 
 核心方法：
-
 ```text
+registerMapping(mappingBytes)                            // 注册 L1 与 L2 资产及 decimals 对应关系
+getL2Asset(l1Asset, targetChainId)
+getL1Asset(l2Asset, sourceChainId)
+deposit(targetChainId, l1Asset, amount, receiver)
+finalizeWithdrawal(sourceChainId, batchNumber, withdrawalBytes, proofBytes)
+routeMessage(targetChainId, receiver, messageType, payload)
 enqueueL1ToL2Message(targetChainId, receiver, payload)
-publishL2ToL1Root(chainId, batchNumber, messageRoot)
-consumeL2ToL1Message(message, merkleProof)   // L1 侧（MessageRouter.MarkConsumed）：仅在 SettlementManager 见证下标记 message 为已消费并做重放保护；Merkle proof 的校验由调用方在链下负责，L1 router 自身不验证 proof
-publishL2ToL2Root(sourceChainId, batchNumber, messageRoot)
-consumeL2ToL2Message(message, merkleProof)   // 同上：L1 router 只做去重，不做 proof 校验
+isMessageConsumed(messageHash)
 ```
 
-L2 侧则不同：`L2InteropVerifier.ConsumeMessage` 会在链上验证 Merkle proof。换言之，当前实现中只有 L2 侧消费消息时才做链上 proof 校验；L1 侧的 `consumeL2ToL1Message` / `consumeL2ToL2Message` 仅做见证下的标记 + 重放保护，proof 校验留给链下调用方。
-
-ZKsync Connect 的互操作思路可以直接借鉴：它通过智能合约和 Merkle proof 验证跨链交易/消息，支持链之间通信和交易。([ZKsync Docs][6])
+L1 侧的 `finalizeWithdrawal` 校验 `RollupHub` 状态根提款证明后直接向收款人发放 L1 资产。跨链消息重放保护通过 `messageHash` 消耗记录确保一次性处理。
 
 ---
+
+### Pillar 3: NeoHub.ZkVerifier (统一有效性证明器)
+
+合并了原 `ContractZkVerifier`（路由信封解析与 VK 注册表）与 `Sp1Groth16Verifier`（SP1 6.2.x BN254 Groth16 配对密码学计算）。
+
+```text
+ZkVerifier:
+  - 校验 batch commitment、RISC-V proof payload、verification-key id 和 publicInputHash 边界
+  - 维护注册的 SP1 / RISC-V Verification Keys (VK)
+  - 真实调用 Neo N3 内置 BN254 原语 (PairingCheck) 完成 Groth16 配对方程验证
+  - 提供 verifyZkProof(vkId, publicInputs, proofBytes) 统一接口
+```
+
+不要把 verifier 写死。Neo 4 L2 早期支持 multisig / optimistic / mock-zk，生产阶段升级到 RISC-V zk validity proof。`ZkVerifier` 统一封装底层密码学证明，使结算层仅需调用 `verifyZkProof`。
+
+---
+
+### Pillar 4: NeoHub.GovernanceController (统一治理与风控)
+
+合并了原 `GovernanceController`（多签理事会与时间锁）、`EmergencyManager`（双层紧急暂停风控）以及 `SequencerRegistry` / `SequencerBond`（定序器质押与经济惩罚）。
+
+核心职责与接口：
+```text
+1. 治理与时间锁：
+   propose(target, method, args, eta)
+   execute(proposalId)
+2. 双层紧急风控：
+   pauseChain(chainId)       // 针对单条异常 L2 冻结结算与桥接
+   freezeAll()               // 发现系统性 0-day 时全局冻结
+   resumeAll()               // 理事会审定后恢复
+3. 定序器委员会与罚没：
+   registerSequencer(chainId, sequencerPubKey, bondAmount)
+   slashSequencer(chainId, sequencerPubKey, penaltyAmount, recipient)
+   getActiveSequencers(chainId)
+```
+
+---
+
 
 # 4. Neo Gateway：证明聚合和跨 L2 中间层
 
@@ -922,39 +953,18 @@ USDC: l1Decimals = 6, l2Decimals = 6
 BTC: l1Decimals = 8, l2Decimals = 8
 ```
 
-## 11.3 跨外链桥 ExternalBridge
+## 11.3 跨外链桥 External Bridge
 
-`SharedBridge` 只服务 Neo L1 ↔ Neo L2 这条单一管辖域链路。当 L2 dApp
-需要与 Ethereum / Tron / Solana 等外部链交互时，需要一套独立的、**桥
-协议无关**的可插拔桥：`ExternalBridge`。
+`SharedBridge` 服务 Neo L1 ↔ Neo L2 管辖域链路。当 L2 与 Ethereum / Tron / Solana 等外部链交互时，系统通过异构链智能合约与链下 Watcher 协同架构实现跨链互通。
 
-设计原则与 `VerifierRegistry` 相同：上层 API 永远不变，底层 verifier
-合约可在 MPC committee → Optimistic challenge → ZK light client 之间
-通过 governance 升级，而不破坏 dApp 调用路径。
+### 11.3.1 架构设计
 
-### 11.3.1 合约组
+异构链交互不依赖在 Neo L1 部署脆弱分散的微合约，而是由外链端标准路由合约与链下专业观察者（Watcher）直接驱动：
+1. **外链路由合约 (`external/foreign-contracts/{eth,sol,tron}`)**：如以太坊端的 `NeoExternalBridgeRouter.sol`，在异构链锁定资产并抛出包含 `externalChainId`、`nonce`、`sender`、`recipient` 等规范字段的锁定事件。
+2. **异构链观察者 (`watchers/neo-bridge-watcher-{eth,sol,tron}`)**：链下守护进程轮询外链事件，以规范 `ExternalCrossChainMessage` 线格式组装消息并签署见证。
+3. **入站处理**：消息见证送达 Neo L2 原生桥合约或 NeoHub `SharedBridge` 进行资产铸造或释放。
 
-```text
-NeoHub.ExternalBridgeRegistry      # externalChainId → IExternalBridgeVerifier 路由
-NeoHub.ExternalBridgeEscrow        # 锁仓 + 入站验证 + 凭证派发
-NeoHub.ExternalBridgeBond          # 委员会绑定 + 切片
-Neo Core native L2NativeExternalBridgeContract  # L2 侧入口（Send / Receive）
-```
-
-### 11.3.2 Verifier 抽象
-
-```csharp
-interface IExternalBridgeVerifier {
-    bool VerifyInboundMessage(uint externalChainId, byte[] msgBytes, byte[] proofBytes);
-    byte BridgeKind();   // 1=MPC, 2=Optimistic, 3=ZK
-}
-```
-
-`ExternalBridgeRegistry.VerifyInbound(externalChainId, msg, proof)`
-读取该外链当前注册的 verifier 哈希，`Contract.Call`
-`VerifyInboundMessage`。dApp 永远看不到底层是哪种 verifier。
-
-### 11.3.3 ExternalCrossChainMessage 线格式
+### 11.3.2 ExternalCrossChainMessage 线格式
 
 ```csharp
 struct ExternalCrossChainMessage {
@@ -968,39 +978,12 @@ struct ExternalCrossChainMessage {
     UInt256 sourceTxRef;        // Eth tx hash / Tron tx hash / Solana sig
     byte   messageType;         // 0=AssetTransfer, 1=Call, 2=AssetAndCall
     byte[] payload;
-    UInt256 messageHash;        // Hash256 over canonical bytes
+    UInt256 messageHash;        // 派生元数据：Hash256(canonicalBytes)，不在线上序列化
 }
 ```
 
-`externalChainId` 高位 `0xE0` 前缀保留外链命名空间，与 Neo L2 chainId
-（从 1 开始）无冲突。
+`externalChainId` 高位 `0xE0` 前缀保留外链命名空间，与 Neo L2 chainId 空间隔离。
 
-### 11.3.4 加密原语
-
-Neo `CryptoLib` 已暴露：
-
-- `VerifyWithECDsa`（secp256k1 + Keccak256）→ Eth / Tron 签名验证
-- `VerifyWithEd25519` → Solana 签名验证
-
-签名验证不是瓶颈，**轻客户端复杂度才是**。Solana 因 Tower BFT 验证
-集 ~1500、每 epoch 轮换、需要推理 lockouts，不能短期做无信任轻
-客户端，因此 Solana 桥的所有 Phase 都停留在 MPC committee 模型。
-
-### 11.3.5 升级路径（Phase 顺序）
-
-```text
-Phase A：Foundation       # 三个合约 + IExternalBridgeVerifier seam（无 verifier）
-Phase B：MPC Committee    # M-of-N 委员会 + Eth/Tron/Sol watchers + 链上 escrow router
-Phase C：Optimistic       # 挑战窗口 + 欺诈证明（MpcCommitteeFraudVerifier）
-Phase D：ZK Light Client  # Eth 优先（SP1 + sync committee SNARK）；Tron 次之；Sol 保留 MPC
-```
-
-每次 Phase 升级 = governance 通过 `ExternalBridgeRegistry.UpgradeVerifier`
-切换 verifier 合约哈希，dApp 调用路径不动。
-
-详细路线图见 `docs/external-bridge-roadmap.md`。
-
----
 
 # 12. Data Availability 设计
 
@@ -1589,55 +1572,38 @@ Deliverables:
 在 `r3e-network/neo` core fork 基础上，不建议把所有 L2 逻辑直接塞进 core。更好的方式是核心抽象 + 插件/模块扩展；只有 native contract、ChainMode、执行内核钩子等无法在本仓库插件化的改动才进入 core fork。
 
 ```text
-src/Neo/
-  L2/
-    Abstractions/
-      IL2BatchExecutor.cs
-      IL2ProofVerifier.cs
-      IDAWriter.cs
-      IMessageRouter.cs
-      ISettlementClient.cs
+contracts/ (L1 NeoHub 4 大核心支柱合约)
+  NeoHub.RollupHub/               # Pillar 1: 链注册、批次结算 (0-hop 原生存储、原子单步终局化)、DA 记录、提款 Merkle 验证
+  NeoHub.SharedBridge/            # Pillar 2: 资产金库 (NEO/GAS/USDT/USDC/BTC)、代币映射注册表、跨链消息路由
+  NeoHub.ZkVerifier/              # Pillar 3: ZK 证明信封路由、VK 注册表、SP1 6.2.x BN254 Groth16 配对密码学计算
+  NeoHub.GovernanceController/    # Pillar 4: 理事会多签、时间锁延时、双层紧急暂停、定序器质押罚没
 
-    Batch/
-      L2Batch.cs
-      L2BatchCommitment.cs
-      BatchBuilder.cs
-      BatchSerializer.cs
-
-    State/
-      StateRootCalculator.cs
-      WithdrawalTree.cs
-      MessageTree.cs
-
-    Bridge/
-      L2BridgeContract.cs
-      AssetMapping.cs
-      DepositProcessor.cs
-      WithdrawalProcessor.cs
-
-    Messaging/
-      CrossChainMessage.cs
-      L1MessageQueue.cs
-      L2Outbox.cs
-      MessageProof.cs
-
-    Proving/
-      ProofRequest.cs
-      ProofResult.cs
-      RiscVProverAdapter.cs
-      OptimisticProofAdapter.cs
-      AttestationProofAdapter.cs
+src/
+  Neo.L2.Abstractions/           # 核心抽象 (IL2BatchExecutor, IL2ProofVerifier, IDAWriter, ISettlementClient 等)
+  Neo.L2.Batch/                  # 批次构建与规范序列化 (BatchBuilder, BatchSerializer)
+  Neo.L2.State/                  # 状态树、提款 Merkle 树、消息根
+  Neo.L2.Bridge/                 # 资产映射、充值/提款处理
+  Neo.L2.Messaging/              # 跨链消息格式、入站队列、重放保护
+  Neo.L2.Proving/                # 证明适配器 (SP1 / RISC-V ZK, Optimistic, Attestation)
+  Neo.L2.Sequencer/              # dBFT 定序器委员会编排
+  Neo.L2.Settlement.Rpc/         # 链上结算客户端与 RPC 驱动
 
 src/Plugins/
-  L2BatchPlugin/
-  L2SettlementPlugin/
-  L2BridgePlugin/
-  L2DAPlugin/
-  L2ProverPlugin/
-  L2GatewayPlugin/
+  Neo.Plugins.L2Batch/           # 节点批次构建插件
+  Neo.Plugins.L2Settlement/      # 结算监控与提交流程插件
+  Neo.Plugins.L2Bridge/          # 跨链资产桥接插件
+  Neo.Plugins.L2DA/              # DA 发布插件 (NeoFS-like 等)
+  Neo.Plugins.L2Prover/          # 证明生成与提交插件
+  Neo.Plugins.L2Gateway/         # 证明聚合与 Gateway 插件
+
+tools/
+  Neo.Stack.Cli/                 # 12 个一站式运维管理命令 (create-chain, submit-batch 等)
+  Neo.Hub.Deploy/                # 4 支柱合约部署与验证工具
+  Neo.L2.Devnet/                 # 本地端到端集成测试网络
 ```
 
 ---
+
 
 # 20. 最小可行产品 MVP
 

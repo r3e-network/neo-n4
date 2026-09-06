@@ -41,7 +41,7 @@
 | **MerkleProofSerializer**     | Merkle 证明的规范编码器(用于提款 + 跨 L2 消息)。                                                |
 | **MessageHasher**             | `CrossChainMessage`(跨 L2)的规范编码器。两端都重算哈希。                                        |
 | **min_confirmations**         | watcher config 字段:不从距外链头不足 N 确认的浅块发出事件。                                       |
-| **NeoHub**                    | 锚定整个网络的 26 项目 L1 套件（24 个生产合约 + 1 个仅审计用结构验证器 + 1 个测试 stub）。见下文 §2。 |
+| **NeoHub**                    | 锚定整个网络的 4 核心支柱 L1 套件（RollupHub、SharedBridge、ZkVerifier、GovernanceController）。见下文 §2。 |
 | **nonce(deposit/message)**   | 按 (源链、方向) 单调递增的计数器。带重放保护。                                                    |
 | **operatorManager**           | UInt160。管理一条已注册 L2 的多签(set-verifier、pause 等)。在链 config 里。                      |
 | **postStateRoot**             | UInt256。批次最后一笔 tx 之后的状态根。携带于 `BatchCommitment`。                                  |
@@ -50,62 +50,24 @@
 | **publicInputHash**           | UInt256。`PublicInputs`(332 字节)的 SHA256。验证器从链上承诺重算它。                             |
 | **securityLevel**             | byte 0..3。0 = 侧链,3 = 完整 ZK rollup。运维者每条链自选。                                       |
 | **sequencerModel**            | byte。0=Solo、1=Committee、2=Permissionless。L2 区块怎么产出。                                    |
-| **SettlementManager**         | NeoHub L1 合约。验证已提交批次;承担信任的边界。                                                  |
+| **RollupHub**                 | NeoHub L1 合约（支柱 1）。汇总链注册、批次结算与 DA 承诺记录。                                    |
 | **§16.2 维度**                | 5 维链 config:securityLevel、daMode、sequencerModel、exitModel、gatewayEnabled。                  |
 | **trust boundary(信任边界)** | 字节跨越信任域的点。系统有 5 个跨层边界。                                                         |
-| **VerifierRegistry**          | NeoHub L1 合约。按 `proofType` 派发证明验证。                                                     |
+| **ZkVerifier**                | NeoHub L1 合约（支柱 3）。基于 Neo N3 原生 BN254 原语执行 Groth16 配对验证。                       |
 | **watcher(中继器)**           | 中继外链事件(Eth/Tron/Solana → Neo)的链下守护进程。                                            |
 | **wire format(线协议格式)** | 一个逻辑值的规范字节布局。见 [`architecture-wire-formats.md`](./architecture-wire-formats.md)。   |
 | **withdrawalRoot**            | UInt256。本批次内 L2→L1 提款的 Merkle 根。用户凭 Merkle 证明领取。                                |
 
 ---
 
-## 2. NeoHub L1 合约（26）
+## 2. NeoHub L1 合约（4 核心支柱）
 
-位于 `contracts/NeoHub.*`。每个都是已编译的 .nef + .manifest.json。
+位于 `contracts/NeoHub.*`。4 核心支柱精简架构将历史 26 个微合约整合为 4 个生产支柱，采用 0-hop 原生存储：
 
-### 核心 5 个(每个批次都触及)
-
-- **`SettlementManager`** — 验证已提交批次;最终化状态根 + 提款;派发到验证器。
-- **`VerifierRegistry`** — 按 `proofType` 派发验证器(Multisig / RiscVZk / Optimistic / …)。
-- **`ChainRegistry`** — 注册 L2 链;按 chain id 存储 91 字节 `L2ChainConfig`。
-- **`SharedBridge`** — 跨所有已注册链的 L1 充值 + 提款。持有托管资产。
-- **`MessageRouter`** — 经重算规范哈希路由跨 L2 消息;按 (源链, 目标链) 的 inbox。
-
-### 桥与消息支持(5)
-
-- **`TokenRegistry`** — 规范 L1↔L2 资产映射元信息,包括两侧 decimals。
-  `SharedBridge` 使用,并镜像到 L2 `L2BridgeContract`;平台资产固定为 NEO 0→8、
-  GAS 8→8、USDT/USDC 6→6、BTC 8→8。
-- **`DARegistry`** — 记录已发布的 `daCommitment` 哈希;`L2DAPlugin` 在每个批次写入此处。
-- **`DAValidator`** — 在批次最终化前验证 DA commitment 与 DAC 委员会 attestations。
-- **`L1TxFilter`** — `MessageRouter` 使用的可选逐链 L1-to-L2 入队策略钩子。
-
-### 安全(5)
-
-- **`SequencerRegistry`** — 列出每条链已注册的排序器。带保证金。
-- **`SequencerBond`** — 排序器可罚没保证金。被 `OptimisticChallenge` 在欺诈被接受时罚没。
-- **`ForcedInclusion`** —— 抗审查：用户在 L1 提交交易；逾期条目可暂停 L2，治理仅在已最终化 dBFT 证据完成归责后罚没。
-- **`OptimisticChallenge`** — 二分博弈驱动的欺诈证明窗口。结算等 `challengeWindow` 后才最终化。
-- **`EmergencyManager`** — 个别链的运维多签暂停(例如调试关键问题时)。
-
-### 治理(2)
-
-- **`GovernanceController`** — 多签 + timelock,用于验证器升级 + 协议参数变更。
-- **`GovernanceFraudVerifier`** — 仅审计用 v1/v2 结构验证器；不进入生产部署，也不能触发回滚或罚没。
-
-### 专用 fraud verifier(1)
-
-- **`RestrictedExecutionFraudVerifier`** — v3 仅重新派生挑战者 payload 内的 storage roots，属于仅审计证据；精确注册的 v4 对单笔 Counter Increment 语义绑定已提交批次并在链上执行。v1/v2/v3 即使有治理 witness 也 fail closed，通用 NeoVM 同样 fail closed。
-
-### 外链桥 —— Phase B/C(6)
-
-- **`MpcCommitteeVerifier`** — 在规范 `ExternalCrossChainMessage` 上验证 M-of-N 委员会签名。
-- **`ExternalBridgeRegistry`** — 按链的 (verifier、bridgeKind) 条目。路由到 MPC 或 ZK 轻客户端(Phase D)。
-- **`ExternalBridgeEscrow`** — 锁定外链出站 NEP-17；已验证入站仅在 L1 绑定实例中原子释放已注资 NEP-17，所有 L2 目标都必须使用固定 ABI 版本与 update counter 的 payout/credit adapter。路由与治理均带重放保护并 fail closed。
-- **`ExternalBridgeBond`** — 外链桥委员会成员的可罚没保证金。
-- **`ExternalBridgeStubVerifier`** — v0 测试 stub —— 自动接受任何消息。**不**用于生产。
-- **`MpcCommitteeFraudVerifier`** — Phase C:从密码学上证明委员会等价签名;经 `ExternalBridgeBond` 罚没。
+- **支柱 1: `NeoHub.RollupHub`** — 核心汇总枢纽，合并链准入注册、批次结算（提供原子单步 `submitAndFinalizeBatch`）、DA 承诺记录、强制入列队列与 Merkle 提款证明验证（`verifyWithdrawalLeaf`）。
+- **支柱 2: `NeoHub.SharedBridge`** — 统一资产金库与跨链消息路由。托管平台资产（NEO、GAS、USDT、USDC、BTC、NEP-17），严格遵循资产守恒 $\text{Escrow} \equiv \sum \text{Deposits} - \sum \text{Withdrawals}$，管理代币映射（`RegisterMapping`），并处理跨链消息路由与防重放。
+- **支柱 3: `NeoHub.ZkVerifier`** — 统一有效性证明器，整合信封路由、验证密钥注册表（VK）与基于 Neo N3 原生原语的 SP1 6.2.x BN254 Groth16 配对密码学计算。
+- **支柱 4: `NeoHub.GovernanceController`** — 统一治理与风控中心，整合理事会多签、时间锁延时、双层紧急暂停（`pauseChain`/`freezeAll`）以及定序器质押与罚没。
 
 ---
 

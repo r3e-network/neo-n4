@@ -110,7 +110,8 @@ public class UT_StateWitnessV1Serializer
     {
         var path = Path.Combine(
             AppContext.BaseDirectory, "Fixtures", "stateful_batch_v1.hex");
-        var bytes = Convert.FromHexString(File.ReadAllText(path).Trim());
+        var bytes = Convert.FromHexString(string.Concat(
+            File.ReadAllText(path).Where(static value => !char.IsWhiteSpace(value))));
         return ProofWitnessArtifactSerializer.Decode(bytes);
     }
 }

@@ -395,15 +395,47 @@ public class UT_BatchSealer
         ulong nonce,
         byte[] transaction) => (
             nonce,
-            new UInt256(Neo.Cryptography.Crypto.Hash256(transaction)),
+            TransactionHasher.Hash(transaction),
             transaction);
+
+    private static byte[] RealTransaction(uint nonce)
+    {
+        // BatchBuilder validates forced-inclusion hashes with TransactionHasher (the canonical
+        // unsigned-preimage id), so a forced entry must carry a parseable transaction.
+        var transaction = new Neo.Network.P2P.Payloads.Transaction
+        {
+            Nonce = nonce,
+            SystemFee = 1_000_000,
+            NetworkFee = 1_000_000,
+            ValidUntilBlock = 1_000,
+            Signers =
+            [
+                new Neo.Network.P2P.Payloads.Signer
+                {
+                    Account = UInt160.Parse("0x" + new string('a', 40)),
+                    Scopes = Neo.Network.P2P.Payloads.WitnessScope.CalledByEntry,
+                },
+            ],
+            Attributes = Array.Empty<Neo.Network.P2P.Payloads.TransactionAttribute>(),
+            Script = new byte[] { 0x01 },
+            Witnesses =
+            [
+                new Neo.Network.P2P.Payloads.Witness
+                {
+                    InvocationScript = Array.Empty<byte>(),
+                    VerificationScript = Array.Empty<byte>(),
+                },
+            ],
+        };
+        return Neo.Extensions.IO.ISerializableExtensions.ToArray(transaction);
+    }
 
     private static (ulong, UInt256, ReadOnlyMemory<byte>)[] TwoForced()
     {
         return
         [
-            Forced(1UL, new byte[] { 0xF1, 0x01 }),
-            Forced(2UL, new byte[] { 0xF2, 0x02 }),
+            Forced(1UL, RealTransaction(1)),
+            Forced(2UL, RealTransaction(2)),
         ];
     }
 
@@ -428,14 +460,16 @@ public class UT_BatchSealer
     [TestMethod]
     public void ForcedInclusion_ForcedTxsComeFirst_InSealedPayload()
     {
-        // Seal on the first block and assert the immutable payload order directly.
-        var f1 = new byte[] { 0xF1, 0x01 };
-        var f2 = new byte[] { 0xF2, 0x02 };
-        var b1 = new byte[] { 0x00, 0xCA, 0xFE }; // MakeTxs(1)[0]
+        // Seal on the first block and assert the immutable payload order directly. Every
+        // transaction (forced and ordinary) must be parseable: the consumption tree is built
+        // over canonical ids, which requires re-parsing the whole sealed list.
+        var f1 = RealTransaction(1);
+        var f2 = RealTransaction(2);
+        var b1 = RealTransaction(3); // the block's ordinary transaction
         var sealer = new BatchSealer(ForcedSettings(maxBlocks: 1), new InMemoryMetrics(), () => 0L,
             forcedDrain: _ => new[] { Forced(1UL, f1), Forced(2UL, f2) });
 
-        var sealed_ = sealer.OnBlockCommit(1, 1000, 11, MakeTxs(1));
+        var sealed_ = sealer.OnBlockCommit(1, 1000, 11, new[] { b1 });
         Assert.IsNotNull(sealed_);
         Assert.AreEqual(3, sealed_!.Transactions.Count);
         CollectionAssert.AreEqual(f1, sealed_.Transactions[0].ToArray());
@@ -448,8 +482,7 @@ public class UT_BatchSealer
         Assert.AreEqual(1U, sealed_.ForcedInclusions[1].LeafIndex);
         var txRoot = Neo.L2.State.StateRootCalculator.ComputeTxRoot(
             sealed_.Transactions
-                .Select(transaction => new UInt256(
-                    Neo.Cryptography.Crypto.Hash256(transaction.Span)))
+                .Select(TransactionHasher.Hash)
                 .ToArray());
         foreach (var proof in sealed_.ForcedInclusions)
         {
@@ -509,7 +542,7 @@ public class UT_BatchSealer
             () => 0L,
             forcedDrain: _ => new[]
             {
-                (1UL, UInt256.Zero, (ReadOnlyMemory<byte>)new byte[] { 0x01 }),
+                (1UL, UInt256.Zero, (ReadOnlyMemory<byte>)RealTransaction(1)),
             });
         Assert.ThrowsExactly<InvalidOperationException>(
             () => sealer.OnBlockCommit(1, 1000, 11, NoTxs()));

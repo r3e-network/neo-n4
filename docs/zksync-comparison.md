@@ -89,8 +89,9 @@ actually trusts depends on the `ProofType` the chain is configured for:
   governance-arbitrated structural evidence. The separate v4 profile binds the committed
   batch and executes exactly one existing-key Counter Increment; general NeoVM and
   multi-transaction fraud proofs fail closed.
-- **`ProofType.Zk` (Stage 2)** — `ContractZkVerifier` validates the canonical batch/proof
-  envelope and routes SP1 proofs to the in-repo immutable `Sp1Groth16Verifier`, which executes
+- **`ProofType.Zk` (Stage 2)** — `NeoHub.ZkVerifier` integrates the former
+  `ContractZkVerifier` + `Sp1Groth16Verifier` functionality and validates the canonical batch/proof
+  envelope. Routes SP1 proofs to the in-repo immutable `Sp1Groth16Verifier`, which executes
   the complete pinned SP1 Groth16/BN254 pairing equation through Neo Core native interops.
   Before proving, `Sp1SettlementExecutionStack` runs the SHA-256-pinned same-runtime native
   executor, validates canonical `NEO4EXR1`, and atomically commits complete state; the daemon then
@@ -125,7 +126,9 @@ proof-verification rows are explicitly marked **partial**.
 | **`TransactionFilterer`** (per-chain L1→L2 tx hook) | `MessageRouter.SetL1TxFilter` + `NeoHub.L1TxFilter` | parity for L1→L2 enqueue filtering; L2 mempool filtering remains operator-specific |
 | **`L2AdminFactory` / per-chain `ChainAdmin`** | absent — chain-admin is hub-side `operatorManager` in `ChainRegistry.L2ChainConfig` | intentionally different |
 | **`BridgedStandardERC20`** — canonical L2 token | Neo Core native `BridgedNep17Contract` | parity at the canonical bridged-token level |
-| **Boojum / Plonk verifier contracts** — on-chain validity-proof math | `NeoHub.ContractZkVerifier` routes `ProofType.Zk` to immutable `NeoHub.Sp1Groth16Verifier`; the latter pins the SP1 wrapper VK and executes Groth16/BN254 math through Neo Core | equivalent security boundary, different proof stack — SP1 Groth16 replaces Boojum/Plonk; production permanently disables SP1 `envelope-only`. See **L1 trust model** above. |
+| **Boojum / Plonk verifier contracts** — on-chain validity-proof math | `NeoHub.ZkVerifier`
+  integrates the former `ContractZkVerifier` + `Sp1Groth16Verifier`; routes `ProofType.Zk` to immutable `NeoHub.Sp1Groth16Verifier`;
+  the latter pins the SP1 wrapper VK and executes Groth16/BN254 math through Neo Core | equivalent security boundary, different proof stack — SP1 Groth16 replaces Boojum/Plonk; production permanently disables SP1 `envelope-only`. See **L1 trust model** above. |
 | **`CalldataDA` / `ValidiumL1DAValidator` / `RollupDAManager` / `RelayedSLDAValidator`** | `NeoHub.DARegistry` + `NeoHub.DAValidator` + off-chain writers in `Neo.Plugins.L2DA` | partial — DAC attestation gate exists; richer NeoFS/external inclusion adapters remain operator-specific |
 | **`BytecodesSupplier` / `*Upgrade` family / `UpgradeStageValidator`** | `GovernanceController` proposal pipeline with notice/execution/cooldown windows | parity for staged timing; no bytecode supplier because NeoVM uses ContractManagement |
 | **L2 `Bootloader`** | absent — NeoVM2/RISC-V runtime provides native dispatch | intentionally different |

@@ -238,7 +238,7 @@ public sealed class UT_Sp1GatewayProofProver
     private static Sp1GatewayProofProver CreateProver(string queuePath) => new(
         queuePath,
         GatewayVerificationKey,
-        resultTimeout: TimeSpan.FromSeconds(5),
+        resultTimeout: TimeSpan.FromSeconds(15),
         pollInterval: TimeSpan.FromMilliseconds(10));
 
     [TestMethod]

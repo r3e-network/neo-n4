@@ -66,7 +66,7 @@ internal static class RegisterChainCommand
 
         Console.WriteLine($"Registration plan for chain {chainId} on L1 '{l1}':");
         Console.WriteLine();
-        Console.WriteLine($"  Target contract : NeoHub.ChainRegistry");
+        Console.WriteLine($"  Target contract : NeoHub.RollupHub (ChainRegistry)");
         Console.WriteLine($"  Method          : registerChain");
         Console.WriteLine($"  Config source   : {configPath}");
         Console.WriteLine();
@@ -103,16 +103,16 @@ internal static class RegisterChainCommand
 
         var operatorHash = FirstNonEmpty(
             ArgUtil.Get(args, "--operator", ""),
-            deployReport?.DefaultOperatorManager.ToString() ?? "");
+            deployReport?.GovernanceController.ToString() ?? deployReport?.DefaultOperatorManager.ToString() ?? "");
         var verifierHash = FirstNonEmpty(
             ArgUtil.Get(args, "--verifier", ""),
-            deployReport?.VerifierRegistry.ToString() ?? "");
+            deployReport?.VerifierRegistry.ToString() ?? deployReport?.ZkVerifier.ToString() ?? "");
         var bridgeHash = FirstNonEmpty(
             ArgUtil.Get(args, "--bridge", ""),
             deployReport?.SharedBridge.ToString() ?? "");
         var messageHash = FirstNonEmpty(
             ArgUtil.Get(args, "--message", ""),
-            deployReport?.MessageRouter.ToString() ?? "");
+            deployReport?.MessageRouter.ToString() ?? deployReport?.SharedBridge.ToString() ?? "");
 
         if (operatorHash.Length > 0 && verifierHash.Length > 0
             && bridgeHash.Length > 0 && messageHash.Length > 0)
@@ -182,14 +182,16 @@ internal static class RegisterChainCommand
                 if (ArgUtil.HasFlag(args, "--broadcast"))
                 {
                     var chainRegistryValue = FirstNonEmpty(
-                        ArgUtil.Get(args, "--chain-registry", ""),
-                        deployReport?.ChainRegistry.ToString() ?? "");
+                        ArgUtil.Get(args, "--rollup-hub", ""),
+                        FirstNonEmpty(
+                            ArgUtil.Get(args, "--chain-registry", ""),
+                            deployReport?.RollupHub.ToString() ?? deployReport?.ChainRegistry.ToString() ?? ""));
                     if (!UInt160.TryParse(chainRegistryValue, out var chainRegistry)
                         || chainRegistry == UInt160.Zero)
                     {
                         Console.Error.WriteLine(
-                            "--chain-registry <UInt160> is required with --broadcast"
-                            + " (or supply --from-deploy-report that includes ChainRegistry)");
+                            "--rollup-hub (or --chain-registry) <UInt160> is required with --broadcast"
+                            + " (or supply --from-deploy-report that includes RollupHub)");
                         return Task.FromResult(5);
                     }
                     // Prefer deploy-report network/rpc when flags omitted so a single
@@ -275,6 +277,7 @@ internal static class RegisterChainCommand
     /// Broadcast registerChain then fail closed unless ChainRegistry.isActive(chainId)
     /// and getGenesisStateRoot(chainId) match the just-submitted trust anchor.
     /// </summary>
+
     private static async Task<int> BroadcastAndVerifyRegistrationAsync(
         string[] args,
         byte[] script,
@@ -282,6 +285,11 @@ internal static class RegisterChainCommand
         UInt160 chainRegistry,
         UInt256 expectedGenesisRoot)
     {
+        // OperatorTransactionBroadcaster validates --rpc (absolute HTTP(S) only) and
+        // --expected-network before it constructs a JsonRpcClient, so a malformed
+        // endpoint fails closed at exit 10 with no submission attempt. Re-checking the
+        // scheme ahead of the broadcast would surface exit 14 instead and silently
+        // renumber the broadcaster's documented RPC-validation exit code.
         var broadcastRc = await OperatorTransactionBroadcaster.BroadcastAsync(
             args,
             script,
@@ -298,9 +306,12 @@ internal static class RegisterChainCommand
             return 14;
         }
 
+        // Post-submission verification: confirm ChainRegistry reflects the submitted state
         try
         {
             using var rpc = new JsonRpcClient(rpcEndpoint.AbsoluteUri);
+            
+            // Check isActive
             var activeItem = await RpcContractReader.InvokeReadAsync(
                 rpc,
                 chainRegistry,
@@ -311,9 +322,11 @@ internal static class RegisterChainCommand
             {
                 Console.Error.WriteLine(
                     $"post-registration verify failed: ChainRegistry.isActive({chainId}) is false");
+                Console.Error.WriteLine("This may indicate a revert or gas limit issue. Check your account balance.");
                 return 15;
             }
 
+            // Check genesis root matches exactly
             var rootItem = await RpcContractReader.InvokeReadAsync(
                 rpc,
                 chainRegistry,
@@ -326,19 +339,26 @@ internal static class RegisterChainCommand
                 Console.Error.WriteLine(
                     $"post-registration verify failed: getGenesisStateRoot({chainId})={onChainRoot} "
                     + $"differs from submitted genesis {expectedGenesisRoot}");
+                Console.Error.WriteLine("A different registration may have been processed. Verify the chain config.");
                 return 16;
             }
 
+            // Success: emit structured confirmation
             Console.WriteLine();
-            Console.WriteLine($"post-registration verify ok:");
-            Console.WriteLine($"  isActive({chainId})          : true");
-            Console.WriteLine($"  getGenesisStateRoot({chainId}): {onChainRoot}");
+            Console.WriteLine($"✓ L2 chain {chainId} registered successfully on L1");
+            Console.WriteLine($"  Contract         : NeoHub.ChainRegistry @ {chainRegistry}");
+            Console.WriteLine($"  Genesis state    : {expectedGenesisRoot}");
+            Console.WriteLine($"  Verification     : ChainRegistry.isActive({chainId}) = true");
             return 0;
         }
         catch (Exception exception)
         {
             Console.Error.WriteLine(
                 $"post-registration verify failed: {exception.Message}");
+            Console.Error.WriteLine(
+                $"The registration transaction was broadcast but verification RPC call failed.");
+            Console.Error.WriteLine(
+                $"Check the transaction hash above and query ChainRegistry directly.");
             return 17;
         }
     }
@@ -380,7 +400,7 @@ internal static class DeployBridgeAdapterCommand
         Console.WriteLine($"Bridge adapter deployment plan for chain {chainId}:");
         Console.WriteLine();
         Console.WriteLine("  L2-side native contract   : L2BridgeContract (built into r3e-network/neo branch r3e/neo-n4-core)");
-        Console.WriteLine("  L1-side anchor contract   : NeoHub.SharedBridge");
+        Console.WriteLine("  L1-side anchor contract   : NeoHub.SharedBridge (Pillar 2 asset escrow + token registry)");
         Console.WriteLine();
         Console.WriteLine("  Required asset mappings   :");
         Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 NEO>, <L2 NEO>, l1Decimals=0, l2Decimals=8)");
@@ -388,13 +408,13 @@ internal static class DeployBridgeAdapterCommand
         Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 USDT>, <L2 USDT>, l1Decimals=6, l2Decimals=6)");
         Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 USDC>, <L2 USDC>, l1Decimals=6, l2Decimals=6)");
         Console.WriteLine("    L2BridgeContract.RegisterMapping(<L1 BTC>,  <L2 BTC>,  l1Decimals=8, l2Decimals=8)");
-        Console.WriteLine("    NeoHub.TokenRegistry.RegisterMapping(<encoded L1+chainId+L2 mapping with decimals>)");
+        Console.WriteLine("    NeoHub.SharedBridge.RegisterMapping(<encoded L1+chainId+L2 mapping with decimals>)");
         Console.WriteLine();
         Console.WriteLine($"Next steps for production deploy:");
         Console.WriteLine($"  1. Start chain {chainId} from the r3e Neo core fork so L2BridgeContract exists at genesis as a native contract");
         Console.WriteLine($"  2. Configure native L2BridgeContract owner/system account through the L2 governance signer");
-        Console.WriteLine($"  3. Register the L1-L2 NEO, GAS, USDT, USDC, and BTC mappings on both sides (asymmetric - L1 calls TokenRegistry, L2 calls L2BridgeContract)");
-        Console.WriteLine($"  4. Verify lookup + decimals: TokenRegistry.GetL2Asset/GetL1Decimals/GetL2Decimals and L2BridgeContract.GetL2Asset/GetL1Decimals/GetL2Decimals");
+        Console.WriteLine($"  3. Register the L1-L2 NEO, GAS, USDT, USDC, and BTC mappings on both sides (asymmetric - L1 calls SharedBridge, L2 calls L2BridgeContract)");
+        Console.WriteLine($"  4. Verify lookup + decimals: SharedBridge.GetL2Asset/GetL1Decimals/GetL2Decimals and L2BridgeContract.GetL2Asset/GetL1Decimals/GetL2Decimals");
         Console.WriteLine();
         Console.WriteLine($"(No L2Native contract is deployed after genesis; L1 setup still needs the contract owner and operator-specific signing.)");
         if (!ArgUtil.HasFlag(args, "--broadcast")) return 0;
@@ -409,15 +429,21 @@ internal static class DeployBridgeAdapterCommand
         }
 
         Console.WriteLine();
-        Console.WriteLine($"Canonical TokenRegistry mapping: 0x{Convert.ToHexString(mappingBytes).ToLowerInvariant()}");
+        Console.WriteLine($"Canonical SharedBridge mapping: 0x{Convert.ToHexString(mappingBytes).ToLowerInvariant()}");
+
+        // Track successful broadcasts for structured output
+        var l1Success = false;
+        var l2Success = false;
 
         if (side is "l1" or "both")
         {
-            var tokenRegistryValue = ArgUtil.Get(args, "--token-registry", "");
+            var tokenRegistryValue = ArgUtil.FirstNonEmpty(
+                ArgUtil.Get(args, "--bridge", ""),
+                ArgUtil.Get(args, "--token-registry", ""));
             if (!UInt160.TryParse(tokenRegistryValue, out var tokenRegistry)
                 || tokenRegistry == UInt160.Zero)
             {
-                Console.Error.WriteLine("--token-registry <UInt160> is required for L1 mapping registration");
+                Console.Error.WriteLine("--bridge (or --token-registry) <UInt160> is required for L1 mapping registration");
                 return 5;
             }
             using var l1Script = new ScriptBuilder();
@@ -426,8 +452,13 @@ internal static class DeployBridgeAdapterCommand
                 args,
                 l1Script.ToArray(),
                 $"L1 asset mapping for chain {chainId}",
-                optionPrefix: "l1");
-            if (l1Result != 0) return l1Result;
+                optionPrefix: "l1").ConfigureAwait(false);
+            if (l1Result != 0)
+            {
+                Console.Error.WriteLine($"L1 asset mapping broadcast failed with exit code {l1Result}");
+                return l1Result;
+            }
+            l1Success = true;
         }
 
         if (side is "l2" or "both")
@@ -455,8 +486,38 @@ internal static class DeployBridgeAdapterCommand
                 args,
                 l2Script.ToArray(),
                 $"L2 native bridge mapping for chain {chainId}",
-                optionPrefix: "l2");
-            if (l2Result != 0) return l2Result;
+                optionPrefix: "l2").ConfigureAwait(false);
+            if (l2Result != 0)
+            {
+                Console.Error.WriteLine($"L2 native bridge mapping broadcast failed with exit code {l2Result}");
+                return l2Result;
+            }
+            l2Success = true;
+        }
+
+        // Emit structured success summary
+        if (l1Success && l2Success)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"✓ Bridge adapter deployed successfully for chain {chainId}:");
+            Console.WriteLine($"  L1 side          : NeoHub.SharedBridge registered mapping");
+            Console.WriteLine($"  L2 side          : L2Native contracts configured + mapping registered");
+            Console.WriteLine($"  Asset type       : {mapping.AssetType}");
+            Console.WriteLine($"  Decimals         : L1={mapping.L1Decimals}, L2={mapping.L2Decimals}");
+        }
+        else if (l1Success)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"✓ L1 bridge adapter deployed for chain {chainId}:");
+            Console.WriteLine($"  Contract         : NeoHub.SharedBridge @ {ArgUtil.FirstNonEmpty(ArgUtil.Get(args, "--bridge", ""), ArgUtil.Get(args, "--token-registry", ""))}");
+            Console.WriteLine($"  Mapping          : 0x{Convert.ToHexString(mappingBytes).ToLowerInvariant()}");
+        }
+        else if (l2Success)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"✓ L2 bridge adapter deployed for chain {chainId}:");
+            Console.WriteLine($"  Contract         : L2Native contract @{NativeContract.L2Bridge.Hash}");
+            Console.WriteLine($"  Mapping          : {mapping.L1Asset} → {mapping.L2Asset}");
         }
 
         return 0;
@@ -519,18 +580,24 @@ internal static class DeployBridgeAdapterCommand
 
 internal static class SubmitBatchCommand
 {
-    public static Task<int> RunAsync(string[] args)
+    /// <summary>
+    /// Runs submit-batch. <paramref name="httpClient"/> is forwarded to the shared
+    /// broadcaster so tests can drive the whole sign-broadcast-confirm path against an
+    /// in-process <see cref="HttpMessageHandler"/>; the CLI passes none and the
+    /// broadcaster allocates its own client.
+    /// </summary>
+    public static async Task<int> RunAsync(string[] args, HttpClient? httpClient = null)
     {
         var batchFile = ArgUtil.Get(args, "--file", "");
         if (string.IsNullOrEmpty(batchFile))
         {
             Console.Error.WriteLine("--file <path> is required");
-            return Task.FromResult(1);
+            return 1;
         }
         if (!System.IO.File.Exists(batchFile))
         {
             Console.Error.WriteLine($"batch file not found: {batchFile}");
-            return Task.FromResult(2);
+            return 2;
         }
 
         // Read + decode the batch via BatchSerializer. Pre-flight validation surfaces a
@@ -543,7 +610,7 @@ internal static class SubmitBatchCommand
         catch (Exception ex)
         {
             Console.Error.WriteLine($"failed to read {batchFile}: {ex.Message}");
-            return Task.FromResult(3);
+            return 3;
         }
 
         Neo.L2.L2BatchCommitment commitment;
@@ -555,7 +622,7 @@ internal static class SubmitBatchCommand
         {
             Console.Error.WriteLine($"batch decode failed: {ex.Message}");
             Console.Error.WriteLine("Submit aborted — fix the encoding before re-running.");
-            return Task.FromResult(4);
+            return 4;
         }
 
         Console.WriteLine($"Decoded batch from {batchFile} ({bytes.Length} bytes):");
@@ -567,36 +634,61 @@ internal static class SubmitBatchCommand
         Console.WriteLine($"  proofType     : {commitment.ProofType} ({commitment.Proof.Length} bytes)");
         if (ArgUtil.HasFlag(args, "--broadcast"))
         {
-            var settlementManagerValue = ArgUtil.Get(args, "--settlement-manager", "");
+            var settlementManagerValue = ArgUtil.FirstNonEmpty(
+                ArgUtil.Get(args, "--rollup-hub", ""),
+                ArgUtil.Get(args, "--settlement-manager", ""));
             if (!UInt160.TryParse(settlementManagerValue, out var settlementManager)
                 || settlementManager == UInt160.Zero)
             {
-                Console.Error.WriteLine("--settlement-manager <UInt160> is required with --broadcast");
-                return Task.FromResult(5);
+                Console.Error.WriteLine("--rollup-hub (or --settlement-manager) <UInt160> is required with --broadcast");
+                return 5;
             }
 
             if (!TryParseHash256(args, "--l1-message-hash", out var l1MessageHash)
                 || !TryParseHash256(args, "--block-context-hash", out var blockContextHash))
             {
-                return Task.FromResult(6);
+                return 6;
             }
+
+            var atomicFinalize = ArgUtil.HasFlag(args, "--atomic-finalize")
+                || commitment.ProofType == ProofType.Zk;
+            var method = atomicFinalize ? "submitAndFinalizeBatch" : "submitBatch";
 
             using var scriptBuilder = new ScriptBuilder();
             scriptBuilder.EmitDynamicCall(
                 settlementManager,
-                "submitBatch",
+                method,
                 CallFlags.All,
                 bytes,
                 l1MessageHash.GetSpan().ToArray(),
                 blockContextHash.GetSpan().ToArray());
-            return OperatorTransactionBroadcaster.BroadcastAsync(
+
+            var broadcastRc = await OperatorTransactionBroadcaster.BroadcastAsync(
                 args,
                 scriptBuilder.ToArray(),
-                $"batch {commitment.ChainId}/{commitment.BatchNumber} submission");
+                $"batch {commitment.ChainId}/{commitment.BatchNumber} submission ({method})",
+                httpClient).ConfigureAwait(false);
+            if (broadcastRc != 0)
+            {
+                Console.Error.WriteLine($"Batch submission failed with exit code {broadcastRc}");
+                return broadcastRc;
+            }
+
+            // Emit structured confirmation
+            Console.WriteLine();
+            Console.WriteLine($"✓ Batch {commitment.BatchNumber} submitted to L1 SettlementManager:");
+            Console.WriteLine($"  Method           : {method}");
+            Console.WriteLine($"  Chain ID         : {commitment.ChainId}");
+            Console.WriteLine($"  Block range      : {commitment.FirstBlock}-{commitment.LastBlock}");
+            Console.WriteLine($"  Pre-state root   : {commitment.PreStateRoot}");
+            Console.WriteLine($"  Post-state root  : {commitment.PostStateRoot}");
+            Console.WriteLine($"  Proof type       : {commitment.ProofType}");
+            Console.WriteLine($"  Atomic finalize  : {(atomicFinalize ? "true" : "false")}");
+            return 0;
         }
         Console.WriteLine();
         Console.WriteLine($"Validation passed. Add --broadcast plus RPC, network, contract, public-input hashes, and a signer to submit on L1.");
-        return Task.FromResult(0);
+        return 0;
     }
 
     private static bool TryParseHash256(string[] args, string option, out UInt256 hash)

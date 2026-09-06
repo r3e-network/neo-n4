@@ -11,6 +11,7 @@ using Neo.Cryptography;
 using Neo.Cryptography.ECC;
 using Neo.Json;
 using Neo.L2;
+using Neo.L2.Batch;
 using Neo.L2.Bridge.Cli.Commands;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Messaging;
@@ -70,14 +71,16 @@ public class UT_E2E_L1RpcPollers_FullStack
         var addr = UInt160.Parse("0x" + new string('1', 40));
         foreach (var (pub, _) in keys) stub.RegisterSequencer(TestChainId, pub, addr);
 
-        // Enqueue 2 forced-inclusion entries on L1.
+        // Enqueue 2 forced-inclusion entries on L1. The queue's txHash is the canonical
+        // transaction id (TransactionHasher): the drained entries flow through
+        // RpcForcedInclusionSource.DecodeEntry, which re-derives it from the bytes.
         var sender = UInt160.Parse("0x" + new string('2', 40));
-        var tx1 = new byte[] { 0xAA };
-        var tx2 = new byte[] { 0xBB };
-        var tx1Hash = new UInt256(Crypto.Hash256(tx1));
-        var tx2Hash = new UInt256(Crypto.Hash256(tx2));
-        var nonce1 = stub.EnqueueForcedTx(TestChainId, sender, tx1Hash, tx1, deadline: 100);
-        var nonce2 = stub.EnqueueForcedTx(TestChainId, sender, tx2Hash, tx2, deadline: 200);
+        var tx1 = RealTransaction(1);
+        var tx2 = RealTransaction(2);
+        var tx1Hash = TransactionHasher.Hash(tx1);
+        var tx2Hash = TransactionHasher.Hash(tx2);
+        var nonce1 = stub.EnqueueForcedTx(TestChainId, sender, tx1Hash, tx1.ToArray(), deadline: 100);
+        var nonce2 = stub.EnqueueForcedTx(TestChainId, sender, tx2Hash, tx2.ToArray(), deadline: 200);
 
         // Enqueue 2 L1→L2 messages on L1.
         var l1Sender = UInt160.Parse("0x" + new string('3', 40));
@@ -216,6 +219,36 @@ public class UT_E2E_L1RpcPollers_FullStack
         var priv = new byte[32];
         for (var i = 0; i < 32; i++) priv[i] = (byte)(seed + i);
         return (ECCurve.Secp256r1.G * priv, priv);
+    }
+
+    private static ReadOnlyMemory<byte> RealTransaction(uint nonce)
+    {
+        var transaction = new Neo.Network.P2P.Payloads.Transaction
+        {
+            Nonce = nonce,
+            SystemFee = 1_000_000,
+            NetworkFee = 1_000_000,
+            ValidUntilBlock = 1_000,
+            Signers =
+            [
+                new Neo.Network.P2P.Payloads.Signer
+                {
+                    Account = UInt160.Parse("0x" + new string('3', 40)),
+                    Scopes = Neo.Network.P2P.Payloads.WitnessScope.CalledByEntry,
+                },
+            ],
+            Attributes = Array.Empty<Neo.Network.P2P.Payloads.TransactionAttribute>(),
+            Script = new byte[] { 0x01 },
+            Witnesses =
+            [
+                new Neo.Network.P2P.Payloads.Witness
+                {
+                    InvocationScript = Array.Empty<byte>(),
+                    VerificationScript = Array.Empty<byte>(),
+                },
+            ],
+        };
+        return Neo.Extensions.IO.ISerializableExtensions.ToArray(transaction);
     }
 
     /// <summary>

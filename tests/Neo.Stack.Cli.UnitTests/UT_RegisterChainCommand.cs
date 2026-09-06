@@ -352,4 +352,53 @@ public class UT_RegisterChainCommand
         ]);
         Assert.AreEqual(4, rc);
     }
+
+    [TestMethod]
+    public async Task Register_BroadcastRequiresAllWalletParameters()
+    {
+        // Test complete wallet integration path: WIF/signer-command + RPC + network magic + contract hash
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "chain.config.json"), MinimalConfigJson(1099));
+
+        var rc = await RegisterChainCommand.RunAsync(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+            "--operator", "0x" + new string('a', 40),
+            "--verifier", "0x" + new string('b', 40),
+            "--bridge", "0x" + new string('c', 40),
+            "--message", "0x" + new string('d', 40),
+            "--genesis-state-root", GenesisStateRoot,
+            "--broadcast",
+            // Missing --chain-registry
+        });
+
+        Assert.AreEqual(5, rc, "Missing chain-registry must fail with exit code 5");
+    }
+
+    [TestMethod]
+    public async Task Register_BroadcastRejectsInvalidRpcUrl()
+    {
+        // Preflight validation catches malformed RPC endpoints before any submission attempt
+        Directory.CreateDirectory(_tempDir);
+        File.WriteAllText(Path.Combine(_tempDir, "chain.config.json"), MinimalConfigJson(1099));
+
+        var rc = await RegisterChainCommand.RunAsync(new[]
+        {
+            "--chain-id", "1099",
+            "--output", _tempDir,
+            "--operator", "0x" + new string('a', 40),
+            "--verifier", "0x" + new string('b', 40),
+            "--bridge", "0x" + new string('c', 40),
+            "--message", "0x" + new string('d', 40),
+            "--genesis-state-root", GenesisStateRoot,
+            "--broadcast",
+            "--rollup-hub", "0x" + new string('e', 40),
+            "--rpc", "not-a-valid-url", // Invalid URL format
+            "--expected-network", "894710606",
+        });
+
+        // Should fail at RPC validation (exit code 10) or missing WIF (exit code 12)
+        Assert.IsTrue(rc == 10 || rc == 12, $"Invalid RPC URL must be rejected early (got {rc})");
+    }
 }

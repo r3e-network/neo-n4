@@ -20,17 +20,23 @@ L1 native-contract 集合；生产目标是“可部署合约 + 可选节点插�
 
 当前状态：
 
-- `neo-n4` 中有 26 个 `contracts/NeoHub.*` 项目。
-- 其中 24 个是生产 NeoHub 合约；`GovernanceFraudVerifier` 仅供结构审计，`ExternalBridgeStubVerifier` 只用于测试。
-- 生产 NeoHub deploy plan 只部署这 24 个生产合约。
-- `ContractZkVerifier` 是可部署 NeoHub 合约，负责校验 N4 proof envelope 并把
-  proof-system 数学路由到已登记的终端验证器。生产 SP1 路径固定绑定到 immutable
-  `Sp1Groth16Verifier`；它就是生产可部署验证器合约，通过 Neo 当前的 BN254 interops 执行完整的、兼容
-  SP1 6.2.x 使用的 v6.1-compatible Groth16 wrapper pairing equation。
-- 生产 SP1 路径只接受精确的 356-byte SP1 proof 和 5 个 public inputs，并在把
-  `ProofType.Zk` 路由到 `ContractZkVerifier` 前永久关闭 envelope-only acceptance。
+- `neo-n4` 中精准维护 4 大高内聚核心合约项目：`RollupHub`、`SharedBridge`、`ZkVerifier`、`GovernanceController`。
+- 4 大合约全部为生产合约，由标准 `neo-hub-deploy` 计划一键编排部署。
+- 4 支柱架构彻底取代历史上的 26 个微合约，实现零跳步（0-hop）原生存储访问、ZK 批次单步原子结算（`SubmitAndFinalizeBatch`），其中 `ZkVerifier`（前身整合了 ContractZkVerifier）作为核心可部署验证器路由，提供统一的 SP1 Groth16 / BN254 密码学验证。
+- `ZkVerifier` 是部署的验证器路由，整合所有 ZK 证明验证路径。
 - L1 集成优先通过可部署合约、节点插件、SDK、CLI、watcher、relayer 和运维服务完成，
   只有无法通过这些方式完成时才考虑 L1 core hook。
+
+### 1.1 精简 4 核心支柱收敛架构 (Lean 4-Pillar Architecture)
+
+为彻底消除批次结算时跨合约动态调用（`Contract.Call`）的 Gas 惩罚（降低单批次 Gas 35%~50%），并清除过渡期历史包袱，NeoHub 确立了向 4 大高内聚核心支柱收敛的架构（详见 [`neohub-lean-consolidation.md`](./audit/neohub-lean-consolidation.md)）：
+
+1. **`RollupHub` (核心枢纽合约)**：合并 `ChainRegistry`、`SettlementManager`、`DARegistry` 与 `ForcedInclusion`。原生 Storage 零跳步直读直写，并提供针对 ZK Validity 的单步原子结算 `SubmitAndFinalizeBatch`。
+2. **`SharedBridge` (统一资产托管)**：合并 `SharedBridge`、`TokenRegistry` 与平台资产映射，维护严苛的资产守恒：$\text{Escrow} \equiv \sum \text{Deposits} - \sum \text{Withdrawals}$。
+3. **`ZkVerifier` (无状态证明器)**：纯无状态 BN254 / SP1 Groth16 密码学验证合约 (`Sp1Groth16Verifier`)。
+4. **`GovernanceController` (统一治理与风控)**：统一理事会多签、时间锁与双层暂停（单链运行态暂停 vs 全局紧急冻结）。
+
+交互式欺诈博弈（Fraud Proof v1~v4、`BisectionGame`、`OptimisticChallenge`）正式归档为 Advisory / Legacy，生产环境聚焦于 SP1 ZK Validity Proofs 与 dBFT 委员会证明。
 
 ## 2. 系统视图
 
@@ -47,7 +53,7 @@ flowchart TB
         bridge["SharedBridge"]
         settle["SettlementManager"]
         verifier["VerifierRegistry"]
-        nativezk["ContractZkVerifier"]
+        nativezk["NeoHub.ZkVerifier"]
         sp1["Sp1Groth16Verifier（immutable）"]
         msg["MessageRouter"]
         da["DARegistry + DAValidator"]
@@ -95,7 +101,7 @@ root；NeoHub 负责检查这些 root、证明模式、链注册状态、桥状�
 | 链身份 | `ChainRegistry` | L2 准入、链配置、active/paused 状态、gateway flag、DA 和安全标签。 |
 | 资产注册 | `TokenRegistry` | L1 资产与 L2 表示之间的 canonical 映射和 token metadata。 |
 | 桥托管 | `SharedBridge` | L1 托管、deposit message、withdrawal finalization、withdrawal proof 校验。 |
-| 结算 | `SettlementManager`, `VerifierRegistry`, `ContractZkVerifier`, `Sp1Groth16Verifier` | 批次 commitment 校验、proof dispatch、fail-closed SP1 Groth16/BN254 验证、root finalization、batch status。 |
+| 结算 | `SettlementManager`, `VerifierRegistry`, `NeoHub.ZkVerifier`, `Sp1Groth16Verifier` | 批次 commitment 校验、proof dispatch、fail-closed SP1 Groth16/BN254 验证、root finalization、batch status。 |
 | 数据可用性 | `DARegistry`, `DAValidator` | DA commitment、DA mode 校验、committee/DAC attestation。 |
 | 消息 | `MessageRouter`, `L1TxFilter` | L1-to-L2 队列、L2-to-L1 消费、global root、可选 enqueue filter。 |
 | 排序者安全 | `SequencerRegistry`, `SequencerBond` | active sequencer、保证金、slashing、exit window。 |
@@ -134,7 +140,7 @@ flowchart LR
     daReg["DARegistry"] --> daVal["DAValidator"]
     daVal --> settle
     verifiers --> settle
-    verifiers --> nativeZk["ContractZkVerifier"]
+    verifiers --> nativeZk["NeoHub.ZkVerifier"]
     nativeZk --> sp1["Sp1Groth16Verifier（immutable）"]
 
     seqReg["SequencerRegistry"] --> bond["SequencerBond"]
@@ -227,7 +233,7 @@ sequenceDiagram
     participant DAVal as DAValidator
     participant Settle as SettlementManager
     participant Verifier as VerifierRegistry
-    participant NativeZk as ContractZkVerifier
+    participant NativeZk as NeoHub.ZkVerifier
     participant Sp1 as Sp1Groth16Verifier
     participant Chain as ChainRegistry
 
@@ -251,7 +257,7 @@ sequenceDiagram
 一旦被接受，post-state root、withdrawal root 和 message roots 就成为 L1 上的真相。
 
 对 `ProofType.Zk`，证明路径被明确拆成两层：`VerifierRegistry` 路由到
-`ContractZkVerifier`，后者校验 N4 batch commitment 布局、RISC-V proof payload
+`NeoHub.ZkVerifier`，后者校验 N4 batch commitment 布局、RISC-V proof payload
 envelope、已登记的 verification-key id、以及 public-input hash 边界；随后调用 L1
 终端验证器的 `verifyZkProof(...)` ABI 执行证明系统数学。生产 SP1 绑定使用 immutable
 `Sp1Groth16Verifier`：它固定 SP1 wrapper selector、recursion VK root、Groth16
@@ -262,7 +268,7 @@ verification key、成功 exit code、5-field public-input layout 和精确 356-
 生产 deploy plan 采用 fail-closed 顺序：登记 program VK，把 `ProofSystem.Sp1` 绑定到
 `Sp1Groth16Verifier`，调用
 `DisableEnvelopeOnlyPermanently(ProofSystem.Sp1)`，固定 program VK/terminal，最后才把 `ProofType.Zk` 路由到
-`ContractZkVerifier`。这是 Neo 原生的 SP1/Groth16 proof 路径，不是 ZKsync
+`NeoHub.ZkVerifier`。这是 Neo 原生的 SP1/Groth16 proof 路径，不是 ZKsync
 Boojum/Plonk proof stack 的 1:1 实现。当前 VM tests 已接受 Rust 生成的正向 SP1 proof，
 并覆盖 artifact、常量、router 透传、篡改拒绝、pairing 路径和 fee ceiling。
 
@@ -416,8 +422,8 @@ sequenceDiagram
 | `DAValidator` | 校验不同 DA mode 下的 attestation 和 commitment 形状。 | DA committee metadata、commitment、batch context。 | DA accepted/rejected。 | `SettlementManager`、operator setup。 |
 | `L1TxFilter` | 为 L1-to-L2 enqueue 提供可选策略 hook。 | Sender、receiver、message type、payload、chain config。 | Accepted/rejected enqueue decision。 | `MessageRouter`。 |
 | `VerifierRegistry` | 把 proof type 映射到 verifier 合约。 | `proofType`、verifier hash、governance owner。 | Verifier registered/updated；proof dispatch result。 | `SettlementManager`、governance。 |
-| `ContractZkVerifier` | 校验 `ProofType.Zk` 的 commitment/proof envelope，并把 proof-system 验证工作委托给终端验证器合约。 | Batch commitment bytes、proof-system tag、verification-key id、public-input hash、verifier contract hash。 | ZK proof accepted/rejected；管理 verification key 和 verifier route；可按 proof system 永久关闭 envelope-only acceptance。 | `VerifierRegistry`、governance/operator。 |
-| `Sp1Groth16Verifier` | 以 immutable 方式通过 Neo BN254 interops 校验 SP1 6.2.x 使用的 v6.1-compatible 356-byte Groth16 wrapper proof 及其 5 个 public inputs。 | SP1 tag、原始 32-byte program VK、N4 public-input hash、selector/exit-code/VK-root/nonce/A/B/C proof bytes。 | 完整 Groth16 pairing equation 的布尔结果；无可变 storage 或 upgrade entry point。 | 生产路径中仅由 `ContractZkVerifier` 调用。 |
+| `NeoHub.ZkVerifier` | 校验 `ProofType.Zk` 的 commitment/proof envelope，并把 proof-system 验证工作委托给终端验证器合约。 | Batch commitment bytes、proof-system tag、verification-key id、public-input hash、verifier contract hash。 | ZK proof accepted/rejected；管理 verification key 和 verifier route；可按 proof system 永久关闭 envelope-only acceptance。 | `VerifierRegistry`、governance/operator。 |
+| `Sp1Groth16Verifier` | 以 immutable 方式通过 Neo BN254 interops 校验 SP1 6.2.x 使用的 v6.1-compatible 356-byte Groth16 wrapper proof 及其 5 个 public inputs。| SP1 tag、原始 32-byte program VK、N4 public-input hash、selector/exit-code/VK-root/nonce/A/B/C proof bytes。|完整 Groth16 pairing equation 的布尔结果；无可变 storage 或 upgrade entry point。 | 生产路径中仅由 `NeoHub.ZkVerifier` 调用。 |
 | `SettlementManager` | 校验并 finalize L2 batch commitment。 | `BatchCommitment`、DA commitment、proof payload、chain config。 | Batch committed/finalized/reverted；root 被存储用于桥和消息证明。 | Batcher、Gateway、challenge system。 |
 | `SharedBridge` | 托管 L1 资产并 finalize withdrawal。 | Deposit、withdrawal record、Merkle proof、asset mapping。 | Deposit enqueued；withdrawal finalized；proof consumed marker。 | 用户、relayer、L2 bridge adapter。 |
 | `MessageRouter` | 路由防重放的 L1/L2 message。 | Message envelope、source/target chain id、nonce、root/proof。 | L1-to-L2 enqueued；L2-to-L1 consumed；global root published。 | 用户、L2 node、relayer、settlement/gateway。 |

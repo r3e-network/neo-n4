@@ -316,4 +316,310 @@ public class UT_BatchSerializer
         StringAssert.Contains(ex.Message, "ProofType");
         StringAssert.Contains(ex.Message, "99");
     }
+
+    [TestMethod]
+    [DataRow(0x1337BEEFu)]
+    [DataRow(0xCAFED00Du)]
+    [DataRow(0xDEADBEEFu)]
+    [DataRow(0x00FF00FFu)]
+    public void Commitment_Decode_NeverCrashes_OnFuzzedBytes(uint seed)
+    {
+        var rng = new Random((int)(seed ^ 0xBAAD_F00Du));
+        for (var i = 0; i < 500; i++)
+        {
+            var len = rng.Next(0, 2048);
+            var buf = new byte[len];
+            rng.NextBytes(buf);
+            try
+            {
+                _ = BatchSerializer.Decode(buf);
+            }
+            catch (ArgumentException) { /* expected on malformed wire */ }
+            catch (System.IO.InvalidDataException) { /* expected on malformed wire */ }
+            catch (Exception ex) when (
+                ex is not OutOfMemoryException &&
+                ex is not StackOverflowException &&
+                ex is not OperationCanceledException)
+            {
+                Assert.Fail($"seed 0x{seed:X8} iter {i}: BatchSerializer.Decode threw " +
+                    $"{ex.GetType().Name} on random {len}-byte input: {ex.Message}");
+            }
+        }
+    }
+
+    [TestMethod]
+    [DataRow(0x55AA55AAu)]
+    [DataRow(0xAA55AA55u)]
+    public void PublicInputs_Decode_NeverCrashes_OnFuzzedBytes(uint seed)
+    {
+        var rng = new Random((int)(seed ^ 0x1234_9876u));
+        for (var i = 0; i < 500; i++)
+        {
+            var len = rng.Next(0, 1024);
+            var buf = new byte[len];
+            rng.NextBytes(buf);
+            try
+            {
+                _ = BatchSerializer.DecodePublicInputs(buf);
+            }
+            catch (ArgumentException) { /* expected on malformed wire */ }
+            catch (System.IO.InvalidDataException) { /* expected on malformed wire */ }
+            catch (Exception ex) when (
+                ex is not OutOfMemoryException &&
+                ex is not StackOverflowException &&
+                ex is not OperationCanceledException)
+            {
+                Assert.Fail($"seed 0x{seed:X8} iter {i}: BatchSerializer.DecodePublicInputs threw " +
+                    $"{ex.GetType().Name} on random {len}-byte input: {ex.Message}");
+            }
+        }
+    }
+
+    [TestMethod]
+    [DataRow(0x99887766u)]
+    [DataRow(0x55443322u)]
+    public void Commitment_Truncation_Fuzz(uint seed)
+    {
+        var rng = new Random((int)(seed ^ 0x6677_8899u));
+        for (var i = 0; i < 50; i++)
+        {
+            var proofLen = rng.Next(0, 256);
+            var proof = new byte[proofLen];
+            rng.NextBytes(proof);
+            var firstBlock = (ulong)rng.Next(1, 1000);
+            var lastBlock = firstBlock + (ulong)rng.Next(0, 100);
+
+            var commitment = Sample(proof) with
+            {
+                ChainId = (uint)rng.Next(1, int.MaxValue),
+                BatchNumber = (ulong)rng.Next(1, int.MaxValue),
+                FirstBlock = firstBlock,
+                LastBlock = lastBlock,
+                ProofType = (ProofType)rng.Next(0, 3),
+            };
+
+            var encoded = BatchSerializer.Encode(commitment);
+            var lop = rng.Next(1, encoded.Length);
+            var truncated = encoded[..^lop];
+
+            var caught = false;
+            try
+            {
+                _ = BatchSerializer.Decode(truncated);
+            }
+            catch (ArgumentException) { caught = true; }
+            catch (System.IO.InvalidDataException) { caught = true; }
+
+            Assert.IsTrue(caught,
+                $"seed 0x{seed:X8} iter {i}: truncated commitment ({lop}B removed) accepted without exception");
+        }
+    }
+
+    [TestMethod]
+    [DataRow(0x11223344u)]
+    [DataRow(0x55667788u)]
+    public void Commitment_RoundTrip_IsIdentity_AcrossFuzzedInputs(uint seed)
+    {
+        var rng = new Random((int)(seed ^ 0xA1B2_C3D4u));
+        for (var i = 0; i < 100; i++)
+        {
+            var proofLen = rng.Next(0, 1024);
+            var proof = new byte[proofLen];
+            rng.NextBytes(proof);
+            var firstBlock = (ulong)rng.Next(1, 10000);
+            var lastBlock = firstBlock + (ulong)rng.Next(0, 500);
+
+            var original = new L2BatchCommitment
+            {
+                ChainId = (uint)rng.Next(1, int.MaxValue),
+                BatchNumber = (ulong)rng.Next(1, int.MaxValue),
+                FirstBlock = firstBlock,
+                LastBlock = lastBlock,
+                PreStateRoot = RandomRoot(rng),
+                PostStateRoot = RandomRoot(rng),
+                TxRoot = RandomRoot(rng),
+                ReceiptRoot = RandomRoot(rng),
+                WithdrawalRoot = RandomRoot(rng),
+                L2ToL1MessageRoot = RandomRoot(rng),
+                L2ToL2MessageRoot = RandomRoot(rng),
+                DACommitment = RandomRoot(rng),
+                PublicInputHash = RandomRoot(rng),
+                ProofType = (ProofType)rng.Next(0, 3),
+                Proof = proof,
+            };
+
+            var encoded = BatchSerializer.Encode(original);
+            var decoded = BatchSerializer.Decode(encoded);
+            Assert.AreEqual(original, decoded);
+
+            var reEncoded = BatchSerializer.Encode(decoded);
+            CollectionAssert.AreEqual(encoded, reEncoded);
+        }
+    }
+
+    private static UInt256 RandomRoot(Random rng)
+    {
+        var b = new byte[32];
+        rng.NextBytes(b);
+        return new UInt256(b);
+    }
+
+    // === PROPERTY-BASED FUZZ TESTS FOR PUBLICINPUTS ===
+
+    [TestMethod]
+    public void EncodePublicInputs_RandomInputs_ProducesValidWireFormat()
+    {
+        var rng = new Random(unchecked((int)0xDEADBEEFUL));
+        
+        for (int i = 0; i < 100; i++)
+        {
+            var inputs = GenerateRandomPublicInputs(rng);
+            var encoded = BatchSerializer.EncodePublicInputs(inputs);
+            Assert.AreEqual(BatchSerializer.PublicInputsSize, encoded.Length, $"Wrong size at iteration {i}");
+            
+            var decoded = BatchSerializer.DecodePublicInputs(encoded);
+            
+            Assert.AreEqual(inputs.ChainId, decoded.ChainId, $"ChainId mismatch at iteration {i}");
+            Assert.AreEqual(inputs.BatchNumber, decoded.BatchNumber, $"BatchNumber mismatch at iteration {i}");
+            Assert.AreEqual(inputs.FirstBlock, decoded.FirstBlock, $"FirstBlock mismatch at iteration {i}");
+            Assert.AreEqual(inputs.LastBlock, decoded.LastBlock, $"LastBlock mismatch at iteration {i}");
+            Assert.AreEqual(inputs.PreStateRoot, decoded.PreStateRoot, $"PreStateRoot mismatch at iteration {i}");
+            Assert.AreEqual(inputs.PostStateRoot, decoded.PostStateRoot, $"PostStateRoot mismatch at iteration {i}");
+            Assert.AreEqual(inputs.TxRoot, decoded.TxRoot, $"TxRoot mismatch at iteration {i}");
+            Assert.AreEqual(inputs.ReceiptRoot, decoded.ReceiptRoot, $"ReceiptRoot mismatch at iteration {i}");
+            Assert.AreEqual(inputs.WithdrawalRoot, decoded.WithdrawalRoot, $"WithdrawalRoot mismatch at iteration {i}");
+            Assert.AreEqual(inputs.L2ToL1MessageRoot, decoded.L2ToL1MessageRoot, $"L2ToL1MessageRoot mismatch at iteration {i}");
+            Assert.AreEqual(inputs.L2ToL2MessageRoot, decoded.L2ToL2MessageRoot, $"L2ToL2MessageRoot mismatch at iteration {i}");
+            Assert.AreEqual(inputs.L1MessageHash, decoded.L1MessageHash, $"L1MessageHash mismatch at iteration {i}");
+            Assert.AreEqual(inputs.DACommitment, decoded.DACommitment, $"DACommitment mismatch at iteration {i}");
+            Assert.AreEqual(inputs.BlockContextHash, decoded.BlockContextHash, $"BlockContextHash mismatch at iteration {i}");
+        }
+    }
+
+    [TestMethod]
+    public void EncodePublicInputs_ZeroValues_Succeeds()
+    {
+        var inputs = new PublicInputs
+        {
+            ChainId = 0,
+            BatchNumber = 0,
+            FirstBlock = 0,
+            LastBlock = 0,
+            PreStateRoot = UInt256.Zero,
+            PostStateRoot = UInt256.Zero,
+            TxRoot = UInt256.Zero,
+            ReceiptRoot = UInt256.Zero,
+            WithdrawalRoot = UInt256.Zero,
+            L2ToL1MessageRoot = UInt256.Zero,
+            L2ToL2MessageRoot = UInt256.Zero,
+            L1MessageHash = UInt256.Zero,
+            DACommitment = UInt256.Zero,
+            BlockContextHash = UInt256.Zero
+        };
+
+        var encoded = BatchSerializer.EncodePublicInputs(inputs);
+        Assert.AreEqual(BatchSerializer.PublicInputsSize, encoded.Length);
+        
+        var decoded = BatchSerializer.DecodePublicInputs(encoded);
+        Assert.AreEqual(inputs.ChainId, decoded.ChainId);
+        Assert.AreEqual(inputs.BatchNumber, decoded.BatchNumber);
+        Assert.AreEqual(inputs.FirstBlock, decoded.FirstBlock);
+    }
+
+    [TestMethod]
+    public void EncodePublicInputs_MaxValues_WireFormatValid()
+    {
+        var inputs = new PublicInputs
+        {
+            ChainId = uint.MaxValue,
+            BatchNumber = ulong.MaxValue,
+            FirstBlock = ulong.MaxValue,
+            LastBlock = ulong.MaxValue,
+            PreStateRoot = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            PostStateRoot = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            TxRoot = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            ReceiptRoot = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            WithdrawalRoot = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            L2ToL1MessageRoot = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            L2ToL2MessageRoot = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            L1MessageHash = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            DACommitment = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+            BlockContextHash = UInt256.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+        };
+
+        var encoded = BatchSerializer.EncodePublicInputs(inputs);
+        Assert.AreEqual(BatchSerializer.PublicInputsSize, encoded.Length);
+        
+        var decoded = BatchSerializer.DecodePublicInputs(encoded);
+        Assert.AreEqual(inputs.ChainId, decoded.ChainId);
+        Assert.AreEqual(inputs.BatchNumber, decoded.BatchNumber);
+    }
+
+    [TestMethod]
+    public void EncodePublicInputs_DeterministicOutput_IdenticalEncoding()
+    {
+        var rng = new Random(unchecked((int)0xCAFEBABEUL));
+        
+        for (int i = 0; i < 50; i++)
+        {
+            var a = GenerateRandomPublicInputs(rng);
+            var b = GenerateRandomPublicInputs(rng);
+            
+            // Use identical inputs twice
+            var encoded1 = BatchSerializer.EncodePublicInputs(a);
+            var encoded2 = BatchSerializer.EncodePublicInputs(a);
+            
+            CollectionAssert.AreEqual(encoded1, encoded2, $"Non-deterministic encoding at iteration {i}");
+        }
+    }
+
+    [TestMethod]
+    public void Fuzz_PublicInputs_100Iterations_ComprehensivePropertyCheck()
+    {
+        var rng = new Random(unchecked((int)0x98765432UL));
+        
+        for (int i = 0; i < 100; i++)
+        {
+            var original = GenerateRandomPublicInputs(rng);
+            var encoded = BatchSerializer.EncodePublicInputs(original);
+            var decoded = BatchSerializer.DecodePublicInputs(encoded);
+            
+            // Verify all fields match after round-trip
+            Assert.AreEqual(original.ChainId, decoded.ChainId, $"Iteration {i}: ChainId mismatch");
+            Assert.AreEqual(original.BatchNumber, decoded.BatchNumber, $"Iteration {i}: BatchNumber mismatch");
+            Assert.AreEqual(original.FirstBlock, decoded.FirstBlock, $"Iteration {i}: FirstBlock mismatch");
+            Assert.AreEqual(original.LastBlock, decoded.LastBlock, $"Iteration {i}: LastBlock mismatch");
+            Assert.AreEqual(original.PreStateRoot, decoded.PreStateRoot, $"Iteration {i}: PreStateRoot mismatch");
+            Assert.AreEqual(original.PostStateRoot, decoded.PostStateRoot, $"Iteration {i}: PostStateRoot mismatch");
+            Assert.AreEqual(original.TxRoot, decoded.TxRoot, $"Iteration {i}: TxRoot mismatch");
+            Assert.AreEqual(original.ReceiptRoot, decoded.ReceiptRoot, $"Iteration {i}: ReceiptRoot mismatch");
+            Assert.AreEqual(original.WithdrawalRoot, decoded.WithdrawalRoot, $"Iteration {i}: WithdrawalRoot mismatch");
+            Assert.AreEqual(original.L2ToL1MessageRoot, decoded.L2ToL1MessageRoot, $"Iteration {i}: L2ToL1MessageRoot mismatch");
+            Assert.AreEqual(original.L2ToL2MessageRoot, decoded.L2ToL2MessageRoot, $"Iteration {i}: L2ToL2MessageRoot mismatch");
+            Assert.AreEqual(original.L1MessageHash, decoded.L1MessageHash, $"Iteration {i}: L1MessageHash mismatch");
+            Assert.AreEqual(original.DACommitment, decoded.DACommitment, $"Iteration {i}: DACommitment mismatch");
+            Assert.AreEqual(original.BlockContextHash, decoded.BlockContextHash, $"Iteration {i}: BlockContextHash mismatch");
+        }
+    }
+
+    private static PublicInputs GenerateRandomPublicInputs(Random rng)
+    {
+        return new PublicInputs
+        {
+            ChainId = (uint)rng.Next(),
+            BatchNumber = (ulong)rng.Next(1, int.MaxValue),
+            FirstBlock = (ulong)rng.Next(1, 100000),
+            LastBlock = (ulong)rng.Next(100000, 200000),
+            PreStateRoot = RandomRoot(rng),
+            PostStateRoot = RandomRoot(rng),
+            TxRoot = RandomRoot(rng),
+            ReceiptRoot = RandomRoot(rng),
+            WithdrawalRoot = RandomRoot(rng),
+            L2ToL1MessageRoot = RandomRoot(rng),
+            L2ToL2MessageRoot = RandomRoot(rng),
+            L1MessageHash = RandomRoot(rng),
+            DACommitment = RandomRoot(rng),
+            BlockContextHash = RandomRoot(rng)
+        };
+    }
 }

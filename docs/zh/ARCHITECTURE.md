@@ -27,19 +27,14 @@ Neo Gateway(可选)              证明聚合、L2 间消息根
 
 L2 链的应用方向:RWA、稳定币、DEX、游戏、企业、隐私。
 
-## §3.2 NeoHub 组件
+## §3.2 NeoHub 组件 (Lean 4 核心支柱架构)
 
-L1 核心合约套件:
+L1 核心合约套件精炼为 4 个高内聚支柱，采用 0-hop 原生存储，大幅降低 Gas 并提供原子单步终局化结算：
 
-- **ChainRegistry** —— 注册 L2 链;每条记录 = `{chainId, operatorManager, verifier, bridgeAdapter, messageAdapter, securityLevel(0-3), daMode(0-3), gatewayEnabled, permissionlessExit, active}`
-- **SharedBridge** —— 托管规范 GAS / NEO / USDT / USDC / BTC / NEP-17;铸销规则;充值 + 提款最终化
-- **SettlementManager** —— 接受 `L2BatchCommitment`(chainId、batchNumber、pre/postStateRoot、txRoot、receiptRoot、withdrawalRoot、l2ToL1MessageRoot、l2ToL2MessageRoot、daCommitment、publicInputHash、proofType、proof)
-- **VerifierRegistry** —— 可插拔验证器:Multisig、Optimistic、ZkRiscV、Aggregated
-- **MessageRouter** —— L1↔L2 与 L2↔L2 消息队列,带防重放
-- **TokenRegistry** —— 规范的 L1↔L2 资产映射
-- **DARegistry** —— 按链记录 DA 承诺
-- **GovernanceController** —— 准入策略、verifier 升级、桥的紧急控制
-- **EmergencyManager** —— 暂停、逃生通道
+- **支柱 1: `NeoHub.RollupHub`** —— 核心汇总枢纽，合并了链注册、批次结算（提供原子单步 `submitAndFinalizeBatch`）、DA 记录、强制入列队列与 Merkle 提款证明验证（`verifyWithdrawalLeaf`）。
+- **支柱 2: `NeoHub.SharedBridge`** —— 统一资产金库与跨链消息路由，托管平台资产（NEO、GAS、USDT、USDC、BTC、NEP-17），严格遵循资产守恒 $\text{Escrow} \equiv \sum \text{Deposits} - \sum \text{Withdrawals}$，管理代币映射（`RegisterMapping`），并处理跨链消息路由与防重放。
+- **支柱 3: `NeoHub.ZkVerifier`** —— 统一有效性证明器，整合信封路由、验证密钥注册表（VK）与基于 Neo 原生原语的 SP1 6.2.x BN254 Groth16 配对密码学计算。
+- **支柱 4: `NeoHub.GovernanceController`** —— 统一治理与风控中心，整合理事会多签、时间锁延时、双层紧急暂停（单链暂停 vs 全局冻结）以及定序器质押与罚没。
 
 ## §4 Neo Gateway
 

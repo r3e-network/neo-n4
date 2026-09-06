@@ -23,4 +23,7 @@ internal static class ArgUtil
         }
         return false;
     }
+
+    public static string FirstNonEmpty(string preferred, string fallback)
+        => preferred.Length > 0 ? preferred : fallback;
 }

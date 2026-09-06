@@ -43,13 +43,15 @@ public class UT_ApplicationEngineTransactionExecutor
         // Construct a minimal Neo transaction: 1 signer, no attributes, empty witness.
         // ApplicationEngine doesn't witness-verify when called directly via Run(); the
         // signer is exposed to the script via Runtime.CallingScriptHash / Runtime.Sender.
+        // ValidUntilBlock must cover BlockCtx.BlockIndex (777): the executor rejects
+        // transactions that are expired at their executing height.
         var tx = new Transaction
         {
             Version = 0,
             Nonce = 1,
             SystemFee = 0,
             NetworkFee = 0,
-            ValidUntilBlock = 100,
+            ValidUntilBlock = 1000,
             Script = script,
             Signers = new[] { new Signer { Account = UInt160.Zero, Scopes = WitnessScope.None } },
             Attributes = Array.Empty<TransactionAttribute>(),
@@ -113,6 +115,35 @@ public class UT_ApplicationEngineTransactionExecutor
         var result = await executor.ExecuteAsync(malformed, Ctx, BlockCtx);
         Assert.IsFalse(result.Receipt.Success);
         Assert.AreNotEqual(UInt256.Zero, result.TxHash, "raw-bytes hash must still be set");
+    }
+
+    [TestMethod]
+    public async Task ExpiredTransaction_FailsWithoutExecuting()
+    {
+        // Neo expires a transaction once the executing height exceeds ValidUntilBlock.
+        // ValidUntilBlock 776 < BlockCtx.BlockIndex 777: the executor must return a Failed
+        // receipt without running anything, mirroring the guest's batch-wide check.
+        var tx = new Transaction
+        {
+            Version = 0,
+            Nonce = 1,
+            SystemFee = 0,
+            NetworkFee = 0,
+            ValidUntilBlock = 776,
+            Script = new byte[] { (byte)OpCode.PUSH1 },
+            Signers = new[] { new Signer { Account = UInt160.Zero, Scopes = WitnessScope.None } },
+            Attributes = Array.Empty<TransactionAttribute>(),
+            Witnesses = new[] { new Witness { InvocationScript = ReadOnlyMemory<byte>.Empty, VerificationScript = ReadOnlyMemory<byte>.Empty } },
+        };
+        var serialized = Neo.Extensions.IO.ISerializableExtensions.ToArray(tx);
+
+        using var store = new InMemoryKeyValueStore();
+        var executor = new ApplicationEngineTransactionExecutor(store, DefaultSettings);
+
+        var result = await executor.ExecuteAsync(serialized, Ctx, BlockCtx);
+        Assert.IsFalse(result.Receipt.Success);
+        StringAssert.Contains(result.FailureReason, "transaction expired");
+        Assert.AreEqual(tx.Hash, result.TxHash);
     }
 
     // Note: a "happy-path runs PUSH1 → HALT, GasConsumed > 0" test would require

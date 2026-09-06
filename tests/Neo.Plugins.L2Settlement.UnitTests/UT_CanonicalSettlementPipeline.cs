@@ -1467,7 +1467,7 @@ public class UT_CanonicalSettlementPipeline
             preStateRoot: preStateRoot ?? (batchNumber == 1 ? H(1) : H(3)),
             transactions: new ReadOnlyMemory<byte>[]
             {
-                new byte[] { 1, 2, 3, checked((byte)batchNumber) },
+                SampleSignedTransaction(checked((uint)batchNumber)),
             },
             l1Messages: new[] { message },
             blockContext: new BatchBlockContext
@@ -1515,14 +1515,15 @@ public class UT_CanonicalSettlementPipeline
 
     private static SealedBatch BuildForcedBatch()
     {
-        var forcedTransaction = new byte[] { 0xF1, 0xF2, 0xF3 };
+        // Forced-inclusion batches carry canonical transaction leaves, so every transaction here
+        // is a real (parseable) Neo transaction and the recorded hash is its canonical id.
         var builder = new BatchBuilder(ChainId, 1, 10, H(1))
             .AddBlock(10, 1_700_000_000)
             .AddForcedTransaction(
                 44,
-                new UInt256(Crypto.Hash256(forcedTransaction)),
-                forcedTransaction)
-            .AddTransaction(new byte[] { 1, 2, 3, 4 })
+                TransactionHasher.Hash(SampleSignedTransaction(44)),
+                SampleSignedTransaction(44))
+            .AddTransaction(SampleSignedTransaction(45))
             .WithBlockContext(new BatchBlockContext
             {
                 L1FinalizedHeight = 900,
@@ -1532,6 +1533,36 @@ public class UT_CanonicalSettlementPipeline
                 Network = 860833102,
             });
         return builder.SealArtifact();
+    }
+
+    private static ReadOnlyMemory<byte> SampleSignedTransaction(uint nonce)
+    {
+        var transaction = new Neo.Network.P2P.Payloads.Transaction
+        {
+            Nonce = nonce,
+            SystemFee = 1_000_000,
+            NetworkFee = 1_000_000,
+            ValidUntilBlock = 1_000,
+            Signers =
+            [
+                new Neo.Network.P2P.Payloads.Signer
+                {
+                    Account = UInt160.Parse("0x" + new string('a', 40)),
+                    Scopes = Neo.Network.P2P.Payloads.WitnessScope.CalledByEntry,
+                },
+            ],
+            Attributes = [],
+            Script = new byte[] { 0x01 },
+            Witnesses =
+            [
+                new Neo.Network.P2P.Payloads.Witness
+                {
+                    InvocationScript = Array.Empty<byte>(),
+                    VerificationScript = Array.Empty<byte>(),
+                },
+            ],
+        };
+        return Neo.Extensions.IO.ISerializableExtensions.ToArray(transaction);
     }
 
     private static UInt256 H(byte value)
@@ -1602,7 +1633,7 @@ public class UT_CanonicalSettlementPipeline
             long gasConsumed = 0;
             for (var index = 0; index < batch.Transactions.Count; index++)
             {
-                var txHash = new UInt256(Crypto.Hash256(batch.Transactions[index].Span));
+                var txHash = TransactionHasher.Hash(batch.Transactions[index]);
                 var receipt = new Receipt
                 {
                     TxHash = txHash,

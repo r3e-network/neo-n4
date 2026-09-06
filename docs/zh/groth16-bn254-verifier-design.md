@@ -1,18 +1,15 @@
 # SP1 Groth16/BN254 链上验证器
 
-状态：已实现并固定版本。生产合约位于
-`contracts/NeoHub.Sp1Groth16Verifier`。
+状态：已实现并固定版本。在 Lean 4 核心支柱架构中，生产合约为
+`contracts/NeoHub.ZkVerifier`（支柱 3），它整合了 `ContractZkVerifier` 与 `Sp1Groth16Verifier` 为一个统一的 L1 可部署验证器合约。
 
 ## 1. 安全边界
 
-`NeoHub.ContractZkVerifier` 校验 N4 batch commitment、`RiscVProofPayload` 信封、证明系统、
-已注册的 program VK 和 32 字节 N4 public-input hash；对于 `ProofSystem.Sp1`，再调用
-`Sp1Groth16Verifier.verifyZkProof(...)` 执行完整的 BN254/Groth16 数学。
+`NeoHub.ZkVerifier`（整合了 `ContractZkVerifier` 路由能力）校验 N4 batch commitment、`RiscVProofPayload` 信封、证明系统、
+已注册的 program VK 和 32 字节 N4 public-input hash；对于 `ProofSystem.Sp1`，直接在合约内部调用
+`Crypto.PairingCheck` 执行完整的 BN254/Groth16 数学验证。
 
-生产部署必须注册该终端验证器，并在启用 `ProofType.Zk` 路由前不可逆地执行
-`DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)`，随后调用
-`LockProofSystemConfiguration(ProofSystem.Sp1=1, programVKey)` 固定唯一 program VK 与
-terminal verifier。生产计划不包含 devnet 的 envelope-only 逃生路径。
+生产部署必须注册该可部署验证器合约，并固定唯一 program VK。生产计划不包含 devnet 的 envelope-only 逃生路径。
 
 该合约只服务于 SP1 6.2.1 SDK 当前固定的 v6.1-compatible Groth16 wrapper。Risc0、Halo2、Axiom、其他 SP1
 wrapper 或新的验证密钥都必须部署独立、重新审计的终端验证器。

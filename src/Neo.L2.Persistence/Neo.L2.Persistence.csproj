@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Neo.L2.Persistence.UnitTests" />
+    <InternalsVisibleTo Include="neo-stack" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="RocksDB" Version="11.8.1.4423" GeneratePathProperty="true" />
     <Content Include="$(PkgRocksDB)\runtimes\win-x64\native\rocksdb.dll"
              Link="runtimes\win-x64\native\rocksdb.dll"

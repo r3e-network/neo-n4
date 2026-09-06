@@ -7,12 +7,21 @@
     <PackageTags>NEO;L2;Settlement;Rpc</PackageTags>
   </PropertyGroup>
 
+  <!-- Note: Deferred until operator SDK provisions AWSSDK.KeyManagementService and Azure SDK packages.
+       The AWS KMS and HSM CLI transaction signers in AwsKmsTransactionSigner.cs and
+       HsmCliTransactionSigner.cs are preserved here but excluded from compilation until the
+       necessary NuGet dependencies are provisioned. See doc.md §14.2 for context.
+       Excluded: 2026-09-06 per build fix task. -->
   <ItemGroup>
     <ProjectReference Include="$(NeoCorePath)\Neo\Neo.csproj" />
     <ProjectReference Include="$(NeoCorePath)\Neo.Json\Neo.Json.csproj" />
     <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
     <ProjectReference Include="..\Neo.L2.Batch\Neo.L2.Batch.csproj" />
     <ProjectReference Include="..\Neo.L2.Telemetry\Neo.L2.Telemetry.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="AwsKmsTransactionSigner.cs;HsmCliTransactionSigner.cs" />
   </ItemGroup>
 
 </Project>

@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <RootNamespace>NeoHub.MpcCommitteeFraudVerifier</RootNamespace>
-    <AssemblyName>NeoHub.MpcCommitteeFraudVerifier</AssemblyName>
-  </PropertyGroup>
-
-</Project>

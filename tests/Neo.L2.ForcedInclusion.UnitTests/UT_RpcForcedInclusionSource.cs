@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Neo;
 using Neo.Cryptography;
+using Neo.L2.Batch;
 using Neo.L2.ForcedInclusion;
 using Neo.L2.Settlement.Rpc;
 
@@ -30,7 +31,39 @@ public class UT_RpcForcedInclusionSource
     }
 
     private static UInt256 TxHash(byte[] transaction)
-        => new(Crypto.Hash256(transaction));
+        => TransactionHasher.Hash(transaction);
+
+    // DecodeEntry validates the queue's txHash against the canonical transaction id
+    // (TransactionHasher), so every drained entry must carry a parseable Neo transaction.
+    private static byte[] RealTransaction(uint nonce)
+    {
+        var transaction = new Neo.Network.P2P.Payloads.Transaction
+        {
+            Nonce = nonce,
+            SystemFee = 1_000_000,
+            NetworkFee = 1_000_000,
+            ValidUntilBlock = 1_000,
+            Signers =
+            [
+                new Neo.Network.P2P.Payloads.Signer
+                {
+                    Account = UInt160.Parse("0x" + new string('3', 40)),
+                    Scopes = Neo.Network.P2P.Payloads.WitnessScope.CalledByEntry,
+                },
+            ],
+            Attributes = Array.Empty<Neo.Network.P2P.Payloads.TransactionAttribute>(),
+            Script = new byte[] { 0x01 },
+            Witnesses =
+            [
+                new Neo.Network.P2P.Payloads.Witness
+                {
+                    InvocationScript = Array.Empty<byte>(),
+                    VerificationScript = Array.Empty<byte>(),
+                },
+            ],
+        };
+        return Neo.Extensions.IO.ISerializableExtensions.ToArray(transaction);
+    }
 
     private static (RpcForcedInclusionSource src, StubRpcHandler stub, JsonRpcClient rpc) Build(
         TimeSpan? cacheTtl = null,
@@ -49,8 +82,8 @@ public class UT_RpcForcedInclusionSource
     public async Task Drain_RoundTripsTwoNonces_DeadlineOrdered()
     {
         var sender = UInt160.Parse("0x" + new string('1', 40));
-        var transaction1 = new byte[] { 0xAA };
-        var transaction2 = new byte[] { 0xBB };
+        var transaction1 = RealTransaction(1);
+        var transaction2 = RealTransaction(2);
         var entry1 = EncodeEntry(sender, TxHash(transaction1), transaction1, deadline: 200);
         var entry2 = EncodeEntry(sender, TxHash(transaction2), transaction2, deadline: 100); // earlier deadline
 
@@ -81,7 +114,7 @@ public class UT_RpcForcedInclusionSource
     public async Task Drain_DropsEntriesL1HasMarkedConsumed()
     {
         var sender = UInt160.Parse("0x" + new string('1', 40));
-        var transaction = new byte[] { 0x01 };
+        var transaction = RealTransaction(1);
         var entry = EncodeEntry(sender, TxHash(transaction), transaction, deadline: 100);
 
         var (src, stub, rpc) = Build(genesisNonces: new ulong[] { 7 });
@@ -110,7 +143,7 @@ public class UT_RpcForcedInclusionSource
             if (m == "getEntry")
             {
                 var nonce = ulong.Parse(p[1]!["value"]!.AsString());
-                var transaction = new byte[] { (byte)nonce };
+                var transaction = RealTransaction((uint)nonce);
                 return StubRpcHandler.ByteArrayBase64(EncodeEntry(sender, TxHash(transaction), transaction, (uint)(100 + nonce)));
             }
             return null;
@@ -136,7 +169,7 @@ public class UT_RpcForcedInclusionSource
             if (m == "getEntry")
             {
                 var nonce = ulong.Parse(p[1]!["value"]!.AsString());
-                var transaction = new byte[] { (byte)nonce };
+                var transaction = RealTransaction((uint)nonce);
                 return StubRpcHandler.ByteArrayBase64(EncodeEntry(sender, TxHash(transaction), transaction, (uint)(100 + nonce)));
             }
             return null;
@@ -166,7 +199,7 @@ public class UT_RpcForcedInclusionSource
             if (m == "getEntry")
             {
                 var nonce = ulong.Parse(p[1]!["value"]!.AsString());
-                var transaction = new byte[] { (byte)nonce };
+                var transaction = RealTransaction((uint)nonce);
                 return StubRpcHandler.ByteArrayBase64(EncodeEntry(sender, TxHash(transaction), transaction, (uint)(100 + nonce)));
             }
             return null;
@@ -194,7 +227,7 @@ public class UT_RpcForcedInclusionSource
             if (m == "isConsumed") return StubRpcHandler.Boolean(false);
             if (m == "getEntry")
             {
-                var transaction = new byte[] { 0x01 };
+                var transaction = RealTransaction(1);
                 return StubRpcHandler.ByteArrayBase64(EncodeEntry(sender, TxHash(transaction), transaction, deadline: 100));
             }
             return null;
@@ -229,7 +262,7 @@ public class UT_RpcForcedInclusionSource
     public void DecodeEntry_RejectsTxLenInconsistentWithLength()
     {
         var sender = UInt160.Parse("0x" + new string('1', 40));
-        var transaction = new byte[] { 0xAA, 0xBB };
+        var transaction = RealTransaction(1);
         var bytes = EncodeEntry(sender, TxHash(transaction), transaction, deadline: 200);
         // Tamper: write a wrong txLen so total length disagrees.
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(52, 4), 99);
@@ -240,7 +273,7 @@ public class UT_RpcForcedInclusionSource
     public void DecodeEntry_RoundTripsKnownEncoding()
     {
         var sender = UInt160.Parse("0x" + new string('1', 40));
-        var tx = new byte[] { 0xCA, 0xFE, 0xBA, 0xBE };
+        var tx = RealTransaction(7);
         var hash = TxHash(tx);
         var encoded = EncodeEntry(sender, hash, tx, deadline: 12345);
 
@@ -260,7 +293,7 @@ public class UT_RpcForcedInclusionSource
         var encoded = EncodeEntry(
             sender,
             UInt256.Zero,
-            new byte[] { 0x01 },
+            RealTransaction(1),
             deadline: 12345);
 
         Assert.ThrowsExactly<InvalidDataException>(

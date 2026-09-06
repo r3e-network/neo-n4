@@ -158,10 +158,19 @@ public class UT_ProofWitnessArtifact
     [TestMethod]
     public void ExecutionPayload_PersistsCanonicalForcedInclusionProofs()
     {
-        var payload = SamplePayload();
+        // Forced-inclusion leaves are canonical transaction ids (TransactionHasher): decode-time
+        // validation re-derives them from the transaction bytes, so only canonical leaves survive
+        // an encode/decode round trip.
+        var payload = SamplePayload() with
+        {
+            Transactions =
+            [
+                SampleSignedTransaction(7),
+                SampleSignedTransaction(8),
+            ],
+        };
         var txHashes = payload.Transactions
-            .Select(transaction => new UInt256(
-                Neo.Cryptography.Crypto.Hash256(transaction.Span)))
+            .Select(TransactionHasher.Hash)
             .ToArray();
         var merkleProof = new Neo.L2.State.MerkleTree(txHashes).GetProof(0);
         var forced = new ForcedInclusionConsumptionProof
@@ -190,6 +199,36 @@ public class UT_ProofWitnessArtifact
             {
                 ForcedInclusions = new[] { forced with { TxHash = H(0xee) } },
             }));
+    }
+
+    private static ReadOnlyMemory<byte> SampleSignedTransaction(uint nonce)
+    {
+        var transaction = new Neo.Network.P2P.Payloads.Transaction
+        {
+            Nonce = nonce,
+            SystemFee = 1_000_000,
+            NetworkFee = 1_000_000,
+            ValidUntilBlock = 1_000,
+            Signers =
+            [
+                new Neo.Network.P2P.Payloads.Signer
+                {
+                    Account = H160(0x33),
+                    Scopes = Neo.Network.P2P.Payloads.WitnessScope.CalledByEntry,
+                },
+            ],
+            Attributes = Array.Empty<Neo.Network.P2P.Payloads.TransactionAttribute>(),
+            Script = new byte[] { 0x01 },
+            Witnesses =
+            [
+                new Neo.Network.P2P.Payloads.Witness
+                {
+                    InvocationScript = Array.Empty<byte>(),
+                    VerificationScript = Array.Empty<byte>(),
+                },
+            ],
+        };
+        return Neo.Extensions.IO.ISerializableExtensions.ToArray(transaction);
     }
 
     [TestMethod]

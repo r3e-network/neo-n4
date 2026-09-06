@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>NeoHub.DARegistry</RootNamespace>
-    <AssemblyName>NeoHub.DARegistry</AssemblyName>
-  </PropertyGroup>
-</Project>

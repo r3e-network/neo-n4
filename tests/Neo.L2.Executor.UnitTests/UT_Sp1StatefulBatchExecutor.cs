@@ -324,6 +324,19 @@ public sealed class UT_Sp1StatefulBatchExecutor
     }
 
     [TestMethod]
+    public async Task ApplyBatchWithWitness_ThrowsWhenExecutableSha256DiffersFromPinnedDigest()
+    {
+        using var harness = new ExecutorHarness();
+        var mismatchedDigest = new byte[32];
+        mismatchedDigest[0] = 0xAA;
+        var executor = harness.CreateExecutor(new WritingProcess(), mismatchedDigest);
+
+        var ex = await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            () => executor.ApplyBatchWithWitnessAsync(harness.Batch()).AsTask());
+        StringAssert.Contains(ex.Message, "Native SP1 execution binary SHA-256 differs from the pinned operator digest");
+    }
+
+    [TestMethod]
     public async Task RealNativeExecutor_ExecutesBootstrappedNeoGenesisRetTransaction()
     {
         var executable = Environment.GetEnvironmentVariable("NEO_ZKVM_EXECUTOR");
@@ -545,7 +558,8 @@ public sealed class UT_Sp1StatefulBatchExecutor
         {
             var path = Path.Combine(
                 AppContext.BaseDirectory, "Fixtures", "native_execution_output_v1.hex");
-            var bytes = Convert.FromHexString(File.ReadAllText(path).Trim());
+            var bytes = Convert.FromHexString(string.Concat(
+                File.ReadAllText(path).Where(static value => !char.IsWhiteSpace(value))));
             return Sp1NativeExecutionOutputSerializer.Decode(bytes).Effects.ToArray();
         }
     }

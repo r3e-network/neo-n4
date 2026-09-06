@@ -327,4 +327,16 @@ public class UT_InMemorySettlementClient
 
         Assert.IsTrue(await client.IsWindowExpiredAsync(1001, 1));
     }
+
+    [TestMethod]
+    public async Task SubmitAndFinalizeBatchAsync_SetsFinalizedAndUpdatesCanonicalRoot()
+    {
+        var client = new InMemorySettlementClient();
+        var commitment = Mk(1001, 1);
+        var txHash = await client.SubmitAndFinalizeBatchAsync(commitment, SamplePublicInputs());
+
+        Assert.AreNotEqual(UInt256.Zero, txHash);
+        Assert.AreEqual(BatchStatus.Finalized, await client.GetBatchStatusAsync(1001, 1));
+        Assert.AreEqual(commitment.PostStateRoot, await client.GetCanonicalStateRootAsync(1001));
+    }
 }

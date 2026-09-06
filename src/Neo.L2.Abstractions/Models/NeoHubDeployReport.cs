@@ -31,6 +31,15 @@ public sealed record NeoHubDeployReport(
     /// </summary>
     public UInt160 DefaultOperatorManager => OwnerScriptHash;
 
+    /// <summary>Pillar 1 RollupHub contract hash (defaults to SettlementManager or ChainRegistry).</summary>
+    public UInt160 RollupHub => Contracts.TryGetValue("RollupHub", out var h) ? h : SettlementManager;
+
+    /// <summary>Pillar 3 ZkVerifier contract hash (defaults to VerifierRegistry).</summary>
+    public UInt160 ZkVerifier => Contracts.TryGetValue("ZkVerifier", out var h) ? h : VerifierRegistry;
+
+    /// <summary>Pillar 4 GovernanceController contract hash (defaults to GovernanceController or OwnerScriptHash).</summary>
+    public UInt160 GovernanceController => Contracts.TryGetValue("GovernanceController", out var h) ? h : OwnerScriptHash;
+
     // DeployHeights: confirmed L1 block indices for deploy records with blockIndex.
     // Empty when the report predates height materialization or heights were not resolved.
 
@@ -98,12 +107,12 @@ public sealed record NeoHubDeployReport(
             ownerAddress,
             ownerScriptHash,
             l2ChainId,
-            RequireContract(contracts, "ChainRegistry"),
-            RequireContract(contracts, "VerifierRegistry"),
-            RequireContract(contracts, "SharedBridge"),
-            RequireContract(contracts, "MessageRouter"),
-            RequireContract(contracts, "SettlementManager"),
-            RequireContract(contracts, "ForcedInclusion"),
+            ResolveContract(contracts, "ChainRegistry", "RollupHub"),
+            ResolveContract(contracts, "VerifierRegistry", "ZkVerifier"),
+            ResolveContract(contracts, "SharedBridge"),
+            ResolveContract(contracts, "MessageRouter", "SharedBridge"),
+            ResolveContract(contracts, "SettlementManager", "RollupHub"),
+            ResolveContract(contracts, "ForcedInclusion", "RollupHub"),
             contracts,
             heights);
     }
@@ -125,7 +134,13 @@ public sealed record NeoHubDeployReport(
         foreach (var storeDir in EnsureSettlementStoreDirectories(chainDirectory))
             written.Add(storeDir + Path.DirectorySeparatorChar);
 
+        Contracts.TryGetValue("RollupHub", out var rollupHub);
+        Contracts.TryGetValue("ZkVerifier", out var zkVerifier);
+        Contracts.TryGetValue("GovernanceController", out var governanceController);
         Contracts.TryGetValue("SequencerRegistry", out var sequencerRegistry);
+        var resolvedSequencer = sequencerRegistry is not null && !sequencerRegistry.Equals(UInt160.Zero)
+            ? sequencerRegistry
+            : (governanceController ?? GovernanceController);
         var deployed = new Dictionary<string, object?>
         {
             ["rpc"] = Rpc,
@@ -133,15 +148,18 @@ public sealed record NeoHubDeployReport(
             ["ownerAddress"] = OwnerAddress,
             ["ownerScriptHash"] = OwnerScriptHash.ToString(),
             ["l2ChainId"] = L2ChainId,
+            ["rollupHub"] = (rollupHub ?? RollupHub).ToString(),
+            ["zkVerifier"] = (zkVerifier ?? ZkVerifier).ToString(),
+            ["governanceController"] = (governanceController ?? GovernanceController).ToString(),
             ["chainRegistry"] = ChainRegistry.ToString(),
             ["verifierRegistry"] = VerifierRegistry.ToString(),
             ["sharedBridge"] = SharedBridge.ToString(),
             ["messageRouter"] = MessageRouter.ToString(),
             ["settlementManager"] = SettlementManager.ToString(),
             ["forcedInclusion"] = ForcedInclusion.ToString(),
-            ["sequencerRegistry"] = sequencerRegistry is null || sequencerRegistry.Equals(UInt160.Zero)
+            ["sequencerRegistry"] = resolvedSequencer is null || resolvedSequencer.Equals(UInt160.Zero)
                 ? null
-                : sequencerRegistry.ToString(),
+                : resolvedSequencer.ToString(),
             ["contracts"] = Contracts.ToDictionary(
                 pair => pair.Key,
                 pair => pair.Value.ToString(),
@@ -167,6 +185,7 @@ public sealed record NeoHubDeployReport(
             ["ChainId"] = L2ChainId,
             ["L1RpcEndpoint"] = Rpc,
             ["ExpectedNetwork"] = Network,
+            ["RollupHubHash"] = RollupHub.ToString(),
             ["SettlementManagerHash"] = SettlementManager.ToString(),
             ["ForcedInclusionHash"] = ForcedInclusion.ToString(),
             ["SharedBridgeHash"] = SharedBridge.ToString(),
@@ -335,9 +354,9 @@ public sealed record NeoHubDeployReport(
                 ["deploymentHeights"] = deployHeights,
                 ["missingDeploymentHeights"] = missingHeights,
                 ["heightsInPluginConfig"] = missingHeights.Length == 0,
-                ["sequencerRegistry"] = sequencerRegistry is null || sequencerRegistry.Equals(UInt160.Zero)
+                ["sequencerRegistry"] = resolvedSequencer is null || resolvedSequencer.Equals(UInt160.Zero)
                     ? null
-                    : sequencerRegistry.ToString(),
+                    : resolvedSequencer.ToString(),
                 ["recommendedDurableStores"] = new Dictionary<string, object?>
                 {
                     ["proofWitnessStore"] = RelativeProofWitnessStoreDir,
@@ -915,13 +934,21 @@ public sealed record NeoHubDeployReport(
         }
     }
 
-    private static UInt160 RequireContract(IReadOnlyDictionary<string, UInt160> contracts, string name)
+    private static UInt160 ResolveContract(IReadOnlyDictionary<string, UInt160> contracts, string name, params string[] fallbacks)
     {
-        if (!contracts.TryGetValue(name, out var hash))
-            throw new ArgumentException(
-                $"deploy report is missing a deployed/reused record for '{name}'");
-        return hash;
+        if (contracts.TryGetValue(name, out var hash))
+            return hash;
+        foreach (var fallback in fallbacks)
+        {
+            if (contracts.TryGetValue(fallback, out var fallbackHash))
+                return fallbackHash;
+        }
+        throw new ArgumentException(
+            $"deploy report is missing a deployed/reused record for '{name}' (or fallbacks: {string.Join(", ", fallbacks)})");
     }
+
+    private static UInt160 RequireContract(IReadOnlyDictionary<string, UInt160> contracts, string name)
+        => ResolveContract(contracts, name);
 
     private static string RequireString(JsonElement root, string field)
     {

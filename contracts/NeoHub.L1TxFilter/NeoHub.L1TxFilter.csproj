@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <RootNamespace>NeoHub.L1TxFilter</RootNamespace>
-    <AssemblyName>NeoHub.L1TxFilter</AssemblyName>
-  </PropertyGroup>
-
-</Project>

@@ -36,32 +36,10 @@ public class UT_ContractManifestInvariants
     {
         var contracts = new[]
         {
-            "NeoHub.ChainRegistry",
-            "NeoHub.ContractZkVerifier",
-            "NeoHub.DARegistry",
-            "NeoHub.DAValidator",
-            "NeoHub.EmergencyManager",
-            "NeoHub.ExternalBridgeBond",
-            "NeoHub.ExternalBridgeEscrow",
-            "NeoHub.ExternalBridgeRegistry",
-            "NeoHub.ExternalBridgeStubVerifier",
-            "NeoHub.ForcedInclusion",
-            "NeoHub.GovernanceController",
-            "NeoHub.GovernanceFraudVerifier",
-            "NeoHub.L1TxFilter",
-            "NeoHub.L2PayoutAdapter",
-            "NeoHub.MessageRouter",
-            "NeoHub.MpcCommitteeFraudVerifier",
-            "NeoHub.MpcCommitteeVerifier",
-            "NeoHub.OptimisticChallenge",
-            "NeoHub.RestrictedExecutionFraudVerifier",
-            "NeoHub.SequencerBond",
-            "NeoHub.SequencerRegistry",
-            "NeoHub.SettlementManager",
+            "NeoHub.RollupHub",
             "NeoHub.SharedBridge",
-            "NeoHub.Sp1Groth16Verifier",
-            "NeoHub.TokenRegistry",
-            "NeoHub.VerifierRegistry"
+            "NeoHub.ZkVerifier",
+            "NeoHub.GovernanceController"
         };
 
         foreach (var contract in contracts)
@@ -82,27 +60,10 @@ public class UT_ContractManifestInvariants
     {
         var contracts = new[]
         {
-            "NeoHub.ChainRegistry",
-            "NeoHub.ContractZkVerifier",
-            "NeoHub.DARegistry",
-            "NeoHub.DAValidator",
-            "NeoHub.EmergencyManager",
-            "NeoHub.ExternalBridgeBond",
-            "NeoHub.ExternalBridgeEscrow",
-            "NeoHub.ExternalBridgeRegistry",
-            "NeoHub.ForcedInclusion",
-            "NeoHub.GovernanceController",
-            "NeoHub.L1TxFilter",
-            "NeoHub.MessageRouter",
-            "NeoHub.MpcCommitteeFraudVerifier",
-            "NeoHub.MpcCommitteeVerifier",
-            "NeoHub.OptimisticChallenge",
-            "NeoHub.SequencerBond",
-            "NeoHub.SequencerRegistry",
-            "NeoHub.SettlementManager",
+            "NeoHub.RollupHub",
             "NeoHub.SharedBridge",
-            "NeoHub.TokenRegistry",
-            "NeoHub.VerifierRegistry"
+            "NeoHub.ZkVerifier",
+            "NeoHub.GovernanceController"
         };
 
         foreach (var contract in contracts)
@@ -249,10 +210,7 @@ public class UT_ContractManifestInvariants
     {
         var contracts = new[]
         {
-            "NeoHub.SharedBridge",
-            "NeoHub.SequencerBond",
-            "NeoHub.ExternalBridgeBond",
-            "NeoHub.ExternalBridgeEscrow"
+            "NeoHub.SharedBridge"
         };
 
         foreach (var contract in contracts)

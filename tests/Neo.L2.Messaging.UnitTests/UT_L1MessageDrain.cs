@@ -1,4 +1,5 @@
 using Neo.L2.Bridge;
+using Neo.L2.State;
 
 namespace Neo.L2.Messaging.UnitTests;
 
@@ -9,7 +10,9 @@ public class UT_L1MessageDrain
         uint source,
         ulong nonce,
         byte tag = 1,
-        MessageType type = MessageType.Deposit) => new()
+        MessageType type = MessageType.Deposit)
+    {
+        var message = new CrossChainMessage
         {
             SourceChainId = source,
             TargetChainId = 1001,
@@ -20,18 +23,41 @@ public class UT_L1MessageDrain
             Payload = new byte[] { tag },
             MessageHash = UInt256.Zero,
         };
+        return message with { MessageHash = MessageHasher.HashMessage(message) };
+    }
+
+    [TestMethod]
+    public void Combine_NeverOverfetchesReservedCapacity()
+    {
+        var requested = new List<int>();
+        var drain = L1MessageDrain.Combine(
+            max => { requested.Add(max); return Enumerable.Range(1, max).Select(n => Msg(0, (ulong)n)).ToArray(); },
+            max => { requested.Add(max); return Enumerable.Range(100, max).Select(n => Msg(0, (ulong)n, type: MessageType.Call)).ToArray(); });
+
+        var result = drain(5);
+        Assert.AreEqual(5, result.Count);
+        Assert.AreEqual(5, requested.Sum(), "combined reservation requests must not exceed global capacity");
+    }
 
     [TestMethod]
     public void Combine_MergesSortsAndCaps()
     {
         var drain = L1MessageDrain.Combine(
-            _ => new[] { Msg(0, 3), Msg(0, 1) },
-            _ => new[] { Msg(0, 2) });
+            max => new[] { Msg(0, 3), Msg(0, 1) }.OrderBy(static m => m.Nonce).Take(max).ToArray(),
+            max => new[] { Msg(0, 2) }.OrderBy(static m => m.Nonce).Take(max).ToArray());
 
         var result = drain(2);
         Assert.AreEqual(2, result.Count);
         Assert.AreEqual(1UL, result[0].Nonce);
         Assert.AreEqual(2UL, result[1].Nonce);
+    }
+
+    [TestMethod]
+    public void Combine_RejectsForgedMessageHash()
+    {
+        var forged = Msg(0, 9) with { MessageHash = UInt256.Parse("0x" + new string('f', 64)) };
+        var drain = L1MessageDrain.Combine(_ => new[] { forged });
+        Assert.ThrowsExactly<InvalidDataException>(() => drain(1));
     }
 
     [TestMethod]

@@ -122,6 +122,15 @@ public sealed class RiscVTransactionExecutor : ITransactionExecutor
             return Failed(rawHash, $"deserialize failed: {ex.Message}");
         }
 
+        // Neo rejects a transaction once the executing height exceeds ValidUntilBlock. The L2
+        // block this transaction belongs to is known exactly here, so the check is per-block;
+        // the guest enforces the same obligation batch-wide against last_block.
+        if (transaction.ValidUntilBlock < blockContext.BlockIndex)
+        {
+            return Failed(transaction.Hash,
+                $"transaction expired: ValidUntilBlock={transaction.ValidUntilBlock} < block {blockContext.BlockIndex}");
+        }
+
         // Object-lifetime duplicate-nonce defense: (sender, nonce) pairs already seen by THIS
         // executor instance are rejected. It is neither batch-scoped nor durable — a host that
         // builds an executor per batch loses cross-batch detection, and a process-lifetime

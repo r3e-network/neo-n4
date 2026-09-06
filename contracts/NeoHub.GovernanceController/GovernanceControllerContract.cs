@@ -5,6 +5,7 @@ using Neo.SmartContract.Framework;
 using Neo.SmartContract.Framework.Attributes;
 using Neo.SmartContract.Framework.Native;
 using Neo.SmartContract.Framework.Services;
+using UInt160 = Neo.SmartContract.Framework.UInt160;
 
 namespace NeoHub.GovernanceController;
 
@@ -44,6 +45,15 @@ public class GovernanceControllerContract : SmartContract
     private const byte KeyCouncilEpoch = 0x15;
     private const byte PrefixProposalEpoch = 0x16;         // 0x16 + proposalId(8B) → council epoch at creation
     private const byte PrefixConsumedRotateCouncil = 0x17; // 0x17 + proposalId(8B) → 1
+
+    // Emergency pause & Sequencer registry/bond integration
+    private const byte KeyEmergencyCouncil = 0x30;
+    private const byte KeyGlobalPaused = 0x31;
+    private const byte PrefixChainPaused = 0x32;           // 0x32 + chainId(4B) → 1
+    private const byte PrefixSequencer = 0x40;             // 0x40 + chainId(4B) + pubkey(33B) → 20B address
+    private const byte PrefixSequencerBond = 0x42;         // 0x42 + chainId(4B) + sequencer(20B) → BigInteger
+    private const byte KeyMinBond = 0x43;
+
     private const byte KeyOwner = 0xFF;
 
     private const uint MaxCouncilMembers = 64;
@@ -107,6 +117,36 @@ public class GovernanceControllerContract : SmartContract
     /// <summary>Emitted when ownership is transferred.</summary>
     [DisplayName("OwnerChanged")]
     public static event Action<UInt160, UInt160> OnOwnerChanged = default!;
+
+    [DisplayName("EmergencyPaused")]
+    public static event Action OnEmergencyPaused = default!;
+
+    [DisplayName("EmergencyUnpaused")]
+    public static event Action OnEmergencyUnpaused = default!;
+
+    [DisplayName("ChainPaused")]
+    public static event Action<uint> OnChainPaused = default!;
+
+    [DisplayName("ChainUnpaused")]
+    public static event Action<uint> OnChainUnpaused = default!;
+
+    [DisplayName("EmergencyCouncilChanged")]
+    public static event Action<UInt160> OnEmergencyCouncilChanged = default!;
+
+    [DisplayName("SequencerRegistered")]
+    public static event Action<uint, ECPoint, UInt160> OnSequencerRegistered = default!;
+
+    [DisplayName("SequencerUnregistered")]
+    public static event Action<uint, ECPoint> OnSequencerUnregistered = default!;
+
+    [DisplayName("BondDeposited")]
+    public static event Action<uint, UInt160, BigInteger> OnBondDeposited = default!;
+
+    [DisplayName("BondSlashed")]
+    public static event Action<uint, UInt160, BigInteger, UInt160> OnBondSlashed = default!;
+
+    [DisplayName("BondWithdrawn")]
+    public static event Action<uint, UInt160, BigInteger> OnBondWithdrawn = default!;
 
     /// <summary>
     /// Set the initial council, threshold, timelock, and governance epoch. Council replacement is
@@ -944,4 +984,256 @@ public class GovernanceControllerContract : SmartContract
         for (var i = 0; i < 20; i++) k[1 + i] = b[i];
         return k;
     }
+
+    #region Emergency Manager Integration
+
+    public static void SetEmergencyCouncil(UInt160 council)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(council.IsValid && !council.IsZero, "invalid council");
+        Storage.Put(new byte[] { KeyEmergencyCouncil }, council);
+        OnEmergencyCouncilChanged(council);
+    }
+
+    [Safe]
+    public static UInt160 GetEmergencyCouncil()
+    {
+        var raw = Storage.Get(new byte[] { KeyEmergencyCouncil });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    public static void Pause()
+    {
+        var council = GetEmergencyCouncil();
+        var authorized = Runtime.CheckWitness(GetOwner()) || (council != UInt160.Zero && Runtime.CheckWitness(council));
+        ExecutionEngine.Assert(authorized, "not authorized to pause");
+        Storage.Put(new byte[] { KeyGlobalPaused }, new byte[] { 1 });
+        OnEmergencyPaused();
+    }
+
+    public static void Unpause()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized to unpause");
+        Storage.Delete(new byte[] { KeyGlobalPaused });
+        OnEmergencyUnpaused();
+    }
+
+    [Safe]
+    public static bool IsPaused()
+    {
+        return Storage.Get(new byte[] { KeyGlobalPaused }) != null;
+    }
+
+    public static void PauseChain(uint chainId)
+    {
+        var council = GetEmergencyCouncil();
+        var authorized = Runtime.CheckWitness(GetOwner()) || (council != UInt160.Zero && Runtime.CheckWitness(council));
+        ExecutionEngine.Assert(authorized, "not authorized to pause chain");
+        Storage.Put(ChainPausedKey(chainId), new byte[] { 1 });
+        OnChainPaused(chainId);
+    }
+
+    public static void UnpauseChain(uint chainId)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized to unpause chain");
+        Storage.Delete(ChainPausedKey(chainId));
+        OnChainUnpaused(chainId);
+    }
+
+    [Safe]
+    public static bool IsChainPaused(uint chainId)
+    {
+        if (IsPaused()) return true;
+        return Storage.Get(ChainPausedKey(chainId)) != null;
+    }
+
+    private static byte[] ChainPausedKey(uint chainId)
+    {
+        return new byte[] {
+            PrefixChainPaused,
+            (byte)chainId,
+            (byte)(chainId >> 8),
+            (byte)(chainId >> 16),
+            (byte)(chainId >> 24)
+        };
+    }
+
+    #endregion
+
+    #region Sequencer Registry & Bond Integration
+
+    public static void RegisterSequencer(uint chainId, ECPoint sequencerKey, UInt160 sequencerAddress)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(sequencerAddress.IsValid && !sequencerAddress.IsZero, "invalid sequencer address");
+
+        var key = SequencerKey(chainId, sequencerKey);
+        Storage.Put(key, sequencerAddress);
+        OnSequencerRegistered(chainId, sequencerKey, sequencerAddress);
+    }
+
+    public static void UnregisterSequencer(uint chainId, ECPoint sequencerKey)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        var key = SequencerKey(chainId, sequencerKey);
+        ExecutionEngine.Assert(Storage.Get(key) != null, "sequencer not registered");
+        Storage.Delete(key);
+        OnSequencerUnregistered(chainId, sequencerKey);
+    }
+
+    [Safe]
+    public static bool IsSequencerRegistered(uint chainId, ECPoint sequencerKey)
+    {
+        return Storage.Get(SequencerKey(chainId, sequencerKey)) != null;
+    }
+
+    [Safe]
+    public static UInt160 GetSequencerAddress(uint chainId, ECPoint sequencerKey)
+    {
+        var raw = Storage.Get(SequencerKey(chainId, sequencerKey));
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>
+    /// Lock real GAS tokens to the contract as sequencer bond. Transfers native NEO (GAS)
+    /// from the sequencer to this contract—this is NOT an internal counter adjustment.
+    /// See doc.md §18 (Threat Model) for why real escrow matters: without actual token
+    /// backing, a malicious sequencer can register with zero economic stake.
+    /// </summary>
+    public static void DepositBond(uint chainId, UInt160 sequencer, BigInteger amount)
+    {
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(sequencer.IsValid && !sequencer.IsZero, "invalid sequencer");
+        ExecutionEngine.Assert(amount > 0, "amount must be positive");
+        ExecutionEngine.Assert(Runtime.CheckWitness(sequencer), "sequencer must witness deposit");
+
+        // Real GAS escrow: transfer from sequencer to this contract via native GAS token.
+        // This fails automatically if sequencer lacks GAS balance or the transfer reverts.
+        ExecutionEngine.Assert(GAS.Transfer(sequencer, Runtime.ExecutingScriptHash, amount, null),
+            "GAS transfer failed (insufficient balance or transfer rejected)");
+
+        var key = SequencerBondKey(chainId, sequencer);
+        Storage.Put(key, amount); // First deposit initializes counter
+        OnBondDeposited(chainId, sequencer, amount);
+    }
+
+    /// <summary>
+    /// Withdraw sequencer bond by transferring GAS back to the sequencer. Requires:
+    /// ① sequencer OR owner witnesses ② sufficient on-chain GAS escrow balance (verifies via
+    /// GAS.BalanceOf before transfer) ③ withdrawal does not drop below minBond
+    /// (if set). Returns true iff transfer succeeded.
+    /// </summary>
+    public static bool WithdrawBond(uint chainId, UInt160 sequencer, BigInteger amount)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(sequencer) || Runtime.CheckWitness(GetOwner()), "not authorized");
+        
+        var key = SequencerBondKey(chainId, sequencer);
+        var cur = Storage.Get(key);
+        ExecutionEngine.Assert(cur != null, "no bond recorded");
+        var curBal = (BigInteger)cur!;
+        ExecutionEngine.Assert(curBal >= amount, "insufficient bond balance");
+        
+        // Enforce minimum bond after withdrawal (if set)
+        var minBond = GetMinBond();
+        ExecutionEngine.Assert(curBal - amount >= minBond, "withdrawal would drop below minimum bond");
+        
+        // Verify actual GAS escrow on contract side before transfer
+        var contractBalance = GAS.BalanceOf(Runtime.ExecutingScriptHash);
+        ExecutionEngine.Assert(contractBalance >= amount, "contract lacks GAS escrow");
+        
+        // Perform actual GAS transfer back to sequencer
+        ExecutionEngine.Assert(GAS.Transfer(Runtime.ExecutingScriptHash, sequencer, amount, null),
+            "GAS transfer failed");
+        
+        // Adjust local counter only AFTER successful transfer
+        Storage.Put(key, curBal - amount);
+        OnBondWithdrawn(chainId, sequencer, amount);
+        
+        return true;
+    }
+
+    /// <summary>
+    /// Slash sequencer bond by transferring GAS to recipient. Requires owner witness, sufficient
+    /// escrow, and verifies actual GAS balance before transfer. The slashed amount is moved via
+    /// GAS.Transfer — it's not just an internal accounting adjustment.
+    /// </summary>
+    public static void SlashSequencer(uint chainId, UInt160 sequencer, BigInteger amount, UInt160 recipient)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized to slash");
+        var key = SequencerBondKey(chainId, sequencer);
+        var cur = Storage.Get(key);
+        ExecutionEngine.Assert(cur != null, "no bond recorded");
+        var curBal = (BigInteger)cur!;
+        ExecutionEngine.Assert(curBal >= amount, "slash exceeds balance");
+        
+        // Verify GAS escrow before slashing
+        var contractBalance = GAS.BalanceOf(Runtime.ExecutingScriptHash);
+        ExecutionEngine.Assert(contractBalance >= amount, "contract lacks GAS escrow");
+        
+        // Transfer slashed GAS to recipient
+        ExecutionEngine.Assert(GAS.Transfer(Runtime.ExecutingScriptHash, recipient, amount, null),
+            "GAS transfer failed");
+        
+        // Adjust counter after successful transfer
+        Storage.Put(key, curBal - amount);
+        OnBondSlashed(chainId, sequencer, amount, recipient);
+    }
+
+    [Safe]
+    public static BigInteger GetSequencerBond(uint chainId, UInt160 sequencer)
+    {
+        var raw = Storage.Get(SequencerBondKey(chainId, sequencer));
+        return raw == null ? 0 : (BigInteger)raw;
+    }
+
+    [Safe]
+    public static bool HasMinBond(uint chainId, UInt160 sequencer)
+    {
+        var bond = GetSequencerBond(chainId, sequencer);
+        var minBond = GetMinBond();
+        return bond >= minBond;
+    }
+
+    [Safe]
+    public static BigInteger GetMinBond()
+    {
+        var raw = Storage.Get(new byte[] { KeyMinBond });
+        return raw == null ? 0 : (BigInteger)raw;
+    }
+
+    public static void SetMinBond(BigInteger minBond)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(minBond >= 0, "min bond must be non-negative");
+        Storage.Put(new byte[] { KeyMinBond }, minBond);
+    }
+
+    private static byte[] SequencerKey(uint chainId, ECPoint pubkey)
+    {
+        var res = new byte[1 + 4 + 33];
+        res[0] = PrefixSequencer;
+        res[1] = (byte)chainId;
+        res[2] = (byte)(chainId >> 8);
+        res[3] = (byte)(chainId >> 16);
+        res[4] = (byte)(chainId >> 24);
+        var b = (byte[])pubkey;
+        for (var i = 0; i < 33; i++) res[5 + i] = b[i];
+        return res;
+    }
+
+    private static byte[] SequencerBondKey(uint chainId, UInt160 sequencer)
+    {
+        var res = new byte[1 + 4 + 20];
+        res[0] = PrefixSequencerBond;
+        res[1] = (byte)chainId;
+        res[2] = (byte)(chainId >> 8);
+        res[3] = (byte)(chainId >> 16);
+        res[4] = (byte)(chainId >> 24);
+        var b = (byte[])sequencer;
+        for (var i = 0; i < 20; i++) res[5 + i] = b[i];
+        return res;
+    }
+
+    #endregion
 }

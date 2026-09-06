@@ -30,9 +30,11 @@ For any L2 chain registered in `NeoHub.ChainRegistry`:
   `commitment.PublicInputHash == hash(publicInputs)` — preventing a malicious
   prover from signing different inputs than the commitment claims.
 - **ZK verifier boundary.** `ProofType.Zk` routes through the deployable
-  `NeoHub.ContractZkVerifier` router. The router validates the commitment/proof
+  `NeoHub.ZkVerifier` router. The router validates the commitment/proof
   envelope and registered verification-key id, then calls the registered
-  terminal verifier for `verifyZkProof(...)`. The production SP1 route binds the
+  terminal verifier for `verifyZkProof(...)`. `ZkVerifier` serves as the
+  deployable verifier router that consolidates all ZK proof verification paths.
+  The production SP1 route binds the
   immutable `Sp1Groth16Verifier` as its deployable verifier contract. It accepts
   the exact 356-byte SP1 proof, reconstructs five public inputs, and evaluates the complete SP1
   v6.1-compatible Groth16 wrapper pairing equation used by SP1 6.2.x using Neo's current BN254
@@ -69,7 +71,7 @@ registered circuit, VK, terminal verifier, and deployment wiring are all correct
 (optimistic) makes it as trusted as the bisection-game challenge window. Phase
 0–2 stack governance (Neo Council, sequencer bonds) on top of multisig.
 For the production SP1 Phase 4 path, `VerifierRegistry` points at
-`ContractZkVerifier`, which is bound to the immutable `Sp1Groth16Verifier`.
+`NeoHub.ZkVerifier`, which is bound to the immutable `Sp1Groth16Verifier`.
 Both contracts, the pinned SP1 circuit/VK, and Neo's BN254 interops are part of
 the L1 trusted computing base. The current VM suite accepts a Rust-produced
 positive proof through the terminal and router and rejects tampered VK,
@@ -146,7 +148,7 @@ pinning regression test):
   in one transition. Unsupported behavior fails closed. This is a safety property, not a
   claim of general NeoVM/native-contract coverage; expanding it requires a coordinated
   versioned guest/VK/verifier upgrade.
-- **Contract ZK verifier router.** `ContractZkVerifier` refuses non-ZK commitments,
+- **Contract ZK verifier router.** `NeoHub.ZkVerifier` refuses non-ZK commitments,
   malformed `RiscVProofPayload` envelopes, unregistered verification keys, and
   missing terminal verifier contracts before delegating to `verifyZkProof(...)`.
   For the production SP1 route, the deploy plan binds the immutable

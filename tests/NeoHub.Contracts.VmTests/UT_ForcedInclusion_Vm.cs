@@ -401,6 +401,7 @@ public class UT_ForcedInclusion_Vm
                 engine.PersistingBlock.Advance(TimeSpan.FromMilliseconds((ulong)AdvanceSeconds * 1000UL));
             var nonce = (ulong)fi.EnqueueForcedTransaction(ChainId, ForcedTransaction, ForcedTransactionHash)!;
             var entry = fi.GetEntry(ChainId, nonce);
+            Assert.IsNotNull(entry);
             return BitConverter.ToUInt32(entry, entry.Length - 4);
         }
 

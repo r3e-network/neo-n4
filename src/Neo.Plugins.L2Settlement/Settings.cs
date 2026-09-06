@@ -16,6 +16,9 @@ public sealed class L2SettlementSettings
     /// <summary>Expected L1 network magic. Production wiring requires an explicit value.</summary>
     public uint? ExpectedNetwork { get; init; }
 
+    /// <summary>Encoded NeoHub.RollupHub contract hash (Pillar 1). When set, acts as default for SettlementManager and ForcedInclusion.</summary>
+    public string RollupHubHash { get; init; } = "";
+
     /// <summary>Encoded NeoHub.SettlementManager contract hash.</summary>
     public string SettlementManagerHash { get; init; } = "";
 
@@ -104,13 +107,15 @@ public sealed class L2SettlementSettings
         // "explicitly set to 0" (operator misconfig). Nullable read returns null for
         // the former and 0 for the latter; we only validate the second.
         var rawChainId = s.GetValue<uint?>("ChainId");
+        var rollupHubRaw = s.GetValue<string>("RollupHubHash") ?? "";
         return new L2SettlementSettings
         {
             ChainId = rawChainId is null ? 0u : Neo.L2.ChainIdValidator.ValidateL2(rawChainId.Value),
             L1RpcEndpoint = s.GetValue<string>("L1RpcEndpoint") ?? "",
             ExpectedNetwork = s.GetValue<uint?>("ExpectedNetwork"),
-            SettlementManagerHash = s.GetValue<string>("SettlementManagerHash") ?? "",
-            ForcedInclusionHash = s.GetValue<string>("ForcedInclusionHash") ?? "",
+            RollupHubHash = rollupHubRaw,
+            SettlementManagerHash = s.GetValue<string>("SettlementManagerHash") ?? (rollupHubRaw.Length > 0 ? rollupHubRaw : ""),
+            ForcedInclusionHash = s.GetValue<string>("ForcedInclusionHash") ?? (rollupHubRaw.Length > 0 ? rollupHubRaw : ""),
             OptimisticChallengeHash = s.GetValue<string>("OptimisticChallengeHash") ?? "",
             SharedBridgeHash = s.GetValue<string>("SharedBridgeHash") ?? "",
             L2BridgeHash = s.GetValue<string>("L2BridgeHash") ?? "",
@@ -204,13 +209,13 @@ public sealed class L2SettlementSettings
             throw new InvalidDataException(
                 "ExpectedNetwork is required for production settlement wiring");
 
+        var settlementHashText = string.IsNullOrWhiteSpace(SettlementManagerHash) ? RollupHubHash : SettlementManagerHash;
+        var forcedHashText = string.IsNullOrWhiteSpace(ForcedInclusionHash) ? RollupHubHash : ForcedInclusionHash;
+
         var settlementManagerHash = ParseNonZeroHash(
-            SettlementManagerHash, nameof(SettlementManagerHash));
+            settlementHashText, nameof(SettlementManagerHash));
         var forcedInclusionHash = ParseNonZeroHash(
-            ForcedInclusionHash, nameof(ForcedInclusionHash));
-        if (settlementManagerHash.Equals(forcedInclusionHash))
-            throw new InvalidDataException(
-                "SettlementManagerHash and ForcedInclusionHash must identify different contracts");
+            forcedHashText, nameof(ForcedInclusionHash));
 
         UInt160? sharedBridgeHash = null;
         UInt160? l2BridgeHash = null;
@@ -220,7 +225,7 @@ public sealed class L2SettlementSettings
             if (sharedBridgeHash.Equals(settlementManagerHash)
                 || sharedBridgeHash.Equals(forcedInclusionHash))
                 throw new InvalidDataException(
-                    "SharedBridgeHash must identify a distinct NeoHub contract");
+                    "SharedBridgeHash must identify a distinct NeoHub contract from RollupHub/SettlementManager");
 
             l2BridgeHash = string.IsNullOrWhiteSpace(L2BridgeHash)
                 ? Neo.SmartContract.Native.NativeContract.L2Bridge.Hash
@@ -239,10 +244,9 @@ public sealed class L2SettlementSettings
         {
             messageRouterHash = ParseNonZeroHash(MessageRouterHash, nameof(MessageRouterHash));
             if (messageRouterHash.Equals(settlementManagerHash)
-                || messageRouterHash.Equals(forcedInclusionHash)
-                || (sharedBridgeHash is not null && messageRouterHash.Equals(sharedBridgeHash)))
+                || messageRouterHash.Equals(forcedInclusionHash))
                 throw new InvalidDataException(
-                    "MessageRouterHash must identify a distinct NeoHub contract");
+                    "MessageRouterHash must identify a distinct NeoHub contract from RollupHub/SettlementManager");
         }
 
         UInt160? optimisticChallengeHash = null;

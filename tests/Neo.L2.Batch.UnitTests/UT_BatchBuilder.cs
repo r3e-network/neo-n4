@@ -169,6 +169,64 @@ public class UT_BatchBuilder
     }
 
     [TestMethod]
+    public void AddForcedTransaction_AcceptsCanonicalTransactionId()
+    {
+        var serializedTx = SampleSignedTransaction(7);
+        var builder = new BatchBuilder(1001, 1, 100, UInt256.Zero)
+            .AddForcedTransaction(1, TransactionHasher.Hash(serializedTx), serializedTx)
+            .AddBlock(100, 1_700_000_000_100)
+            .WithBlockContext(SampleContext());
+
+        Assert.AreEqual(1, builder.ForcedInclusionCount);
+        var sealedBatch = builder.SealArtifact();
+        Assert.AreEqual(TransactionHasher.Hash(serializedTx), sealedBatch.ForcedInclusions[0].TxHash);
+    }
+
+    [TestMethod]
+    public void AddForcedTransaction_RejectsFullSerializedBytesHash()
+    {
+        // A witness-carrying transaction's canonical id differs from Hash256 over the full
+        // serialized bytes; the L1 forced-inclusion queue and the SP1 guest both speak the
+        // canonical id, so only it validates.
+        var serializedTx = SampleSignedTransaction(7);
+        var fullBytesHash = Neo.Cryptography.Crypto.Hash256(serializedTx.Span);
+        var builder = new BatchBuilder(1001, 1, 100, UInt256.Zero);
+
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => builder.AddForcedTransaction(1, new UInt256(fullBytesHash), serializedTx));
+    }
+
+    private static ReadOnlyMemory<byte> SampleSignedTransaction(uint nonce)
+    {
+        var transaction = new Neo.Network.P2P.Payloads.Transaction
+        {
+            Nonce = nonce,
+            SystemFee = 1_000_000,
+            NetworkFee = 1_000_000,
+            ValidUntilBlock = 1_000,
+            Signers =
+            [
+                new Neo.Network.P2P.Payloads.Signer
+                {
+                    Account = UInt160.Parse("0x" + new string('a', 40)),
+                    Scopes = Neo.Network.P2P.Payloads.WitnessScope.CalledByEntry,
+                },
+            ],
+            Attributes = [],
+            Script = new byte[] { 0x01 },
+            Witnesses =
+            [
+                new Neo.Network.P2P.Payloads.Witness
+                {
+                    InvocationScript = Array.Empty<byte>(),
+                    VerificationScript = Array.Empty<byte>(),
+                },
+            ],
+        };
+        return Neo.Extensions.IO.ISerializableExtensions.ToArray(transaction);
+    }
+
+    [TestMethod]
     public void ToCommitment_RejectsNullExecutionResult()
     {
         // Regression for iter 166: previously a null executionResult would NRE on

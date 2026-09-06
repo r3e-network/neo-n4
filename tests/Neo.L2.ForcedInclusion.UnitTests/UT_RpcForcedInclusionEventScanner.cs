@@ -1,5 +1,6 @@
 using System.Net.Http;
 using Neo.Json;
+using Neo.L2.Batch;
 using Neo.L2.Persistence;
 using Neo.L2.Settlement.Rpc;
 
@@ -120,7 +121,7 @@ public class UT_RpcForcedInclusionEventScanner
         var (rpc, stub) = BuildRpc();
         using var _ = rpc;
         RegisterChain(stub, eventChainId: ChainId, nonce: 7);
-        var transaction = new byte[] { 0xCA, 0xFE };
+        var transaction = RealTransaction(7);
         var entry = EncodeEntry(transaction, deadline: 100);
         var consumed = false;
         stub.Register((method, _, _) => method switch
@@ -227,7 +228,9 @@ public class UT_RpcForcedInclusionEventScanner
     private static byte[] EncodeEntry(byte[] transaction, uint deadline)
     {
         var sender = UInt160.Parse("0x" + new string('1', 40));
-        var hash = new UInt256(Neo.Cryptography.Crypto.Hash256(transaction));
+        // The queue's txHash is the canonical transaction id (TransactionHasher), matching what
+        // RpcForcedInclusionSource.DecodeEntry re-derives from the drained bytes.
+        var hash = TransactionHasher.Hash(transaction);
         var encoded = new byte[20 + 32 + 4 + transaction.Length + 4];
         sender.GetSpan().CopyTo(encoded.AsSpan(0, 20));
         hash.GetSpan().CopyTo(encoded.AsSpan(20, 32));
@@ -237,5 +240,35 @@ public class UT_RpcForcedInclusionEventScanner
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(
             encoded.AsSpan(56 + transaction.Length, 4), deadline);
         return encoded;
+    }
+
+    private static byte[] RealTransaction(uint nonce)
+    {
+        var transaction = new Neo.Network.P2P.Payloads.Transaction
+        {
+            Nonce = nonce,
+            SystemFee = 1_000_000,
+            NetworkFee = 1_000_000,
+            ValidUntilBlock = 1_000,
+            Signers =
+            [
+                new Neo.Network.P2P.Payloads.Signer
+                {
+                    Account = UInt160.Parse("0x" + new string('3', 40)),
+                    Scopes = Neo.Network.P2P.Payloads.WitnessScope.CalledByEntry,
+                },
+            ],
+            Attributes = Array.Empty<Neo.Network.P2P.Payloads.TransactionAttribute>(),
+            Script = new byte[] { 0x01 },
+            Witnesses =
+            [
+                new Neo.Network.P2P.Payloads.Witness
+                {
+                    InvocationScript = Array.Empty<byte>(),
+                    VerificationScript = Array.Empty<byte>(),
+                },
+            ],
+        };
+        return Neo.Extensions.IO.ISerializableExtensions.ToArray(transaction);
     }
 }

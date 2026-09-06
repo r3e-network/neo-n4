@@ -95,6 +95,17 @@ public sealed class InMemorySettlementClient
     }
 
     /// <inheritdoc />
+    public async ValueTask<UInt256> SubmitAndFinalizeBatchAsync(
+        L2BatchCommitment commitment,
+        PublicInputs publicInputs,
+        CancellationToken cancellationToken = default)
+    {
+        var txHash = await SubmitBatchAsync(commitment, publicInputs, cancellationToken).ConfigureAwait(false);
+        AdvanceStatus(commitment.ChainId, commitment.BatchNumber, BatchStatus.Finalized);
+        return txHash;
+    }
+
+    /// <inheritdoc />
     public ValueTask<UInt256> GetCanonicalStateRootAsync(uint chainId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

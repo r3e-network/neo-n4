@@ -1,4 +1,5 @@
 using Neo.L2.Bridge;
+using Neo.L2.State;
 
 namespace Neo.L2.Messaging;
 
@@ -88,21 +89,35 @@ public static class L1MessageDrain
         if (max == 0)
             return Array.Empty<CrossChainMessage>();
 
-        var merged = new List<CrossChainMessage>();
-        for (var d = 0; d < drains.Length; d++)
+        var merged = new List<CrossChainMessage>(max);
+        var remaining = max;
+        // A source's Drain is reserving, not peeking: never call every source with the full
+        // global max and truncate afterwards, because the discarded tail would already be marked
+        // reserved/consumed and could disappear from the next batch. Allocate the remaining
+        // capacity round-robin; the total number of items requested from all sources is bounded
+        // by max, so every returned item is eligible for this merged result.
+        for (var d = 0; d < drains.Length && remaining > 0; d++)
         {
-            var batch = drains[d](max)
+            var sourcesLeft = drains.Length - d;
+            var quota = Math.Max(1, (remaining + sourcesLeft - 1) / sourcesLeft);
+            quota = Math.Min(quota, remaining);
+            var batch = drains[d](quota)
                 ?? throw new InvalidOperationException($"L1 message drain[{d}] returned null");
-            if (batch.Count > max)
+            if (batch.Count > quota)
                 throw new InvalidOperationException(
-                    $"L1 message drain[{d}] returned {batch.Count}, maximum is {max}");
+                    $"L1 message drain[{d}] returned {batch.Count}, maximum is {quota}");
             for (var i = 0; i < batch.Count; i++)
             {
                 var message = batch[i]
                     ?? throw new InvalidOperationException(
                         $"L1 message drain[{d}] returned null at index {i}");
+                var expectedHash = MessageHasher.HashMessage(message);
+                if (!expectedHash.Equals(message.MessageHash))
+                    throw new InvalidDataException(
+                        $"L1 message drain[{d}] returned message with non-canonical MessageHash");
                 merged.Add(message);
             }
+            remaining -= batch.Count;
         }
 
         if (merged.Count == 0)

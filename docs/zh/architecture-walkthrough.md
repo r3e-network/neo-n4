@@ -300,15 +300,10 @@ DA-dropped(被 `DAAvailabilityCheck` 针对从未看到负载的 writer 专门�
 
 ## `doc.md` 各节在代码中的位置
 
-- **§3.2 ChainRegistry** —— L2 准入注册表。`contracts/NeoHub.ChainRegistry/` + `Neo.L2.L2ChainConfig` 模型。
-- **§3.2 SharedBridge** —— 资产托管。`contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*`。
-- **§3.2 SettlementManager** —— 批次 ↦ 规范状态。`contracts/NeoHub.SettlementManager/` + `Neo.L2.Settlement.Rpc`。
-- **§3.2 VerifierRegistry** —— 可插拔证明派发。`contracts/NeoHub.VerifierRegistry/` + `Neo.L2.Proving.VerifierRegistry`。
-- **§3.2 MessageRouter** —— L1↔L2 / L2↔L2 消息传递。`contracts/NeoHub.MessageRouter/` + `Neo.L2.Messaging.*`。
-- **§3.2 TokenRegistry** —— L1↔L2 资产映射。`contracts/NeoHub.TokenRegistry/` + `Neo.L2.AssetMapping`。
-- **§3.2 DARegistry** —— DA 承诺存储。`contracts/NeoHub.DARegistry/`。
-- **§3.2 GovernanceController** —— 委员会 + timelock。`contracts/NeoHub.GovernanceController/`。
-- **§3.2 EmergencyManager** —— 暂停 + 逃生通道。`contracts/NeoHub.EmergencyManager/`。
+- **§3.2 NeoHub（支柱 1: RollupHub）** —— 核心汇总枢纽，合并 L2 准入注册、批次结算（提供原子单步 `submitAndFinalizeBatch`）、DA 记录、强制入列队列与 Merkle 提款证明验证。`contracts/NeoHub.RollupHub/` + `Neo.L2.Settlement.Rpc`。
+- **§3.2 NeoHub（支柱 2: SharedBridge）** —— 统一资产金库与跨链消息路由。`contracts/NeoHub.SharedBridge/` + `Neo.L2.Bridge.*` + `Neo.L2.Messaging.*`。
+- **§3.2 NeoHub（支柱 3: ZkVerifier）** —— 统一有效性证明器，整合 ZK 证明路由、VK 注册表与 SP1 6.2.x BN254 Groth16 配对密码学计算。`contracts/NeoHub.ZkVerifier/` + `Neo.L2.Proving.RiscVZk`。
+- **§3.2 NeoHub（支柱 4: GovernanceController）** —— 统一治理与风控，整合理事会多签、时间锁、双层紧急暂停（`pauseChain`/`freezeAll`）与定序器质押罚没。`contracts/NeoHub.GovernanceController/` + `Neo.L2.Sequencer`。
 - **§4 Neo Gateway** —— 证明聚合。`Neo.Plugins.L2Gateway` 加 `bridge/neo-zkvm-gateway-{guest,host}` SP1 递归终端证明。
 - **§5 L2 链内部** —— 按 L2 的插件布局。`Neo.Plugins.L2Batch / L2Settlement / L2Bridge / L2DA / L2Prover / L2Rpc`。
 - **§7.1 Sequencer / dBFT** —— 委员会选择。`contracts/NeoHub.SequencerRegistry/` + `Neo.L2.Sequencer`。

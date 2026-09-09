@@ -59,4 +59,4 @@ live-rpc = ["dep:reqwest", "dep:serde", "dep:serde_json", "dep:sha3", "dep:toml"
 
 [dev-dependencies]
 # Test-vector helpers.
-rand = "0.9"
+rand = "0.10"

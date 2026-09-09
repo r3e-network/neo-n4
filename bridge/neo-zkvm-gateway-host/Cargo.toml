@@ -26,7 +26,7 @@ tracing-subscriber = { workspace = true }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 sp1-sdk = { version = "=6.2.1", features = ["blocking"] }
-sp1-verifier = { version = "=6.2.1", features = ["std"] }
+sp1-verifier = { version = "=6.5.0", features = ["std"] }
 
 [build-dependencies]
 hex = "0.4"

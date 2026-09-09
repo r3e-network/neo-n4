@@ -29,7 +29,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [target.'cfg(unix)'.dependencies]
 sp1-sdk = { version = "=6.2.1", features = ["blocking"] }
-sp1-verifier = { version = "=6.2.1", features = ["std"] }
+sp1-verifier = { version = "=6.5.0", features = ["std"] }
 # Unix signal handling for the prove-batch daemon's SIGTERM/SIGINT graceful
 # shutdown. Without this a SIGTERM under k8s/systemd would land mid-proof
 # (proofs can take ~40s), losing the in-flight work to the kill-after-grace.

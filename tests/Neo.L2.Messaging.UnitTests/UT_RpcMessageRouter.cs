@@ -57,7 +57,7 @@ public class UT_RpcMessageRouter
         stub.Register((m, h, p) =>
         {
             if (m == "isConsumed") return StubRpcHandler.Boolean(false);
-            if (m == "getL1ToL2")
+            if (m == "getL1ToL2" || m == "getL1ToL2Message")
             {
                 var nonce = ulong.Parse(p[1]!["value"]!.AsString());
                 var encoded = EncodeMessage(0, TestChainId, nonce, sender, receiver,
@@ -95,7 +95,7 @@ public class UT_RpcMessageRouter
         stub.Register((m, h, p) =>
         {
             if (m == "isConsumed") return StubRpcHandler.Boolean(false);
-            if (m == "getL1ToL2")
+            if (m == "getL1ToL2" || m == "getL1ToL2Message")
             {
                 var nonce = ulong.Parse(p[1]!["value"]!.AsString());
                 return StubRpcHandler.ByteArrayBase64(EncodeMessage(
@@ -124,6 +124,7 @@ public class UT_RpcMessageRouter
         stub.Register((m, h, p) =>
         {
             if (m == "isConsumed") return StubRpcHandler.Boolean(true);
+            // Legacy MessageRouter path only — lean getL1ToL2Message is absent so Fetch falls back.
             if (m == "getL1ToL2")
                 return StubRpcHandler.ByteArrayBase64(EncodeMessage(0, TestChainId, 7, sender, receiver,
                     (byte)MessageType.Call, new byte[] { 0x01 }));
@@ -132,6 +133,29 @@ public class UT_RpcMessageRouter
 
         var dequeued = await router.DequeueL1MessagesAsync(TestChainId, maxMessages: 10);
         Assert.AreEqual(0, dequeued.Count);
+    }
+
+    [TestMethod]
+    public async Task DequeueL1Messages_LeanSharedBridge_IgnoresLegacyIsConsumed()
+    {
+        var sender = UInt160.Parse("0x" + new string('1', 40));
+        var receiver = UInt160.Parse("0x" + new string('2', 40));
+        var (router, stub, rpc) = Build(genesisNonces: new ulong[] { 7 });
+        using var _ = rpc;
+
+        stub.Register((m, h, p) =>
+        {
+            // SharedBridge has no L1→L2 isConsumed; even if a stub answers true, lean ABI wins.
+            if (m == "isConsumed") return StubRpcHandler.Boolean(true);
+            if (m == "getL1ToL2Message")
+                return StubRpcHandler.ByteArrayBase64(EncodeMessage(0, TestChainId, 7, sender, receiver,
+                    (byte)MessageType.Call, new byte[] { 0xAB }));
+            return null;
+        });
+
+        var dequeued = await router.DequeueL1MessagesAsync(TestChainId, maxMessages: 10);
+        Assert.AreEqual(1, dequeued.Count);
+        Assert.AreEqual(7ul, dequeued[0].Nonce);
     }
 
     [TestMethod]
@@ -144,7 +168,7 @@ public class UT_RpcMessageRouter
         stub.Register((m, h, p) =>
         {
             if (m == "isConsumed") return StubRpcHandler.Boolean(false);
-            if (m == "getL1ToL2")
+            if (m == "getL1ToL2" || m == "getL1ToL2Message")
             {
                 var nonce = ulong.Parse(p[1]!["value"]!.AsString());
                 return StubRpcHandler.ByteArrayBase64(EncodeMessage(0, TestChainId, nonce, sender, receiver,
@@ -185,7 +209,7 @@ public class UT_RpcMessageRouter
         stub.Register((m, h, p) =>
         {
             if (m == "isConsumed") return StubRpcHandler.Boolean(false);
-            if (m == "getL1ToL2")
+            if (m == "getL1ToL2" || m == "getL1ToL2Message")
             {
                 var nonce = ulong.Parse(p[1]!["value"]!.AsString());
                 return StubRpcHandler.ByteArrayBase64(EncodeMessage(0, TestChainId, nonce, sender, receiver,

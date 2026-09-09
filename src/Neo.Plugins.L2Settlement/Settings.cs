@@ -47,9 +47,9 @@ public sealed class L2SettlementSettings
     public string L2BridgeHash { get; init; } = "";
 
     /// <summary>
-    /// Encoded NeoHub.MessageRouter contract hash. When set, production wiring constructs an
-    /// owned <c>RpcMessageRouter</c> with a durable <c>L1ToL2Enqueued</c> event scanner
-    /// (unless the caller supplies a message router).
+    /// Deprecated alias for SharedBridge messaging surface. Lean NeoHub stores L1↔L2 enqueue
+    /// events on SharedBridge; prefer <see cref="SharedBridgeHash"/>. When only this field is
+    /// set, production wiring treats it as the SharedBridge hash.
     /// </summary>
     public string MessageRouterHash { get; init; } = "";
 
@@ -67,9 +67,10 @@ public sealed class L2SettlementSettings
     public uint SharedBridgeDeploymentHeight { get; init; }
 
     /// <summary>
-    /// L1 block index where MessageRouter was deployed. Required when
-    /// <see cref="MessageRouterHash"/> is set and the caller does not pass a non-zero
-    /// <c>messageRouterDeploymentHeight</c> to <c>WireProduction</c>.
+    /// L1 block index for L1→L2 messaging scan start. Opt-in for lean SharedBridge messaging when
+    /// <see cref="MessageRouterHash"/> is empty: set this (typically equal to
+    /// <see cref="SharedBridgeDeploymentHeight"/>) to construct <c>RpcMessageRouter</c> against
+    /// SharedBridge without forcing a router for deposits-only hosts.
     /// </summary>
     public uint MessageRouterDeploymentHeight { get; init; }
 
@@ -248,6 +249,12 @@ public sealed class L2SettlementSettings
                 throw new InvalidDataException(
                     "MessageRouterHash must identify a distinct NeoHub contract from RollupHub/SettlementManager");
         }
+        // Deprecated alias: operators who still set only MessageRouterHash get SharedBridge wiring
+        // against that hash (must be the SharedBridge deploy in lean networks). Do not auto-promote
+        // SharedBridgeHash into MessageRouterHash — that would force RpcMessageRouter construction
+        // whenever deposits are configured.
+        if (sharedBridgeHash is null && messageRouterHash is not null)
+            sharedBridgeHash = messageRouterHash;
 
         UInt160? optimisticChallengeHash = null;
         if (!string.IsNullOrWhiteSpace(OptimisticChallengeHash))

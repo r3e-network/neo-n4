@@ -73,7 +73,10 @@ and every open release gate still apply:
   The content-addressed SP1 queue uses owner-only `0700` directories, `0600` artifacts, 16-GiB /
   64-task hard limits, and a durable settlement acknowledgement. The Rust daemon prunes request,
   proof, VK, public values, result, and archive bytes only after `SettlementFinalized`; TTL deletion
-  is forbidden.
+  is forbidden. Transaction authorization in the proving core verifies Neo N3 standard
+  CheckSig/CheckMultisig witnesses over `SHA256(network ‖ inventory_hash(unsigned))` where
+  `inventory_hash` is single SHA-256 (Neo `Transaction.Hash`); see
+  [`docs/audit/architecture-iteration-2026-09-07.md`](docs/audit/architecture-iteration-2026-09-07.md).
 - **Stage 0 multisig prover** — real Secp256r1 signature aggregation
   (`AttestationProver`, `AttestationVerifier`).
 - **Optimistic challenge bisection game** — real log-N narrowing algorithm.
@@ -177,8 +180,8 @@ interface:
 | `InMemorySequencerCommitteeProvider` (devnet/tests) | `RpcSequencerCommitteeProvider` ships in `src/Neo.L2.Sequencer/` — production L1-RPC poller with configurable cache TTL, parallel status fanout across known keys, operator-supplied known-keys bootstrap (genesis + RegisterKnownKey hook for event-driven additions). `IsRegisteredAsync` always hits L1 (source of truth) | `ISequencerCommitteeProvider` |
 | `InMemoryForcedInclusionSource` (devnet/tests) | `RpcForcedInclusionSource` + `RpcForcedInclusionEventScanner` ship in `src/Neo.L2.ForcedInclusion/`. Production wiring scans finalized L1 blocks, parses contract-bound `ForcedTxEnqueued` application logs, durably persists each nonce before advancing a hash-verified restart cursor, then issues parallel `getEntry` + `isConsumed` reads and returns deadline order. Finalized-history mismatch and malformed logs fail closed; manual `RegisterNonce` is recovery-only. | `IForcedInclusionSource` |
 | In-process deposit injection (devnet) | `RpcSharedBridgeDepositSource` + scanner + `InMemorySharedBridgeDepositSource`. Full lifecycle: **Scan at seal** (`L1MessageDrain.FromDeposits`) → **Drain (reserve)** → durable batch seal → **ConfirmConsumed** (or **ReleaseReservations** on persist failure). `L2BatchPlugin.WireL1MessageInbox` is the production composition root for deposits ± MessageRouter; `L2SettlementPlugin.Wire` / `WireProduction` attach the same inbox before the sealed-batch sink (and may own the RPC deposit source when `SharedBridgeHash` is set). Unit evidence covers scan-at-seal, seal-confirm, persist-fail release/retry, and settlement wiring fail-closed. | `ISharedBridgeDepositSource` |
-| `InMemoryMessageRouter` (devnet/tests) | `RpcMessageRouter` + `RpcMessageRouterEventScanner` ship in `src/Neo.L2.Messaging/`. Production discovers finalized `L1ToL2Enqueued` events (durable cursor), then polls `getL1ToL2` + `isConsumed`; local outbox for outbound; pluggable finalized-proof store for `GetMessageProofAsync`. `WireProduction` owns the stack when `MessageRouterHash` is set and installs it on `L2BatchPlugin` via `WireL1MessageInbox` (exposed as `batchPlugin.MessageRouter`). Seal-path unit evidence covers router-only and deposit+router merged inboxes. `DecodeMessage` recomputes the canonical hash via `MessageHasher` — never trusts an off-wire hash | `IMessageRouter` |
-| `InMemorySettlementClient` | `L2SettlementPlugin.WireProduction` constructs the real `RpcSettlementClient` + network-pinned `RpcTransactionSender` + durable forced-inclusion event scanner/source/finalizer; operator supplies the reviewed `INeoTransactionSigner` and opens RocksDB at the recommended `data/settlement/*` paths (heights default from plugin config when set by `--from-deploy-report`) | `ISettlementClient` / `INeoTransactionSigner` |
+| `InMemoryMessageRouter` (devnet/tests) | `RpcMessageRouter` + `RpcMessageRouterEventScanner` ship in `src/Neo.L2.Messaging/`. Production discovers finalized `L1ToL2Enqueued` events (durable cursor) on SharedBridge or legacy MessageRouter, then polls lean `getL1ToL2Message` (fallback: `getL1ToL2` + `isConsumed`); local outbox for outbound; pluggable finalized-proof store for `GetMessageProofAsync`. `WireProduction` owns the stack when `MessageRouterHash` is set, or when `SharedBridgeHash` is set with non-zero `MessageRouterDeploymentHeight`, and installs it on `L2BatchPlugin` via `WireL1MessageInbox` (exposed as `batchPlugin.MessageRouter`). Seal-path unit evidence covers router-only and deposit+router merged inboxes. `DecodeMessage` recomputes the canonical hash via `MessageHasher` — never trusts an off-wire hash | `IMessageRouter` |
+| `InMemorySettlementClient` | `L2SettlementPlugin.WireProduction` constructs the real `RpcSettlementClient` + network-pinned `RpcTransactionSender` + durable forced-inclusion event scanner/source/finalizer; for ZK/Multisig the pipeline calls `SubmitAndFinalizeBatchAsync` and the production submitter emits `submitAndFinalizeBatch` (with `forcedInclusionCount`) against `RollupHub`. Public-input hash is the fixed **352-byte** domain (348 ‖ `forcedInclusionCount` u32 LE). Operator supplies the reviewed `INeoTransactionSigner` and opens RocksDB at the recommended `data/settlement/*` paths (heights default from plugin config when set by `--from-deploy-report`) | `ISettlementClient` / `INeoTransactionSigner` |
 | `InMemoryDAWriter`, `NeoFsLikeDAWriter` (dev/sim only) | Production: `NeoFsRestDAWriter` + `NeoFsRestDAReader` via `WithProductionBackend`, or a reviewed NeoFS SDK adapter with independent retrieval | `IProductionDAWriter` / `IProductionDAReader` |
 | `JsonRpcL1DAWriter` (signer = delegate), `CommitteeAttestedDAWriter` (committee = delegate) | Signed L1 transactions / real DAC committee credentials supplied through DI | `IDAWriter` |
 
@@ -316,11 +319,11 @@ deployments for the documented process/signing seams.
 
 **The solution currently contains 38 .NET test projects, plus cross-language
 gates for the shared four-language SDK conformance suite, Rust core/watchers/zkVM, Node, Solidity,
-Solana, vendored VM workspaces, and SP1 release proofs. The 2026-07-15 serial full-solution run
-discovered 2,591 tests: 2,587 passed, 0 failed, and 4 production-environment tests were explicitly
-not executed (one real native executor test and three exact live-SDK deployment tests). The
-numeric column below is the discovered count from that run and must be refreshed from runner
-output whenever the suite changes.** Phase-C
+Solana, vendored VM workspaces, and SP1 release proofs. The 2026-09-09 serial full-solution run
+discovered 3,110 tests: 3,105 passed, 0 failed, and 5 production-environment tests were explicitly
+not executed (one real native executor test, one metrics bind test, and three exact live-SDK
+deployment tests). The numeric column below is the discovered count from that run and must be
+refreshed from runner output whenever the suite changes.** Phase-C
 real-crypto fraud-proof tests pin the
 equivocation slash path's bytes-on-the-wire contract end-to-end with
 real secp256k1 signatures.
@@ -416,7 +419,8 @@ These are explicit deployment seams rather than missing protocol algorithms:
   production RPC composition root around `RpcTransactionSender`, `RpcSettlementClient`,
   forced-inclusion finalization, optionally an owned `RpcSharedBridgeDepositSource` when
   `SharedBridgeHash` is configured, and optionally an owned `RpcMessageRouter` +
-  `RpcMessageRouterEventScanner` when `MessageRouterHash` is configured.
+  `RpcMessageRouterEventScanner` when `MessageRouterHash` is set or when lean SharedBridge
+  messaging is opted in via non-zero `MessageRouterDeploymentHeight`.
   Hosts construct plugins via `L2SettlementPlugin.CreateFromChainDirectory(chainDir)`,
   `L2BatchPlugin.CreateFromChainDirectory(chainDir)`,
   `L2BridgePlugin.CreateFromChainDirectory(chainDir)`; L1 inbox via

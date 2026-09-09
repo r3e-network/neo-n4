@@ -20,10 +20,10 @@ namespace Neo.L2.Messaging;
 /// <para>
 /// <strong>Inbound (L1→L2)</strong>: <see cref="DequeueL1MessagesAsync"/> optionally
 /// scans finalized <c>L1ToL2Enqueued</c> events through
-/// <see cref="RpcMessageRouterEventScanner"/>, then polls
-/// <c>NeoHub.MessageRouter.GetL1ToL2(chainId, nonce)</c> + <c>IsConsumed(hash)</c>
-/// for each known nonce. Genesis nonce seed and <see cref="RegisterInboundNonce"/>
-/// remain migration/recovery hooks.
+/// <see cref="RpcMessageRouterEventScanner"/> (SharedBridge lean or legacy MessageRouter),
+/// then polls <c>getL1ToL2Message</c> first and falls back to legacy
+/// <c>getL1ToL2</c> + <c>isConsumed</c> when the lean method is absent. Genesis nonce seed
+/// and <see cref="RegisterInboundNonce"/> remain migration/recovery hooks.
 /// </para>
 /// <para>
 /// <strong>Outbound (L2-internal)</strong>: <see cref="EnqueueOutboundAsync"/>
@@ -334,22 +334,64 @@ public sealed class RpcMessageRouter : IMessageRouter, IDisposable
 
     private async Task<CrossChainMessage?> FetchOneAsync(ulong nonce, CancellationToken ct)
     {
-        var raw = await RpcContractReader.InvokeReadAsync(_rpc, _routerHash, "getL1ToL2", new object[] { _chainId, nonce }, ct).ConfigureAwait(false);
-        var bytes = RpcContractReader.ParseByteArray(raw);
+        // Lean SharedBridge ABI first; legacy MessageRouter getL1ToL2 as fallback.
+        var (bytes, leanAbi) = await FetchStoredMessageBytesAsync(nonce, ct).ConfigureAwait(false);
         if (bytes.Length == 0) return null; // not stored — operator's known set is ahead of L1
         var msg = DecodeMessage(bytes);
 
-        // Cross-check L1's IsConsumed: the contract's at-most-once gate. Skip messages
-        // that the L1 already considers consumed (settlement-driven cleanup).
-        var consumedRaw = await RpcContractReader.InvokeReadAsync(_rpc, _routerHash, "isConsumed", new object[] { msg.MessageHash }, ct).ConfigureAwait(false);
-        if (RpcContractReader.ParseBoolean(consumedRaw))
+        // Legacy MessageRouter exposed L1 at-most-once via isConsumed. SharedBridge has no
+        // L1→L2 consume method; local ForgetNonce / ConfirmConsumed remain authoritative.
+        if (!leanAbi && await IsLegacyConsumedOnL1Async(msg.MessageHash, ct).ConfigureAwait(false))
         {
-            // Drop durable track for L1-retired messages so the store does not grow forever.
             _eventScanner?.ForgetNonce(nonce);
             _knownNonces.TryRemove(nonce, out _);
             return null;
         }
         return msg;
+    }
+
+    private async Task<(byte[] Bytes, bool LeanAbi)> FetchStoredMessageBytesAsync(
+        ulong nonce, CancellationToken ct)
+    {
+        try
+        {
+            var leanRaw = await RpcContractReader.InvokeReadAsync(
+                _rpc, _routerHash, "getL1ToL2Message", new object[] { _chainId, nonce }, ct)
+                .ConfigureAwait(false);
+            // SharedBridge answered — empty means not stored; do not probe legacy ABI.
+            return (RpcContractReader.ParseByteArray(leanRaw), LeanAbi: true);
+        }
+        catch (InvalidOperationException)
+        {
+            // Method absent on legacy MessageRouter deployments.
+        }
+
+        try
+        {
+            var legacyRaw = await RpcContractReader.InvokeReadAsync(
+                _rpc, _routerHash, "getL1ToL2", new object[] { _chainId, nonce }, ct)
+                .ConfigureAwait(false);
+            return (RpcContractReader.ParseByteArray(legacyRaw), LeanAbi: false);
+        }
+        catch (InvalidOperationException)
+        {
+            return (Array.Empty<byte>(), LeanAbi: true);
+        }
+    }
+
+    private async Task<bool> IsLegacyConsumedOnL1Async(UInt256 messageHash, CancellationToken ct)
+    {
+        try
+        {
+            var consumedRaw = await RpcContractReader.InvokeReadAsync(
+                _rpc, _routerHash, "isConsumed", new object[] { messageHash }, ct)
+                .ConfigureAwait(false);
+            return RpcContractReader.ParseBoolean(consumedRaw);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

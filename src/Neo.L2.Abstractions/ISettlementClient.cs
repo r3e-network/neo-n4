@@ -1,11 +1,11 @@
 namespace Neo.L2;
 
 /// <summary>
-/// L2-side client that submits sealed batches to <c>NeoHub.SettlementManager</c> (or, when
+/// L2-side client that submits sealed batches to <c>NeoHub.RollupHub</c> (or, when
 /// <see cref="L2ChainConfig.GatewayEnabled"/> is true, to Neo Gateway for aggregation).
 /// </summary>
 /// <remarks>
-/// See doc.md §3.2 (SettlementManager), §4 (Neo Gateway), and §15.1 (transaction flow).
+/// See doc.md §3.2 (RollupHub), §4 (Neo Gateway), and §15.1 (transaction flow).
 /// </remarks>
 public interface ISettlementClient
 {
@@ -21,7 +21,7 @@ public interface ISettlementClient
 
     /// <summary>
     /// Atomically submit and finalize <paramref name="commitment"/> and public inputs in a single L1 step.
-    /// Used by Validity (ZK) proofs on <c>NeoHub.RollupHub</c>. Default implementation calls <see cref="SubmitBatchAsync"/>.
+    /// Used by Validity (ZK) and Multisig proofs on <c>NeoHub.RollupHub</c>. Default implementation calls <see cref="SubmitBatchAsync"/>.
     /// </summary>
     ValueTask<UInt256> SubmitAndFinalizeBatchAsync(
         L2BatchCommitment commitment,

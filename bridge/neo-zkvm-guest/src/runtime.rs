@@ -615,12 +615,12 @@ impl SyscallProvider for ApplicationProvider<'_> {
                 stack.push(StackValue::Integer(TRIGGER_APPLICATION));
                 Ok(())
             }
-            0x0388_c3b7 => {
-                stack.push(integer_from_u64(
-                    self.payload.block_context.first_block_timestamp,
-                ));
-                Ok(())
-            }
+            0x0388_c3b7 => Err(
+                "Runtime.Time is unavailable: the V1 payload does not commit per-block \
+                 timestamps, so no returned value would be the header the transaction \
+                 actually executes under"
+                    .to_string(),
+            ),
             0x74a8_fedb => {
                 stack.push(StackValue::ByteString(
                     self.current_context()?.script_hash.to_vec(),

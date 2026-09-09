@@ -1,0 +1,173 @@
+<!--
+  Neo N4 弹性网络 — 总体架构图（中文）
+  与 docs/architecture-diagrams.svg 对应，标签已本地化。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900">
+  <defs>
+    <linearGradient id="contractGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2E7D32;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="l2CoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2196F3;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1565C0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="proverGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF9800;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F57C00;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="gatewayGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9C27B0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7B1FA2;stop-opacity:1" />
+    </linearGradient>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="900" fill="#f5f5f5"/>
+  <text x="700" y="40" text-anchor="middle" font-size="28" font-weight="bold" fill="#333"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    Neo N4 弹性网络总体架构
+  </text>
+  <text x="700" y="70" text-anchor="middle" font-size="14" fill="#666"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    基于 Neo 区块链的 zk-Rollup L2，支持弹性扩容
+  </text>
+
+  <!-- L1 NeoHub 4 支柱 -->
+  <rect x="60" y="110" width="1280" height="170" rx="10" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.5"/>
+  <text x="80" y="135" font-size="16" font-weight="bold" fill="#1B5E20"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    L1 NeoHub — 四支柱合约套件
+  </text>
+
+  <rect x="90" y="155" width="280" height="100" rx="8" fill="url(#contractGrad)" stroke="#1B5E20"/>
+  <text x="230" y="195" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">RollupHub</text>
+  <text x="230" y="220" text-anchor="middle" font-size="12" fill="#E8F5E9"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">链注册 · 批次结算 · DA 校验</text>
+
+  <rect x="400" y="155" width="280" height="100" rx="8" fill="url(#contractGrad)" stroke="#1B5E20"/>
+  <text x="540" y="195" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">SharedBridge</text>
+  <text x="540" y="220" text-anchor="middle" font-size="12" fill="#E8F5E9"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">资产托管 · 代币注册 · 跨链消息</text>
+
+  <rect x="710" y="155" width="280" height="100" rx="8" fill="url(#contractGrad)" stroke="#1B5E20"/>
+  <text x="850" y="195" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">ZkVerifier</text>
+  <text x="850" y="220" text-anchor="middle" font-size="12" fill="#E8F5E9"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">SP1 Groth16 有效性验证</text>
+
+  <rect x="1020" y="155" width="280" height="100" rx="8" fill="url(#contractGrad)" stroke="#1B5E20"/>
+  <text x="1160" y="195" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">GovernanceController</text>
+  <text x="1160" y="220" text-anchor="middle" font-size="12" fill="#E8F5E9"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">委员会多签 · 时间锁 · 质押</text>
+
+  <!-- L2 节点内部 -->
+  <rect x="60" y="310" width="620" height="280" rx="10" fill="#E3F2FD" stroke="#1565C0" stroke-width="1.5"/>
+  <text x="80" y="335" font-size="16" font-weight="bold" fill="#0D47A1"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    L2 节点插件栈
+  </text>
+
+  <rect x="90" y="355" width="170" height="70" rx="8" fill="url(#l2CoreGrad)"/>
+  <text x="175" y="385" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">Batcher</text>
+  <text x="175" y="405" text-anchor="middle" font-size="11" fill="#E3F2FD"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">区块 → 批次</text>
+
+  <rect x="280" y="355" width="170" height="70" rx="8" fill="url(#l2CoreGrad)"/>
+  <text x="365" y="385" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">Settlement</text>
+  <text x="365" y="405" text-anchor="middle" font-size="11" fill="#E3F2FD"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">原子提交并最终化</text>
+
+  <rect x="470" y="355" width="170" height="70" rx="8" fill="url(#l2CoreGrad)"/>
+  <text x="555" y="385" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">Bridge / DA</text>
+  <text x="555" y="405" text-anchor="middle" font-size="11" fill="#E3F2FD"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">入金出金 · 数据可用</text>
+
+  <rect x="90" y="450" width="270" height="70" rx="8" fill="url(#l2CoreGrad)"/>
+  <text x="225" y="480" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">SP1 执行栈</text>
+  <text x="225" y="500" text-anchor="middle" font-size="11" fill="#E3F2FD"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">NEO4STW1 完整状态见证 · 原子提交</text>
+
+  <rect x="380" y="450" width="260" height="70" rx="8" fill="url(#l2CoreGrad)"/>
+  <text x="510" y="480" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">强制包含 / 审计</text>
+  <text x="510" y="500" text-anchor="middle" font-size="11" fill="#E3F2FD"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">反审查队列 · 六项不变量检查</text>
+
+  <text x="80" y="560" font-size="12" fill="#0D47A1"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    有效性路径：Batcher → SP1 执行 → 证明工件 → Settlement → RollupHub.submitAndFinalizeBatch
+  </text>
+
+  <!-- 证明器 -->
+  <rect x="710" y="310" width="300" height="280" rx="10" fill="#FFF3E0" stroke="#E65100" stroke-width="1.5"/>
+  <text x="730" y="335" font-size="16" font-weight="bold" fill="#E65100"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    SP1 证明器
+  </text>
+  <rect x="740" y="355" width="240" height="80" rx="8" fill="url(#proverGrad)"/>
+  <text x="860" y="390" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">prove-batch daemon</text>
+  <text x="860" y="412" text-anchor="middle" font-size="11" fill="#FFF3E0"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">neo-zkvm-guest / host</text>
+  <rect x="740" y="455" width="240" height="80" rx="8" fill="url(#proverGrad)"/>
+  <text x="860" y="490" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">内容寻址队列</text>
+  <text x="860" y="512" text-anchor="middle" font-size="11" fill="#FFF3E0"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">结算确认后才剪枝</text>
+
+  <!-- Gateway -->
+  <rect x="1040" y="310" width="300" height="280" rx="10" fill="#F3E5F5" stroke="#6A1B9A" stroke-width="1.5"/>
+  <text x="1060" y="335" font-size="16" font-weight="bold" fill="#6A1B9A"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    Neo Gateway 聚合
+  </text>
+  <rect x="1070" y="355" width="240" height="80" rx="8" fill="url(#gatewayGrad)"/>
+  <text x="1190" y="390" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">BinaryTreeAggregator</text>
+  <text x="1190" y="412" text-anchor="middle" font-size="11" fill="#F3E5F5"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">多轮 IRoundProver</text>
+  <rect x="1070" y="455" width="240" height="80" rx="8" fill="url(#gatewayGrad)"/>
+  <text x="1190" y="490" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">全局消息根发布</text>
+  <text x="1190" y="512" text-anchor="middle" font-size="11" fill="#F3E5F5"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">RollupHub → SharedBridge</text>
+
+  <!-- 外部桥 -->
+  <rect x="60" y="620" width="1280" height="140" rx="10" fill="#FFEBEE" stroke="#B71C1C" stroke-width="1.5"/>
+  <text x="80" y="645" font-size="16" font-weight="bold" fill="#B71C1C"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    外部链桥（EVM / Tron / Solana 家族）
+  </text>
+  <text x="80" y="680" font-size="13" fill="#333"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    MPC 委员会 secp256k1 / ed25519 验证 · ExternalBridgeRegistry / Escrow / Bond · watcher 守护进程
+  </text>
+  <text x="80" y="710" font-size="13" fill="#333"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    安全档位：Validity（SP1 有效性）· Optimistic（受限 v4 欺诈证明，非生产）· Multisig 门限
+  </text>
+  <text x="80" y="740" font-size="12" fill="#666"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    生产就绪边界：需操作方注入 HSM/KMS 签名、生产 DA 凭证与已审计 Neo.CLI 发行版；本图不宣称主网就绪
+  </text>
+
+  <!-- 图例 -->
+  <text x="700" y="820" text-anchor="middle" font-size="12" fill="#666"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    绿色 = L1 合约 · 蓝色 = L2 节点 · 橙色 = 证明器 · 紫色 = 聚合网关 · 红色 = 外部桥
+  </text>
+  <text x="700" y="850" text-anchor="middle" font-size="11" fill="#999"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    对应英文图：docs/architecture-diagrams.svg · 权威规范见 doc.md
+  </text>
+</svg>

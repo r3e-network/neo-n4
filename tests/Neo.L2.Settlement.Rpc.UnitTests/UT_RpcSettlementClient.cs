@@ -181,7 +181,7 @@ public class UT_RpcSettlementClient
         using var settlement = new RpcSettlementClient(
             rpc,
             UInt160.Parse("0x" + new string('1', 40)),
-            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+            (sm, method, bytes, l1h, bch, forced, ct) => new ValueTask<UInt256>(UInt256.Zero));
 
         var root = await settlement.GetCanonicalStateRootAsync(1001);
         Assert.AreEqual(new UInt256(rootBytes), root);
@@ -199,7 +199,7 @@ public class UT_RpcSettlementClient
         using var settlement = new RpcSettlementClient(
             rpc,
             UInt160.Parse("0x" + new string('1', 40)),
-            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+            (sm, method, bytes, l1h, bch, forced, ct) => new ValueTask<UInt256>(UInt256.Zero));
 
         var status = await settlement.GetBatchStatusAsync(1001, 7);
         Assert.AreEqual(BatchStatus.Finalized, status);
@@ -217,7 +217,7 @@ public class UT_RpcSettlementClient
         var settlement = new RpcSettlementClient(
             rpc,
             UInt160.Parse("0x" + new string('1', 40)),
-            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+            (sm, method, bytes, l1h, bch, forced, ct) => new ValueTask<UInt256>(UInt256.Zero));
 
         settlement.Dispose();
         settlement.Dispose();
@@ -240,7 +240,7 @@ public class UT_RpcSettlementClient
         using var settlement = new RpcSettlementClient(
             rpc,
             UInt160.Parse("0x" + new string('1', 40)),
-            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+            (sm, method, bytes, l1h, bch, forced, ct) => new ValueTask<UInt256>(UInt256.Zero));
 
         Assert.AreEqual(
             SettlementTransactionStatus.Pending,
@@ -265,7 +265,7 @@ public class UT_RpcSettlementClient
         using var settlement = new RpcSettlementClient(
             rpc,
             UInt160.Parse("0x" + new string('1', 40)),
-            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+            (sm, method, bytes, l1h, bch, forced, ct) => new ValueTask<UInt256>(UInt256.Zero));
 
         Assert.AreEqual(
             SettlementTransactionStatus.Unknown,
@@ -284,7 +284,7 @@ public class UT_RpcSettlementClient
         using var settlement = new RpcSettlementClient(
             rpc,
             UInt160.Parse("0x" + new string('1', 40)),
-            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+            (sm, method, bytes, l1h, bch, forced, ct) => new ValueTask<UInt256>(UInt256.Zero));
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
             await settlement.GetBatchStatusAsync(1001, 7));
@@ -298,6 +298,7 @@ public class UT_RpcSettlementClient
         var rpc = new JsonRpcClient(FakeEndpoint, http);
         var sentBytes = (byte[]?)null;
         var sentTo = (UInt160?)null;
+        var sentMethod = (string?)null;
         var sentL1MessageHash = (byte[]?)null;
         var sentBlockContextHash = (byte[]?)null;
         var fakeTxHash = UInt256.Parse("0x" + new string('f', 64));
@@ -305,7 +306,15 @@ public class UT_RpcSettlementClient
         using var settlement = new RpcSettlementClient(
             rpc,
             UInt160.Parse("0x" + new string('1', 40)),
-            (sm, bytes, l1h, bch, ct) => { sentTo = sm; sentBytes = bytes; sentL1MessageHash = l1h; sentBlockContextHash = bch; return new ValueTask<UInt256>(fakeTxHash); });
+            (sm, method, bytes, l1h, bch, forced, ct) =>
+            {
+                sentTo = sm;
+                sentMethod = method;
+                sentBytes = bytes;
+                sentL1MessageHash = l1h;
+                sentBlockContextHash = bch;
+                return new ValueTask<UInt256>(fakeTxHash);
+            });
 
         var commitment = new L2BatchCommitment
         {
@@ -345,12 +354,17 @@ public class UT_RpcSettlementClient
 
         var txHash = await settlement.SubmitBatchAsync(commitment, publicInputs);
         Assert.AreEqual(fakeTxHash, txHash);
+        Assert.AreEqual("submitBatch", sentMethod);
         Assert.AreEqual(UInt160.Parse("0x" + new string('1', 40)), sentTo);
         Assert.IsNotNull(sentBytes);
         Assert.IsTrue(sentBytes!.Length > 0);
         // The two public-input hashes the contract binds must be forwarded verbatim to the signer.
         CollectionAssert.AreEqual(publicInputs.L1MessageHash.GetSpan().ToArray(), sentL1MessageHash);
         CollectionAssert.AreEqual(publicInputs.BlockContextHash.GetSpan().ToArray(), sentBlockContextHash);
+
+        var finalizeHash = await settlement.SubmitAndFinalizeBatchAsync(commitment, publicInputs);
+        Assert.AreEqual(fakeTxHash, finalizeHash);
+        Assert.AreEqual("submitAndFinalizeBatch", sentMethod);
     }
 
     [TestMethod]
@@ -383,7 +397,7 @@ public class UT_RpcSettlementClient
         // with a generic ArgumentNullException naming "commitment" but BatchSerializer's
         // own line — naming the bad input directly at the API boundary is clearer.
         using var rpc = new JsonRpcClient(new Uri("http://localhost"), httpClient: null);
-        var client = new RpcSettlementClient(rpc, UInt160.Zero, (sm, b, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero));
+        var client = new RpcSettlementClient(rpc, UInt160.Zero, (sm, method, b, l1h, bch, forced, ct) => new ValueTask<UInt256>(UInt256.Zero));
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             async () => await client.SubmitBatchAsync(null!, new PublicInputs
             {
@@ -409,7 +423,7 @@ public class UT_RpcSettlementClient
     {
         // Pin RpcSettlementClient.cs:36.
         Assert.ThrowsExactly<ArgumentNullException>(
-            () => new RpcSettlementClient(null!, UInt160.Zero, (sm, b, l1h, bch, ct) => new ValueTask<UInt256>(UInt256.Zero)));
+            () => new RpcSettlementClient(null!, UInt160.Zero, (sm, method, b, l1h, bch, forced, ct) => new ValueTask<UInt256>(UInt256.Zero)));
     }
 
     [TestMethod]
@@ -481,7 +495,7 @@ public class UT_RpcSettlementClient
         using var settlement = new RpcSettlementClient(
             rpc,
             UInt160.Parse("0x" + new string('1', 40)),
-            (sm, bytes, l1h, bch, ct) => new ValueTask<UInt256>((UInt256)null!));
+            (sm, method, bytes, l1h, bch, forced, ct) => new ValueTask<UInt256>((UInt256)null!));
 
         var commitment = new L2BatchCommitment
         {

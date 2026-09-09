@@ -1,7 +1,7 @@
 use alloc::{collections::BTreeMap, vec::Vec};
 
 use ripemd::{Digest as RipemdDigest, Ripemd160};
-use sha2::{Digest as ShaDigest, Sha256};
+use sha2::Sha256;
 
 use crate::types::{
     BatchBlockContext, CANONICAL_RECEIPT_V1_BYTES, CanonicalReceiptV1, CanonicalStackValue,
@@ -14,6 +14,18 @@ pub const STORAGE_DELTA_HASH_DOMAIN: &[u8] = b"neo-n4/storage-delta/v1\0";
 pub const EVENTS_HASH_DOMAIN: &[u8] = b"neo-n4/events/v1\0";
 pub const STACK_STATE_MAGIC: &[u8; 8] = b"NEO4STK1";
 
+/// Neo N3 inventory id (`Helper.CalculateHash`): single SHA-256 of the unsigned payload.
+/// Use this for `Transaction.Hash` / `GetSignData` preimages. Do not use for Merkle or
+/// commitment digests — those stay on [`hash256`].
+#[must_use]
+pub fn inventory_hash(input: &[u8]) -> UInt256 {
+    let digest = Sha256::digest(input);
+    let mut output = [0u8; 32];
+    output.copy_from_slice(&digest);
+    output
+}
+
+/// Double SHA-256 (`Hash256`) used for commitments, Merkle parents, and DA digests.
 #[must_use]
 pub fn hash256(input: &[u8]) -> UInt256 {
     let first = Sha256::digest(input);
@@ -296,7 +308,47 @@ pub fn hash_public_inputs(
     da_commitment: &UInt256,
     block_context_hash: &UInt256,
 ) -> UInt256 {
-    let mut bytes = Vec::with_capacity(348);
+    hash_public_inputs_with_forced(
+        chain_id,
+        batch_number,
+        first_block,
+        last_block,
+        pre_state_root,
+        post_state_root,
+        tx_root,
+        receipt_root,
+        withdrawal_root,
+        l2_to_l1_message_root,
+        l2_to_l2_message_root,
+        l1_message_hash,
+        da_commitment,
+        block_context_hash,
+        0,
+    )
+}
+
+/// Same as [`hash_public_inputs`], always binding `forced_inclusion_count` (u32 LE)
+/// so the preimage is a fixed 352-byte domain (Wave 2).
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn hash_public_inputs_with_forced(
+    chain_id: u32,
+    batch_number: u64,
+    first_block: u64,
+    last_block: u64,
+    pre_state_root: &UInt256,
+    post_state_root: &UInt256,
+    tx_root: &UInt256,
+    receipt_root: &UInt256,
+    withdrawal_root: &UInt256,
+    l2_to_l1_message_root: &UInt256,
+    l2_to_l2_message_root: &UInt256,
+    l1_message_hash: &UInt256,
+    da_commitment: &UInt256,
+    block_context_hash: &UInt256,
+    forced_inclusion_count: u32,
+) -> UInt256 {
+    let mut bytes = Vec::with_capacity(352);
     bytes.extend_from_slice(&chain_id.to_le_bytes());
     bytes.extend_from_slice(&batch_number.to_le_bytes());
     bytes.extend_from_slice(&first_block.to_le_bytes());
@@ -315,6 +367,7 @@ pub fn hash_public_inputs(
     ] {
         bytes.extend_from_slice(root);
     }
+    bytes.extend_from_slice(&forced_inclusion_count.to_le_bytes());
     hash256(&bytes)
 }
 

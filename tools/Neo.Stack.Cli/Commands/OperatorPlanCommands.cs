@@ -661,7 +661,8 @@ internal static class SubmitBatchCommand
                 CallFlags.All,
                 bytes,
                 l1MessageHash.GetSpan().ToArray(),
-                blockContextHash.GetSpan().ToArray());
+                blockContextHash.GetSpan().ToArray(),
+                0u);
 
             var broadcastRc = await OperatorTransactionBroadcaster.BroadcastAsync(
                 args,

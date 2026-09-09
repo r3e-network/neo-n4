@@ -806,11 +806,12 @@ public class UT_OptimisticAndRiscV
         // same hash from the commitment header (chainId@0, batchNumber@4, firstBlock@12,
         // lastBlock@20 copied as the contiguous 28-byte head, then preState@28, postState@60,
         // tx@92, receipt@124, withdrawal@156, l2ToL1@188, l2ToL2@220, daCommitment@252) plus the
-        // supplied l1MessageHash/blockContextHash. If this golden constant ever breaks, the
-        // on-chain offsets/field-order MUST be re-verified or settlement will silently mis-bind.
+        // supplied l1MessageHash/blockContextHash plus forcedInclusionCount (u32 LE at 348).
+        // If this golden constant ever breaks, the on-chain offsets/field-order MUST be
+        // re-verified or settlement will silently mis-bind.
         // Canonical input: chainId=1, batchNumber=1, firstBlock=1, lastBlock=2, roots = uniform
         // bytes 0x11,0x22,...,0xAA in HashPublicInputs field order (pre,post,tx,receipt,
-        // withdrawal,l2ToL1,l2ToL2,l1MessageHash,daCommitment,blockContextHash).
+        // withdrawal,l2ToL1,l2ToL2,l1MessageHash,daCommitment,blockContextHash), FI count 0.
         static UInt256 Root(char hexDigit) => UInt256.Parse("0x" + new string(hexDigit, 64));
         var inputs = new PublicInputs
         {
@@ -828,8 +829,9 @@ public class UT_OptimisticAndRiscV
             L1MessageHash = Root('8'),
             DACommitment = Root('9'),
             BlockContextHash = Root('a'),
+            ForcedInclusionCount = 0,
         };
-        var golden = Convert.FromHexString("cea8d10be9d2cbbd9a0a7e3852349d1b639bec666d92776bae8caace33f6fca2");
+        var golden = Convert.FromHexString("805b89e2453d1ed1bd82fa9ad1ca8bde478ad747df71587a6c412dead64dd22c");
         CollectionAssert.AreEqual(golden, StateRootCalculator.HashPublicInputs(inputs).GetSpan().ToArray(),
             "HashPublicInputs diverged from the pinned golden vector — re-verify on-chain ComputePublicInputHash parity");
     }

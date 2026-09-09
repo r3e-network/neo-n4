@@ -295,7 +295,9 @@ public class UT_BatchSerializer
         };
         var bytes = BatchSerializer.EncodePublicInputs(inputs);
 
-        Assert.AreEqual(348, bytes.Length);
+        Assert.AreEqual(352, bytes.Length);
+        CollectionAssert.AreEqual(inputs.BlockContextHash.GetSpan().ToArray(), bytes[316..348]);
+        Assert.AreEqual(inputs.ForcedInclusionCount, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(348, 4)));
         Assert.AreEqual(0xCAFEBABEu, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(0, 4)));
         Assert.AreEqual(0xDEAD_BEEFUL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(4, 8)));
         Assert.AreEqual(0x1111_1111_1111_1111UL, System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(bytes.AsSpan(12, 8)));

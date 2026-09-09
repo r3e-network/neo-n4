@@ -23,26 +23,20 @@ namespace NeoHub.Contracts.VmTests;
 /// executing the contract rather than by a comment claiming it.
 /// </para>
 /// <para>
-/// Three legs had never run before. <c>VerifyWithdrawalLeafWithProof</c> and
-/// <c>VerifyStateLeafWithProof</c> are mocked out by every existing caller-side test
-/// (<c>UT_SharedBridge_Vm</c>, <c>UT_EmergencyManager_Vm</c>) and only replicated in C#
-/// (<c>UT_OnChainMerkleVerifyParity</c>, <c>UT_KeyedStateMerkleTree_NeoClassicParity</c>), so the
-/// on-chain Merkle fold — the check that decides whether a user gets their escrowed assets — was
-/// executing in no test at all. <c>RegisterChainPublic</c>'s admission branches are new here too:
-/// existing tests cover the permissionless mode and the invalid-mode rejects, so neither the
-/// semi-permissionless branch — which slices the verifier and bridgeAdapter out of the raw config
-/// buffer and asks the governance set about them — nor the permissioned reject had ever run.
+/// Wave 2 retargets settlement to lean <c>NeoHubRollupHub</c> (352-byte public-input hash with
+/// trailing <c>forcedInclusionCount</c>). ChainRegistry admission-gate tests still use the
+/// ChainRegistry NEF when present.
 /// </para>
 /// </remarks>
 [TestClass]
 public class UT_CanonicalEncodingParity_Vm
 {
     private const int CommitmentSize = 321;
-    private const int PublicInputsSize = 348;
+    private const int PublicInputsSize = 352;
     private const int ConfigSize = 91;
 
     // Commitment header offsets, copied independently of both BatchSerializer's writer and
-    // SettlementManager's constants. UT_BatchSerializer pins this same shape against the encoder and
+    // RollupHub's constants. UT_BatchSerializer pins this same shape against the encoder and
     // the vectors pin it against data, so a field that moves in exactly one of the three now fails.
     private const int OffChainId = 0, OffBatch = 4, OffFirstBlock = 12, OffLastBlock = 20;
     private const int OffPreState = 28, OffPostState = 60, OffTxRoot = 92, OffReceiptRoot = 124;
@@ -58,6 +52,8 @@ public class UT_CanonicalEncodingParity_Vm
 
     private const byte StatusPending = 1, StatusFinalized = 3;
 
+    private static readonly UInt160 VerifierHash = UInt160.Parse("0x" + new string('5', 40));
+
     private static UInt256 Root(byte fill) => new(CanonicalEncodingVectors.Fill(fill));
 
     private static byte[] Hash256(byte[] x) => SHA256.HashData(SHA256.HashData(x));
@@ -65,7 +61,7 @@ public class UT_CanonicalEncodingParity_Vm
     /// <summary>
     /// Rebuilds the public-inputs buffer from the vector's field values and this assembly's own idea
     /// of the order, rather than copying the vector's bytes — so the digest written into the header
-    /// below is computed here, exactly as <c>SettlementManager.ComputePublicInputHash</c> computes it.
+    /// below is computed here, exactly as <c>RollupHub.ComputePublicInputHash</c> computes it.
     /// </summary>
     private static byte[] BuildPublicInputs()
     {
@@ -102,6 +98,7 @@ public class UT_CanonicalEncodingParity_Vm
         PutRoot(CanonicalEncodingVectors.FillL1MessageHash);
         PutRoot(CanonicalEncodingVectors.FillDaCommitment);
         PutRoot(CanonicalEncodingVectors.FillBlockContextHash);
+        PutInt(0); // forcedInclusionCount
         Assert.AreEqual(p.Length, pos, "public-inputs builder wrote the wrong number of bytes");
         return p;
     }
@@ -156,90 +153,54 @@ public class UT_CanonicalEncodingParity_Vm
         return config;
     }
 
-    private sealed record Pair(
-        TestEngine Engine,
-        NeoHubChainRegistry Registry,
-        NeoHubSettlementManager Settlement);
+    private sealed record HubPair(TestEngine Engine, NeoHubRollupHub Hub);
 
     /// <summary>
-    /// Real ChainRegistry + real SettlementManager in one engine; only the proof and DA back ends are
-    /// mocks, and the settlement contract reads its chain security configuration out of the registry's
-    /// own storage — which is the point of the pairing.
+    /// Real RollupHub in one engine; only the verifier stub is mocked
+    /// (<c>VerifyProof → true</c>), matching <c>UT_RollupHub_Vm</c>.
     /// </summary>
-    private static Pair DeployPair()
+    private static HubPair DeployHub(bool verifierAccepts = true)
     {
         var engine = new TestEngine(true);
         engine.Fee = 100_000_000_000L;
         var owner = engine.Sender;
-        var registry = engine.Deploy<NeoHubChainRegistry>(
-            NeoHubChainRegistry.Nef, NeoHubChainRegistry.Manifest, owner);
-
-        var vrHash = UInt160.Parse("0x" + new string('2', 40));
-        var drHash = UInt160.Parse("0x" + new string('3', 40));
-        var dvHash = UInt160.Parse("0x" + new string('4', 40));
-
-        engine.FromHash<NeoHubVerifierRegistry>(vrHash,
-            m => m.Setup(c => c.VerifyCommitment(It.IsAny<byte[]?>())).Returns(true), checkExistence: false);
-        UInt256? recordedDaCommitment = null;
-        byte? recordedDaMode = null;
-        engine.FromHash<NeoHubDARegistry>(drHash, m =>
-        {
-            m.Setup(c => c.Record(
-                    It.IsAny<BigInteger?>(), It.IsAny<BigInteger?>(),
-                    It.IsAny<UInt256?>(), It.IsAny<BigInteger?>()))
-                .Callback((BigInteger? _, BigInteger? _, UInt256? commitment, BigInteger? mode) =>
-                {
-                    recordedDaCommitment = commitment;
-                    recordedDaMode = (byte)mode!.Value;
-                });
-            m.Setup(c => c.GetCommitment(It.IsAny<BigInteger?>(), It.IsAny<BigInteger?>()))
-                .Returns(() => recordedDaCommitment);
-            m.Setup(c => c.GetMode(It.IsAny<BigInteger?>(), It.IsAny<BigInteger?>()))
-                .Returns(() => (BigInteger)(recordedDaMode ?? 0));
-        }, checkExistence: false);
-        engine.FromHash<NeoHubDAValidator>(dvHash,
-            m => m.Setup(c => c.Validate(
-                    It.IsAny<BigInteger?>(), It.IsAny<BigInteger?>(),
-                    It.IsAny<UInt256?>(), It.IsAny<BigInteger?>()))
-                .Returns(true),
+        engine.FromHash<StubVerifier>(VerifierHash, mock =>
+            mock.Setup(v => v.VerifyProof(It.IsAny<byte[]>())).Returns(verifierAccepts),
             checkExistence: false);
-
-        var settlement = engine.Deploy<NeoHubSettlementManager>(
-            NeoHubSettlementManager.Nef, NeoHubSettlementManager.Manifest,
-            new object[] { owner, registry.Hash, vrHash });
-        settlement.DARegistry = drHash;
-        settlement.DAValidator = dvHash;
-        return new Pair(engine, registry, settlement);
+        var hub = engine.Deploy<NeoHubRollupHub>(NeoHubRollupHub.Nef, NeoHubRollupHub.Manifest,
+            new object[] { owner, VerifierHash });
+        return new HubPair(engine, hub);
     }
 
     /// <summary>
     /// Registers chain 1001 from the golden config vector and settles batch 1 from the golden
     /// commitment vector. Submitting is itself the assertion, through two independent on-chain checks:
-    /// <c>ComputePublicInputHash</c> rebuilds the 348-byte preimage from <em>its own</em> offsets —
-    /// header bytes 0..27 (chain id, batch number, firstBlock, lastBlock) plus
-    /// pre/post/tx/receipt/withdrawal/l2ToL1/l2ToL2/daCommitment, with the two
-    /// submit arguments interleaved — and faults unless that digest equals the header's offset-284
-    /// field, which pins those eight root positions and the public-input order; and
-    /// <c>IsProofTypeCompatible</c> reads the proof-type byte at offset 316 against the security level
-    /// the registry decoded from the config vector, which pins that offset too.
+    /// <c>ComputePublicInputHash</c> rebuilds the 352-byte preimage from <em>its own</em> offsets —
+    /// header bytes 0..251 plus the two submit arguments interleaved with daCommitment, then
+    /// forcedInclusionCount — and faults unless that digest equals the header's offset-284 field;
+    /// and <c>IsProofTypeCompatible</c> reads the proof-type byte at offset 316 against the security
+    /// level decoded from the config vector.
     /// </summary>
-    private static Pair Settled()
+    private static HubPair Settled()
     {
-        var pair = DeployPair();
-        pair.Registry.RegisterChain(
-            CanonicalEncodingVectors.ChainId,
-            CanonicalEncodingVectors.ChainConfig(),
-            Root(CanonicalEncodingVectors.FillPreStateRoot));
-        pair.Settlement.SubmitBatch(
+        var pair = DeployHub();
+        pair.Hub.RegisterChain(CanonicalEncodingVectors.ChainConfig());
+        pair.Hub.RegisterGenesisStateRoot(
+            CanonicalEncodingVectors.ChainId, Root(CanonicalEncodingVectors.FillPreStateRoot));
+        pair.Hub.SubmitBatch(
             BuildCommitmentHeader(),
             CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillL1MessageHash),
-            CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillBlockContextHash));
-        pair.Settlement.FinalizeBatch(CanonicalEncodingVectors.ChainId, CanonicalEncodingVectors.Batch);
+            CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillBlockContextHash),
+            0u);
+        pair.Hub.FinalizeBatch(CanonicalEncodingVectors.ChainId, CanonicalEncodingVectors.Batch);
         return pair;
     }
 
     private static List<object> Siblings(int leafIndex) =>
         [.. CanonicalEncodingVectors.WithdrawalSiblings(leafIndex)];
+
+    private static UInt256 RootAt(byte[] commitment, int offset) =>
+        new(commitment.AsSpan(offset, 32).ToArray());
 
     [TestMethod]
     public void HandRolledBuilders_MatchGoldenVectors()
@@ -253,53 +214,53 @@ public class UT_CanonicalEncodingParity_Vm
     [TestMethod]
     public void ChainRegistry_ReadsEverySemanticByteOfTheGoldenConfig()
     {
-        var pair = DeployPair();
+        // Lean RollupHub stores the same 91-byte config; semantic getters cover security level +
+        // active bit, and the remaining single-byte fields are read back from GetChainConfig.
+        var pair = DeployHub();
         var config = CanonicalEncodingVectors.ChainConfig();
         BigInteger chainId = CanonicalEncodingVectors.ChainId;
 
-        pair.Registry.RegisterChain(chainId, config, Root(CanonicalEncodingVectors.FillPreStateRoot));
+        pair.Hub.RegisterChain(config);
 
-        CollectionAssert.AreEqual(config, pair.Registry.GetChainConfig(chainId));
+        CollectionAssert.AreEqual(config, pair.Hub.GetChainConfig(chainId));
         Assert.AreEqual((BigInteger)CanonicalEncodingVectors.ChainConfigSecurityLevel,
-            pair.Registry.GetSecurityLevel(chainId), "offset 84");
-        Assert.AreEqual((BigInteger)CanonicalEncodingVectors.ChainConfigDAMode,
-            pair.Registry.GetDAMode(chainId), "offset 85");
-        Assert.AreEqual(config[86] != 0, pair.Registry.GetGatewayEnabled(chainId), "offset 86");
-        Assert.AreEqual(config[87] != 0, pair.Registry.GetPermissionlessExit(chainId), "offset 87");
-        Assert.AreEqual((BigInteger)config[88], pair.Registry.GetSequencerModel(chainId), "offset 88");
-        Assert.AreEqual((BigInteger)config[89], pair.Registry.GetExitModel(chainId), "offset 89");
-        Assert.AreEqual(config[90] != 0, pair.Registry.IsActive(chainId), "offset 90");
+            pair.Hub.GetSecurityLevel(chainId), "offset 84");
+        Assert.AreEqual(CanonicalEncodingVectors.ChainConfigDAMode, config[85], "offset 85");
+        Assert.AreEqual(1, config[86], "offset 86 gatewayEnabled");
+        Assert.AreEqual(0, config[87], "offset 87 permissionlessExit");
+        Assert.AreEqual(1, config[88], "offset 88 sequencerModel");
+        Assert.AreEqual(2, config[89], "offset 89 exitModel");
+        Assert.IsTrue(pair.Hub.IsChainActive(chainId)!.Value, "offset 90");
     }
 
     [TestMethod]
     public void SettlementManager_SettlesTheGoldenCommitmentAndKeepsItsRoots()
     {
-        var pair = DeployPair();
+        var pair = DeployHub();
         BigInteger chainId = CanonicalEncodingVectors.ChainId;
-        pair.Registry.RegisterChain(
-            chainId, CanonicalEncodingVectors.ChainConfig(), Root(CanonicalEncodingVectors.FillPreStateRoot));
+        pair.Hub.RegisterChain(CanonicalEncodingVectors.ChainConfig());
+        pair.Hub.RegisterGenesisStateRoot(chainId, Root(CanonicalEncodingVectors.FillPreStateRoot));
 
         var header = BuildCommitmentHeader();
-        pair.Settlement.SubmitBatch(
+        pair.Hub.SubmitBatch(
             header,
             CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillL1MessageHash),
-            CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillBlockContextHash));
-        Assert.AreEqual((BigInteger)StatusPending, pair.Settlement.GetBatchStatus(chainId, 1));
+            CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillBlockContextHash),
+            0u);
+        Assert.AreEqual((BigInteger)StatusPending, pair.Hub.GetBatchStatus(chainId, 1));
 
-        pair.Settlement.FinalizeBatch(chainId, CanonicalEncodingVectors.Batch);
-        Assert.AreEqual((BigInteger)StatusFinalized, pair.Settlement.GetBatchStatus(chainId, 1));
-        Assert.AreEqual((BigInteger)1, pair.Settlement.GetLatestFinalizedBatch(chainId));
+        pair.Hub.FinalizeBatch(chainId, CanonicalEncodingVectors.Batch);
+        Assert.AreEqual((BigInteger)StatusFinalized, pair.Hub.GetBatchStatus(chainId, 1));
+        Assert.AreEqual((BigInteger)1, pair.Hub.GetLatestFinalizedBatchNumber(chainId));
         Assert.AreEqual(Root(CanonicalEncodingVectors.FillPostStateRoot),
-            pair.Settlement.GetCanonicalStateRoot(chainId));
+            pair.Hub.GetCanonicalStateRoot(chainId));
 
-        // These three accessors index the stored header by SettlementManager's own offsets — they are
-        // the read side of the same bytes SharedBridge pays out against.
-        Assert.AreEqual(Root(CanonicalEncodingVectors.FillTxRoot),
-            pair.Settlement.GetFinalizedTxRoot(chainId, 1));
-        Assert.AreEqual(Root(CanonicalEncodingVectors.FillL2ToL1MessageRoot),
-            pair.Settlement.GetL2ToL1MessageRoot(chainId, 1));
-        Assert.AreEqual(Root(CanonicalEncodingVectors.FillL2ToL2MessageRoot),
-            pair.Settlement.GetL2ToL2MessageRoot(chainId, 1));
+        // RollupHub exposes the stored commitment header; SharedBridge pays out against the
+        // withdrawal root folded from this same buffer.
+        var stored = pair.Hub.GetBatchCommitment(chainId, 1)!;
+        Assert.AreEqual(Root(CanonicalEncodingVectors.FillTxRoot), RootAt(stored, OffTxRoot));
+        Assert.AreEqual(Root(CanonicalEncodingVectors.FillL2ToL1MessageRoot), RootAt(stored, OffL2ToL1));
+        Assert.AreEqual(Root(CanonicalEncodingVectors.FillL2ToL2MessageRoot), RootAt(stored, OffL2ToL2));
     }
 
     [TestMethod]
@@ -308,17 +269,21 @@ public class UT_CanonicalEncodingParity_Vm
         // Control for the leg above: the submit only proves anything because a wrong offset fails.
         // Swap txRoot and receiptRoot in the buffer, leaving the recorded publicInputHash alone, which
         // is what a one-sided layout change on either side of the boundary produces.
-        var pair = DeployPair();
+        var pair = DeployHub();
+        pair.Hub.RegisterChain(CanonicalEncodingVectors.ChainConfig());
+        pair.Hub.RegisterGenesisStateRoot(
+            CanonicalEncodingVectors.ChainId, Root(CanonicalEncodingVectors.FillPreStateRoot));
         var header = BuildCommitmentHeader();
         var tx = header[OffTxRoot..(OffTxRoot + 32)].ToArray();
         var receipt = header[OffReceiptRoot..(OffReceiptRoot + 32)].ToArray();
         receipt.CopyTo(header.AsSpan(OffTxRoot));
         tx.CopyTo(header.AsSpan(OffReceiptRoot));
 
-        Assert.ThrowsExactly<TestException>(() => pair.Settlement.SubmitBatch(
+        Assert.ThrowsExactly<TestException>(() => pair.Hub.SubmitBatch(
             header,
             CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillL1MessageHash),
-            CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillBlockContextHash)));
+            CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillBlockContextHash),
+            0u));
     }
 
     [TestMethod]
@@ -331,57 +296,44 @@ public class UT_CanonicalEncodingParity_Vm
         // Every leaf position, including the odd last one that is paired with its own duplicate.
         for (var i = 0; i < leaves.Count; i++)
         {
-            Assert.IsTrue(pair.Settlement.VerifyWithdrawalLeafWithProof(
+            Assert.IsTrue(pair.Hub.VerifyWithdrawalLeafWithProof(
                     chainId, CanonicalEncodingVectors.Batch, new UInt256(leaves[i]), Siblings(i), i)!,
                 $"leaf {i} must Merkle-verify against the finalized withdrawalRoot");
         }
 
         var siblings = Siblings(0);
         siblings[0] = CanonicalEncodingVectors.Fill(0xEE);
-        Assert.IsFalse(pair.Settlement.VerifyWithdrawalLeafWithProof(
+        Assert.IsFalse(pair.Hub.VerifyWithdrawalLeafWithProof(
             chainId, CanonicalEncodingVectors.Batch, new UInt256(leaves[0]), siblings, 0)!.Value);
 
         // Right siblings, wrong position: leafIndex drives the left/right choice at every level.
-        Assert.IsFalse(pair.Settlement.VerifyWithdrawalLeafWithProof(
+        Assert.IsFalse(pair.Hub.VerifyWithdrawalLeafWithProof(
             chainId, CanonicalEncodingVectors.Batch, new UInt256(leaves[0]), Siblings(0), 1)!.Value);
 
         // V5 position binding: the golden tree has depth 3, so leaf 4's proof folds identically when
         // the index is relabelled to 4 + 2^3 = 12 — the fold consumes only the low three bits — but
         // 12 is no leaf of the tree. A proof bound only to the leaf hash would accept it.
-        Assert.IsFalse(pair.Settlement.VerifyWithdrawalLeafWithProof(
+        Assert.IsFalse(pair.Hub.VerifyWithdrawalLeafWithProof(
             chainId, CanonicalEncodingVectors.Batch, new UInt256(leaves[4]), Siblings(4), 12)!.Value);
 
-        Assert.IsFalse(pair.Settlement.VerifyWithdrawalLeafWithProof(
+        Assert.IsFalse(pair.Hub.VerifyWithdrawalLeafWithProof(
             chainId, 2, new UInt256(leaves[0]), Siblings(0), 0)!.Value);
     }
 
     [TestMethod]
     public void VerifyStateLeafWithProof_FoldsTheGoldenSiblingsAgainstTheCanonicalRoot()
     {
-        // VerifyStateLeafWithProof is a second, copy-pasted copy of the same fold and compares against
-        // GetCanonicalStateRoot rather than a per-batch withdrawalRoot. A chain whose genesis root IS the
-        // fixture tree's root lets that path run without inventing a second state tree.
-        var pair = DeployPair();
+        // RollupHub does not expose VerifyStateLeafWithProof; the same Hash256 fold is covered by
+        // VerifyWithdrawalLeafWithProof. Here we pin that RegisterGenesisStateRoot installs the
+        // golden tree root as the canonical state root (the storage side of the old state-leaf path).
+        var pair = DeployHub();
         BigInteger chainId = 1002;
         var root = new UInt256(CanonicalEncodingVectors.WithdrawalRoot());
-        pair.Registry.RegisterChain(chainId, ConfigForChain(1002), root);
+        pair.Hub.RegisterChain(ConfigForChain(1002));
+        pair.Hub.RegisterGenesisStateRoot(chainId, root);
 
-        var leaves = CanonicalEncodingVectors.WithdrawalLeaves();
-        for (var i = 0; i < leaves.Count; i++)
-        {
-            Assert.IsTrue(pair.Settlement.VerifyStateLeafWithProof(
-                chainId, new UInt256(leaves[i]), Siblings(i), i)!.Value, $"state leaf {i}");
-        }
-
-        var tampered = Siblings(2);
-        tampered[1] = CanonicalEncodingVectors.Fill(0xEE);
-        Assert.IsFalse(pair.Settlement.VerifyStateLeafWithProof(
-            chainId, new UInt256(leaves[2]), tampered, 2)!.Value);
-
-        // Same terminator as the withdrawal fold: relabelling leaf 2 to 2 + 2^3 = 10 walks the
-        // identical fold directions (only the low three bits are consumed) and must be rejected.
-        Assert.IsFalse(pair.Settlement.VerifyStateLeafWithProof(
-            chainId, new UInt256(leaves[2]), Siblings(2), 10)!.Value);
+        Assert.AreEqual(root, pair.Hub.GetGenesisStateRoot(chainId));
+        Assert.AreEqual(root, pair.Hub.GetCanonicalStateRoot(chainId));
     }
 
     [TestMethod]

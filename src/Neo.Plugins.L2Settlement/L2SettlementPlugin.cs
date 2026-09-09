@@ -124,22 +124,26 @@ public sealed class L2SettlementPlugin : Plugin, ISealedBatchSink
     {
         var settings = L2SettlementSettings.FromChainDirectory(chainDirectory);
         var production = settings.ValidateProduction();
-        if (production.MessageRouterHash is null)
+        var messagingHash = production.MessageRouterHash ?? production.SharedBridgeHash;
+        if (messagingHash is null)
             throw new InvalidOperationException(
-                "CreateMessageRouterFromChainDirectory requires MessageRouterHash "
+                "CreateMessageRouterFromChainDirectory requires MessageRouterHash or SharedBridgeHash "
                 + "in settlement plugin config");
-        if (settings.MessageRouterDeploymentHeight == 0)
+        var deployHeight = settings.MessageRouterDeploymentHeight != 0
+            ? settings.MessageRouterDeploymentHeight
+            : settings.SharedBridgeDeploymentHeight;
+        if (deployHeight == 0)
             throw new InvalidOperationException(
                 "CreateMessageRouterFromChainDirectory requires MessageRouterDeploymentHeight "
-                + "in settlement plugin config (deploy-report blockIndex)");
+                + "or SharedBridgeDeploymentHeight in settlement plugin config (deploy-report blockIndex)");
 
         var rpc = new JsonRpcClient(production.RpcEndpoint.AbsoluteUri);
         return RpcMessageRouter.OpenFromChainDirectory(
             chainDirectory,
             rpc,
-            production.MessageRouterHash,
+            messagingHash,
             production.ChainId,
-            settings.MessageRouterDeploymentHeight,
+            deployHeight,
             settings.L1FinalityDepth,
             openFinalizedProofStore: openFinalizedProofStore,
             ownsRpc: true);

@@ -184,6 +184,8 @@ pub struct PublicInputs {
     pub l1_message_hash: UInt256,
     pub da_commitment: UInt256,
     pub block_context_hash: UInt256,
+    /// Bound into the 352-byte public-input domain (u32 LE at offset 348).
+    pub forced_inclusion_count: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -385,6 +387,70 @@ pub struct BatchResult {
     pub receipt_root: UInt256,
     pub gas_consumed: i64,
     pub public_input_hash: UInt256,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ProofType {
+    Attestation = 0,
+    Optimistic = 1,
+    Zk = 2,
+}
+
+impl TryFrom<u8> for ProofType {
+    type Error = ExecutionError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Attestation),
+            1 => Ok(Self::Optimistic),
+            2 => Ok(Self::Zk),
+            _ => Err(ExecutionError::Invalid("proof type")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct L2BatchCommitment {
+    pub chain_id: u32,
+    pub batch_number: u64,
+    pub first_block: u64,
+    pub last_block: u64,
+    pub pre_state_root: UInt256,
+    pub post_state_root: UInt256,
+    pub tx_root: UInt256,
+    pub receipt_root: UInt256,
+    pub withdrawal_root: UInt256,
+    pub l2_to_l1_message_root: UInt256,
+    pub l2_to_l2_message_root: UInt256,
+    pub da_commitment: UInt256,
+    pub public_input_hash: UInt256,
+    pub proof_type: ProofType,
+    pub proof: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct L2ChainConfig {
+    pub chain_id: u32,
+    pub operator_manager: UInt160,
+    pub verifier: UInt160,
+    pub bridge_adapter: UInt160,
+    pub message_adapter: UInt160,
+    pub security_level: u8,
+    pub da_mode: u8,
+    pub gateway_enabled: bool,
+    pub permissionless_exit: bool,
+    pub sequencer_model: u8,
+    pub exit_model: u8,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MerkleProof {
+    pub leaf: UInt256,
+    pub leaf_index: u32,
+    pub path_bitmap: u64,
+    pub siblings: Vec<UInt256>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

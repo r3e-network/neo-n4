@@ -36,3 +36,5 @@ neo-vm-rs = { path = "../../external/neo-vm-rs", default-features = false }
 
 [dev-dependencies]
 hex = "0.4"
+p256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+sha2 = { version = "0.11", default-features = false }

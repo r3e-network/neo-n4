@@ -84,8 +84,8 @@ public static class StateRootCalculator
         ArgumentNullException.ThrowIfNull(inputs.L1MessageHash);
         ArgumentNullException.ThrowIfNull(inputs.DACommitment);
         ArgumentNullException.ThrowIfNull(inputs.BlockContextHash);
-        // Use the canonical encoding from BatchSerializer-equivalent layout.
-        Span<byte> buffer = stackalloc byte[4 + 8 + 8 + 8 + 10 * 32];
+        // Use the canonical encoding from BatchSerializer-equivalent layout (352 bytes).
+        Span<byte> buffer = stackalloc byte[4 + 8 + 8 + 8 + 10 * 32 + 4];
         var pos = 0;
         BinaryPrimitives.WriteUInt32LittleEndian(buffer.Slice(pos, 4), inputs.ChainId); pos += 4;
         BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(pos, 8), inputs.BatchNumber); pos += 8;
@@ -102,6 +102,7 @@ public static class StateRootCalculator
         WriteRoot(buffer, ref pos, inputs.L1MessageHash);
         WriteRoot(buffer, ref pos, inputs.DACommitment);
         WriteRoot(buffer, ref pos, inputs.BlockContextHash);
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer.Slice(pos, 4), inputs.ForcedInclusionCount); pos += 4;
 
         return new UInt256(Crypto.Hash256(buffer));
     }

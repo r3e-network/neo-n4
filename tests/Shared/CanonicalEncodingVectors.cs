@@ -103,15 +103,15 @@ internal static class CanonicalEncodingVectors
         "0606060606060606060606060606060606060606060606060606060606060606" + // 188  l2ToL1MessageRoot
         "0707070707070707070707070707070707070707070707070707070707070707" + // 220  l2ToL2MessageRoot
         "0909090909090909090909090909090909090909090909090909090909090909" + // 252  daCommitment
-        "a56a616d15b7b5b4f7a2abf997f94be264c1bad1095a3b97992ff7e6af62e4e3" + // 284  publicInputHash
+        "034f85e7b09682466547018fefe98ea82dd0582ba29ee7998807fe1ec023f0bc" + // 284  publicInputHash (352-byte PI)
         "01" + //                               316  proofType         = Multisig
         "00000000"); //                          317  proofLen          = 0
 
     /// <summary>
-    /// The 348 bytes <c>BatchSerializer.EncodePublicInputs</c> emits for the same batch. Never
+    /// The 352 bytes <c>BatchSerializer.EncodePublicInputs</c> emits for the same batch. Never
     /// transmitted to L1 — the contract sees only its digest at commitment offset 284 — but it is the
     /// preimage the attestation is signed over, the digest in every durable witness artifact, and the
-    /// buffer the Rust side rebuilds byte-for-byte.
+    /// buffer the Rust side rebuilds byte-for-byte. Trailing u32 LE is ForcedInclusionCount (0 here).
     /// </summary>
     public static byte[] PublicInputs() => FromHex(
         "e9030000" + //   0  chainId           = 1001
@@ -127,7 +127,8 @@ internal static class CanonicalEncodingVectors
         "0707070707070707070707070707070707070707070707070707070707070707" + // 220  l2ToL2MessageRoot
         "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1" + // 252  l1MessageHash
         "0909090909090909090909090909090909090909090909090909090909090909" + // 284  daCommitment
-        "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2"); // 316  blockContextHash
+        "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2" + // 316  blockContextHash
+        "00000000"); //                          348  forcedInclusionCount = 0
 
     /// <summary>
     /// The 91 bytes <c>L2ChainConfigSerializer.Encode</c> emits for the config

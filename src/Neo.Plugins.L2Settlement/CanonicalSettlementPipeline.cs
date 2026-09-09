@@ -184,7 +184,7 @@ public sealed record ProofWitnessPipelineProfile
 /// <see cref="IProofWitnessStore"/> is the queue of record; no in-memory commitment queue is
 /// authoritative.
 /// </remarks>
-public sealed class CanonicalSettlementPipeline : IDisposable
+public sealed partial class CanonicalSettlementPipeline : IDisposable
 {
     private const int DefaultMaxAutomaticRetries = 3;
     private readonly IProofWitnessBatchExecutor _executor;
@@ -1151,46 +1151,6 @@ public sealed class CanonicalSettlementPipeline : IDisposable
         }
     }
 
-    private async ValueTask BroadcastAndPersistAsync(
-        ProofWitnessArtifactV1 artifact,
-        ProofResultManifest manifest,
-        UInt256? replacedTransactionHash,
-        CancellationToken cancellationToken)
-    {
-        var commitment = BuildCommitment(artifact, manifest);
-        var submitStarted = System.Diagnostics.Stopwatch.StartNew();
-        var transactionHash = await _client.SubmitBatchAsync(
-            commitment,
-            artifact.PublicInputs,
-            cancellationToken).ConfigureAwait(false);
-        ArgumentNullException.ThrowIfNull(transactionHash);
-        if (transactionHash.Equals(UInt256.Zero))
-            throw new InvalidOperationException(
-                "ISettlementClient returned a zero transaction hash");
-
-        if (replacedTransactionHash is null)
-        {
-            await _store.MarkSubmittedAsync(
-                artifact.ContentHash,
-                transactionHash,
-                cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            await _store.ReplaceSubmittedTransactionAsync(
-                artifact.ContentHash,
-                replacedTransactionHash,
-                transactionHash,
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        submitStarted.Stop();
-        _metrics.SafeIncrementCounter(MetricNames.BatchesSubmitted);
-        _metrics.SafeRecordHistogram(
-            MetricNames.SubmitLatencyMs,
-            submitStarted.Elapsed.TotalMilliseconds);
-    }
-
     private async ValueTask<ProofResultManifest> ReadManifestAsync(
         UInt256 artifactContentHash,
         CancellationToken cancellationToken)
@@ -1375,27 +1335,6 @@ public sealed class CanonicalSettlementPipeline : IDisposable
             L1MessageHash = StateRootCalculator.HashL1Messages(batch.L1Messages),
             DACommitment = daCommitment,
             BlockContextHash = StateRootCalculator.HashBlockContext(batch.BlockContext),
-        };
-
-    private static L2BatchCommitment BuildCommitment(
-        ProofWitnessArtifactV1 artifact,
-        ProofResultManifest manifest) => new()
-        {
-            ChainId = artifact.ChainId,
-            BatchNumber = artifact.BatchNumber,
-            FirstBlock = artifact.FirstBlock,
-            LastBlock = artifact.LastBlock,
-            PreStateRoot = artifact.ExecutionPayload.PreStateRoot,
-            PostStateRoot = artifact.ExecutionResult.PostStateRoot,
-            TxRoot = artifact.ExecutionResult.TxRoot,
-            ReceiptRoot = artifact.ExecutionResult.ReceiptRoot,
-            WithdrawalRoot = artifact.ExecutionResult.WithdrawalRoot,
-            L2ToL1MessageRoot = artifact.ExecutionResult.L2ToL1MessageRoot,
-            L2ToL2MessageRoot = artifact.ExecutionResult.L2ToL2MessageRoot,
-            DACommitment = artifact.DAReceipt.Commitment,
-            PublicInputHash = manifest.PublicInputHash,
-            ProofType = manifest.ProofType,
-            Proof = manifest.Proof.ToArray(),
         };
 
     private static void ValidateManifest(

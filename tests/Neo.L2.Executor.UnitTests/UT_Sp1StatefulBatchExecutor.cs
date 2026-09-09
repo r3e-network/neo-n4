@@ -60,11 +60,12 @@ public sealed class UT_Sp1StatefulBatchExecutor
         Assert.AreEqual(
             execution.ExecutionResult.PostStateRoot,
             harness.Source.CaptureCurrent().StateRoot);
-        Assert.AreEqual(2, process.RunCount);
+        Assert.AreEqual(1, process.RunCount,
+            "hot path must reuse the witness-phase native output instead of a second re-exec");
 
         await executor.EnsureStateCommittedAsync(artifactStore, artifact);
 
-        Assert.AreEqual(2, process.RunCount, "an already committed transition must not replay");
+        Assert.AreEqual(1, process.RunCount, "an already committed transition must not replay");
         Assert.IsFalse(Directory.EnumerateFileSystemEntries(harness.ScratchDirectory).Any());
     }
 

@@ -33,15 +33,11 @@ public static class LiveDeployCommand
     private const string DefaultGasHash = "0xd2a4cff31913016155e38e474a2c06d08be276cf";
     private const long DefaultForcedInclusionFee = 100_000L; // 0.001 GAS.
     private const byte ProofSystemSp1 = 1;
-    private const byte ProofTypeZk = 3;
 
     // Mirrors Neo.Plugins.L2Gateway.Sp1GatewayProofProver.RecursiveAggregationBackendId. This tool
     // does not reference the gateway plugin, so the literal is paired the same way ProofSystemSp1 is.
     private const byte GatewayRecursiveAggregationBackend = 0xC2;
     private const uint ValidUntilDelta = 100;
-
-    internal static UInt256 RestrictedExecutorSemanticId { get; } =
-        new(Crypto.Hash256("neo4-executor:counter-increment-existing-key:v1"u8));
 
     internal static UInt160 NativeGasHash { get; } = UInt160.Parse(DefaultGasHash);
 
@@ -825,84 +821,44 @@ public static class LiveDeployCommand
         if (gatewayReplayDomain == UInt256.Zero)
             throw new ArgumentException("Gateway replay domain must not be zero.", nameof(gatewayReplayDomain));
 
-        return
-        [
-            CheckedCall("SequencerBond.RegisterSlasher", h["SequencerBond"], "registerSlasher",
-                BoolCheck("SequencerBond.IsSlasher", h["SequencerBond"], "isSlasher", true, h["OptimisticChallenge"]), h["OptimisticChallenge"]),
-            CheckedCall("SequencerBond.RegisterSlasher.ForcedInclusion", h["SequencerBond"], "registerSlasher",
-                BoolCheck("SequencerBond.IsSlasher.ForcedInclusion", h["SequencerBond"], "isSlasher", true, h["ForcedInclusion"]), h["ForcedInclusion"]),
-            CheckedCall("ChainRegistry.RegisterPauser.ForcedInclusion", h["ChainRegistry"], "registerPauser",
-                BoolCheck("ChainRegistry.IsPauser.ForcedInclusion", h["ChainRegistry"], "isPauser", true, h["ForcedInclusion"]), h["ForcedInclusion"]),
-            CheckedCall("ForcedInclusion.SetChainRegistry", h["ForcedInclusion"], "setChainRegistry",
-                HashCheck("ForcedInclusion.GetChainRegistry", h["ForcedInclusion"], "getChainRegistry", h["ChainRegistry"]), h["ChainRegistry"]),
-            CheckedCall("ForcedInclusion.SetSequencerBond", h["ForcedInclusion"], "setSequencerBond",
-                HashCheck("ForcedInclusion.GetSequencerBond", h["ForcedInclusion"], "getSequencerBond", h["SequencerBond"]), h["SequencerBond"]),
-            CheckedCall("ForcedInclusion.SetCensorshipSlashAmount", h["ForcedInclusion"], "setCensorshipSlashAmount",
-                IntegerCheck("ForcedInclusion.GetCensorshipSlashAmount", h["ForcedInclusion"], "getCensorshipSlashAmount", 1_000_000), 1_000_000L),
-            CheckedCall("ForcedInclusion.SetGasToken", h["ForcedInclusion"], "setGasToken",
-                HashCheck("ForcedInclusion.GetGasToken", h["ForcedInclusion"], "getGasToken", gasHash), gasHash),
-            CheckedCall("ForcedInclusion.SetFeeRecipient", h["ForcedInclusion"], "setFeeRecipient",
-                HashCheck("ForcedInclusion.GetFeeRecipient", h["ForcedInclusion"], "getFeeRecipient", forcedInclusionFeeRecipient), forcedInclusionFeeRecipient),
-            CheckedCall("ForcedInclusion.SetFee", h["ForcedInclusion"], "setFee",
-                IntegerCheck("ForcedInclusion.GetFee", h["ForcedInclusion"], "getFee", forcedInclusionFee), forcedInclusionFee),
-            CheckedCall("SharedBridge.SetEmergencyManager", h["SharedBridge"], "setEmergencyManager",
-                HashCheck("SharedBridge.GetEmergencyManager", h["SharedBridge"], "getEmergencyManager", h["EmergencyManager"]), h["EmergencyManager"]),
-            CheckedCall("ChainRegistry.SetGovernanceController", h["ChainRegistry"], "setGovernanceController",
-                HashCheck("ChainRegistry.GetGovernanceController", h["ChainRegistry"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
-            CheckedCall("VerifierRegistry.SetGovernanceController", h["VerifierRegistry"], "setGovernanceController",
-                HashCheck("VerifierRegistry.GetGovernanceController", h["VerifierRegistry"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
-            CheckedCall("SettlementManager.SetGovernanceController", h["SettlementManager"], "setGovernanceController",
-                HashCheck("SettlementManager.GetGovernanceController", h["SettlementManager"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
-            CheckedCall("OptimisticChallenge.SetGovernanceController", h["OptimisticChallenge"], "setGovernanceController",
-                HashCheck("OptimisticChallenge.GetGovernanceController", h["OptimisticChallenge"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
-            CheckedCall("ContractZkVerifier.RegisterVerificationKey.Sp1", h["ContractZkVerifier"], "registerVerificationKey",
-                BoolCheck("ContractZkVerifier.IsVerificationKeyRegistered.Sp1", h["ContractZkVerifier"], "isVerificationKeyRegistered", true, ProofSystemSp1, sp1ProgramVKey), ProofSystemSp1, sp1ProgramVKey, true),
-            CheckedCall("ContractZkVerifier.RegisterProofVerifier.Sp1", h["ContractZkVerifier"], "registerProofVerifier",
-                HashCheck("ContractZkVerifier.GetProofVerifier.Sp1", h["ContractZkVerifier"], "getProofVerifier", h["Sp1Groth16Verifier"], ProofSystemSp1), ProofSystemSp1, h["Sp1Groth16Verifier"], true),
-            CheckedCall("ContractZkVerifier.DisableEnvelopeOnlyPermanently.Sp1", h["ContractZkVerifier"], "disableEnvelopeOnlyPermanently",
-                BoolCheck("ContractZkVerifier.IsEnvelopeOnlyLocked.Sp1", h["ContractZkVerifier"], "isEnvelopeOnlyLocked", true, ProofSystemSp1), ProofSystemSp1),
-            CheckedCall("ContractZkVerifier.LockProofSystemConfiguration.Sp1", h["ContractZkVerifier"], "lockProofSystemConfiguration",
-                Hash256Check("ContractZkVerifier.GetLockedVerificationKey.Sp1", h["ContractZkVerifier"], "getLockedVerificationKey", sp1ProgramVKey, ProofSystemSp1), ProofSystemSp1, sp1ProgramVKey),
-            CheckedCall("VerifierRegistry.RegisterVerifier.Zk", h["VerifierRegistry"], "registerVerifier",
-                HashCheck("VerifierRegistry.GetVerifier.Zk", h["VerifierRegistry"], "getVerifier", h["ContractZkVerifier"], ProofTypeZk), ProofTypeZk, h["ContractZkVerifier"]),
-            CheckedCall("VerifierRegistry.LockGovernance", h["VerifierRegistry"], "lockGovernance",
-                BoolCheck("VerifierRegistry.IsGovernanceLocked", h["VerifierRegistry"], "isGovernanceLocked", true)),
-            CheckedCall("OptimisticChallenge.RegisterPermissionlessFraudProfile.RestrictedExecutionV4", h["OptimisticChallenge"], "registerPermissionlessFraudProfile",
-                BoolCheck("OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4", h["OptimisticChallenge"], "isPermissionlessFraudProfile", true,
-                    l2ChainId, h["RestrictedExecutionFraudVerifier"], RestrictedExecutorSemanticId, fraudReplayDomain),
-                l2ChainId, h["RestrictedExecutionFraudVerifier"], RestrictedExecutorSemanticId, fraudReplayDomain),
-            CheckedCall("OptimisticChallenge.LockGovernance", h["OptimisticChallenge"], "lockGovernance",
-                BoolCheck("OptimisticChallenge.IsGovernanceLocked", h["OptimisticChallenge"], "isGovernanceLocked", true)),
-            CheckedCall("MpcCommitteeVerifier.SetGovernanceController", h["MpcCommitteeVerifier"], "setGovernanceController",
-                HashCheck("MpcCommitteeVerifier.GetGovernanceController", h["MpcCommitteeVerifier"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
-            CheckedCall("MpcCommitteeVerifier.LockGovernance", h["MpcCommitteeVerifier"], "lockGovernance",
-                BoolCheck("MpcCommitteeVerifier.IsGovernanceLocked", h["MpcCommitteeVerifier"], "isGovernanceLocked", true)),
-            CheckedCall("ExternalBridgeRegistry.SetGovernanceController", h["ExternalBridgeRegistry"], "setGovernanceController",
-                HashCheck("ExternalBridgeRegistry.GetGovernanceController", h["ExternalBridgeRegistry"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
-            CheckedCall("ExternalBridgeRegistry.LockGovernance", h["ExternalBridgeRegistry"], "lockGovernance",
-                BoolCheck("ExternalBridgeRegistry.IsGovernanceLocked", h["ExternalBridgeRegistry"], "isGovernanceLocked", true)),
-            CheckedCall("ExternalBridgeBond.RegisterSlasher", h["ExternalBridgeBond"], "registerSlasher",
-                BoolCheck("ExternalBridgeBond.IsSlasher", h["ExternalBridgeBond"], "isSlasher", true, h["MpcCommitteeFraudVerifier"]), h["MpcCommitteeFraudVerifier"]),
-            CheckedCall("SettlementManager.SetDARegistry", h["SettlementManager"], "setDARegistry",
-                HashCheck("SettlementManager.GetDARegistry", h["SettlementManager"], "getDARegistry", h["DARegistry"]), h["DARegistry"]),
-            CheckedCall("SettlementManager.SetDAValidator", h["SettlementManager"], "setDAValidator",
-                HashCheck("SettlementManager.GetDAValidator", h["SettlementManager"], "getDAValidator", h["DAValidator"]), h["DAValidator"]),
-            CheckedCall("SettlementManager.SetOptimisticChallenge", h["SettlementManager"], "setOptimisticChallenge",
-                HashCheck("SettlementManager.GetOptimisticChallenge", h["SettlementManager"], "getOptimisticChallenge", h["OptimisticChallenge"]), h["OptimisticChallenge"]),
-            CheckedCall("SettlementManager.SetMessageRouter", h["SettlementManager"], "setMessageRouter",
-                HashCheck("SettlementManager.GetMessageRouter", h["SettlementManager"], "getMessageRouter", h["MessageRouter"]), h["MessageRouter"]),
-            CheckedCall("MessageRouter.SetGovernanceController", h["MessageRouter"], "setGovernanceController",
-                HashCheck("MessageRouter.GetGovernanceController", h["MessageRouter"], "getGovernanceController", h["GovernanceController"]), h["GovernanceController"]),
-            CheckedCall("MessageRouter.SetGlobalRootVerifier", h["MessageRouter"], "setGlobalRootVerifier",
-                HashCheck("MessageRouter.GetGlobalRootVerifier", h["MessageRouter"], "getGlobalRootVerifier", h["Sp1Groth16Verifier"]),
-                h["Sp1Groth16Verifier"], ProofSystemSp1, GatewayRecursiveAggregationBackend, gatewayProgramVKey, gatewayReplayDomain),
-            CheckedCall("MessageRouter.LockGlobalRootGovernance", h["MessageRouter"], "lockGlobalRootGovernance",
-                BoolCheck("MessageRouter.IsGlobalRootGovernanceLocked", h["MessageRouter"], "isGlobalRootGovernanceLocked", true)),
-            CheckedCall("ChainRegistry.LockGovernance", h["ChainRegistry"], "lockGovernance",
-                BoolCheck("ChainRegistry.IsGovernanceLocked", h["ChainRegistry"], "isGovernanceLocked", true)),
-            CheckedCall("SettlementManager.LockGovernance", h["SettlementManager"], "lockGovernance",
-                BoolCheck("SettlementManager.IsGovernanceLocked", h["SettlementManager"], "isGovernanceLocked", true)),
-        ];
+        // Default lean plan only (doc.md §3.2 / Wave-2 LiveDeploy): Sp1Groth16 → ZkVerifier →
+        // GovernanceController → RollupHub → SharedBridge. Missing lean hashes fail closed.
+        var rollupHub = RequireLeanHash(h, "RollupHub");
+        var sharedBridge = RequireLeanHash(h, "SharedBridge");
+        var governance = RequireLeanHash(h, "GovernanceController");
+        var zkVerifier = RequireLeanHash(h, "ZkVerifier");
+        var sp1 = RequireLeanHash(h, "Sp1Groth16Verifier");
+
+        var calls = new List<PostDeployCall>
+        {
+            CheckedCall("RollupHub.SetGovernanceController", rollupHub, "setGovernanceController",
+                HashCheck("RollupHub.GetGovernanceController", rollupHub, "getGovernanceController", governance), governance),
+            CheckedCall("SharedBridge.SetSettlementManager", sharedBridge, "setSettlementManager",
+                HashCheck("SharedBridge.GetSettlementManager", sharedBridge, "getSettlementManager", rollupHub), rollupHub),
+            CheckedCall("SharedBridge.SetEmergencyManager", sharedBridge, "setEmergencyManager",
+                HashCheck("SharedBridge.GetEmergencyManager", sharedBridge, "getEmergencyManager", governance), governance),
+            CheckedCall("RollupHub.SetSharedBridge", rollupHub, "setSharedBridge",
+                HashCheck("RollupHub.GetSharedBridge", rollupHub, "getSharedBridge", sharedBridge), sharedBridge),
+            CheckedCall("ZkVerifier.RegisterVerificationKey.Sp1", zkVerifier, "registerVerificationKey",
+                BoolCheck("ZkVerifier.IsVerificationKeyRegistered.Sp1", zkVerifier, "isVerificationKeyRegistered", true, ProofSystemSp1, sp1ProgramVKey), ProofSystemSp1, sp1ProgramVKey, true),
+            CheckedCall("ZkVerifier.RegisterProofVerifier.Sp1", zkVerifier, "registerProofVerifier",
+                HashCheck("ZkVerifier.GetProofVerifier.Sp1", zkVerifier, "getProofVerifier", sp1, ProofSystemSp1), ProofSystemSp1, sp1, true),
+            CheckedCall("ZkVerifier.DisableEnvelopeOnlyPermanently.Sp1", zkVerifier, "disableEnvelopeOnlyPermanently",
+                BoolCheck("ZkVerifier.IsEnvelopeOnlyLocked.Sp1", zkVerifier, "isEnvelopeOnlyLocked", true, ProofSystemSp1), ProofSystemSp1),
+            CheckedCall("ZkVerifier.LockProofSystemConfiguration.Sp1", zkVerifier, "lockProofSystemConfiguration",
+                Hash256Check("ZkVerifier.GetLockedVerificationKey.Sp1", zkVerifier, "getLockedVerificationKey", sp1ProgramVKey, ProofSystemSp1), ProofSystemSp1, sp1ProgramVKey),
+        };
+        return calls;
+    }
+
+    private static UInt160 RequireLeanHash(IReadOnlyDictionary<string, UInt160> hashes, string name)
+    {
+        if (!hashes.TryGetValue(name, out var hash) || hash is null || hash.Equals(UInt160.Zero))
+        {
+            throw new InvalidOperationException(
+                $"lean LiveDeploy requires non-zero hash for '{name}' (Sp1Groth16Verifier, ZkVerifier, GovernanceController, RollupHub, SharedBridge)");
+        }
+        return hash;
     }
 
     internal static void ValidateNativeGasHash(UInt160 gasHash)
@@ -970,61 +926,27 @@ public static class LiveDeployCommand
         if (governanceThreshold < 2 || governanceThreshold > governanceCouncilCount)
             throw new ArgumentOutOfRangeException(nameof(governanceThreshold));
 
+        var rollupHub = RequireLeanHash(h, "RollupHub");
+        var sharedBridge = RequireLeanHash(h, "SharedBridge");
+        var governance = RequireLeanHash(h, "GovernanceController");
+        var zkVerifier = RequireLeanHash(h, "ZkVerifier");
+        var sp1 = RequireLeanHash(h, "Sp1Groth16Verifier");
+
         return
         [
-            HashCheck("ChainRegistry.GetOwner", h["ChainRegistry"], "getOwner", owner),
-            IntegerCheck("GovernanceController.GetCouncilCount", h["GovernanceController"], "getCouncilCount", governanceCouncilCount),
-            IntegerCheck("GovernanceController.GetThreshold", h["GovernanceController"], "getThreshold", governanceThreshold),
-            HashCheck("SequencerBond.GetBondAsset", h["SequencerBond"], "getBondAsset", gasHash),
-            HashCheck("ExternalBridgeBond.GetBondAsset", h["ExternalBridgeBond"], "getBondAsset", gasHash),
-            HashCheck("SettlementManager.GetDARegistry", h["SettlementManager"], "getDARegistry", h["DARegistry"]),
-            HashCheck("SettlementManager.GetDAValidator", h["SettlementManager"], "getDAValidator", h["DAValidator"]),
-            HashCheck("SettlementManager.GetOptimisticChallenge", h["SettlementManager"], "getOptimisticChallenge", h["OptimisticChallenge"]),
-            HashCheck("SettlementManager.GetMessageRouter", h["SettlementManager"], "getMessageRouter", h["MessageRouter"]),
-            HashCheck("MessageRouter.GetGlobalRootVerifier", h["MessageRouter"], "getGlobalRootVerifier", h["Sp1Groth16Verifier"]),
-            IntegerCheck("MessageRouter.GetGlobalRootProofSystem", h["MessageRouter"], "getGlobalRootProofSystem", ProofSystemSp1),
-            IntegerCheck("MessageRouter.GetGlobalRootAggregationBackend", h["MessageRouter"], "getGlobalRootAggregationBackend", GatewayRecursiveAggregationBackend),
-            Hash256Check("MessageRouter.GetGlobalRootVerificationKeyId", h["MessageRouter"], "getGlobalRootVerificationKeyId", gatewayProgramVKey),
-            Hash256Check("MessageRouter.GetGlobalRootReplayDomain", h["MessageRouter"], "getGlobalRootReplayDomain", gatewayReplayDomain),
-            BoolCheck("MessageRouter.IsGlobalRootGovernanceLocked", h["MessageRouter"], "isGlobalRootGovernanceLocked", true),
-            HashCheck("SettlementManager.GetGovernanceController", h["SettlementManager"], "getGovernanceController", h["GovernanceController"]),
-            BoolCheck("SettlementManager.IsGovernanceLocked", h["SettlementManager"], "isGovernanceLocked", true),
-            HashCheck("ForcedInclusion.GetChainRegistry", h["ForcedInclusion"], "getChainRegistry", h["ChainRegistry"]),
-            HashCheck("ForcedInclusion.GetSequencerBond", h["ForcedInclusion"], "getSequencerBond", h["SequencerBond"]),
-            IntegerCheck("ForcedInclusion.GetCensorshipSlashAmount", h["ForcedInclusion"], "getCensorshipSlashAmount", 1_000_000),
-            HashCheck("ForcedInclusion.GetGasToken", h["ForcedInclusion"], "getGasToken", gasHash),
-            HashCheck("ForcedInclusion.GetFeeRecipient", h["ForcedInclusion"], "getFeeRecipient", forcedInclusionFeeRecipient),
-            IntegerCheck("ForcedInclusion.GetFee", h["ForcedInclusion"], "getFee", forcedInclusionFee),
-            BoolCheck("ForcedInclusion.IsProductionReady", h["ForcedInclusion"], "isProductionReady", true),
-            HashCheck("SharedBridge.GetEmergencyManager", h["SharedBridge"], "getEmergencyManager", h["EmergencyManager"]),
-            HashCheck("ChainRegistry.GetGovernanceController", h["ChainRegistry"], "getGovernanceController", h["GovernanceController"]),
-            BoolCheck("ChainRegistry.IsGovernanceLocked", h["ChainRegistry"], "isGovernanceLocked", true),
-            BoolCheck("ContractZkVerifier.IsVerificationKeyRegistered.Sp1", h["ContractZkVerifier"], "isVerificationKeyRegistered", true, ProofSystemSp1, sp1ProgramVKey),
-            HashCheck("ContractZkVerifier.GetProofVerifier.Sp1", h["ContractZkVerifier"], "getProofVerifier", h["Sp1Groth16Verifier"], ProofSystemSp1),
-            BoolCheck("ContractZkVerifier.IsEnvelopeOnlyLocked.Sp1", h["ContractZkVerifier"], "isEnvelopeOnlyLocked", true, ProofSystemSp1),
-            BoolCheck("ContractZkVerifier.IsEnvelopeOnlyAllowed.Sp1", h["ContractZkVerifier"], "isEnvelopeOnlyAllowed", false, ProofSystemSp1),
-            BoolCheck("ContractZkVerifier.IsProofSystemConfigurationLocked.Sp1", h["ContractZkVerifier"], "isProofSystemConfigurationLocked", true, ProofSystemSp1),
-            Hash256Check("ContractZkVerifier.GetLockedVerificationKey.Sp1", h["ContractZkVerifier"], "getLockedVerificationKey", sp1ProgramVKey, ProofSystemSp1),
-            HashCheck("VerifierRegistry.GetVerifier.Zk", h["VerifierRegistry"], "getVerifier", h["ContractZkVerifier"], ProofTypeZk),
-            HashCheck("VerifierRegistry.GetGovernanceController", h["VerifierRegistry"], "getGovernanceController", h["GovernanceController"]),
-            BoolCheck("VerifierRegistry.IsGovernanceLocked", h["VerifierRegistry"], "isGovernanceLocked", true),
-            BoolCheck("OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecutionV4", h["OptimisticChallenge"], "isApprovedFraudVerifier", true, h["RestrictedExecutionFraudVerifier"]),
-            BoolCheck("OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4", h["OptimisticChallenge"], "isPermissionlessFraudProfile", true,
-                l2ChainId, h["RestrictedExecutionFraudVerifier"], RestrictedExecutorSemanticId, fraudReplayDomain),
-            HashCheck("RestrictedExecutionFraudVerifier.GetSettlementManager", h["RestrictedExecutionFraudVerifier"], "getSettlementManager", h["SettlementManager"]),
-            Hash256Check("RestrictedExecutionFraudVerifier.GetReplayDomain", h["RestrictedExecutionFraudVerifier"], "getReplayDomain", fraudReplayDomain),
-            Hash256Check("RestrictedExecutionFraudVerifier.GetExecutorSemanticId", h["RestrictedExecutionFraudVerifier"], "getExecutorSemanticId", RestrictedExecutorSemanticId),
-            HashCheck("MpcCommitteeVerifier.GetGovernanceController", h["MpcCommitteeVerifier"], "getGovernanceController", h["GovernanceController"]),
-            BoolCheck("MpcCommitteeVerifier.IsGovernanceLocked", h["MpcCommitteeVerifier"], "isGovernanceLocked", true),
-            HashCheck("ExternalBridgeRegistry.GetGovernanceController", h["ExternalBridgeRegistry"], "getGovernanceController", h["GovernanceController"]),
-            BoolCheck("ExternalBridgeRegistry.IsGovernanceLocked", h["ExternalBridgeRegistry"], "isGovernanceLocked", true),
-            HashCheck("OptimisticChallenge.GetGovernanceController", h["OptimisticChallenge"], "getGovernanceController", h["GovernanceController"]),
-            BoolCheck("OptimisticChallenge.IsGovernanceLocked", h["OptimisticChallenge"], "isGovernanceLocked", true),
-            BoolCheck("SequencerBond.IsSlasher", h["SequencerBond"], "isSlasher", true, h["OptimisticChallenge"]),
-            BoolCheck("SequencerBond.IsSlasher.ForcedInclusion", h["SequencerBond"], "isSlasher", true, h["ForcedInclusion"]),
-            BoolCheck("ChainRegistry.IsPauser.ForcedInclusion", h["ChainRegistry"], "isPauser", true, h["ForcedInclusion"]),
-            BoolCheck("ExternalBridgeBond.IsSlasher", h["ExternalBridgeBond"], "isSlasher", true, h["MpcCommitteeFraudVerifier"]),
-            IntegerCheck("ExternalBridgeEscrow.GetNeoChainId", h["ExternalBridgeEscrow"], "getNeoChainId", l2ChainId),
+            HashCheck("RollupHub.GetOwner", rollupHub, "getOwner", owner),
+            IntegerCheck("GovernanceController.GetCouncilCount", governance, "getCouncilCount", governanceCouncilCount),
+            IntegerCheck("GovernanceController.GetThreshold", governance, "getThreshold", governanceThreshold),
+            HashCheck("RollupHub.GetGovernanceController", rollupHub, "getGovernanceController", governance),
+            HashCheck("RollupHub.GetSharedBridge", rollupHub, "getSharedBridge", sharedBridge),
+            HashCheck("SharedBridge.GetSettlementManager", sharedBridge, "getSettlementManager", rollupHub),
+            HashCheck("SharedBridge.GetEmergencyManager", sharedBridge, "getEmergencyManager", governance),
+            BoolCheck("ZkVerifier.IsVerificationKeyRegistered.Sp1", zkVerifier, "isVerificationKeyRegistered", true, ProofSystemSp1, sp1ProgramVKey),
+            HashCheck("ZkVerifier.GetProofVerifier.Sp1", zkVerifier, "getProofVerifier", sp1, ProofSystemSp1),
+            BoolCheck("ZkVerifier.IsEnvelopeOnlyLocked.Sp1", zkVerifier, "isEnvelopeOnlyLocked", true, ProofSystemSp1),
+            BoolCheck("ZkVerifier.IsEnvelopeOnlyAllowed.Sp1", zkVerifier, "isEnvelopeOnlyAllowed", false, ProofSystemSp1),
+            BoolCheck("ZkVerifier.IsProofSystemConfigurationLocked.Sp1", zkVerifier, "isProofSystemConfigurationLocked", true, ProofSystemSp1),
+            Hash256Check("ZkVerifier.GetLockedVerificationKey.Sp1", zkVerifier, "getLockedVerificationKey", sp1ProgramVKey, ProofSystemSp1),
         ];
     }
 

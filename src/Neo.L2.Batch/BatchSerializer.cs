@@ -84,7 +84,8 @@ public static class BatchSerializer
     public const int PublicInputsSize =
         4 +              // ChainId
         8 + 8 + 8 +      // BatchNumber, FirstBlock, LastBlock
-        10 * 32;         // 10× UInt256 roots/hashes
+        10 * 32 +        // 10× UInt256 roots/hashes
+        4;               // ForcedInclusionCount
 
     /// <summary>Encode <paramref name="commitment"/> to its canonical byte form.</summary>
     public static byte[] Encode(L2BatchCommitment commitment)
@@ -251,6 +252,7 @@ public static class BatchSerializer
         WriteUInt256(span, ref pos, inputs.L1MessageHash);
         WriteUInt256(span, ref pos, inputs.DACommitment);
         WriteUInt256(span, ref pos, inputs.BlockContextHash);
+        BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(pos, 4), inputs.ForcedInclusionCount); pos += 4;
 
         if (pos != buffer.Length)
             throw new InvalidOperationException($"EncodePublicInputs internal length mismatch: pos={pos}, buf={buffer.Length}");
@@ -282,6 +284,7 @@ public static class BatchSerializer
         var l1MessageHash = ReadUInt256(data, ref pos);
         var daCommitment = ReadUInt256(data, ref pos);
         var blockContextHash = ReadUInt256(data, ref pos);
+        var forcedInclusionCount = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(pos, 4)); pos += 4;
 
         return new PublicInputs
         {
@@ -299,6 +302,7 @@ public static class BatchSerializer
             L1MessageHash = l1MessageHash,
             DACommitment = daCommitment,
             BlockContextHash = blockContextHash,
+            ForcedInclusionCount = forcedInclusionCount,
         };
     }
 

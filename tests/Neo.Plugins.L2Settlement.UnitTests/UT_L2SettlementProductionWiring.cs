@@ -322,6 +322,7 @@ public class UT_L2SettlementProductionWiring
         var composition = settlement.ProductionComposition;
         Assert.IsNotNull(composition);
         Assert.IsNotNull(composition.OwnedDepositSource);
+        Assert.IsNull(composition.OwnedMessageRouter, "deposits-only SharedBridge must not force L1→L2 router");
         Assert.AreSame(composition.OwnedDepositSource, batch.DepositSource);
         Assert.AreEqual(ChainId, composition.OwnedDepositSource!.ChainId);
     }
@@ -969,6 +970,44 @@ public class UT_L2SettlementProductionWiring
         var composition = settlement.ProductionComposition;
         Assert.IsNotNull(composition);
         Assert.IsNotNull(composition.OwnedMessageRouter);
+    }
+
+    [TestMethod]
+    public void WireProduction_SharedBridgeMessagingOptIn_ConstructsOwnedMessageRouter()
+    {
+        using var backend = new TemporaryRocksDb();
+        using var forcedEvents = new TemporaryRocksDb();
+        using var depositEvents = new TemporaryRocksDb();
+        using var routerEvents = new TemporaryRocksDb();
+        using var store = new KeyValueProofWitnessStore(backend.Store);
+        using var batch = new L2BatchPlugin();
+        // Lean: SharedBridgeHash only; MessageRouterDeploymentHeight opts into L1→L2 scan.
+        using var settlement = new L2SettlementPlugin(ProductionSettingsWithSharedBridge());
+        using var http = CanonicalRootHttpClient();
+
+        settlement.WireProduction(
+            batch,
+            new TestExecutor(),
+            new TestDaWriter(),
+            store,
+            new TestProver(),
+            ProofWitnessPipelineProfile.Legacy(ChainId, ProofType.Multisig, Root(0x11)),
+            new TrackingSigner(Account(0x5C)),
+            forcedEvents.Store,
+            forcedInclusionDeploymentHeight: 123,
+            rpcHttpClient: http,
+            l1FinalizedHeight: static () => 10,
+            sequencerCommitteeHash: static () => Root(0xCC),
+            sharedBridgeDepositEventStore: depositEvents.Store,
+            sharedBridgeDeploymentHeight: 50,
+            messageRouterEventStore: routerEvents.Store,
+            messageRouterDeploymentHeight: 50);
+
+        var composition = settlement.ProductionComposition;
+        Assert.IsNotNull(composition);
+        Assert.IsNotNull(composition.OwnedDepositSource);
+        Assert.IsNotNull(composition.OwnedMessageRouter);
+        Assert.AreSame(composition.OwnedMessageRouter, batch.MessageRouter);
     }
 
     [TestMethod]

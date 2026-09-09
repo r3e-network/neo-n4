@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — public-inputs wire domain is 352 bytes end-to-end (C# ↔ Rust ↔ fixtures) — 2026-09-09
+
+- Wave 2 had extended the **hash** preimage of `HashPublicInputs` to a fixed 352-byte domain
+  (`forcedInclusionCount` u32 LE at offset 348) but the Rust `PublicInputs` **wire encoding**
+  still wrote 348 bytes. `ProofWitnessArtifactSerializer.Decode` therefore truncated the
+  content hash on every guest-generated artifact (`contentHash is truncated: need 32 bytes,
+  have 28`), and `UT_Sp1BatchProofProver` failed as a cascade. `neo_execution_core::PublicInputs`
+  now carries `forced_inclusion_count`, `write_public_inputs`/`read_public_inputs` match the
+  C# 352-byte layout, `validate_public_input_claims` binds the count to the payload, and the
+  shared `stateful_batch_v1` / `native_transition_v1` fixtures were regenerated.
+- The out-of-band `PublicInputs_Hash_MatchesOutOfBandGoldenVector` pin was recomputed for the
+  352-byte domain (`805b89e2…dd22c` with FI count 0) so on-chain `ComputePublicInputHash`
+  parity remains anchored.
+- `SubmitBatchCore` captures non-null `l1MessageHash` / `blockContextHash` locals after the
+  runtime asserts, clearing CS8604 without weakening the fail-closed length checks.
+- Documentation no longer invents a fifth `ChainMode` member for RISC-V; the PolkaVM path
+  stays selected by `--executor riscv` / `vm: "neovm2-riscv"`.
+- Host `prove_compressed` / `prove-batch` now rebuild the expected public-input hash via
+  `hash_public_inputs_with_forced` and the artifact's `forced_inclusion_count` (was hard-coded
+  FI=0, which would mismatch any batch that actually consumed forced inclusions).
+- Chinese counterparts added for every English markdown / figure that the production-gap
+  documentation gates require.
+
 ### Fixed — the duplicate-nonce gate's true scope is stated and pinned; two deep findings documented as decisions — 2026-09-01
 
 - The per-executor duplicate-nonce gate (`_consumedNonces` in both

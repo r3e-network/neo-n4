@@ -19,19 +19,19 @@ public abstract class MockNep17(SmartContractInitialize initialize) : SmartContr
 
 /// <summary>
 /// VM-level tests for NeoHub.SharedBridge — the canonical asset escrow. The bridge is deployed
-/// against a <em>real</em> SettlementManager (only the proof and token back ends are mocked:
-/// VerifierRegistry, DARegistry, DAValidator, TokenRegistry, the NEP-17 asset), so the withdrawal
-/// path executes the deployed Merkle fold on hand-rolled real proofs instead of a
-/// <c>VerifyWithdrawalLeafWithProof → true</c> stub. These tests pin two guarantees:
-/// the C1 per-chain escrow accounting — a chain's withdrawals can never exceed its own deposits —
-/// and the V5 position binding: a valid proof presented at a relabelled leaf index must not pay out.
+/// against a <em>real</em> RollupHub (only the verifier stub and NEP-17 asset are mocked), so the
+/// withdrawal path executes the deployed Merkle fold on hand-rolled real proofs. Local
+/// <c>RegisterMapping</c> replaces the removed TokenRegistry external hop. These tests pin two
+/// guarantees: the C1 per-chain escrow accounting — a chain's withdrawals can never exceed its own
+/// deposits — and the V5 position binding: a valid proof presented at a relabelled leaf index must
+/// not pay out.
 /// </summary>
 [TestClass]
 public class UT_SharedBridge_Vm
 {
     private static readonly UInt160 AssetHash = UInt160.Parse("0x" + new string('a', 40));
     private static readonly UInt160 L2Asset = UInt160.Parse("0x" + new string('b', 40));
-    private static readonly UInt160 TrHash = UInt160.Parse("0x" + new string('6', 40));
+    private static readonly UInt160 VerifierHash = UInt160.Parse("0x" + new string('5', 40));
     private const uint ChainA = 1001;
     private const uint ChainB = 2002;
 
@@ -45,100 +45,89 @@ public class UT_SharedBridge_Vm
 
     private static byte[] Hash256(byte[] x) => SHA256.HashData(SHA256.HashData(x));
 
-    /// <summary>Mirror SharedBridge.ComputeWithdrawalLeafHash: chainId(4 LE) ‖ emittingContract ‖
-    /// l2Sender ‖ l1Recipient ‖ l2Asset ‖ amountLen(4 LE) ‖ amount(minimal unsigned LE) ‖ nonce(8 LE),
-    /// then double-SHA256.</summary>
+    /// <summary>
+    /// Mirror SharedBridge.ComputeWithdrawalLeafHash:
+    /// chainId(4 LE) ‖ emittingContract ‖ l2Sender ‖ l2Asset ‖ nonce(8 LE) ‖ l1Asset ‖ l1Recipient ‖
+    /// amountLen(4 LE) ‖ amount(minimal unsigned LE), then double-SHA256.
+    /// </summary>
     private static byte[] LeafBytes(uint chainId, UInt160 emitting, UInt160 l2Sender, UInt160 recipient,
         UInt160 l2Asset, BigInteger amount, ulong nonce)
     {
         var amt = amount.ToByteArray(isUnsigned: true, isBigEndian: false);
-        var buf = new byte[4 + 20 + 20 + 20 + 20 + 4 + amt.Length + 8];
+        var buf = new byte[4 + 20 + 20 + 20 + 8 + 20 + 20 + 4 + amt.Length];
         var pos = 0;
         BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(pos, 4), chainId); pos += 4;
         emitting.GetSpan().CopyTo(buf.AsSpan(pos, 20)); pos += 20;
         l2Sender.GetSpan().CopyTo(buf.AsSpan(pos, 20)); pos += 20;
-        recipient.GetSpan().CopyTo(buf.AsSpan(pos, 20)); pos += 20;
         l2Asset.GetSpan().CopyTo(buf.AsSpan(pos, 20)); pos += 20;
+        BinaryPrimitives.WriteUInt64LittleEndian(buf.AsSpan(pos, 8), nonce); pos += 8;
+        AssetHash.GetSpan().CopyTo(buf.AsSpan(pos, 20)); pos += 20;
+        recipient.GetSpan().CopyTo(buf.AsSpan(pos, 20)); pos += 20;
         BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(pos, 4), (uint)amt.Length); pos += 4;
         amt.CopyTo(buf.AsSpan(pos, amt.Length)); pos += amt.Length;
-        BinaryPrimitives.WriteUInt64LittleEndian(buf.AsSpan(pos, 8), nonce); pos += 8;
+        Assert.AreEqual(buf.Length, pos);
         return Hash256(buf);
+    }
+
+    /// <summary>
+    /// 50-byte asset mapping: l1Asset ‖ chainId ‖ l2Asset ‖ assetType ‖ mintBurn ‖ lockMint ‖
+    /// l1Decimals ‖ l2Decimals ‖ active.
+    /// </summary>
+    private static byte[] BuildMapping(UInt160 l1Asset, uint chainId, UInt160 l2Asset)
+    {
+        var m = new byte[50];
+        l1Asset.GetSpan().CopyTo(m.AsSpan(0, 20));
+        BinaryPrimitives.WriteUInt32LittleEndian(m.AsSpan(20, 4), chainId);
+        l2Asset.GetSpan().CopyTo(m.AsSpan(24, 20));
+        m[44] = 10; // generic asset type
+        m[45] = 0;
+        m[46] = 0;
+        m[47] = 8;
+        m[48] = 8;
+        m[49] = 1; // active
+        return m;
     }
 
     private sealed record BridgeStack(
         TestEngine Engine,
         NeoHubSharedBridge Bridge,
-        NeoHubSettlementManager Settlement,
-        NeoHubChainRegistry Registry);
+        NeoHubRollupHub Hub);
 
     /// <summary>
-    /// Real ChainRegistry + real SettlementManager + real SharedBridge in one engine; only the
-    /// proof and token back ends are mocks.
+    /// Real RollupHub + real SharedBridge in one engine; only the verifier stub and NEP-17 asset
+    /// are mocks. SettlementManager storage on SharedBridge is bound to the RollupHub hash.
     /// </summary>
     private static BridgeStack Deploy()
     {
         var engine = new TestEngine(true);
         engine.Fee = 100_000_000_000L;
         var owner = engine.Sender;
-        var registry = engine.Deploy<NeoHubChainRegistry>(
-            NeoHubChainRegistry.Nef, NeoHubChainRegistry.Manifest, owner);
 
-        var vrHash = UInt160.Parse("0x" + new string('2', 40));
-        var drHash = UInt160.Parse("0x" + new string('3', 40));
-        var dvHash = UInt160.Parse("0x" + new string('4', 40));
-
-        engine.FromHash<NeoHubVerifierRegistry>(vrHash,
-            m => m.Setup(c => c.VerifyCommitment(It.IsAny<byte[]?>())).Returns(true), checkExistence: false);
-        UInt256? recordedDaCommitment = null;
-        byte? recordedDaMode = null;
-        engine.FromHash<NeoHubDARegistry>(drHash, m =>
-        {
-            m.Setup(c => c.Record(
-                    It.IsAny<BigInteger?>(), It.IsAny<BigInteger?>(),
-                    It.IsAny<UInt256?>(), It.IsAny<BigInteger?>()))
-                .Callback((BigInteger? _, BigInteger? _, UInt256? commitment, BigInteger? mode) =>
-                {
-                    recordedDaCommitment = commitment;
-                    recordedDaMode = (byte)mode!.Value;
-                });
-            m.Setup(c => c.GetCommitment(It.IsAny<BigInteger?>(), It.IsAny<BigInteger?>()))
-                .Returns(() => recordedDaCommitment);
-            m.Setup(c => c.GetMode(It.IsAny<BigInteger?>(), It.IsAny<BigInteger?>()))
-                .Returns(() => (BigInteger)(recordedDaMode ?? 0));
-        }, checkExistence: false);
-        engine.FromHash<NeoHubDAValidator>(dvHash,
-            m => m.Setup(c => c.Validate(
-                    It.IsAny<BigInteger?>(), It.IsAny<BigInteger?>(),
-                    It.IsAny<UInt256?>(), It.IsAny<BigInteger?>()))
-                .Returns(true),
+        engine.FromHash<StubVerifier>(VerifierHash, mock =>
+            mock.Setup(v => v.VerifyProof(It.IsAny<byte[]>())).Returns(true),
             checkExistence: false);
+        var hub = engine.Deploy<NeoHubRollupHub>(NeoHubRollupHub.Nef, NeoHubRollupHub.Manifest,
+            new object[] { owner, VerifierHash });
 
-        var settlement = engine.Deploy<NeoHubSettlementManager>(
-            NeoHubSettlementManager.Nef, NeoHubSettlementManager.Manifest,
-            new object[] { owner, registry.Hash, vrHash });
-        settlement.DARegistry = drHash;
-        settlement.DAValidator = dvHash;
-
-        engine.FromHash<NeoHubTokenRegistry>(TrHash, m =>
-        {
-            m.Setup(c => c.GetL2Asset(It.IsAny<UInt160?>(), It.IsAny<BigInteger?>())).Returns(L2Asset);
-            m.Setup(c => c.IsActive(It.IsAny<UInt160?>(), It.IsAny<BigInteger?>())).Returns(true);
-        }, checkExistence: false);
         engine.FromHash<MockNep17>(AssetHash, m =>
             m.Setup(c => c.Transfer(It.IsAny<UInt160?>(), It.IsAny<UInt160?>(), It.IsAny<BigInteger?>(), It.IsAny<object?>())).Returns(true),
             checkExistence: false);
 
         var bridge = engine.Deploy<NeoHubSharedBridge>(
             NeoHubSharedBridge.Nef, NeoHubSharedBridge.Manifest,
-            new object[] { owner, settlement.Hash, TrHash });
-        return new BridgeStack(engine, bridge, settlement, registry);
+            new object[] { owner, hub.Hash });
+        Assert.AreEqual(hub.Hash, bridge.SettlementManager);
+
+        // Local mapping replaces TokenRegistry; register both chains used by these tests.
+        bridge.RegisterMapping(BuildMapping(AssetHash, ChainA, L2Asset));
+        bridge.RegisterMapping(BuildMapping(AssetHash, ChainB, L2Asset));
+
+        return new BridgeStack(engine, bridge, hub);
     }
 
     private static byte[] ConfigForChain(uint chainId)
     {
         var config = CanonicalEncodingVectors.ChainConfig();
-        // The contract asserts the chain id embedded in the buffer equals its argument, so a second
-        // chain needs that id rewritten; every other byte of the layout stays golden.
         BinaryPrimitives.WriteUInt32LittleEndian(config.AsSpan(0, 4), chainId);
         return config;
     }
@@ -146,9 +135,9 @@ public class UT_SharedBridge_Vm
     /// <summary>
     /// Build the 321-byte commitment header for batch 1 of <paramref name="chainId"/> whose
     /// withdrawalRoot is <paramref name="withdrawalRoot"/>, recomputing publicInputHash over the
-    /// 348-byte preimage exactly as <c>ComputePublicInputHash</c> reads it: header bytes 0..27, the
+    /// 352-byte preimage exactly as <c>ComputePublicInputHash</c> reads it: header bytes 0..27, the
     /// seven roots the header carries, then the two SubmitBatch arguments and the header's
-    /// daCommitment.
+    /// daCommitment, then forcedInclusionCount (u32 LE, 0 for this fixture).
     /// </summary>
     private static byte[] BuildCommitmentHeader(uint chainId, byte[] withdrawalRoot)
     {
@@ -166,7 +155,7 @@ public class UT_SharedBridge_Vm
         CanonicalEncodingVectors.Fill(0x07).CopyTo(c.AsSpan(OffL2ToL2, 32));
         CanonicalEncodingVectors.Fill(0x09).CopyTo(c.AsSpan(OffDaCommitment, 32));
 
-        var p = new byte[348];
+        var p = new byte[352];
         c.AsSpan(0, 28).CopyTo(p);
         var pos = 28;
         int[] rootOffsets = [OffPreState, OffPostState, OffTxRoot, OffReceiptRoot, OffWithdrawal, OffL2ToL1, OffL2ToL2];
@@ -178,7 +167,8 @@ public class UT_SharedBridge_Vm
         CanonicalEncodingVectors.Fill(0xB1).CopyTo(p.AsSpan(pos, 32)); pos += 32; // l1MessageHash
         c.AsSpan(OffDaCommitment, 32).CopyTo(p.AsSpan(pos, 32)); pos += 32;
         CanonicalEncodingVectors.Fill(0xC2).CopyTo(p.AsSpan(pos, 32)); pos += 32; // blockContextHash
-        Assert.AreEqual(348, pos, "public-inputs builder wrote the wrong number of bytes");
+        BinaryPrimitives.WriteUInt32LittleEndian(p.AsSpan(pos, 4), 0); pos += 4; // forcedInclusionCount
+        Assert.AreEqual(352, pos, "public-inputs builder wrote the wrong number of bytes");
         Hash256(p).CopyTo(c.AsSpan(OffPublicInputHash, 32));
 
         c[OffProofType] = CanonicalEncodingVectors.ProofType;
@@ -247,13 +237,14 @@ public class UT_SharedBridge_Vm
     /// <paramref name="leaves"/> as its withdrawalRoot, and finalize it.</summary>
     private static void SettleWithdrawalBatch(BridgeStack stack, uint chainId, byte[][] leaves)
     {
-        stack.Registry.RegisterChain(
-            chainId, ConfigForChain(chainId), new UInt256(CanonicalEncodingVectors.Fill(0x10)));
-        stack.Settlement.SubmitBatch(
+        stack.Hub.RegisterChain(ConfigForChain(chainId));
+        stack.Hub.RegisterGenesisStateRoot(chainId, new UInt256(CanonicalEncodingVectors.Fill(0x10)));
+        stack.Hub.SubmitBatch(
             BuildCommitmentHeader(chainId, TreeRoot(leaves)),
             CanonicalEncodingVectors.Fill(0xB1),
-            CanonicalEncodingVectors.Fill(0xC2));
-        stack.Settlement.FinalizeBatch(chainId, 1);
+            CanonicalEncodingVectors.Fill(0xC2),
+            0u);
+        stack.Hub.FinalizeBatch(chainId, 1);
     }
 
     [TestMethod]
@@ -289,7 +280,7 @@ public class UT_SharedBridge_Vm
         var leafABytes = LeafBytes(ChainA, emitting, l2Sender, recipient, L2Asset, 600, nonce: 1);
         var leafA = new UInt256(leafABytes);
         SettleWithdrawalBatch(stack, ChainA, [leafABytes]);
-        Assert.IsTrue(stack.Settlement.VerifyWithdrawalLeafWithProof(ChainA, 1, leafA, new List<object>(), 0)!,
+        Assert.IsTrue(stack.Hub.VerifyWithdrawalLeafWithProof(ChainA, 1, leafA, new List<object>(), 0)!,
             "control: leaf A must verify against its own settled batch");
 
         // A legitimate withdrawal from chain A succeeds and debits A's escrow.
@@ -302,7 +293,7 @@ public class UT_SharedBridge_Vm
         var leafBBytes = LeafBytes(ChainB, emitting, l2Sender, recipient, L2Asset, 500, nonce: 1);
         var leafB = new UInt256(leafBBytes);
         SettleWithdrawalBatch(stack, ChainB, [leafBBytes]);
-        Assert.IsTrue(stack.Settlement.VerifyWithdrawalLeafWithProof(ChainB, 1, leafB, new List<object>(), 0)!,
+        Assert.IsTrue(stack.Hub.VerifyWithdrawalLeafWithProof(ChainB, 1, leafB, new List<object>(), 0)!,
             "leaf B's proof verifies — the failure below is the escrow cap, not the proof");
 
         // A withdrawal for chain B (which has zero escrow) MUST fail at the per-chain cap — it cannot
@@ -328,7 +319,7 @@ public class UT_SharedBridge_Vm
         var leafBytes = LeafBytes(ChainA, emitting, l2Sender, recipient, L2Asset, 101, nonce: 1);
         var leaf = new UInt256(leafBytes);
         SettleWithdrawalBatch(stack, ChainA, [leafBytes]);
-        Assert.IsTrue(stack.Settlement.VerifyWithdrawalLeafWithProof(ChainA, 1, leaf, new List<object>(), 0)!,
+        Assert.IsTrue(stack.Hub.VerifyWithdrawalLeafWithProof(ChainA, 1, leaf, new List<object>(), 0)!,
             "the proof verifies — the failure below is the escrow cap, not the proof");
 
         Assert.ThrowsExactly<TestException>(() =>
@@ -356,7 +347,7 @@ public class UT_SharedBridge_Vm
         var sorted = SortLeaves(leaves);
         for (var i = 0; i < sorted.Length; i++)
         {
-            Assert.IsTrue(stack.Settlement.VerifyWithdrawalLeafWithProof(
+            Assert.IsTrue(stack.Hub.VerifyWithdrawalLeafWithProof(
                     ChainA, 1, new UInt256(sorted[i]), ProofSiblings(leaves, i), (ulong)i)!,
                 $"leaf {i} must verify at its true position");
         }

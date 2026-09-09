@@ -1213,7 +1213,7 @@ fn recover_or_clean_existing_proof(
 fn expected_public_input_hash(request_bytes: &[u8]) -> Result<[u8; 32], String> {
     let artifact = neo_execution_core::parse_proof_witness_artifact(request_bytes)
         .map_err(|error| format!("parse proof witness artifact: {error}"))?;
-    Ok(neo_execution_core::hash_public_inputs(
+    Ok(neo_execution_core::hash_public_inputs_with_forced(
         artifact.public_inputs.chain_id,
         artifact.public_inputs.batch_number,
         artifact.public_inputs.first_block,
@@ -1228,6 +1228,7 @@ fn expected_public_input_hash(request_bytes: &[u8]) -> Result<[u8; 32], String> 
         &artifact.public_inputs.l1_message_hash,
         &artifact.public_inputs.da_commitment,
         &artifact.public_inputs.block_context_hash,
+        artifact.public_inputs.forced_inclusion_count,
     ))
 }
 

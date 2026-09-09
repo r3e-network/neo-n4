@@ -279,7 +279,7 @@ public class UT_ProofWitnessArtifact
     {
         var artifact = SampleArtifact();
         Assert.AreEqual(
-            "c3fc234d57526f76a04f02fe3334dd5e1871e63c0e16d78684ec92757094671b",
+            "67261428e5ee962d171aa4cbd4465a050a6880958bac14fd88b260513295fb96",
             Convert.ToHexString(artifact.ContentHash.GetSpan()).ToLowerInvariant());
     }
 

@@ -65,9 +65,9 @@ internal sealed class L2SettlementProductionComposition : IDisposable
     internal RpcSharedBridgeDepositSource? OwnedDepositSource { get; }
 
     /// <summary>
-    /// Message router constructed from production config, when MessageRouterHash is configured
-    /// and the caller did not supply an external router. Null when the router is caller-owned
-    /// or not configured.
+    /// Message router constructed from production config when L1→L2 messaging is opted in
+    /// (<c>MessageRouterHash</c>, or <c>SharedBridgeHash</c> + non-zero
+    /// <c>messageRouterDeploymentHeight</c>) and the caller did not supply an external router.
     /// </summary>
     internal RpcMessageRouter? OwnedMessageRouter { get; }
 
@@ -180,39 +180,46 @@ internal sealed class L2SettlementProductionComposition : IDisposable
                     ownsStore: false);
             }
 
-            if (constructMessageRouter && configuration.MessageRouterHash is not null)
+            if (constructMessageRouter)
             {
-                if (messageRouterEventStore is null)
-                    throw new InvalidOperationException(
-                        "MessageRouterHash is configured; production message-router wiring requires a durable messageRouterEventStore");
-                if (messageRouterEventStore is not IDurableL2KeyValueStore)
-                    throw new InvalidOperationException(
-                        "production message-router wiring requires a durable L1→L2 event store");
-                if (messageRouterDeploymentHeight == 0)
-                    throw new InvalidOperationException(
-                        "MessageRouterHash is configured; messageRouterDeploymentHeight must be the non-zero deploy block");
-                if (messageRouterFinalizedProofStore is not null
-                    && messageRouterFinalizedProofStore is not IDurableL2KeyValueStore)
-                    throw new InvalidOperationException(
-                        "production message-router finalized proof store must be durable when supplied");
+                // Messaging opt-in: explicit MessageRouterHash, or SharedBridgeHash when a
+                // non-zero messageRouterDeploymentHeight was supplied (lean SharedBridge).
+                var messagingHash = configuration.MessageRouterHash
+                    ?? (messageRouterDeploymentHeight > 0 ? configuration.SharedBridgeHash : null);
+                if (messagingHash is not null)
+                {
+                    if (messageRouterEventStore is null)
+                        throw new InvalidOperationException(
+                            "L1→L2 messaging is configured; production wiring requires a durable messageRouterEventStore");
+                    if (messageRouterEventStore is not IDurableL2KeyValueStore)
+                        throw new InvalidOperationException(
+                            "production message-router wiring requires a durable L1→L2 event store");
+                    if (messageRouterDeploymentHeight == 0)
+                        throw new InvalidOperationException(
+                            "L1→L2 messaging is configured; messageRouterDeploymentHeight must be the non-zero deploy block");
+                    if (messageRouterFinalizedProofStore is not null
+                        && messageRouterFinalizedProofStore is not IDurableL2KeyValueStore)
+                        throw new InvalidOperationException(
+                            "production message-router finalized proof store must be durable when supplied");
 
-                var eventScanner = new RpcMessageRouterEventScanner(
-                    rpc,
-                    configuration.MessageRouterHash,
-                    configuration.ChainId,
-                    messageRouterEventStore,
-                    messageRouterDeploymentHeight,
-                    messageRouterFinalityDepth,
-                    messageRouterMaximumBlocksPerScan);
-                ownedMessageRouter = new RpcMessageRouter(
-                    rpc,
-                    configuration.MessageRouterHash,
-                    configuration.ChainId,
-                    knownInboundMessageNonces ?? Array.Empty<ulong>(),
-                    finalized: messageRouterFinalizedProofStore,
-                    ownsFinalized: false,
-                    ownsRpc: false,
-                    eventScanner: eventScanner);
+                    var eventScanner = new RpcMessageRouterEventScanner(
+                        rpc,
+                        messagingHash,
+                        configuration.ChainId,
+                        messageRouterEventStore,
+                        messageRouterDeploymentHeight,
+                        messageRouterFinalityDepth,
+                        messageRouterMaximumBlocksPerScan);
+                    ownedMessageRouter = new RpcMessageRouter(
+                        rpc,
+                        messagingHash,
+                        configuration.ChainId,
+                        knownInboundMessageNonces ?? Array.Empty<ulong>(),
+                        finalized: messageRouterFinalizedProofStore,
+                        ownsFinalized: false,
+                        ownsRpc: false,
+                        eventScanner: eventScanner);
+                }
             }
 
             return new L2SettlementProductionComposition(
@@ -255,17 +262,23 @@ internal sealed class L2SettlementProductionComposition : IDisposable
 
     private static RpcSettlementClient.SignAndSendAsync CreateSettlementSubmitter(
         RpcTransactionSender transactionSender,
-        UInt160 expectedSettlementManagerHash)
+        UInt160 expectedRollupHubHash)
         => async (
-            settlementManagerHash,
+            rollupHubHash,
+            method,
             commitmentBytes,
             l1MessageHash,
             blockContextHash,
+            forcedInclusionCount,
             cancellationToken) =>
         {
-            if (!settlementManagerHash.Equals(expectedSettlementManagerHash))
+            if (!rollupHubHash.Equals(expectedRollupHubHash))
                 throw new InvalidOperationException(
-                    "settlement submission target differs from the configured SettlementManager");
+                    "settlement submission target differs from the configured RollupHub");
+            ArgumentException.ThrowIfNullOrWhiteSpace(method);
+            if (method is not ("submitBatch" or "submitAndFinalizeBatch"))
+                throw new InvalidOperationException(
+                    $"unsupported RollupHub settlement method '{method}'");
             ArgumentNullException.ThrowIfNull(commitmentBytes);
             ArgumentNullException.ThrowIfNull(l1MessageHash);
             ArgumentNullException.ThrowIfNull(blockContextHash);
@@ -278,12 +291,13 @@ internal sealed class L2SettlementProductionComposition : IDisposable
 
             using var scriptBuilder = new ScriptBuilder();
             scriptBuilder.EmitDynamicCall(
-                settlementManagerHash,
-                "submitBatch",
+                rollupHubHash,
+                method,
                 CallFlags.All,
                 commitmentBytes,
                 l1MessageHash,
-                blockContextHash);
+                blockContextHash,
+                forcedInclusionCount);
             var receipt = await transactionSender.SendInvocationAsync(
                 scriptBuilder.ToArray(), cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException(

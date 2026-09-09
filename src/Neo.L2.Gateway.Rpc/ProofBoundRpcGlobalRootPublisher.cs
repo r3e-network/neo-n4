@@ -7,24 +7,26 @@ using Neo.VM;
 
 namespace Neo.L2.Gateway.Rpc;
 
-/// <summary>Production JSON-RPC publisher for atomic Gateway finality through SettlementManager.</summary>
+/// <summary>Production JSON-RPC publisher for atomic Gateway finality through RollupHub.</summary>
 /// <remarks>
 /// See doc.md §4 (Neo Gateway). Read-only preflight and post-confirmation use
 /// <c>invokefunction</c>. The caller-supplied wallet delegate receives every current
-/// SettlementManager's <c>publishGatewayGlobalRoot</c> argument unchanged. The manager validates
-/// the exact finalized constituents, advances non-revertible watermarks, then calls MessageRouter
-/// atomically using its contract witness. Exact already-published state is idempotent; conflicting
-/// or unconfirmed state fails closed.
+/// RollupHub <c>publishGatewayGlobalRoot</c> argument unchanged. The hub validates
+/// the exact finalized constituents, verifies via ZkVerifier, advances non-revertible
+/// watermarks, then calls SharedBridge <c>publishMessageRoots</c> atomically.
+/// Exact already-published state is idempotent; conflicting or unconfirmed state fails closed.
 /// Host composition: <see cref="OpenFromChainDirectory(string,SignAndSendAsync)"/> reads L1 RPC +
-/// SettlementManager / MessageRouter hashes from settlement plugin config and/or
-/// <c>l1.deployed.json</c>; <see cref="OpenFromChainDirectory(string,INeoTransactionSigner,RpcTransactionSenderOptions?)"/>
+/// RollupHub / SharedBridge hashes from settlement plugin config and/or
+/// <c>l1.deployed.json</c> (SettlementManager / MessageRouter remain accepted aliases);
+/// <see cref="OpenFromChainDirectory(string,INeoTransactionSigner,RpcTransactionSenderOptions?)"/>
 /// also builds the canonical <c>publishGatewayGlobalRoot</c> script via
 /// <see cref="RpcTransactionSender"/>.
+/// Proof-input domain binder is RollupHub (see <see cref="GatewayProofBinding.MessageRouter"/>).
 /// </remarks>
 public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPublisher, IDisposable
 {
     /// <summary>Sign, submit, and wait for the complete ten-argument contract invocation.</summary>
-    /// <param name="settlementManagerHash">Configured NeoHub.SettlementManager contract.</param>
+    /// <param name="rollupHubHash">Configured NeoHub.RollupHub contract.</param>
     /// <param name="batchEpoch">Gateway aggregation epoch.</param>
     /// <param name="constituentReferences">Packed canonical L2 batch references.</param>
     /// <param name="globalRoot">Aggregated L2-to-L2 message root.</param>
@@ -38,7 +40,7 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
     /// <param name="cancellationToken">Cooperative cancellation.</param>
     /// <returns>Confirmed transaction hash.</returns>
     public delegate ValueTask<UInt256> SignAndSendAsync(
-        UInt160 settlementManagerHash,
+        UInt160 rollupHubHash,
         ulong batchEpoch,
         ReadOnlyMemory<byte> constituentReferences,
         UInt256 globalRoot,
@@ -52,8 +54,8 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
         CancellationToken cancellationToken);
 
     private readonly JsonRpcClient _rpc;
-    private readonly UInt160 _settlementManagerHash;
-    private readonly UInt160 _messageRouterHash;
+    private readonly UInt160 _rollupHubHash;
+    private readonly UInt160 _sharedBridgeHash;
     private readonly SignAndSendAsync _signAndSend;
     private readonly ReconciledGlobalRootPublisher _reconciled;
     private readonly bool _ownsRpc;
@@ -61,44 +63,45 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
 
     /// <summary>Construct a complete proof-bound RPC publisher.</summary>
     /// <param name="rpc">L1 Neo JSON-RPC client.</param>
-    /// <param name="settlementManagerHash">Configured non-zero SettlementManager contract.</param>
-    /// <param name="messageRouterHash">Configured non-zero MessageRouter contract.</param>
+    /// <param name="rollupHubHash">Configured non-zero RollupHub contract.</param>
+    /// <param name="sharedBridgeHash">Configured non-zero SharedBridge contract.</param>
     /// <param name="signAndSend">Wallet/HSM transaction builder and confirmation delegate.</param>
     /// <param name="ownsRpc">Whether disposing this publisher also disposes <paramref name="rpc"/>.</param>
     public ProofBoundRpcGlobalRootPublisher(
         JsonRpcClient rpc,
-        UInt160 settlementManagerHash,
-        UInt160 messageRouterHash,
+        UInt160 rollupHubHash,
+        UInt160 sharedBridgeHash,
         SignAndSendAsync signAndSend,
         bool ownsRpc = false)
     {
         ArgumentNullException.ThrowIfNull(rpc);
-        ArgumentNullException.ThrowIfNull(settlementManagerHash);
-        ArgumentNullException.ThrowIfNull(messageRouterHash);
+        ArgumentNullException.ThrowIfNull(rollupHubHash);
+        ArgumentNullException.ThrowIfNull(sharedBridgeHash);
         ArgumentNullException.ThrowIfNull(signAndSend);
-        if (settlementManagerHash.Equals(UInt160.Zero))
-            throw new ArgumentException("settlementManagerHash must be non-zero", nameof(settlementManagerHash));
-        if (messageRouterHash.Equals(UInt160.Zero))
-            throw new ArgumentException("messageRouterHash must be non-zero", nameof(messageRouterHash));
+        if (rollupHubHash.Equals(UInt160.Zero))
+            throw new ArgumentException("rollupHubHash must be non-zero", nameof(rollupHubHash));
+        if (sharedBridgeHash.Equals(UInt160.Zero))
+            throw new ArgumentException("sharedBridgeHash must be non-zero", nameof(sharedBridgeHash));
 
         _rpc = rpc;
-        _settlementManagerHash = settlementManagerHash;
-        _messageRouterHash = messageRouterHash;
+        _rollupHubHash = rollupHubHash;
+        _sharedBridgeHash = sharedBridgeHash;
         _signAndSend = signAndSend;
         _ownsRpc = ownsRpc;
         _reconciled = new ReconciledGlobalRootPublisher(QueryPublicationAsync, SubmitAsync);
     }
 
-    /// <summary>
-    /// SettlementManager contract hash bound at construction (non-zero). Offline ops surface;
-    /// L1 publication remains a funded gate.
-    /// </summary>
-    public UInt160 SettlementManagerHash => _settlementManagerHash;
+    /// <summary>RollupHub contract hash bound at construction (non-zero).</summary>
+    public UInt160 RollupHubHash => _rollupHubHash;
 
-    /// <summary>
-    /// MessageRouter contract hash bound at construction (non-zero). Offline ops surface.
-    /// </summary>
-    public UInt160 MessageRouterHash => _messageRouterHash;
+    /// <summary>Legacy alias for <see cref="RollupHubHash"/>.</summary>
+    public UInt160 SettlementManagerHash => _rollupHubHash;
+
+    /// <summary>SharedBridge contract hash bound at construction (non-zero).</summary>
+    public UInt160 SharedBridgeHash => _sharedBridgeHash;
+
+    /// <summary>Deprecated alias for <see cref="SharedBridgeHash"/>.</summary>
+    public UInt160 MessageRouterHash => _sharedBridgeHash;
 
     /// <summary>
     /// Open a publisher from a chain working directory: L1 RPC endpoint and NeoHub hashes from
@@ -115,8 +118,8 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
         var rpc = new JsonRpcClient(endpoints.RpcEndpoint.AbsoluteUri);
         return new ProofBoundRpcGlobalRootPublisher(
             rpc,
-            endpoints.SettlementManager,
-            endpoints.MessageRouter,
+            endpoints.RollupHub,
+            endpoints.SharedBridge,
             signAndSend,
             ownsRpc: true);
     }
@@ -124,7 +127,7 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
     /// <summary>
     /// Open a publisher that signs with <paramref name="signer"/> via
     /// <see cref="RpcTransactionSender"/> and the canonical
-    /// <c>SettlementManager.publishGatewayGlobalRoot</c> script.
+    /// <c>RollupHub.publishGatewayGlobalRoot</c> script.
     /// </summary>
     /// <remarks>
     /// Local/testnet: <c>LocalKeyTransactionSigner.FromEnvironmentVariable()</c>.
@@ -153,22 +156,22 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
         var signAndSend = CreateSignAndSend(sender);
         return new ProofBoundRpcGlobalRootPublisher(
             rpc,
-            endpoints.SettlementManager,
-            endpoints.MessageRouter,
+            endpoints.RollupHub,
+            endpoints.SharedBridge,
             signAndSend,
             ownsRpc: true);
     }
 
     /// <summary>
     /// Build a <see cref="SignAndSendAsync"/> that emits
-    /// <c>SettlementManager.publishGatewayGlobalRoot</c> and confirms HALT via
+    /// <c>RollupHub.publishGatewayGlobalRoot</c> and confirms HALT via
     /// <paramref name="transactionSender"/>.
     /// </summary>
     public static SignAndSendAsync CreateSignAndSend(RpcTransactionSender transactionSender)
     {
         ArgumentNullException.ThrowIfNull(transactionSender);
         return async (
-            settlementManagerHash,
+            rollupHubHash,
             batchEpoch,
             constituentReferences,
             globalRoot,
@@ -181,13 +184,13 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
             aggregatedProof,
             cancellationToken) =>
         {
-            ArgumentNullException.ThrowIfNull(settlementManagerHash);
+            ArgumentNullException.ThrowIfNull(rollupHubHash);
             ArgumentNullException.ThrowIfNull(globalRoot);
             ArgumentNullException.ThrowIfNull(constituentCommitmentsRoot);
             ArgumentNullException.ThrowIfNull(verificationKeyId);
             ArgumentNullException.ThrowIfNull(replayDomain);
-            if (settlementManagerHash.Equals(UInt160.Zero))
-                throw new ArgumentException("settlementManagerHash must be non-zero", nameof(settlementManagerHash));
+            if (rollupHubHash.Equals(UInt160.Zero))
+                throw new ArgumentException("rollupHubHash must be non-zero", nameof(rollupHubHash));
             if (constituentCount == 0)
                 throw new ArgumentOutOfRangeException(nameof(constituentCount), "constituentCount must be positive");
             if (constituentReferences.Length != checked((int)constituentCount * 12))
@@ -197,7 +200,7 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
 
             using var scriptBuilder = new ScriptBuilder();
             scriptBuilder.EmitDynamicCall(
-                settlementManagerHash,
+                rollupHubHash,
                 "publishGatewayGlobalRoot",
                 CallFlags.All,
                 batchEpoch,
@@ -233,8 +236,9 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         GatewayProofBindingSerializer.Validate(binding);
-        if (!binding.MessageRouter.Equals(_messageRouterHash))
-            throw new ArgumentException("binding targets a different MessageRouter", nameof(binding));
+        // GatewayProofBinding.MessageRouter is the proof-domain binder (RollupHub executing hash).
+        if (!binding.MessageRouter.Equals(_rollupHubHash))
+            throw new ArgumentException("binding targets a different RollupHub domain", nameof(binding));
         if (binding.ProofSystem == Sp1GatewayProofProver.Sp1ProofSystem
             && aggregatedProof.Length != Sp1GatewayProofProver.Groth16ProofSize)
         {
@@ -259,21 +263,21 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
     }
 
     private async ValueTask<GatewayRootPublicationObservation?> QueryPublicationAsync(
-        UInt160 messageRouter,
+        UInt160 domainBinder,
         ulong batchEpoch,
         CancellationToken cancellationToken)
     {
-        if (!messageRouter.Equals(_messageRouterHash))
-            throw new InvalidOperationException("publication query targets a different MessageRouter");
+        if (!domainBinder.Equals(_rollupHubHash))
+            throw new InvalidOperationException("publication query targets a different RollupHub");
         var rootToken = await RpcContractReader.InvokeReadAsync(
             _rpc,
-            _messageRouterHash,
+            _rollupHubHash,
             "getGlobalRoot",
             new object[] { batchEpoch },
             cancellationToken).ConfigureAwait(false);
         var inputToken = await RpcContractReader.InvokeReadAsync(
             _rpc,
-            _messageRouterHash,
+            _rollupHubHash,
             "getGlobalRootProofInputHash",
             new object[] { batchEpoch },
             cancellationToken).ConfigureAwait(false);
@@ -293,10 +297,10 @@ public sealed class ProofBoundRpcGlobalRootPublisher : IProofBoundGlobalRootPubl
     {
         ArgumentNullException.ThrowIfNull(request);
         var binding = request.Binding;
-        if (!binding.MessageRouter.Equals(_messageRouterHash))
-            throw new InvalidOperationException("publication request targets a different MessageRouter");
+        if (!binding.MessageRouter.Equals(_rollupHubHash))
+            throw new InvalidOperationException("publication request targets a different RollupHub domain");
         return await _signAndSend(
-            _settlementManagerHash,
+            _rollupHubHash,
             binding.BatchEpoch,
             request.ConstituentReferences,
             binding.GlobalMessageRoot,

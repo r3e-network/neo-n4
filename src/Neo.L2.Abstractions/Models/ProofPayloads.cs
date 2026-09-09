@@ -50,6 +50,13 @@ public sealed record PublicInputs
 
     /// <summary>Hash of <see cref="BatchBlockContext"/>.</summary>
     public required UInt256 BlockContextHash { get; init; }
+
+    /// <summary>
+    /// Contiguous forced-inclusion entries consumed by this batch. Forwarded to
+    /// <c>RollupHub.submitBatch</c> / <c>submitAndFinalizeBatch</c> as the consume count,
+    /// and always appended (u32 LE) to the 352-byte public-input hash preimage.
+    /// </summary>
+    public uint ForcedInclusionCount { get; init; }
 }
 
 /// <summary>

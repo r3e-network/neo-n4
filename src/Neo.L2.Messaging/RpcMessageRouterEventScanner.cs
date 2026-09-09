@@ -8,13 +8,15 @@ using Neo.L2.Settlement.Rpc;
 namespace Neo.L2.Messaging;
 
 /// <summary>
-/// Durable Neo L1 event scanner for <c>NeoHub.MessageRouter.L1ToL2Enqueued</c>.
+/// Durable Neo L1 event scanner for <c>L1ToL2Enqueued</c> on SharedBridge (lean) or legacy
+/// MessageRouter.
 /// </summary>
 /// <remarks>
 /// See doc.md §10 / §15.1. Each observed inbound nonce is persisted before the block cursor
 /// advances so a crash can only replay a finalized block; it cannot skip an undiscovered
 /// L1→L2 message. The scanner verifies the persisted block hash before resuming and fails
-/// closed on a reorg. Event shape: <c>(targetChainId, nonce, sender, receiver)</c>.
+/// closed on a reorg. Event shape: <c>(targetChainId, nonce, sender, receiver)</c> — identical
+/// on SharedBridge and the deleted MessageRouter micro-contract.
 /// </remarks>
 public sealed class RpcMessageRouterEventScanner : IDisposable
 {
@@ -58,7 +60,7 @@ public sealed class RpcMessageRouterEventScanner : IDisposable
         ArgumentNullException.ThrowIfNull(contractHash);
         ArgumentNullException.ThrowIfNull(store);
         if (contractHash.Equals(UInt160.Zero))
-            throw new ArgumentException("MessageRouter contract hash must not be zero", nameof(contractHash));
+            throw new ArgumentException("L1→L2 messaging contract hash must not be zero", nameof(contractHash));
         if (chainId == 0)
             throw new ArgumentOutOfRangeException(nameof(chainId), "chain id must be non-zero");
         if (maximumBlocksPerScan <= 0)

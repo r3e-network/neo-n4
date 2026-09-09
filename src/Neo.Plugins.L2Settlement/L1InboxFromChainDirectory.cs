@@ -54,7 +54,10 @@ public sealed class L1InboxFromChainDirectory : IDisposable
     /// <summary>Present when settlement config includes <c>SharedBridgeHash</c>.</summary>
     public RpcSharedBridgeDepositSource? Deposits { get; }
 
-    /// <summary>Present when settlement config includes <c>MessageRouterHash</c>.</summary>
+    /// <summary>
+    /// Present when settlement config includes <c>MessageRouterHash</c>, or lean SharedBridge
+    /// messaging via <c>SharedBridgeHash</c> + non-zero <c>MessageRouterDeploymentHeight</c>.
+    /// </summary>
     public RpcMessageRouter? MessageRouter { get; }
 
     /// <summary>Seal-time L1 finalized height (<c>getblockcount</c> − finality depth).</summary>
@@ -122,15 +125,19 @@ public sealed class L1InboxFromChainDirectory : IDisposable
                     ownsRpc: false);
             }
 
-            if (production.MessageRouterHash is not null)
+            // Messaging opt-in: explicit MessageRouterHash, or SharedBridge when
+            // MessageRouterDeploymentHeight is set (lean pillar; deposits-only hosts omit height).
+            var messagingHash = production.MessageRouterHash
+                ?? (settings.MessageRouterDeploymentHeight > 0 ? production.SharedBridgeHash : null);
+            if (messagingHash is not null)
             {
                 if (settings.MessageRouterDeploymentHeight == 0)
                     throw new InvalidOperationException(
-                        "MessageRouterHash is set; MessageRouterDeploymentHeight must be non-zero");
+                        "L1→L2 messaging is configured; MessageRouterDeploymentHeight must be non-zero");
                 router = RpcMessageRouter.OpenFromChainDirectory(
                     root,
                     rpc,
-                    production.MessageRouterHash,
+                    messagingHash,
                     production.ChainId,
                     settings.MessageRouterDeploymentHeight,
                     settings.L1FinalityDepth,

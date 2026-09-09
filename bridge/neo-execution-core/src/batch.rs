@@ -5,11 +5,12 @@ use alloc::{
 
 use crate::{
     hashing::{
-        events_hash, hash_block_context, hash_l1_messages, hash_public_inputs, hash256,
+        events_hash, hash_block_context, hash_l1_messages, hash_public_inputs_with_forced, hash256,
         keyed_state_root_from_map, merkle_root, receipt_hash, storage_delta_hash,
     },
     native::{apply_l1_inbox_v1, derive_outbound_roots_v1},
     transaction::parse_transaction,
+    witness::verify_transaction_witnesses,
     types::{
         BatchEffects, BatchExecutionResult, BatchResult, CanonicalReceiptV1, ComputedBatch,
         ComputedBatchTransition, ExecutionError, ExecutionPayload, ParsedTransaction,
@@ -97,6 +98,12 @@ where
         .iter()
         .map(|bytes| parse_transaction(bytes))
         .collect::<Result<Vec<_>, _>>()?;
+    // Authorization is a proved obligation: every witness is verified against its signer before
+    // any execution, so the batch's effects can only follow from authorized transactions. An
+    // unverifiable witness is a fatal protocol error, not a transaction FAULT.
+    for transaction in &transactions {
+        verify_transaction_witnesses(transaction, payload.block_context.network)?;
+    }
     let mut nonce_keys = BTreeSet::<(UInt160, u32)>::new();
     let mut transaction_hashes = Vec::with_capacity(transactions.len());
     let mut receipt_hashes = Vec::with_capacity(transactions.len());
@@ -104,8 +111,17 @@ where
     let mut total_gas = 0i64;
 
     for transaction in &transactions {
+        // Validity-window enforcement: the payload's flat transaction list carries no
+        // per-transaction block assignment, so a transaction is executable only if it is
+        // unexpired across the whole batch block range — Neo rejects a transaction once the
+        // executing height exceeds `valid_until_block`, and last_block is the latest height any
+        // transaction here can execute at. An expired transaction faults without executing and
+        // without consuming its (sender, nonce) slot.
+        let expired = u64::from(transaction.valid_until_block) < payload.last_block;
         let nonce_key = (transaction.signers[0].account, transaction.nonce);
-        let outcome = if nonce_keys.insert(nonce_key) {
+        let outcome = if expired {
+            VmOutcome::fault(0)
+        } else if nonce_keys.insert(nonce_key) {
             execute_transaction(payload, witness, &state, transaction)?
         } else {
             VmOutcome::fault(0)
@@ -168,8 +184,10 @@ where
         l1_message_hash: hash_l1_messages(&payload.l1_messages),
         da_commitment,
         block_context_hash: hash_block_context(&payload.block_context),
+        forced_inclusion_count: u32::try_from(payload.forced_inclusions.len())
+            .map_err(|_| ExecutionError::Invalid("forced-inclusion count exceeds u32"))?,
     };
-    let public_input_hash = hash_public_inputs(
+    let public_input_hash = hash_public_inputs_with_forced(
         public_inputs.chain_id,
         public_inputs.batch_number,
         public_inputs.first_block,
@@ -184,6 +202,7 @@ where
         &public_inputs.l1_message_hash,
         &public_inputs.da_commitment,
         &public_inputs.block_context_hash,
+        public_inputs.forced_inclusion_count,
     );
     Ok(ComputedBatchState {
         batch: ComputedBatch {

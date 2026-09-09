@@ -66,7 +66,7 @@ Per-component detail lives in [`docs/tech-stack-coverage.md`](docs/tech-stack-co
 | App SDK source implementations (TS / Rust / Python / .NET) | 4 | `sdk/typescript/`, `sdk/rust/`, `sdk/python/`, `src/Neo.L2.Sdk/` — 10 RPC methods (11 convenience calls because state-root supports latest/at-batch) × 4 languages, parity-pinned; package release evidence is not claimed |
 | Web explorer (static-file dApp) | 1 | `sdk/web-explorer/index.html` |
 | Test projects | 39 | Current `tests/**/*.csproj` entries in `Neo.L2.sln` |
-| Top-level documentation pages | 45 EN + 48 zh | Current `docs/*.md`, `docs/zh/*.md`; nested guides are additional |
+| Top-level documentation pages | 45 EN + 55 zh | Current `docs/*.md`, `docs/zh/*.md`; nested guides are additional |
 
 The solution and test inventories are discovered from `Neo.L2.sln` and
 `tests/**/*.csproj`; `dotnet sln Neo.L2.sln list` is the source of truth. Targeted

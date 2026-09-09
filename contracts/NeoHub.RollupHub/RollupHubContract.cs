@@ -39,6 +39,19 @@ public class RollupHubContract : SmartContract
     private const byte PrefixForcedTx = 0x42;         // 0x42 + chainId(4B) + nonce(8B) -> txHash (32B)
     private const byte PrefixGovernanceController = 0x43; // 0x43 -> GovernanceController hash
 
+    // Gateway / SharedBridge (doc.md §4) — reserved lean prefixes matching historical SettlementManager layout.
+    private const byte PrefixGatewayFinalizedRecord = 0x09;   // 0x09 + chainId(4) + batch(8) -> 64B record
+    private const byte PrefixGatewayFinalizedThrough = 0x0A;  // 0x0A + chainId(4) -> ulong watermark
+    private const byte PrefixSharedBridge = 0x0B;             // 0x0B -> SharedBridge hash
+    private const byte PrefixGlobalRoot = 0x0C;               // 0x0C + epoch(8) -> 32B global root
+    private const byte PrefixGlobalRootProofInput = 0x0D;     // 0x0D + epoch(8) -> 32B proof-input hash
+
+    private const uint MaxGatewayConstituents = 4096;
+    private const int MaxGatewayProofDepth = 12;
+    private const int MaxAggregatedProofBytes = 1 * 1024 * 1024;
+    private const byte PassThroughRoundBackend = 0xFE;
+    private const byte PassThroughAggregateBackend = 0xFF;
+
     // Wire Protocol Offsets
     private const int OffsetChainId = 0;
     private const int OffsetBatchNumber = 4;
@@ -109,6 +122,12 @@ public class RollupHubContract : SmartContract
 
     [DisplayName("ForcedTransactionsConsumed")]
     public static event Action<uint, ulong, uint> OnForcedTransactionsConsumed = default!;
+
+    [DisplayName("GlobalRootPublished")]
+    public static event Action<ulong, UInt256> OnGlobalRootPublished = default!;
+
+    [DisplayName("GlobalRootProofAccepted")]
+    public static event Action<ulong, UInt256, UInt256> OnGlobalRootProofAccepted = default!;
 
     public static void _deploy(object data, bool update)
     {
@@ -296,22 +315,48 @@ public class RollupHubContract : SmartContract
     /// Atomically submits and finalizes a non-optimistic batch (ZK / Multisig) in a single L1 transaction.
     /// Eliminates all internal Contract.Calls to ChainRegistry, DARegistry, and ForcedInclusion.
     /// </summary>
-    public static void SubmitAndFinalizeBatch(byte[] commitmentBytes, byte[] l1MessageHash, byte[] blockContextHash)
+    /// <param name="forcedInclusionCount">
+    /// Contiguous forced-inclusion queue entries consumed by this batch (from current head).
+    /// Bound into the public-input hash (352-byte domain); must match the sealed batch's forced count.
+    /// </param>
+    public static void SubmitAndFinalizeBatch(
+        byte[] commitmentBytes,
+        byte[] l1MessageHash,
+        byte[] blockContextHash,
+        uint forcedInclusionCount)
     {
         var chainId = ReadUInt32(commitmentBytes, OffsetChainId);
         var batchNumber = ReadUInt64(commitmentBytes, OffsetBatchNumber);
 
-        SubmitBatchCore(commitmentBytes, l1MessageHash, blockContextHash, chainId, batchNumber, commitmentBytes[OffsetProofType]);
+        SubmitBatchCore(
+            commitmentBytes,
+            l1MessageHash,
+            blockContextHash,
+            chainId,
+            batchNumber,
+            commitmentBytes[OffsetProofType],
+            forcedInclusionCount);
         FinalizeBatchInternal(chainId, batchNumber, (UInt256)ReadBytes(commitmentBytes, OffsetPostStateRoot, 32));
     }
 
-    public static void SubmitBatch(byte[] commitmentBytes, byte[] l1MessageHash, byte[] blockContextHash)
+    public static void SubmitBatch(
+        byte[] commitmentBytes,
+        byte[] l1MessageHash,
+        byte[] blockContextHash,
+        uint forcedInclusionCount)
     {
         var chainId = ReadUInt32(commitmentBytes, OffsetChainId);
         var batchNumber = ReadUInt64(commitmentBytes, OffsetBatchNumber);
         var proofType = commitmentBytes[OffsetProofType];
 
-        SubmitBatchCore(commitmentBytes, l1MessageHash, blockContextHash, chainId, batchNumber, proofType);
+        SubmitBatchCore(
+            commitmentBytes,
+            l1MessageHash,
+            blockContextHash,
+            chainId,
+            batchNumber,
+            proofType,
+            forcedInclusionCount);
 
         var statusKey = BatchStatusKey(chainId, batchNumber);
         Storage.Put(statusKey, new byte[] { StatusPending });
@@ -324,11 +369,14 @@ public class RollupHubContract : SmartContract
         byte[] blockContextHash,
         uint chainId,
         ulong batchNumber,
-        byte proofType)
+        byte proofType,
+        uint forcedInclusionCount)
     {
         ExecutionEngine.Assert(commitmentBytes.Length >= HeaderMinLength, "commitment header too short");
         ExecutionEngine.Assert(l1MessageHash != null && l1MessageHash.Length == 32, "l1MessageHash must be 32 bytes");
         ExecutionEngine.Assert(blockContextHash != null && blockContextHash.Length == 32, "blockContextHash must be 32 bytes");
+        var l1MsgHash = l1MessageHash!;
+        var ctxHash = blockContextHash!;
         ExecutionEngine.Assert(IsChainActive(chainId), "chain inactive");
         AssertChainNotPaused(chainId);
         // The optimistic state machine (challenge window, bonds, deadline finalization) is not
@@ -358,8 +406,9 @@ public class RollupHubContract : SmartContract
         var daCommitment = (UInt256)ReadBytes(commitmentBytes, OffsetDACommitment, 32);
         RecordBatchDAInternal(chainId, batchNumber, daCommitment);
 
-        // Verify public input hash
-        var expectedPubInputHash = ComputePublicInputHash(commitmentBytes, l1MessageHash, blockContextHash);
+        // Verify public input hash (352-byte domain binds forcedInclusionCount)
+        var expectedPubInputHash = ComputePublicInputHash(
+            commitmentBytes, l1MsgHash, ctxHash, forcedInclusionCount);
         var committedPubInputHash = (UInt256)ReadBytes(commitmentBytes, OffsetPublicInputHash, 32);
         ExecutionEngine.Assert(expectedPubInputHash.Equals(committedPubInputHash), "public input hash mismatch");
 
@@ -367,11 +416,14 @@ public class RollupHubContract : SmartContract
         // settlement never degrades to unverifiable finalization.
         var verifierReg = GetVerifierRegistry();
         ExecutionEngine.Assert(verifierReg != UInt160.Zero, "verifier registry not configured");
-        var verified = (bool)Contract.Call(verifierReg, "verifyProof", CallFlags.All, new object[] { commitmentBytes }, 300000);
+        var verified = (bool)Contract.Call(verifierReg, "verifyProof", CallFlags.All, commitmentBytes);
         ExecutionEngine.Assert(verified, "proof verification failed");
 
         // Store commitment bytes
         Storage.Put(BatchCommitmentKey(chainId, batchNumber), commitmentBytes);
+
+        // Advance the anti-censorship queue. Count is sealed into the public-input hash above.
+        ConsumeForcedTransactionsInternal(chainId, forcedInclusionCount);
     }
 
     /// <summary>
@@ -438,8 +490,411 @@ public class RollupHubContract : SmartContract
         Storage.Put(BatchStatusKey(chainId, batchNumber), new byte[] { StatusFinalized });
         Storage.Put(LatestBatchKey(chainId), (BigInteger)batchNumber);
         Storage.Put(CanonicalRootKey(chainId), postStateRoot);
+
+        var rawCommitment = Storage.Get(BatchCommitmentKey(chainId, batchNumber));
+        ExecutionEngine.Assert(rawCommitment != null, "missing commitment");
+        RecordGatewayFinalizedBatch(chainId, batchNumber, (byte[])rawCommitment!);
+
         OnBatchFinalized(chainId, batchNumber, postStateRoot);
     }
+
+    // =========================================================================
+    // Pillar 1.5: Neo Gateway global-root publish (doc.md §4)
+    // =========================================================================
+
+    /// <summary>
+    /// Atomically validate finalized Gateway constituents, verify the aggregation proof via
+    /// ZkVerifier, store the epoch global root, advance per-chain watermarks, and publish
+    /// message roots to SharedBridge in the same NeoVM transaction.
+    /// </summary>
+    /// <remarks>
+    /// See doc.md §4 (Neo Gateway). ABI matches historical
+    /// <c>SettlementManager.publishGatewayGlobalRoot</c> so
+    /// <c>ProofBoundRpcGlobalRootPublisher</c> can retarget RollupHub without a wire change.
+    /// Proof-input domain binds <see cref="Runtime.ExecutingScriptHash"/> (this RollupHub).
+    /// </remarks>
+    public static bool PublishGatewayGlobalRoot(
+        ulong batchEpoch,
+        byte[] constituentReferences,
+        UInt256 globalRoot,
+        UInt256 constituentCommitmentsRoot,
+        uint constituentCount,
+        byte aggregationBackendId,
+        byte proofSystem,
+        UInt256 verificationKeyId,
+        UInt256 replayDomain,
+        byte[] aggregatedProof)
+    {
+        ExecutionEngine.Assert(constituentReferences != null, "constituent references required");
+        var references = constituentReferences!;
+        ExecutionEngine.Assert(constituentCount > 0 && constituentCount <= MaxGatewayConstituents,
+            "constituent count must be 1..4096");
+        ExecutionEngine.Assert(references.Length == (int)constituentCount * 12,
+            "constituent reference length mismatch");
+        ExecutionEngine.Assert(!constituentCommitmentsRoot.Equals(UInt256.Zero),
+            "constituent root must be non-zero");
+        ExecutionEngine.Assert(IsProductionAggregationBackend(aggregationBackendId),
+            "pass-through/reserved aggregation backend is not publishable");
+        ExecutionEngine.Assert(proofSystem >= 1 && proofSystem <= 4, "proofSystem must be 1..4");
+        ExecutionEngine.Assert(!verificationKeyId.Equals(UInt256.Zero),
+            "verification key id must be non-zero");
+        ExecutionEngine.Assert(!replayDomain.Equals(UInt256.Zero), "replay domain must be non-zero");
+        ExecutionEngine.Assert(aggregatedProof != null && aggregatedProof.Length > 0,
+            "aggregated proof required");
+        ExecutionEngine.Assert(aggregatedProof!.Length <= MaxAggregatedProofBytes,
+            "aggregated proof too large");
+
+        var sharedBridge = GetSharedBridge();
+        ExecutionEngine.Assert(sharedBridge.IsValid && !sharedBridge.IsZero,
+            "shared bridge not wired");
+
+        var commitmentFrontier = CreateGatewayFrontier();
+        var messageFrontier = CreateGatewayFrontier();
+        uint previousChainId = 0;
+        ulong previousBatchNumber = 0;
+        for (uint index = 0; index < constituentCount; index++)
+        {
+            var offset = (int)index * 12;
+            var chainId = ReadUInt32(references, offset);
+            var batchNumber = ReadUInt64(references, offset + 4);
+            ExecutionEngine.Assert(chainId > 0, "Gateway chainId 0 is reserved for L1");
+            if (index > 0)
+            {
+                ExecutionEngine.Assert(
+                    chainId > previousChainId
+                    || (chainId == previousChainId && batchNumber > previousBatchNumber),
+                    "Gateway constituent references must be strictly ordered");
+            }
+            previousChainId = chainId;
+            previousBatchNumber = batchNumber;
+
+            ExecutionEngine.Assert(GetBatchStatus(chainId, batchNumber) == StatusFinalized,
+                "Gateway constituent is not finalized");
+            ExecutionEngine.Assert(IsGatewayEnabled(chainId), "Gateway disabled for constituent chain");
+            ExecutionEngine.Assert(batchNumber > GetGatewayFinalizedThrough(chainId),
+                "Gateway constituent was already published");
+
+            var recordRaw = Storage.Get(GatewayFinalizedRecordKey(chainId, batchNumber));
+            ExecutionEngine.Assert(recordRaw != null, "Gateway finalized record missing");
+            var record = (byte[])recordRaw!;
+            ExecutionEngine.Assert(record.Length == 64, "Gateway finalized record corrupt");
+            var commitmentLeaf = new byte[32];
+            var messageLeaf = new byte[32];
+            for (var byteIndex = 0; byteIndex < 32; byteIndex++)
+            {
+                commitmentLeaf[byteIndex] = record[byteIndex];
+                messageLeaf[byteIndex] = record[32 + byteIndex];
+            }
+            PushGatewayLeaf(commitmentFrontier, commitmentLeaf, index);
+            PushGatewayLeaf(messageFrontier, messageLeaf, index);
+        }
+
+        var rebuiltCommitmentRoot = FinalizeGatewayFrontier(commitmentFrontier, duplicateOdd: true);
+        var rebuiltGlobalRoot = FinalizeGatewayFrontier(messageFrontier, duplicateOdd: false);
+        ExecutionEngine.Assert(constituentCommitmentsRoot.Equals((UInt256)rebuiltCommitmentRoot),
+            "Gateway constituent commitment root mismatch");
+        ExecutionEngine.Assert(globalRoot.Equals((UInt256)rebuiltGlobalRoot),
+            "Gateway global message root mismatch");
+
+        var proofInputHash = BuildGlobalRootProofInputHash(
+            batchEpoch,
+            globalRoot,
+            constituentCommitmentsRoot,
+            constituentCount,
+            aggregationBackendId,
+            proofSystem,
+            verificationKeyId,
+            replayDomain);
+
+        var rootKey = GlobalRootKey(batchEpoch);
+        var existingRoot = Storage.Get(rootKey);
+        if (existingRoot != null)
+        {
+            var existingInput = Storage.Get(GlobalRootProofInputKey(batchEpoch));
+            ExecutionEngine.Assert(
+                ((UInt256)existingRoot).Equals(globalRoot)
+                && existingInput != null
+                && ((UInt256)existingInput).Equals(proofInputHash),
+                "epoch already bound to a different global root statement");
+            return false;
+        }
+
+        var verifierReg = GetVerifierRegistry();
+        ExecutionEngine.Assert(verifierReg.IsValid && !verifierReg.IsZero,
+            "verifier registry not configured");
+        var verified = (bool)Contract.Call(
+            verifierReg,
+            "verifyZkProof",
+            CallFlags.All,
+            (BigInteger)proofSystem,
+            (byte[])verificationKeyId,
+            (byte[])proofInputHash,
+            aggregatedProof);
+        ExecutionEngine.Assert(verified, "gateway aggregate proof rejected");
+
+        Storage.Put(rootKey, (byte[])globalRoot);
+        Storage.Put(GlobalRootProofInputKey(batchEpoch), (byte[])proofInputHash);
+        OnGlobalRootPublished(batchEpoch, globalRoot);
+        OnGlobalRootProofAccepted(batchEpoch, constituentCommitmentsRoot, proofInputHash);
+
+        for (uint index = 0; index < constituentCount; index++)
+        {
+            var offset = (int)index * 12;
+            var chainId = ReadUInt32(references, offset);
+            var batchNumber = ReadUInt64(references, offset + 4);
+            if (batchNumber > GetGatewayFinalizedThrough(chainId))
+                Storage.Put(GatewayFinalizedThroughKey(chainId), (BigInteger)batchNumber);
+
+            var commitmentRaw = Storage.Get(BatchCommitmentKey(chainId, batchNumber));
+            ExecutionEngine.Assert(commitmentRaw != null, "missing commitment");
+            var commitment = (byte[])commitmentRaw!;
+            var l2ToL1 = (UInt256)ReadBytes(commitment, OffsetL2ToL1MessageRoot, 32);
+            var l2ToL2 = (UInt256)ReadBytes(commitment, OffsetL2ToL2MessageRoot, 32);
+            Contract.Call(
+                sharedBridge,
+                "publishMessageRoots",
+                CallFlags.All,
+                chainId,
+                batchNumber,
+                l2ToL1,
+                l2ToL2);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Highest Gateway-published batch for <paramref name="chainId"/>; published history is
+    /// non-revertible.
+    /// </summary>
+    /// <remarks>See doc.md §4 (Neo Gateway).</remarks>
+    [Safe]
+    public static ulong GetGatewayFinalizedThrough(uint chainId)
+    {
+        var raw = Storage.Get(GatewayFinalizedThroughKey(chainId));
+        return raw == null ? 0UL : (ulong)(BigInteger)raw;
+    }
+
+    /// <summary>Global aggregated message root for a Gateway epoch, or zero if unpublished.</summary>
+    /// <remarks>See doc.md §4 (Neo Gateway).</remarks>
+    [Safe]
+    public static UInt256 GetGlobalRoot(ulong batchEpoch)
+    {
+        var raw = Storage.Get(GlobalRootKey(batchEpoch));
+        return raw == null ? UInt256.Zero : (UInt256)raw;
+    }
+
+    /// <summary>Accepted canonical proof-input hash for an epoch, or zero when unpublished.</summary>
+    /// <remarks>See doc.md §4 (Neo Gateway).</remarks>
+    [Safe]
+    public static UInt256 GetGlobalRootProofInputHash(ulong batchEpoch)
+    {
+        var raw = Storage.Get(GlobalRootProofInputKey(batchEpoch));
+        return raw == null ? UInt256.Zero : (UInt256)raw;
+    }
+
+    /// <summary>Configured SharedBridge, or zero before wiring.</summary>
+    [Safe]
+    public static UInt160 GetSharedBridge()
+    {
+        var raw = Storage.Get(new byte[] { PrefixSharedBridge });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>Wire SharedBridge for Gateway <c>PublishMessageRoots</c> fan-out.</summary>
+    /// <remarks>See doc.md §4 and §11.</remarks>
+    public static void SetSharedBridge(UInt160 sharedBridge)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(sharedBridge.IsValid && !sharedBridge.IsZero, "invalid shared bridge");
+        Storage.Put(new byte[] { PrefixSharedBridge }, sharedBridge);
+    }
+
+    /// <summary>
+    /// Canonical Hash256 public input for Gateway terminal verification. Domain binder is this
+    /// RollupHub's <see cref="Runtime.ExecutingScriptHash"/> (not SharedBridge).
+    /// </summary>
+    /// <remarks>See doc.md §4. Layout matches historical MessageRouter <c>NEO4GWR2</c> preimage.</remarks>
+    [Safe]
+    public static UInt256 BuildGlobalRootProofInputHash(
+        ulong batchEpoch,
+        UInt256 globalRoot,
+        UInt256 constituentCommitmentsRoot,
+        uint constituentCount,
+        byte aggregationBackendId,
+        byte proofSystem,
+        UInt256 verificationKeyId,
+        UInt256 replayDomain)
+    {
+        var buffer = new byte[170];
+        var tag = GlobalRootProofDomainTag;
+        for (var i = 0; i < tag.Length; i++) buffer[i] = tag[i];
+        var hub = (byte[])Runtime.ExecutingScriptHash;
+        for (var i = 0; i < 20; i++) buffer[8 + i] = hub[i];
+        CopyUInt256(buffer, 28, replayDomain);
+        WriteUInt64(buffer, 60, batchEpoch);
+        CopyUInt256(buffer, 68, globalRoot);
+        CopyUInt256(buffer, 100, constituentCommitmentsRoot);
+        WriteUInt32(buffer, 132, constituentCount);
+        buffer[136] = aggregationBackendId;
+        buffer[137] = proofSystem;
+        CopyUInt256(buffer, 138, verificationKeyId);
+        var first = CryptoLib.Sha256((ByteString)buffer);
+        return (UInt256)(byte[])CryptoLib.Sha256(first);
+    }
+
+    private static void RecordGatewayFinalizedBatch(uint chainId, ulong batchNumber, byte[] commitment)
+    {
+        var first = CryptoLib.Sha256((ByteString)commitment);
+        var commitmentHash = (byte[])CryptoLib.Sha256(first);
+        var record = new byte[64];
+        for (var index = 0; index < 32; index++)
+        {
+            record[index] = commitmentHash[index];
+            record[32 + index] = commitment[OffsetL2ToL2MessageRoot + index];
+        }
+        Storage.Put(GatewayFinalizedRecordKey(chainId, batchNumber), record);
+    }
+
+    private static bool IsGatewayEnabled(uint chainId)
+    {
+        var raw = Storage.Get(ConfigKey(chainId));
+        ExecutionEngine.Assert(raw != null, "chain not registered");
+        var config = (byte[])raw!;
+        return config[OffsetGatewayEnabled] != 0;
+    }
+
+    private static bool IsProductionAggregationBackend(byte aggregationBackendId)
+    {
+        return aggregationBackendId != 0
+            && aggregationBackendId != PassThroughRoundBackend
+            && aggregationBackendId != PassThroughAggregateBackend;
+    }
+
+    private static byte[][] CreateGatewayFrontier()
+    {
+        var frontier = new byte[MaxGatewayProofDepth + 1][];
+        for (var level = 0; level < frontier.Length; level++)
+            frontier[level] = new byte[0];
+        return frontier;
+    }
+
+    private static void PushGatewayLeaf(byte[][] frontier, byte[] leaf, uint leafIndex)
+    {
+        ExecutionEngine.Assert(leaf.Length == 32, "Gateway leaf must be 32 bytes");
+        var current = leaf;
+        var index = leafIndex;
+        var level = 0;
+        while ((index & 1U) == 1U)
+        {
+            ExecutionEngine.Assert(level < frontier.Length, "Gateway frontier overflow");
+            ExecutionEngine.Assert(frontier[level].Length == 32,
+                "Gateway frontier is incomplete");
+            current = HashGatewayPair(frontier[level], current);
+            frontier[level] = new byte[0];
+            index >>= 1;
+            level++;
+        }
+        ExecutionEngine.Assert(level < frontier.Length, "Gateway frontier overflow");
+        frontier[level] = current;
+    }
+
+    private static byte[] FinalizeGatewayFrontier(byte[][] frontier, bool duplicateOdd)
+    {
+        var root = new byte[0];
+        var rootLevel = 0;
+        for (var level = 0; level < frontier.Length; level++)
+        {
+            var left = frontier[level];
+            if (left.Length == 0) continue;
+            ExecutionEngine.Assert(left.Length == 32, "Gateway frontier is corrupt");
+            if (root.Length == 0)
+            {
+                root = left;
+                rootLevel = level;
+                continue;
+            }
+            if (duplicateOdd)
+            {
+                while (rootLevel < level)
+                {
+                    root = HashGatewayPair(root, root);
+                    rootLevel++;
+                }
+            }
+            root = HashGatewayPair(left, root);
+            rootLevel = level + 1;
+        }
+        ExecutionEngine.Assert(root.Length == 32, "Gateway frontier is empty");
+        return root;
+    }
+
+    private static byte[] HashGatewayPair(byte[] left, byte[] right)
+    {
+        ExecutionEngine.Assert(left.Length == 32 && right.Length == 32,
+            "Gateway node must be 32 bytes");
+        var combined = new byte[64];
+        for (var index = 0; index < 32; index++)
+        {
+            combined[index] = left[index];
+            combined[32 + index] = right[index];
+        }
+        var first = CryptoLib.Sha256((ByteString)combined);
+        return (byte[])CryptoLib.Sha256(first);
+    }
+
+    private static byte[] GatewayFinalizedRecordKey(uint chainId, ulong batchNumber) =>
+        Append4And8(PrefixGatewayFinalizedRecord, chainId, batchNumber);
+
+    private static byte[] GatewayFinalizedThroughKey(uint chainId) =>
+        Append4(PrefixGatewayFinalizedThrough, chainId);
+
+    private static byte[] GlobalRootKey(ulong batchEpoch)
+    {
+        var k = new byte[1 + 8];
+        k[0] = PrefixGlobalRoot;
+        WriteUInt64(k, 1, batchEpoch);
+        return k;
+    }
+
+    private static byte[] GlobalRootProofInputKey(ulong batchEpoch)
+    {
+        var key = GlobalRootKey(batchEpoch);
+        key[0] = PrefixGlobalRootProofInput;
+        return key;
+    }
+
+    private static void CopyUInt256(byte[] target, int offset, UInt256 value)
+    {
+        var bytes = (byte[])value;
+        for (var i = 0; i < 32; i++) target[offset + i] = bytes[i];
+    }
+
+    private static void WriteUInt32(byte[] target, int offset, uint value)
+    {
+        target[offset] = (byte)value;
+        target[offset + 1] = (byte)(value >> 8);
+        target[offset + 2] = (byte)(value >> 16);
+        target[offset + 3] = (byte)(value >> 24);
+    }
+
+    private static void WriteUInt64(byte[] target, int offset, ulong value)
+    {
+        target[offset] = (byte)value;
+        target[offset + 1] = (byte)(value >> 8);
+        target[offset + 2] = (byte)(value >> 16);
+        target[offset + 3] = (byte)(value >> 24);
+        target[offset + 4] = (byte)(value >> 32);
+        target[offset + 5] = (byte)(value >> 40);
+        target[offset + 6] = (byte)(value >> 48);
+        target[offset + 7] = (byte)(value >> 56);
+    }
+
+    private static readonly byte[] GlobalRootProofDomainTag = new byte[]
+    {
+        (byte)'N', (byte)'E', (byte)'O', (byte)'4',
+        (byte)'G', (byte)'W', (byte)'R', (byte)'2'
+    };
 
     [Safe]
     public static UInt256 GetCanonicalStateRoot(uint chainId)
@@ -510,23 +965,28 @@ public class RollupHubContract : SmartContract
     }
 
     /// <summary>
-    /// Rebuild the canonical 348-byte public-inputs preimage from a commitment header plus the two
+    /// Rebuild the canonical 352-byte public-inputs preimage from a commitment header plus the two
     /// public inputs the header does not carry, and return its Hash256.
     /// </summary>
     /// <remarks>
     /// The tail order is fixed by <c>Neo.L2.Batch.BatchSerializer.EncodePublicInputs</c> and
-    /// <c>neo-execution-core::hashing::hash_public_inputs</c>:
-    /// <c>header(252) ‖ l1MessageHash(32) ‖ daCommitment(32) ‖ blockContextHash(32)</c>. The
-    /// commitment's own bytes are contiguous only up to offset 252; its daCommitment lives at
+    /// <c>neo-execution-core::hashing::hash_public_inputs_with_forced</c>:
+    /// <c>header(252) ‖ l1MessageHash(32) ‖ daCommitment(32) ‖ blockContextHash(32) ‖ forcedInclusionCount(u32 LE)</c>.
+    /// The commitment's own bytes are contiguous only up to offset 252; its daCommitment lives at
     /// [252..284) and must be re-inserted AFTER l1MessageHash, not copied straight through.
     /// </remarks>
-    private static UInt256 ComputePublicInputHash(byte[] commitment, byte[] l1MsgHash, byte[] ctxHash)
+    private static UInt256 ComputePublicInputHash(
+        byte[] commitment, byte[] l1MsgHash, byte[] ctxHash, uint forcedInclusionCount)
     {
-        var buf = new byte[348];
+        var buf = new byte[352];
         for (var i = 0; i < 252; i++) buf[i] = commitment[i];
         for (var i = 0; i < 32; i++) buf[252 + i] = l1MsgHash[i];
         for (var i = 0; i < 32; i++) buf[284 + i] = commitment[252 + i];
         for (var i = 0; i < 32; i++) buf[316 + i] = ctxHash[i];
+        buf[348] = (byte)(forcedInclusionCount & 0xFF);
+        buf[349] = (byte)((forcedInclusionCount >> 8) & 0xFF);
+        buf[350] = (byte)((forcedInclusionCount >> 16) & 0xFF);
+        buf[351] = (byte)((forcedInclusionCount >> 24) & 0xFF);
         var inner = CryptoLib.Sha256((ByteString)buf);
         return (UInt256)CryptoLib.Sha256(inner);
     }
@@ -551,7 +1011,7 @@ public class RollupHubContract : SmartContract
         if (governance != UInt160.Zero)
         {
             var paused = (bool)Contract.Call(
-                governance, "isChainPaused", CallFlags.All, new object[] { chainId }, 50000);
+                governance, "isChainPaused", CallFlags.All, chainId);
             ExecutionEngine.Assert(!paused, "chain paused by governance");
         }
     }
@@ -639,6 +1099,10 @@ public class RollupHubContract : SmartContract
             current = (byte[])CryptoLib.Sha256(h1);
             index = index >> 1;
         }
+
+        // V5 position binding: after consuming one bit per sibling, no higher bits may remain
+        // (rejects leafIndex relabelled by +2^depth, which walks the same fold directions).
+        if (index != 0UL) return false;
 
         return storedRoot.Equals((UInt256)current);
     }

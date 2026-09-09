@@ -9,14 +9,16 @@ using Neo.Plugins.L2Gateway;
 
 namespace Neo.L2.Gateway.Rpc.UnitTests;
 
-/// <summary>Production proof-bound MessageRouter RPC publication tests.</summary>
+/// <summary>Production proof-bound RollupHub RPC publication tests.</summary>
 [TestClass]
 public sealed class UT_ProofBoundRpcGlobalRootPublisher
 {
-    private static readonly UInt160 MessageRouter =
+    private static readonly UInt160 SharedBridge =
         UInt160.Parse("0x" + new string('a', 40));
-    private static readonly UInt160 SettlementManager =
+    private static readonly UInt160 RollupHub =
         UInt160.Parse("0x" + new string('b', 40));
+    private static readonly UInt160 MessageRouter = SharedBridge;
+    private static readonly UInt160 SettlementManager = RollupHub;
 
     [TestMethod]
     public async Task PublishGlobalRootAsync_ForwardsCompleteBindingAndConfirmsOnChainState()
@@ -52,7 +54,7 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
                 {
                     Binding = new GatewayProofBinding
                     {
-                        MessageRouter = MessageRouter,
+                        MessageRouter = RollupHub,
                         ReplayDomain = replayDomain,
                         BatchEpoch = epoch,
                         GlobalMessageRoot = globalRoot,
@@ -195,7 +197,7 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
         var (canonicalBinding, aggregate) = Statement();
         var binding = canonicalBinding with
         {
-            MessageRouter = UInt160.Parse("0x" + new string('b', 40)),
+            MessageRouter = UInt160.Parse("0x" + new string('c', 40)),
         };
 
         await Assert.ThrowsExactlyAsync<ArgumentException>(
@@ -377,7 +379,7 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
             BackendId = Sp1GatewayProofProver.RecursiveAggregationBackendId,
         };
         var binding = GatewayProofBindingSerializer.Create(
-            MessageRouter,
+            RollupHub,
             H(0xD1),
             77,
             aggregate,
@@ -423,7 +425,7 @@ public sealed class UT_ProofBoundRpcGlobalRootPublisher
             var id = root.GetProperty("id").GetInt64();
             Assert.AreEqual("invokefunction", root.GetProperty("method").GetString());
             var rpcParams = root.GetProperty("params");
-            Assert.AreEqual(MessageRouter.ToString(), rpcParams[0].GetString());
+            Assert.AreEqual(RollupHub.ToString(), rpcParams[0].GetString());
             var method = rpcParams[1].GetString()
                 ?? throw new InvalidOperationException("missing contract method");
             ContractMethods.Add(method);

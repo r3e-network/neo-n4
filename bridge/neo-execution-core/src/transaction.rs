@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, vec::Vec};
 
 use crate::{
-    hash256,
+    inventory_hash,
     types::{
         ExecutionError, ParsedTransaction, Signer, TransactionWitness, WitnessCondition,
         WitnessRule, WitnessRuleAction,
@@ -64,7 +64,8 @@ pub fn parse_transaction(bytes: &[u8]) -> Result<ParsedTransaction, ExecutionErr
         return Err(ExecutionError::Invalid("empty transaction script"));
     }
     let unsigned_end = reader.position();
-    let hash = hash256(&bytes[..unsigned_end]);
+    // Neo N3 Transaction.Hash is a single SHA-256 of the unsigned payload (not Hash256).
+    let hash = inventory_hash(&bytes[..unsigned_end]);
 
     let witness_count = reader.read_var_count(MAX_SIGNERS, "transaction witnesses")?;
     if witness_count != signer_count {

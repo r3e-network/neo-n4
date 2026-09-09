@@ -453,9 +453,9 @@ public class UT_LiveDeployCommand
     }
 
     [TestMethod]
-    public void BuildPostDeployCalls_BindsAndLocksSp1ThenFreezesOuterRegistry()
+    public void BuildPostDeployCalls_WiresLeanPillarsAndLocksSp1()
     {
-        var hashes = ContractHashes();
+        var hashes = LeanContractHashes();
         var programVKey = new UInt256(AsymmetricProgramVKey);
         var actions = LiveDeployCommand.BuildPostDeployCalls(
             hashes,
@@ -470,99 +470,68 @@ public class UT_LiveDeployCommand
         Assert.IsTrue(actions.All(static action => action.CompletionCheck is not null),
             "every production post-deploy mutation must be resumable from its exact target state");
 
-        var registerKey = IndexOf(actions, "ContractZkVerifier.RegisterVerificationKey.Sp1");
-        var registerTerminal = IndexOf(actions, "ContractZkVerifier.RegisterProofVerifier.Sp1");
-        var lockEnvelope = IndexOf(actions, "ContractZkVerifier.DisableEnvelopeOnlyPermanently.Sp1");
-        var lockConfiguration = IndexOf(actions, "ContractZkVerifier.LockProofSystemConfiguration.Sp1");
-        var registerOuterRoute = IndexOf(actions, "VerifierRegistry.RegisterVerifier.Zk");
-        var lockOuterRegistry = IndexOf(actions, "VerifierRegistry.LockGovernance");
-        var setSettlementGovernance = IndexOf(actions, "SettlementManager.SetGovernanceController");
-        var lockChainRegistry = IndexOf(actions, "ChainRegistry.LockGovernance");
+        Assert.AreEqual(8, actions.Length);
+        Assert.AreEqual("RollupHub.SetGovernanceController", actions[0].Name);
+        Assert.AreEqual("SharedBridge.SetSettlementManager", actions[1].Name);
+        Assert.AreEqual("SharedBridge.SetEmergencyManager", actions[2].Name);
+        Assert.AreEqual("RollupHub.SetSharedBridge", actions[3].Name);
+        Assert.AreEqual("ZkVerifier.RegisterVerificationKey.Sp1", actions[4].Name);
+        Assert.AreEqual("ZkVerifier.RegisterProofVerifier.Sp1", actions[5].Name);
+        Assert.AreEqual("ZkVerifier.DisableEnvelopeOnlyPermanently.Sp1", actions[6].Name);
+        Assert.AreEqual("ZkVerifier.LockProofSystemConfiguration.Sp1", actions[7].Name);
 
-        Assert.AreEqual(registerKey + 1, registerTerminal);
-        Assert.AreEqual(registerTerminal + 1, lockEnvelope);
-        Assert.AreEqual(lockEnvelope + 1, lockConfiguration);
-        Assert.AreEqual(lockConfiguration + 1, registerOuterRoute,
-            "ProofType.Zk must not become reachable before the inner SP1 verifier is fully bound and locked");
-        Assert.AreEqual(registerOuterRoute + 1, lockOuterRegistry,
-            "production deployment must freeze the outer route immediately after bootstrap registration");
-        Assert.IsTrue(setSettlementGovernance < lockOuterRegistry,
-            "SettlementManager governance must be bound before any production governance lock runs");
-
-        var registerPermissionlessV4 = IndexOf(actions,
-            "OptimisticChallenge.RegisterPermissionlessFraudProfile.RestrictedExecutionV4");
-        Assert.AreEqual(lockOuterRegistry + 1, registerPermissionlessV4,
-            "the exact executable v4 profile must be atomically approved immediately after the ZK route is frozen");
-
-        var setGas = IndexOf(actions, "ForcedInclusion.SetGasToken");
-        var setRecipient = IndexOf(actions, "ForcedInclusion.SetFeeRecipient");
-        var setFee = IndexOf(actions, "ForcedInclusion.SetFee");
-        Assert.AreEqual(setGas + 1, setRecipient);
-        Assert.AreEqual(setRecipient + 1, setFee,
-            "fee must only be enabled after both the token and recipient are configured");
-
-        var setMessageRouterIndex = IndexOf(actions, "SettlementManager.SetMessageRouter");
-        var setRouterGovernance = IndexOf(actions, "MessageRouter.SetGovernanceController");
-        var setRouterProfile = IndexOf(actions, "MessageRouter.SetGlobalRootVerifier");
-        var lockRouterProfile = IndexOf(actions, "MessageRouter.LockGlobalRootGovernance");
-        var lockSettlementGovernance = IndexOf(actions, "SettlementManager.LockGovernance");
-        Assert.AreEqual(setMessageRouterIndex + 1, setRouterGovernance);
-        Assert.AreEqual(setRouterGovernance + 1, setRouterProfile,
-            "the Router refuses to lock a Gateway proof profile that was never configured, so the controller must be wired first");
-        Assert.AreEqual(setRouterProfile + 1, lockRouterProfile,
-            "the Gateway proof profile must be frozen in the same contiguous step group that configures it");
-        Assert.AreEqual(lockRouterProfile + 1, lockChainRegistry,
-            "ChainRegistry must lock after all bootstrap wiring and before SettlementManager locks");
-        Assert.AreEqual(lockChainRegistry + 1, lockSettlementGovernance,
-            "both production registries must be locked in the same resumable deployment sequence");
-        var setMessageRouter = actions[setMessageRouterIndex];
-        using (var expectedMessageRouterScript = new ScriptBuilder())
+        using (var expected = new ScriptBuilder())
         {
-            expectedMessageRouterScript.EmitDynamicCall(
-                hashes["SettlementManager"],
-                "setMessageRouter",
-                hashes["MessageRouter"]);
-            CollectionAssert.AreEqual(expectedMessageRouterScript.ToArray(), setMessageRouter.Script);
+            expected.EmitDynamicCall(
+                hashes["SharedBridge"],
+                "setSettlementManager",
+                hashes["RollupHub"]);
+            CollectionAssert.AreEqual(expected.ToArray(), actions[1].Script);
         }
-
-        var gatewayProfileScript = actions[setRouterProfile].Script;
-        using (var expectedRouterProfileScript = new ScriptBuilder())
+        using (var expected = new ScriptBuilder())
         {
-            expectedRouterProfileScript.EmitDynamicCall(
-                hashes["MessageRouter"],
-                "setGlobalRootVerifier",
-                hashes["Sp1Groth16Verifier"],
+            expected.EmitDynamicCall(
+                hashes["RollupHub"],
+                "setSharedBridge",
+                hashes["SharedBridge"]);
+            CollectionAssert.AreEqual(expected.ToArray(), actions[3].Script);
+        }
+        using (var expected = new ScriptBuilder())
+        {
+            expected.EmitDynamicCall(
+                hashes["ZkVerifier"],
+                "registerVerificationKey",
                 (byte)1,
-                (byte)0xC2,
-                GatewayProgramVKey,
-                GatewayReplayDomain);
-            CollectionAssert.AreEqual(expectedRouterProfileScript.ToArray(), gatewayProfileScript);
+                programVKey,
+                true);
+            CollectionAssert.AreEqual(expected.ToArray(), actions[4].Script);
         }
-        Assert.IsTrue(gatewayProfileScript.AsSpan().IndexOf(GatewayProgramVKey.GetSpan()) >= 0,
-            "setGlobalRootVerifier must push the raw Gateway guest program vkey bytes");
-        Assert.AreEqual(-1, gatewayProfileScript.AsSpan()
-                .IndexOf(GatewayProgramVKey.GetSpan().ToArray().Reverse().ToArray()),
-            "setGlobalRootVerifier must not contain the reversed display-order Gateway program digest");
-
-        var action = actions[registerKey];
-        using var expected = new ScriptBuilder();
-        expected.EmitDynamicCall(
-            hashes["ContractZkVerifier"],
-            "registerVerificationKey",
-            (byte)1,
-            programVKey,
-            true);
-        CollectionAssert.AreEqual(expected.ToArray(), action.Script);
-        Assert.IsTrue(action.Script.AsSpan().IndexOf(AsymmetricProgramVKey) >= 0,
-            "registerVerificationKey script must push the raw bytes32_raw() bytes");
-        Assert.AreEqual(-1, action.Script.AsSpan().IndexOf(AsymmetricProgramVKey.Reverse().ToArray()),
-            "registerVerificationKey script must not contain the reversed display-order digest");
+        Assert.IsTrue(actions[4].Script.AsSpan().IndexOf(programVKey.GetSpan()) >= 0);
     }
 
     [TestMethod]
-    public void BuildPostDeployCalls_LocksEveryGovernanceSurfaceItWires()
+    public void BuildPostDeployCalls_MissingLeanHash_FailsClosed()
     {
-        var hashes = ContractHashes();
+        var hashes = LeanContractHashes().ToDictionary(static kv => kv.Key, static kv => kv.Value);
+        hashes.Remove("RollupHub");
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            LiveDeployCommand.BuildPostDeployCalls(
+                hashes,
+                hashes["Gas"],
+                hashes["Owner"],
+                100_000,
+                new UInt256(AsymmetricProgramVKey),
+                1001,
+                FraudReplayDomain,
+                GatewayProgramVKey,
+                GatewayReplayDomain));
+        StringAssert.Contains(ex.Message, "RollupHub");
+    }
+
+    [TestMethod]
+    public void BuildPostDeployCalls_DoesNotIndexDeletedMicroContracts()
+    {
+        var hashes = LeanContractHashes();
         var actions = LiveDeployCommand.BuildPostDeployCalls(
             hashes,
             hashes["Gas"],
@@ -572,58 +541,11 @@ public class UT_LiveDeployCommand
             1001,
             FraudReplayDomain,
             GatewayProgramVKey,
-            GatewayReplayDomain).ToArray();
-
-        // H12: a deployment that wires a GovernanceController but never locks leaves the instant
-        // owner path live forever — "owner is honest today" instead of "owner cannot be evil later".
-        // So every surface this sequence arms with a controller must also be locked by it.
-        var wiredSurfaces = actions
-            .Select(action => action.Name)
-            .Where(name => name.EndsWith(".SetGovernanceController", StringComparison.Ordinal))
-            .Select(name => name[..^".SetGovernanceController".Length])
-            .ToArray();
-        CollectionAssert.AreEquivalent(
-            new[]
-            {
-                "ChainRegistry", "VerifierRegistry", "SettlementManager",
-                "OptimisticChallenge", "MpcCommitteeVerifier", "ExternalBridgeRegistry",
-                "MessageRouter",
-            },
-            wiredSurfaces,
-            "the production sequence must arm every governance surface it intends to lock");
-
-        foreach (var surface in wiredSurfaces)
-        {
-            // MessageRouter freezes a proof profile, not a verifier/committee table, so its
-            // one-way gate and its read-back carry the GlobalRoot names.
-            var lockName = surface == "MessageRouter"
-                ? $"{surface}.LockGlobalRootGovernance"
-                : $"{surface}.LockGovernance";
-            var readBackName = surface == "MessageRouter"
-                ? $"{surface}.IsGlobalRootGovernanceLocked"
-                : $"{surface}.IsGovernanceLocked";
-
-            var wireIndex = IndexOf(actions, $"{surface}.SetGovernanceController");
-            var lockIndex = IndexOf(actions, lockName);
-            Assert.IsTrue(lockIndex > wireIndex,
-                $"{surface} must be locked after its GovernanceController is wired (locking first faults)");
-
-            var lockAction = actions[lockIndex];
-            Assert.AreEqual(hashes[surface], lockAction.Contract,
-                $"{lockName} must target the contract it names");
-            Assert.AreEqual(readBackName, lockAction.CompletionCheck!.Name,
-                $"{surface} must be resumable from its own locked read");
-            Assert.AreEqual(lockAction.Contract, lockAction.CompletionCheck.Contract,
-                $"{surface}'s completion check must read the same contract the lock writes");
-        }
-
-        // The v4 profile bind is the one instant owner mutation the sequence itself performs, so the
-        // OptimisticChallenge lock has to land strictly after it.
-        var registerPermissionlessV4 = IndexOf(actions,
-            "OptimisticChallenge.RegisterPermissionlessFraudProfile.RestrictedExecutionV4");
-        var lockChallenge = IndexOf(actions, "OptimisticChallenge.LockGovernance");
-        Assert.AreEqual(registerPermissionlessV4 + 1, lockChallenge,
-            "the fraud-proof allowlist must be frozen immediately after bootstrap profile registration");
+            GatewayReplayDomain);
+        Assert.IsFalse(actions.Any(a => a.Name.Contains("MessageRouter", StringComparison.Ordinal)));
+        Assert.IsFalse(actions.Any(a => a.Name.Contains("ChainRegistry", StringComparison.Ordinal)));
+        Assert.IsFalse(actions.Any(a => a.Name.Contains("ForcedInclusion", StringComparison.Ordinal)));
+        Assert.IsFalse(actions.Any(a => a.Name.StartsWith("SettlementManager.", StringComparison.Ordinal)));
     }
 
     [TestMethod]
@@ -638,19 +560,18 @@ public class UT_LiveDeployCommand
     [TestMethod]
     public async Task IsPostDeployActionComplete_ExactStateSkipsMismatchRetries()
     {
-        var hashes = ContractHashes();
-        var programVKey = new UInt256(AsymmetricProgramVKey);
+        var hashes = LeanContractHashes();
         var action = LiveDeployCommand.BuildPostDeployCalls(
                 hashes,
                 hashes["Gas"],
                 hashes["Owner"],
                 100_000,
-                programVKey,
+                new UInt256(AsymmetricProgramVKey),
                 1001,
                 FraudReplayDomain,
                 GatewayProgramVKey,
                 GatewayReplayDomain)
-            .Single(item => item.Name == "VerifierRegistry.LockGovernance");
+            .Single(item => item.Name == "ZkVerifier.DisableEnvelopeOnlyPermanently.Sp1");
 
         Assert.IsNotNull(action.CompletionCheck);
         Assert.IsTrue(await LiveDeployCommand.IsPostDeployActionCompleteAsync(
@@ -660,9 +581,9 @@ public class UT_LiveDeployCommand
     }
 
     [TestMethod]
-    public async Task BuildSmokeChecks_AllSp1PostconditionsPassAndQueryUsesRawVKeyBytes()
+    public async Task BuildSmokeChecks_AllLeanPostconditionsPassAndQueryUsesRawVKeyBytes()
     {
-        var hashes = ContractHashes();
+        var hashes = LeanContractHashes();
         var programVKey = new UInt256(AsymmetricProgramVKey);
         var smokes = LiveDeployCommand.BuildSmokeChecks(
             hashes,
@@ -679,101 +600,44 @@ public class UT_LiveDeployCommand
             2).ToDictionary(check => check.Name, StringComparer.Ordinal);
 
         var verificationKeyRpc = new StubRpcClient(BooleanResult(true));
-        await smokes["ContractZkVerifier.IsVerificationKeyRegistered.Sp1"].RunAsync(verificationKeyRpc);
+        await smokes["ZkVerifier.IsVerificationKeyRegistered.Sp1"].RunAsync(verificationKeyRpc);
         Assert.AreEqual("invokescript", verificationKeyRpc.Calls.Single().Method);
         var queryScript = Convert.FromBase64String((string)verificationKeyRpc.Calls.Single().Parameters[0]!);
         using (var expected = new ScriptBuilder())
         {
             expected.EmitDynamicCall(
-                hashes["ContractZkVerifier"],
+                hashes["ZkVerifier"],
                 "isVerificationKeyRegistered",
                 CallFlags.ReadOnly,
                 (byte)1,
                 programVKey);
             CollectionAssert.AreEqual(expected.ToArray(), queryScript);
         }
-        Assert.IsTrue(queryScript.AsSpan().IndexOf(AsymmetricProgramVKey) >= 0,
-            "isVerificationKeyRegistered query must push the same raw program vkey bytes as registration and payload");
-        Assert.AreEqual(-1, queryScript.AsSpan().IndexOf(AsymmetricProgramVKey.Reverse().ToArray()));
 
-        await smokes["ContractZkVerifier.GetProofVerifier.Sp1"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["Sp1Groth16Verifier"])));
-        await smokes["ContractZkVerifier.IsEnvelopeOnlyLocked.Sp1"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["ContractZkVerifier.IsEnvelopeOnlyAllowed.Sp1"]
-            .RunAsync(new StubRpcClient(BooleanResult(false)));
-        await smokes["ContractZkVerifier.IsProofSystemConfigurationLocked.Sp1"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["ContractZkVerifier.GetLockedVerificationKey.Sp1"]
-            .RunAsync(new StubRpcClient(Hash256Result(programVKey)));
-        await smokes["VerifierRegistry.GetVerifier.Zk"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["ContractZkVerifier"])));
-        await smokes["VerifierRegistry.GetGovernanceController"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
-        await smokes["VerifierRegistry.IsGovernanceLocked"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["ChainRegistry.IsGovernanceLocked"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecutionV4"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["RestrictedExecutionFraudVerifier.GetSettlementManager"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["SettlementManager"])));
-        await smokes["RestrictedExecutionFraudVerifier.GetReplayDomain"]
-            .RunAsync(new StubRpcClient(Hash256Result(FraudReplayDomain)));
-        await smokes["RestrictedExecutionFraudVerifier.GetExecutorSemanticId"]
-            .RunAsync(new StubRpcClient(Hash256Result(
-                LiveDeployCommand.RestrictedExecutorSemanticId)));
-        await smokes["SettlementManager.GetMessageRouter"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["MessageRouter"])));
-        await smokes["MessageRouter.GetGlobalRootVerifier"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["Sp1Groth16Verifier"])));
-        await smokes["MessageRouter.GetGlobalRootProofSystem"]
-            .RunAsync(new StubRpcClient(IntegerResult(1)));
-        await smokes["MessageRouter.GetGlobalRootAggregationBackend"]
-            .RunAsync(new StubRpcClient(IntegerResult(0xC2)));
-        await smokes["MessageRouter.GetGlobalRootVerificationKeyId"]
-            .RunAsync(new StubRpcClient(Hash256Result(GatewayProgramVKey)));
-        await smokes["MessageRouter.GetGlobalRootReplayDomain"]
-            .RunAsync(new StubRpcClient(Hash256Result(GatewayReplayDomain)));
-        await smokes["MessageRouter.IsGlobalRootGovernanceLocked"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["SettlementManager.GetGovernanceController"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
-        await smokes["SettlementManager.IsGovernanceLocked"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["OptimisticChallenge.GetGovernanceController"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
-        await smokes["OptimisticChallenge.IsGovernanceLocked"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["MpcCommitteeVerifier.IsGovernanceLocked"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["ExternalBridgeRegistry.IsGovernanceLocked"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["ForcedInclusion.GetGasToken"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["Gas"])));
-        await smokes["ForcedInclusion.GetFeeRecipient"]
-            .RunAsync(new StubRpcClient(HashResult(hashes["Owner"])));
-        await smokes["ForcedInclusion.GetFee"]
-            .RunAsync(new StubRpcClient(IntegerResult(100_000)));
-        await smokes["ForcedInclusion.IsProductionReady"]
-            .RunAsync(new StubRpcClient(BooleanResult(true)));
-        await smokes["ExternalBridgeEscrow.GetNeoChainId"]
-            .RunAsync(new StubRpcClient(IntegerResult(1001)));
+        await smokes["RollupHub.GetOwner"].RunAsync(new StubRpcClient(HashResult(hashes["Owner"])));
+        await smokes["RollupHub.GetGovernanceController"].RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
+        await smokes["RollupHub.GetSharedBridge"].RunAsync(new StubRpcClient(HashResult(hashes["SharedBridge"])));
+        await smokes["SharedBridge.GetSettlementManager"].RunAsync(new StubRpcClient(HashResult(hashes["RollupHub"])));
+        await smokes["SharedBridge.GetEmergencyManager"].RunAsync(new StubRpcClient(HashResult(hashes["GovernanceController"])));
+        await smokes["ZkVerifier.GetProofVerifier.Sp1"].RunAsync(new StubRpcClient(HashResult(hashes["Sp1Groth16Verifier"])));
+        await smokes["ZkVerifier.IsEnvelopeOnlyLocked.Sp1"].RunAsync(new StubRpcClient(BooleanResult(true)));
+        await smokes["ZkVerifier.IsEnvelopeOnlyAllowed.Sp1"].RunAsync(new StubRpcClient(BooleanResult(false)));
+        await smokes["ZkVerifier.IsProofSystemConfigurationLocked.Sp1"].RunAsync(new StubRpcClient(BooleanResult(true)));
+        await smokes["ZkVerifier.GetLockedVerificationKey.Sp1"].RunAsync(new StubRpcClient(Hash256Result(programVKey)));
     }
 
     [TestMethod]
-    public async Task BuildSmokeChecks_AnyIncorrectSp1Postcondition_FailsClosed()
+    public async Task BuildSmokeChecks_MismatchAborts()
     {
-        var hashes = ContractHashes();
+        var hashes = LeanContractHashes();
+        var programVKey = new UInt256(AsymmetricProgramVKey);
         var smokes = LiveDeployCommand.BuildSmokeChecks(
             hashes,
             hashes["Owner"],
             hashes["Gas"],
             hashes["Owner"],
             100_000,
-            new UInt256(AsymmetricProgramVKey),
+            programVKey,
             1001,
             FraudReplayDomain,
             GatewayProgramVKey,
@@ -781,40 +645,16 @@ public class UT_LiveDeployCommand
             2,
             2).ToDictionary(check => check.Name, StringComparer.Ordinal);
 
-        var mismatches = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+        var mismatches = new (string Name, System.Text.Json.JsonElement Result)[]
         {
-            ["ContractZkVerifier.IsVerificationKeyRegistered.Sp1"] = BooleanResult(false),
-            ["ContractZkVerifier.GetProofVerifier.Sp1"] = HashResult(UInt160.Zero),
-            ["ContractZkVerifier.IsEnvelopeOnlyLocked.Sp1"] = BooleanResult(false),
-            ["ContractZkVerifier.IsEnvelopeOnlyAllowed.Sp1"] = BooleanResult(true),
-            ["ContractZkVerifier.IsProofSystemConfigurationLocked.Sp1"] = BooleanResult(false),
-            ["ContractZkVerifier.GetLockedVerificationKey.Sp1"] = Hash256Result(UInt256.Zero),
-            ["VerifierRegistry.GetVerifier.Zk"] = HashResult(UInt160.Zero),
-            ["VerifierRegistry.GetGovernanceController"] = HashResult(UInt160.Zero),
-            ["VerifierRegistry.IsGovernanceLocked"] = BooleanResult(false),
-            ["ChainRegistry.IsGovernanceLocked"] = BooleanResult(false),
-            ["OptimisticChallenge.IsApprovedFraudVerifier.RestrictedExecutionV4"] = BooleanResult(false),
-            ["OptimisticChallenge.IsPermissionlessFraudProfile.RestrictedExecutionV4"] = BooleanResult(false),
-            ["RestrictedExecutionFraudVerifier.GetSettlementManager"] = HashResult(UInt160.Zero),
-            ["RestrictedExecutionFraudVerifier.GetReplayDomain"] = Hash256Result(UInt256.Zero),
-            ["RestrictedExecutionFraudVerifier.GetExecutorSemanticId"] = Hash256Result(UInt256.Zero),
-            ["SettlementManager.GetMessageRouter"] = HashResult(UInt160.Zero),
-            ["MessageRouter.GetGlobalRootVerifier"] = HashResult(UInt160.Zero),
-            ["MessageRouter.GetGlobalRootProofSystem"] = IntegerResult(0),
-            ["MessageRouter.GetGlobalRootAggregationBackend"] = IntegerResult(0xFE),
-            ["MessageRouter.GetGlobalRootVerificationKeyId"] = Hash256Result(UInt256.Zero),
-            ["MessageRouter.GetGlobalRootReplayDomain"] = Hash256Result(UInt256.Zero),
-            ["MessageRouter.IsGlobalRootGovernanceLocked"] = BooleanResult(false),
-            ["SettlementManager.GetGovernanceController"] = HashResult(UInt160.Zero),
-            ["SettlementManager.IsGovernanceLocked"] = BooleanResult(false),
-            ["OptimisticChallenge.GetGovernanceController"] = HashResult(UInt160.Zero),
-            ["OptimisticChallenge.IsGovernanceLocked"] = BooleanResult(false),
-            ["MpcCommitteeVerifier.IsGovernanceLocked"] = BooleanResult(false),
-            ["ExternalBridgeRegistry.IsGovernanceLocked"] = BooleanResult(false),
-            ["ForcedInclusion.GetGasToken"] = HashResult(UInt160.Zero),
-            ["ForcedInclusion.GetFeeRecipient"] = HashResult(UInt160.Zero),
-            ["ForcedInclusion.GetFee"] = IntegerResult(0),
-            ["ForcedInclusion.IsProductionReady"] = BooleanResult(false),
+            ("RollupHub.GetOwner", HashResult(UInt160.Zero)),
+            ("ZkVerifier.IsVerificationKeyRegistered.Sp1", BooleanResult(false)),
+            ("ZkVerifier.IsEnvelopeOnlyLocked.Sp1", BooleanResult(false)),
+            ("ZkVerifier.IsEnvelopeOnlyAllowed.Sp1", BooleanResult(true)),
+            ("ZkVerifier.IsProofSystemConfigurationLocked.Sp1", BooleanResult(false)),
+            ("SharedBridge.GetSettlementManager", HashResult(UInt160.Zero)),
+            ("RollupHub.GetSharedBridge", HashResult(UInt160.Zero)),
+            ("RollupHub.GetGovernanceController", HashResult(UInt160.Zero)),
         };
 
         foreach (var (name, result) in mismatches)
@@ -825,27 +665,12 @@ public class UT_LiveDeployCommand
         }
     }
 
-    private static int IndexOf(IReadOnlyList<LiveDeployCommand.PostDeployCall> actions, string name)
-    {
-        for (var index = 0; index < actions.Count; index++)
-        {
-            if (string.Equals(actions[index].Name, name, StringComparison.Ordinal)) return index;
-        }
-        Assert.Fail($"missing post-deploy action {name}");
-        return -1;
-    }
-
-    private static IReadOnlyDictionary<string, UInt160> ContractHashes()
+    private static IReadOnlyDictionary<string, UInt160> LeanContractHashes()
     {
         string[] names =
         [
-            "Owner", "Gas", "SequencerBond", "OptimisticChallenge", "ForcedInclusion",
-            "ChainRegistry", "SharedBridge", "EmergencyManager", "GovernanceController",
-            "VerifierRegistry", "ContractZkVerifier", "Sp1Groth16Verifier",
-            "RestrictedExecutionFraudVerifier",
-            "MpcCommitteeVerifier", "ExternalBridgeRegistry", "ExternalBridgeBond",
-            "ExternalBridgeEscrow", "MpcCommitteeFraudVerifier", "SettlementManager",
-            "DARegistry", "DAValidator", "MessageRouter",
+            "Owner", "Gas", "Sp1Groth16Verifier", "ZkVerifier",
+            "GovernanceController", "RollupHub", "SharedBridge",
         ];
 
         var hashes = names.Select((name, index) => new
@@ -858,6 +683,8 @@ public class UT_LiveDeployCommand
         hashes["Gas"] = LiveDeployCommand.NativeGasHash;
         return hashes;
     }
+
+    private static IReadOnlyDictionary<string, UInt160> ContractHashes() => LeanContractHashes();
 
     private static JsonElement BooleanResult(bool value) => StjSerializer.SerializeToElement(new
     {

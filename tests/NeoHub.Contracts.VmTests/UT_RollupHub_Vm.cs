@@ -32,14 +32,14 @@ public class UT_RollupHub_Vm
     /// are distinct, so any encoder that swaps their tail positions computes a different digest.
     /// </summary>
     private const string CanonicalPublicInputHashHex =
-        "a56a616d15b7b5b4f7a2abf997f94be264c1bad1095a3b97992ff7e6af62e4e3";
+        "034f85e7b09682466547018fefe98ea82dd0582ba29ee7998807fe1ec023f0bc";
 
     /// <summary>Digest of the same shared bytes assembled in the pre-fix (swapped) tail order
     /// header ‖ daCommitment ‖ l1MessageHash ‖ blockContextHash — computed independently of both
     /// the contract and BatchSerializer, and pinned here so a regression to that layout fails a
     /// test instead of silently re-forking the protocol.</summary>
     private const string SwappedPublicInputHashHex =
-        "525e228492102f7d1ab3fad49887356890c6bd72115a3b2712f01d611be6453e";
+        "8d68e62ccddbc753fad17dc3e61486b6c28765576456839a60453382e524bb9a";
 
     private static byte[] R(byte fill) { var b = new byte[32]; for (var i = 0; i < 32; i++) b[i] = fill; return b; }
     private static byte[] Hash256(byte[] x) => SHA256.HashData(SHA256.HashData(x));
@@ -47,6 +47,7 @@ public class UT_RollupHub_Vm
     private static (TestEngine engine, NeoHubRollupHub hub, UInt160 owner) Deploy(bool verifierAccepts = true)
     {
         var engine = new TestEngine(true);
+        engine.Fee = 100_000_000_000L;
         var owner = engine.Sender;
         engine.FromHash<StubVerifier>(VerifierHash, mock =>
             mock.Setup(v => v.VerifyProof(It.IsAny<byte[]>())).Returns(verifierAccepts),
@@ -90,17 +91,18 @@ public class UT_RollupHub_Vm
     }
 
     /// <summary>
-    /// The canonical 348-byte public-inputs preimage (BatchSerializer.EncodePublicInputs layout):
+    /// The canonical 352-byte public-inputs preimage (BatchSerializer.EncodePublicInputs layout):
     /// header fields up to l2ToL2MessageRoot, then l1MessageHash, then the commitment's
-    /// daCommitment, then blockContextHash.
+    /// daCommitment, then blockContextHash, then forcedInclusionCount (u32 LE).
     /// </summary>
-    private static byte[] BuildPublicInputsBuffer(byte[] commitment, byte[] l1msg, byte[] blkctx)
+    private static byte[] BuildPublicInputsBuffer(byte[] commitment, byte[] l1msg, byte[] blkctx, uint forcedInclusionCount = 0)
     {
-        var buf = new byte[348];
+        var buf = new byte[352];
         commitment.AsSpan(0, 252).CopyTo(buf.AsSpan(0, 252));
         l1msg.CopyTo(buf.AsSpan(252, 32));
         commitment.AsSpan(OffDaCommitment, 32).CopyTo(buf.AsSpan(284, 32));
         blkctx.CopyTo(buf.AsSpan(316, 32));
+        BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(348, 4), forcedInclusionCount);
         return buf;
     }
 
@@ -161,6 +163,7 @@ public class UT_RollupHub_Vm
     {
         // Fail closed: without a verifier every batch would finalize unproven.
         var engine = new TestEngine(true);
+        engine.Fee = 100_000_000_000L;
         Assert.ThrowsExactly<TestException>(() =>
             engine.Deploy<NeoHubRollupHub>(NeoHubRollupHub.Nef, NeoHubRollupHub.Manifest,
                 new object[] { engine.Sender, UInt160.Zero }));
@@ -214,6 +217,29 @@ public class UT_RollupHub_Vm
     }
 
     [TestMethod]
+    public void SubmitAndFinalizeBatch_ConsumesForcedInclusionCount()
+    {
+        var (_, hub, _) = Deploy();
+        hub.RegisterChain(BuildChainConfig(ChainId));
+        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+
+        hub.EnqueueForcedTransaction(ChainId, [0x01], new UInt256(R(0x91)));
+        hub.EnqueueForcedTransaction(ChainId, [0x02], new UInt256(R(0x92)));
+        Assert.AreEqual((BigInteger)2, hub.GetPendingForcedCount(ChainId));
+
+        var postState = R(0x20);
+        var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, postState, proofType: 3);
+        // Count 0 preserves the existing public-input hash domain used by BuildCommitment.
+        hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 0u);
+        Assert.AreEqual((BigInteger)2, hub.GetPendingForcedCount(ChainId));
+
+        // Underflow must fail closed when claiming more than pending.
+        var (c2, l1msg2, blkctx2) = BuildCommitment(2, postState, R(0x30), proofType: 3);
+        Assert.ThrowsExactly<TestException>(() =>
+            hub.SubmitAndFinalizeBatch(c2, l1msg2, blkctx2, 3u));
+    }
+
+    [TestMethod]
     public void SubmitAndFinalizeBatch_AcceptsTheSharedCanonicalEncodingVector()
     {
         // Pins the compiled contract to the shared golden bytes: BatchSerializer feeds the same
@@ -225,7 +251,7 @@ public class UT_RollupHub_Vm
         hub.RegisterGenesisStateRoot(ChainId, new UInt256(R(0x10)));
 
         var commitment = BuildSharedVectorCommitment(Hex(CanonicalPublicInputHashHex));
-        hub.SubmitAndFinalizeBatch(commitment, R(0xB1), R(0xC2));
+        hub.SubmitAndFinalizeBatch(commitment, R(0xB1), R(0xC2), 0u);
 
         Assert.AreEqual((BigInteger)3, hub.GetBatchStatus(ChainId, 1));
         Assert.AreEqual(new UInt256(R(0xA1)), hub.GetCanonicalStateRoot(ChainId));
@@ -243,7 +269,7 @@ public class UT_RollupHub_Vm
 
         var swapped = BuildSharedVectorCommitment(Hex(SwappedPublicInputHashHex));
         Assert.ThrowsExactly<TestException>(
-            () => hub.SubmitAndFinalizeBatch(swapped, R(0xB1), R(0xC2)));
+            () => hub.SubmitAndFinalizeBatch(swapped, R(0xB1), R(0xC2), 0u));
     }
 
     [TestMethod]
@@ -256,7 +282,7 @@ public class UT_RollupHub_Vm
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 3);
 
         Assert.ThrowsExactly<TestException>(() =>
-            hub.SubmitAndFinalizeBatch(c, l1msg, blkctx));
+            hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 0u));
         Assert.AreEqual((BigInteger)0, hub.GetLatestFinalizedBatchNumber(ChainId));
     }
 
@@ -270,7 +296,7 @@ public class UT_RollupHub_Vm
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 1); // Multisig
 
         Assert.ThrowsExactly<TestException>(() =>
-            hub.SubmitAndFinalizeBatch(c, l1msg, blkctx));
+            hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 0u));
     }
 
     [TestMethod]
@@ -285,7 +311,7 @@ public class UT_RollupHub_Vm
 
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 2);
 
-        Assert.ThrowsExactly<TestException>(() => hub.SubmitBatch(c, l1msg, blkctx));
+        Assert.ThrowsExactly<TestException>(() => hub.SubmitBatch(c, l1msg, blkctx, 0u));
     }
 
     [TestMethod]
@@ -300,7 +326,7 @@ public class UT_RollupHub_Vm
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, postState, proofType: 3);
 
         // Submit and finalize atomically in 1 transaction!
-        hub.SubmitAndFinalizeBatch(c, l1msg, blkctx);
+        hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 0u);
 
         // Check finalized state
         Assert.AreEqual((BigInteger)3, hub.GetBatchStatus(ChainId, 1));
@@ -322,7 +348,7 @@ public class UT_RollupHub_Vm
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 2); // ProofTypeOptimistic = 2
 
         Assert.ThrowsExactly<TestException>(() =>
-            hub.SubmitAndFinalizeBatch(c, l1msg, blkctx));
+            hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 0u));
     }
 
     [TestMethod]
@@ -337,7 +363,7 @@ public class UT_RollupHub_Vm
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, postState, proofType: 3);
 
         // Step 1: Submit batch
-        hub.SubmitBatch(c, l1msg, blkctx);
+        hub.SubmitBatch(c, l1msg, blkctx, 0u);
         Assert.AreEqual((BigInteger)1, hub.GetBatchStatus(ChainId, 1)); // StatusPending
         Assert.AreEqual((BigInteger)0, hub.GetLatestFinalizedBatchNumber(ChainId));
 
@@ -346,6 +372,66 @@ public class UT_RollupHub_Vm
         Assert.AreEqual((BigInteger)3, hub.GetBatchStatus(ChainId, 1)); // StatusFinalized
         Assert.AreEqual((BigInteger)1, hub.GetLatestFinalizedBatchNumber(ChainId));
         Assert.AreEqual(postStateRoot, hub.GetCanonicalStateRoot(ChainId));
+    }
+
+    [TestMethod]
+    public void PublishGatewayGlobalRoot_HappyPath_AdvancesWatermarkAndStoresRoot()
+    {
+        var sharedBridgeHash = UInt160.Parse("0x" + new string('7', 40));
+        var engine = new TestEngine(true);
+        engine.Fee = 100_000_000_000L;
+        var owner = engine.Sender;
+        engine.FromHash<StubVerifier>(VerifierHash, mock =>
+        {
+            mock.Setup(v => v.VerifyProof(It.IsAny<byte[]>())).Returns(true);
+            mock.Setup(v => v.VerifyZkProof(
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<byte[]?>(),
+                    It.IsAny<byte[]?>(),
+                    It.IsAny<byte[]?>()))
+                .Returns(true);
+        }, checkExistence: false);
+        engine.FromHash<StubSharedBridge>(sharedBridgeHash, mock =>
+            mock.Setup(b => b.PublishMessageRoots(
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<UInt256?>(),
+                    It.IsAny<UInt256?>())),
+            checkExistence: false);
+
+        var hub = engine.Deploy<NeoHubRollupHub>(NeoHubRollupHub.Nef, NeoHubRollupHub.Manifest,
+            new object[] { owner, VerifierHash });
+        hub.RegisterChain(BuildChainConfig(ChainId));
+        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+        hub.SharedBridge = sharedBridgeHash;
+
+        var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 3);
+        hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 0u);
+        Assert.AreEqual((BigInteger)0, hub.GetGatewayFinalizedThrough(ChainId));
+
+        var references = new byte[12];
+        BinaryPrimitives.WriteUInt32LittleEndian(references.AsSpan(0, 4), ChainId);
+        BinaryPrimitives.WriteUInt64LittleEndian(references.AsSpan(4, 8), 1);
+        var commitmentRoot = new UInt256(Hash256(c));
+        var globalRoot = new UInt256(R(0xEE));
+        var vk = new UInt256(R(0xA1));
+        var replay = new UInt256(R(0xD1));
+
+        Assert.IsTrue(hub.PublishGatewayGlobalRoot(
+            42,
+            references,
+            globalRoot,
+            commitmentRoot,
+            1,
+            2,
+            1,
+            vk,
+            replay,
+            [0xCA, 0xFE]));
+
+        Assert.AreEqual((BigInteger)1, hub.GetGatewayFinalizedThrough(ChainId));
+        Assert.AreEqual(globalRoot, hub.GetGlobalRoot(42));
+        Assert.AreNotEqual(UInt256.Zero, hub.GetGlobalRootProofInputHash(42));
     }
 
     private static byte[] Hex(string value)
@@ -359,9 +445,27 @@ public class UT_RollupHub_Vm
 
 /// <summary>Stand-in for the deployed verifier: answers <c>verifyProof</c> exactly as the test
 /// wires it, so proof-acceptance and proof-rejection paths are exercised independently of any
-/// concrete verifier build.</summary>
+/// concrete verifier build. Also answers Gateway <c>verifyZkProof</c>.</summary>
 public abstract class StubVerifier(SmartContractInitialize initialize) : SmartContract(initialize)
 {
     [DisplayName("verifyProof")]
     public abstract bool VerifyProof(byte[]? commitmentBytes);
+
+    [DisplayName("verifyZkProof")]
+    public abstract bool VerifyZkProof(
+        BigInteger? proofSystem,
+        byte[]? verificationKeyId,
+        byte[]? publicInputHash,
+        byte[]? proofBytes);
+}
+
+/// <summary>Minimal SharedBridge stand-in for Gateway <c>publishMessageRoots</c> fan-out.</summary>
+public abstract class StubSharedBridge(SmartContractInitialize initialize) : SmartContract(initialize)
+{
+    [DisplayName("publishMessageRoots")]
+    public abstract void PublishMessageRoots(
+        BigInteger? chainId,
+        BigInteger? batchNumber,
+        UInt256? l2ToL1Root,
+        UInt256? l2ToL2Root);
 }

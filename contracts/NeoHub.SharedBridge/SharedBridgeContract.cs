@@ -169,7 +169,7 @@ public class SharedBridgeContract : SmartContract
     {
         var em = GetEmergencyManager();
         if (em == UInt160.Zero) return false;
-        return (bool)Contract.Call(em, "isPaused", CallFlags.All, new object[0], 50000);
+        return (bool)Contract.Call(em, "isPaused", CallFlags.All, []);
     }
 
     #endregion
@@ -233,12 +233,6 @@ public class SharedBridgeContract : SmartContract
     {
         var raw = Storage.Get(MappingKey(l1Asset, chainId));
         if (raw != null) return ReadUInt160((byte[])raw, 24);
-
-        var tr = Storage.Get(new byte[] { PrefixTokenRegistry });
-        if (tr != null && (UInt160)tr != UInt160.Zero && (UInt160)tr != Runtime.ExecutingScriptHash)
-        {
-            return (UInt160)Contract.Call((UInt160)tr, "getL2Asset", CallFlags.All, new object[] { l1Asset, chainId }, 50000);
-        }
         return UInt160.Zero;
     }
 
@@ -247,12 +241,6 @@ public class SharedBridgeContract : SmartContract
     {
         var raw = Storage.Get(MappingKey(l1Asset, chainId));
         if (raw != null) return ((byte[])raw)[49] == 1;
-
-        var tr = Storage.Get(new byte[] { PrefixTokenRegistry });
-        if (tr != null && (UInt160)tr != UInt160.Zero && (UInt160)tr != Runtime.ExecutingScriptHash)
-        {
-            return (bool)Contract.Call((UInt160)tr, "isActive", CallFlags.All, new object[] { l1Asset, chainId }, 50000);
-        }
         return false;
     }
 
@@ -299,7 +287,7 @@ public class SharedBridgeContract : SmartContract
         var transferred = (bool)Contract.Call(
             asset, "transfer",
             CallFlags.All,
-            new object[] { depositor, Runtime.ExecutingScriptHash, amount, null! }, 300000);
+            depositor, Runtime.ExecutingScriptHash, amount, null!);
         ExecutionEngine.Assert(transferred, "asset transfer failed");
         Storage.Delete(pendingKey);
 
@@ -345,7 +333,7 @@ public class SharedBridgeContract : SmartContract
         var verified = (bool)Contract.Call(
             sm, "verifyWithdrawalLeaf",
             CallFlags.All,
-            new object[] { chainId, withdrawalLeafHash }, 200000);
+            chainId, withdrawalLeafHash);
         ExecutionEngine.Assert(verified, "withdrawal leaf not in finalized batch");
 
         ConsumeAndPayout(consumedKey, chainId, asset, recipient, amount);
@@ -375,7 +363,7 @@ public class SharedBridgeContract : SmartContract
         var verified = (bool)Contract.Call(
             sm, "verifyWithdrawalLeafAt",
             CallFlags.All,
-            new object[] { chainId, batchNumber, withdrawalLeafHash }, 200000);
+            chainId, batchNumber, withdrawalLeafHash);
         ExecutionEngine.Assert(verified, "withdrawal leaf not in named finalized batch");
 
         ConsumeAndPayout(consumedKey, chainId, asset, recipient, amount);
@@ -407,7 +395,7 @@ public class SharedBridgeContract : SmartContract
         var verified = (bool)Contract.Call(
             sm, "verifyWithdrawalLeafWithProof",
             CallFlags.All,
-            new object[] { chainId, batchNumber, withdrawalLeafHash, siblings, leafIndex }, 500000);
+            chainId, batchNumber, withdrawalLeafHash, siblings, leafIndex);
         ExecutionEngine.Assert(verified, "withdrawal leaf not in batch's Merkle root (proof failed)");
 
         ConsumeAndPayout(consumedKey, chainId, asset, recipient, amount);
@@ -439,7 +427,7 @@ public class SharedBridgeContract : SmartContract
         var verified = (bool)Contract.Call(
             sm, "verifyWithdrawalLeafWithProof",
             CallFlags.All,
-            new object[] { chainId, batchNumber, withdrawalLeafHash, siblings, leafIndex }, 500000);
+            chainId, batchNumber, withdrawalLeafHash, siblings, leafIndex);
         ExecutionEngine.Assert(verified, "withdrawal leaf not in batch's Merkle root (proof failed)");
 
         ConsumeAndPayout(consumedKey, chainId, asset, recipient, amount);
@@ -560,7 +548,7 @@ public class SharedBridgeContract : SmartContract
         var transferred = (bool)Contract.Call(
             asset, "transfer",
             CallFlags.All,
-            new object[] { Runtime.ExecutingScriptHash, recipient, amount, null! }, 300000);
+            Runtime.ExecutingScriptHash, recipient, amount, null!);
         ExecutionEngine.Assert(transferred, "asset payout failed");
         OnWithdrawalFinalized(chainId, asset, recipient, amount);
     }

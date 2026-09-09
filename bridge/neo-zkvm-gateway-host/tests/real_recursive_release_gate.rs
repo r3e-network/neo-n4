@@ -89,7 +89,7 @@ fn request(
 
 fn commitment(artifact: &neo_execution_core::ProofWitnessArtifact, proof: &[u8]) -> Vec<u8> {
     let inputs = &artifact.public_inputs;
-    let public_input_hash = neo_execution_core::hash_public_inputs(
+    let public_input_hash = neo_execution_core::hash_public_inputs_with_forced(
         inputs.chain_id,
         inputs.batch_number,
         inputs.first_block,
@@ -104,6 +104,7 @@ fn commitment(artifact: &neo_execution_core::ProofWitnessArtifact, proof: &[u8])
         &inputs.l1_message_hash,
         &inputs.da_commitment,
         &inputs.block_context_hash,
+        inputs.forced_inclusion_count,
     );
     let mut bytes = vec![0u8; 321 + proof.len()];
     bytes[..4].copy_from_slice(&artifact.chain_id.to_le_bytes());

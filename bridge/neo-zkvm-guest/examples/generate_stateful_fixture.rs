@@ -157,27 +157,55 @@ fn fixture_artifact() -> ProofWitnessArtifact {
 }
 
 fn transaction(contract_hash: [u8; 20]) -> Vec<u8> {
+    use p256::ecdsa::signature::hazmat::PrehashSigner;
+    use sha2::Digest;
+
     let mut script = vec![0xc2, 0x1f, 0x0c, 5];
     script.extend_from_slice(b"store");
     script.extend_from_slice(&[0x0c, 20]);
     script.extend_from_slice(&contract_hash);
     script.extend_from_slice(&[0x41, 0x62, 0x7d, 0x5b, 0x52, 0x40]);
 
-    let mut transaction = Vec::new();
-    transaction.push(0);
-    transaction.extend_from_slice(&7u32.to_le_bytes());
-    transaction.extend_from_slice(&0i64.to_le_bytes());
-    transaction.extend_from_slice(&0i64.to_le_bytes());
-    transaction.extend_from_slice(&5000u32.to_le_bytes());
-    transaction.push(1);
-    transaction.extend_from_slice(&[0x11; 20]);
-    transaction.push(0x80);
-    transaction.push(0);
-    transaction.push(u8::try_from(script.len()).expect("fixture script length"));
-    transaction.extend_from_slice(&script);
-    transaction.push(1);
-    transaction.push(0);
-    transaction.push(0);
+    let key = p256::ecdsa::SigningKey::from_bytes(&[42u8; 32].into()).expect("signing key");
+    let pubkey = key
+        .verifying_key()
+        .to_encoded_point(true)
+        .as_bytes()
+        .to_vec();
+    let mut verification = Vec::with_capacity(39);
+    verification.push(0x21);
+    verification.extend_from_slice(&pubkey);
+    verification.push(0x41);
+    verification.extend_from_slice(&[0x56, 0xe7, 0xb3, 0x27]);
+    let account = neo_execution_core::hash160(&verification);
+
+    let network = 0x334f_454eu32;
+    let mut unsigned = Vec::new();
+    unsigned.push(0);
+    unsigned.extend_from_slice(&7u32.to_le_bytes());
+    unsigned.extend_from_slice(&0i64.to_le_bytes());
+    unsigned.extend_from_slice(&0i64.to_le_bytes());
+    unsigned.extend_from_slice(&5000u32.to_le_bytes());
+    unsigned.push(1);
+    unsigned.extend_from_slice(&account);
+    unsigned.push(0x80);
+    unsigned.push(0);
+    unsigned.push(u8::try_from(script.len()).expect("fixture script length"));
+    unsigned.extend_from_slice(&script);
+
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(network.to_le_bytes());
+    hasher.update(neo_execution_core::inventory_hash(&unsigned));
+    let (signature, _) = key
+        .sign_prehash_recoverable(&hasher.finalize())
+        .expect("sign");
+
+    let mut transaction = unsigned;
+    transaction.extend_from_slice(&[1, 65, 0x40]);
+    let sig_bytes: [u8; 64] = signature.to_bytes().into();
+    transaction.extend_from_slice(&sig_bytes);
+    transaction.push(verification.len() as u8);
+    transaction.extend_from_slice(&verification);
     transaction
 }
 

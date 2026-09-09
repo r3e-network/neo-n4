@@ -68,7 +68,7 @@ public class UT_RpcMessageRouterEventScanner
         var encoded = EncodeMessage(nonce);
         stub.Register((method, _, _) => method switch
         {
-            "getL1ToL2" => StubRpcHandler.ByteArrayBase64(encoded),
+            "getL1ToL2" or "getL1ToL2Message" => StubRpcHandler.ByteArrayBase64(encoded),
             "isConsumed" => StubRpcHandler.Boolean(false),
             _ => null,
         });

@@ -4,7 +4,7 @@ use neo_execution_core::{
     bridged_nep17_hash, contract_binding_hash, contract_binding_key, contract_management_key,
     encode_execution_payload, encode_native_execution_output, encode_proof_witness_artifact,
     encode_receipt, encode_state_witness, events_hash, hash_l1_messages, hash160, hash256,
-    keyed_state_root, l2_bridge_hash, l2_message_hash, parse_native_execution_output,
+    inventory_hash, keyed_state_root, l2_bridge_hash, l2_message_hash, parse_native_execution_output,
     parse_proof_witness_artifact, parse_state_witness, storage_delta_hash, token_management_hash,
 };
 
@@ -83,7 +83,6 @@ fn golden_fixture_round_trips_and_executes_statefully() {
     let bytes = fixture_bytes();
     let artifact = fixture_artifact();
     let result = neo_zkvm_guest::execute_batch(&bytes).expect("stateful fixture execution");
-
     assert_eq!(encode(&artifact), bytes);
     assert_eq!(
         artifact.verification_key_id,
@@ -263,13 +262,13 @@ fn root_receipt_and_transaction_tampering_are_rejected() {
         .windows(5)
         .position(|window| window == b"store")
         .expect("method name");
+    // Tampering the script changes the unsigned preimage, which invalidates the signer's
+    // signature — the tampered transaction is rejected at witness verification (fatal), not
+    // merely at execution-result comparison.
     bytes[position] = b'S';
     refresh_da_claim(&mut transaction);
     let error = neo_zkvm_guest::execute_batch(&encode(&transaction)).unwrap_err();
-    assert!(matches!(
-        error,
-        ExecutionError::ClaimMismatch("execution result")
-    ));
+    assert!(matches!(error, ExecutionError::Invalid("transaction witness")));
 }
 
 #[test]
@@ -338,7 +337,8 @@ fn non_empty_l1_inbox_executes_native_deposit_and_rejects_tampering() {
         .entries
         .sort_by(|left, right| left.key.cmp(&right.key));
     artifact.execution_payload.l1_messages = vec![deposit_message()];
-    artifact.execution_payload.transactions = vec![transaction(vec![0x40])];
+    artifact.execution_payload.transactions =
+        vec![transaction(vec![0x40], artifact.execution_payload.block_context.network)];
     recompute_claims(&mut artifact);
 
     assert_eq!(
@@ -427,7 +427,8 @@ fn native_message_execution_produces_nonzero_bound_outbox_root() {
         .state_witness
         .entries
         .sort_by(|left, right| left.key.cmp(&right.key));
-    artifact.execution_payload.transactions = vec![transaction(native_message_script())];
+    artifact.execution_payload.transactions =
+        vec![transaction(native_message_script(), artifact.execution_payload.block_context.network)];
     recompute_claims(&mut artifact);
 
     let effects = &artifact.effects.transactions[0];
@@ -491,7 +492,8 @@ fn native_withdrawal_execution_burns_native_balance_and_binds_root() {
     entries.sort_by(|left, right| left.key.cmp(&right.key));
     artifact.state_witness.entries = entries;
     artifact.execution_payload.l1_messages.clear();
-    artifact.execution_payload.transactions = vec![transaction(script)];
+    artifact.execution_payload.transactions =
+        vec![transaction(script, artifact.execution_payload.block_context.network)];
     recompute_claims(&mut artifact);
 
     let effects = &artifact.effects.transactions[0];
@@ -518,6 +520,13 @@ fn native_withdrawal_execution_burns_native_balance_and_binds_root() {
 fn native_batch_fixture_executes_non_empty_inbox_and_outboxes() {
     let artifact = native_batch_artifact();
     let encoded = encode(&artifact);
+    if std::env::var_os("NEO4_REGEN_FIXTURES").is_some() {
+        std::fs::write(
+            "tests/fixtures/native_transition_v1.hex",
+            hex::encode(&encoded),
+        )
+        .expect("write native_transition fixture");
+    }
     assert_eq!(encoded, native_fixture_bytes());
     neo_zkvm_guest::execute_batch(&encoded).expect("native fixture executes");
     assert_ne!(artifact.execution_result.withdrawal_root, [0u8; 32]);
@@ -621,8 +630,8 @@ fn native_batch_artifact() -> ProofWitnessArtifact {
     artifact.state_witness.entries = entries;
     artifact.execution_payload.l1_messages = vec![deposit_message()];
     artifact.execution_payload.transactions = vec![
-        transaction(message_script),
-        transaction_with_nonce(withdrawal_script, 8),
+        transaction(message_script, artifact.execution_payload.block_context.network),
+        transaction_with_nonce(withdrawal_script, 8, artifact.execution_payload.block_context.network),
     ];
     artifact.da_evidence = b"native_transition_v1-evidence-v1".to_vec();
     recompute_claims(&mut artifact);
@@ -689,24 +698,60 @@ fn native_withdrawal_script() -> Vec<u8> {
     script
 }
 
-fn transaction(script: Vec<u8>) -> Vec<u8> {
-    transaction_with_nonce(script, 7)
+fn transaction(script: Vec<u8>, network: u32) -> Vec<u8> {
+    transaction_with_nonce(script, 7, network)
 }
 
-fn transaction_with_nonce(script: Vec<u8>, nonce: u32) -> Vec<u8> {
-    let mut transaction = Vec::new();
-    transaction.push(0);
-    transaction.extend_from_slice(&nonce.to_le_bytes());
-    transaction.extend_from_slice(&0i64.to_le_bytes());
-    transaction.extend_from_slice(&0i64.to_le_bytes());
-    transaction.extend_from_slice(&5000u32.to_le_bytes());
-    transaction.push(1);
-    transaction.extend_from_slice(&[0x11; 20]);
-    transaction.push(0x80);
-    transaction.push(0);
-    transaction.push(u8::try_from(script.len()).expect("test script length"));
-    transaction.extend_from_slice(&script);
-    transaction.extend_from_slice(&[1, 0, 0]);
+/// Deterministic test signing key (scalar 42) — fixed so regenerated fixtures stay stable.
+fn signing_key() -> p256::ecdsa::SigningKey {
+    p256::ecdsa::SigningKey::from_bytes(&[42u8; 32].into()).expect("valid signing key")
+}
+
+/// A standard-account transaction: the signer is a real EOA whose account is Hash160 of the
+/// single-signature verification script, and the invocation carries a valid ECDSA/secp256r1
+/// signature over `SHA256(network ‖ txHash)` (the Neo sign data). The acting contract stays the
+/// transaction script (`hash160(script)`), independent of the signer, matching how a user
+/// authorizes a contract call on Neo N3.
+fn transaction_with_nonce(script: Vec<u8>, nonce: u32, network: u32) -> Vec<u8> {
+    use sha2::Digest;
+    let key = signing_key();
+    let pubkey = key
+        .verifying_key()
+        .to_encoded_point(true)
+        .as_bytes()
+        .to_vec();
+
+    let mut verification = Vec::with_capacity(39);
+    verification.push(0x21);
+    verification.extend_from_slice(&pubkey);
+    verification.push(0x41);
+    verification.extend_from_slice(&[0x56, 0xe7, 0xb3, 0x27]); // System.Crypto.CheckSig
+    let account = hash160(&verification);
+
+    let mut unsigned = Vec::new();
+    unsigned.push(0);
+    unsigned.extend_from_slice(&nonce.to_le_bytes());
+    unsigned.extend_from_slice(&0i64.to_le_bytes());
+    unsigned.extend_from_slice(&0i64.to_le_bytes());
+    unsigned.extend_from_slice(&5000u32.to_le_bytes());
+    unsigned.push(1);
+    unsigned.extend_from_slice(&account);
+    unsigned.push(0x80);
+    unsigned.push(0);
+    unsigned.push(u8::try_from(script.len()).expect("test script length"));
+    unsigned.extend_from_slice(&script);
+
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(network.to_le_bytes());
+    hasher.update(inventory_hash(&unsigned));
+    let (signature, _) = key.sign_prehash_recoverable(&hasher.finalize()).expect("sign");
+
+    let mut transaction = unsigned;
+    transaction.extend_from_slice(&[1, 65, 0x40]);
+    let sig_bytes: [u8; 64] = signature.to_bytes().into();
+    transaction.extend_from_slice(&sig_bytes);
+    transaction.push(verification.len() as u8);
+    transaction.extend_from_slice(&verification);
     transaction
 }
 

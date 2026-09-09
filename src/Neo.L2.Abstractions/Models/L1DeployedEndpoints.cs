@@ -8,9 +8,9 @@ namespace Neo.L2;
 /// working directory (settlement plugin config and/or <c>l1.deployed.json</c>).
 /// </summary>
 /// <remarks>
-/// See doc.md §3.2 / §14.2. Used by Gateway publication and proof-bound publisher
-/// host composition so operators do not re-type hashes after
-/// <c>init-l2 --from-deploy-report</c>.
+/// See doc.md §4 (Neo Gateway) and §5. Preferred keys are RollupHub + SharedBridge
+/// (lean pillars). Legacy SettlementManager / MessageRouter names remain accepted
+/// aliases for the same slots.
 /// </remarks>
 public sealed record L1DeployedEndpoints(
     Uri RpcEndpoint,
@@ -18,13 +18,20 @@ public sealed record L1DeployedEndpoints(
     UInt160 MessageRouter,
     uint? ExpectedNetwork)
 {
+    /// <summary>Lean RollupHub hash (preferred name for <see cref="SettlementManager"/>).</summary>
+    public UInt160 RollupHub => SettlementManager;
+
+    /// <summary>Lean SharedBridge hash (preferred name for <see cref="MessageRouter"/>).</summary>
+    public UInt160 SharedBridge => MessageRouter;
+
     /// <summary>
-    /// Resolve L1 RPC + SettlementManager + MessageRouter from settlement plugin
+    /// Resolve L1 RPC + RollupHub + SharedBridge from settlement plugin
     /// config and/or <c>l1.deployed.json</c> under <paramref name="chainDirectory"/>.
     /// </summary>
     /// <remarks>
     /// Settlement plugin config is preferred when present; missing fields fall back to
-    /// <c>l1.deployed.json</c>. Both SettlementManager and MessageRouter must be non-zero.
+    /// <c>l1.deployed.json</c>. Both RollupHub (or SettlementManager alias) and SharedBridge
+    /// (or MessageRouter alias) must be non-zero.
     /// </remarks>
     public static L1DeployedEndpoints FromChainDirectory(string chainDirectory)
     {
@@ -35,8 +42,8 @@ public sealed record L1DeployedEndpoints(
                 $"Chain directory not found: {root}. Run neo-stack init-l2 first.");
 
         string? rpc = null;
-        string? settlementManager = null;
-        string? messageRouter = null;
+        string? rollupHub = null;
+        string? sharedBridge = null;
         uint? expectedNetwork = null;
 
         foreach (var configPath in SettlementConfigCandidates(root))
@@ -46,8 +53,10 @@ public sealed record L1DeployedEndpoints(
             if (!doc.RootElement.TryGetProperty("PluginConfiguration", out var cfg))
                 continue;
             rpc ??= ReadString(cfg, "L1RpcEndpoint");
-            settlementManager ??= ReadString(cfg, "SettlementManagerHash");
-            messageRouter ??= ReadString(cfg, "MessageRouterHash");
+            rollupHub ??= ReadString(cfg, "RollupHubHash")
+                ?? ReadString(cfg, "SettlementManagerHash");
+            sharedBridge ??= ReadString(cfg, "SharedBridgeHash")
+                ?? ReadString(cfg, "MessageRouterHash");
             if (expectedNetwork is null
                 && cfg.TryGetProperty("ExpectedNetwork", out var netEl)
                 && TryReadUInt32(netEl, out var net))
@@ -63,8 +72,10 @@ public sealed record L1DeployedEndpoints(
             using var doc = JsonDocument.Parse(File.ReadAllText(deployedPath));
             var rootEl = doc.RootElement;
             rpc ??= ReadString(rootEl, "rpc");
-            settlementManager ??= ReadString(rootEl, "settlementManager");
-            messageRouter ??= ReadString(rootEl, "messageRouter");
+            rollupHub ??= ReadString(rootEl, "rollupHub")
+                ?? ReadString(rootEl, "settlementManager");
+            sharedBridge ??= ReadString(rootEl, "sharedBridge")
+                ?? ReadString(rootEl, "messageRouter");
             if (expectedNetwork is null
                 && rootEl.TryGetProperty("network", out var netEl)
                 && TryReadUInt32(netEl, out var net))
@@ -81,24 +92,24 @@ public sealed record L1DeployedEndpoints(
                 "L1 RPC endpoint missing or invalid (settlement PluginConfiguration.L1RpcEndpoint "
                 + "or l1.deployed.json rpc)");
         }
-        if (string.IsNullOrWhiteSpace(settlementManager)
-            || !UInt160.TryParse(settlementManager, out var sm)
-            || sm.Equals(UInt160.Zero))
+        if (string.IsNullOrWhiteSpace(rollupHub)
+            || !UInt160.TryParse(rollupHub, out var hub)
+            || hub.Equals(UInt160.Zero))
         {
             throw new InvalidDataException(
-                "SettlementManager hash missing or zero (settlement SettlementManagerHash "
-                + "or l1.deployed.json settlementManager)");
+                "RollupHub hash missing or zero (settlement RollupHubHash/SettlementManagerHash "
+                + "or l1.deployed.json rollupHub/settlementManager)");
         }
-        if (string.IsNullOrWhiteSpace(messageRouter)
-            || !UInt160.TryParse(messageRouter, out var mr)
-            || mr.Equals(UInt160.Zero))
+        if (string.IsNullOrWhiteSpace(sharedBridge)
+            || !UInt160.TryParse(sharedBridge, out var bridge)
+            || bridge.Equals(UInt160.Zero))
         {
             throw new InvalidDataException(
-                "MessageRouter hash missing or zero (settlement MessageRouterHash "
-                + "or l1.deployed.json messageRouter)");
+                "SharedBridge hash missing or zero (settlement SharedBridgeHash/MessageRouterHash "
+                + "or l1.deployed.json sharedBridge/messageRouter)");
         }
 
-        return new L1DeployedEndpoints(endpoint, sm, mr, expectedNetwork);
+        return new L1DeployedEndpoints(endpoint, hub, bridge, expectedNetwork);
     }
 
     private static IEnumerable<string> SettlementConfigCandidates(string root) =>

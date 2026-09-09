@@ -362,14 +362,14 @@ Additionally, a syscall handler override is required to reject consensus syscall
 
 **Target File:** N/A (per AGENTS.md nuance — see below)
 
-**CRITICAL NUANCE:** Per AGENTS.md and `src/Neo.L2.Abstractions.Models.ChainMode.cs`, doc.md §6 defines EXACTLY FOUR chain modes; `ChainMode` dispatches nothing at runtime. The PolkaVM profile is selected by devnet flag `--executor riscv` (`tools/Neo.L2.Devnet.DevnetArgs.cs`) and labeled `vm: "neovm2-riscv"` in `chain.config.json` — **NOT by a fifth ChainMode member**. Do NOT propose adding `ChainMode.L2RiscV`.
+**CRITICAL NUANCE:** Per AGENTS.md and `src/Neo.L2.Abstractions.Models.ChainMode.cs`, doc.md §6 defines EXACTLY FOUR chain modes; `ChainMode` dispatches nothing at runtime. The PolkaVM profile is selected by devnet flag `--executor riscv` (`tools/Neo.L2.Devnet.DevnetArgs.cs`) and labeled `vm: "neovm2-riscv"` in `chain.config.json` — **NOT by a fifth ChainMode member**. Do NOT propose adding a fifth `ChainMode` member for RISC-V.
 
 **Current Behavior:**
 - `RiscVTransactionExecutor` (`src/Neo.L2.Executor.RiscV`) uses P/Invoke binding to `neo_riscv_execute_script_with_host` (PolkaVM host native runner). The executor calls out to external ELF binary rather than integrated VM.
 - No core-side mode selector; devnet CLI passes `--executor riscv` to choose RISC-V.
 
 **Required Behavior (Preferred Path):**
-Do NOT add `ChainMode.L2RiscV`. Instead, introduce:
+Do NOT add a fifth `ChainMode` member. Instead, introduce:
 1. An optional `ProtocolSettings.ExecutorMode` property (enum `NeoVmMode { Standard, RiscV }`) that signals intent but does NOT dispatch anything by itself.
 2. A plugin-level interface `INeoVmExecutorProvider` that `RiscVTransactionExecutor` implements; the plugin registers with `RpcServerPlugin.RegisterMethods` to make `neo-l2-devnet --executor riscv` path functional.
 
@@ -400,7 +400,7 @@ If RISC-V needs a syscall surface (host function calls), add those as separate i
 
 | Conflict | Source | Resolution |
 | --- | --- | --- |
-| TASKS.md references `ChainMode.L2RiscV` | Line 37: "NeoVM2 / RISC-V execution mode opt-in (`ChainMode.L2RiscV`)" | Reject fifth mode. Follow ChainMode.cs comment: ChainMode is operator label only, four members closed set. Use `ProtocolSettings.ExecutorMode` enum or CLI flag instead. Update TASKS.md. |
+| TASKS.md references a fifth RISC-V `ChainMode` member | Line 37 quotes a historical label naming RISC-V as a `ChainMode` member | Reject fifth mode. Follow ChainMode.cs comment: ChainMode is operator label only, four members closed set. Use `ProtocolSettings.ExecutorMode` enum or CLI flag instead. Update TASKS.md. |
 | doc.md §13.2 "GAS supply gating" unclear on gate mechanism | Doc says "L2 上 GAS supply 受 bridge 控制" but doesn't specify core hook | Add F07.2 gate checking `L2SystemConfig.GetChainId()` and bridge slot 0x03; document `canBurnNetworkFees` interface in bridge contract spec. |
 | doc.md §13.2 "NEO governance restriction" ambiguous on "默认仍以 L1 为准" | Implies L2 chains should disable voting | F07.3 explicitly gates `RegisterCandidate`/`Vote` by `L2SystemConfig.GetChainId()!=0`, matching doc.md intent. |
 

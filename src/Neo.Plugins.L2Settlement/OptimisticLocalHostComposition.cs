@@ -14,17 +14,18 @@ using Neo.Wallets;
 namespace Neo.Plugins.L2;
 
 /// <summary>
-/// Optimistic/local-DA host composition root: chain-directory plugins + durable layout +
-/// <see cref="L2SettlementPlugin.WireProductionFromLayout"/> + bridge deposit source +
-/// metrics + L2 RPC proof store.
+/// Advisory / lab-only Optimistic host composition. Lean RollupHub fail-closes optimistic
+/// settlement; do not use for production Validity or Multisig networks.
 /// </summary>
 /// <remarks>
-/// See doc.md §7.5 / §14.1 / §14.2. Opens Optimistic settlement without Neo.CLI. Sequencer
+/// See doc.md §7.5 / §14.1 / §14.2 and docs/audit/architecture-iteration-2026-09-07-wave2.md.
+/// Opens Optimistic settlement without Neo.CLI for local experiments only. Sequencer
 /// key and L1 bond references remain host-supplied (bond posting is a funded gate). Executor
 /// and settlement signer are host-supplied. Shared operator surface lives on
 /// <see cref="LocalHostCompositionBase"/>; this type only owns Optimistic <c>Open</c> + local
 /// <see cref="PersistentDAWriter"/>. Dispose the composition (settlement first) before
-/// reopening the same RocksDB paths.
+/// reopening the same RocksDB paths. Production hosts must use
+/// <see cref="ZkLocalHostComposition"/> or Multisig composition instead.
 /// </remarks>
 public sealed class OptimisticLocalHostComposition : LocalHostCompositionBase
 {

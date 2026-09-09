@@ -33,6 +33,9 @@ public sealed class Sp1StatefulBatchExecutor :
     private readonly TimeSpan _executionTimeout;
     private readonly ISp1NativeExecutionProcess _process;
     private readonly SemaphoreSlim _executionGate = new(1, 1);
+    private Sp1NativeExecutionOutputV1? _hotPathNativeOutput;
+    private UInt256? _hotPathPayloadHash;
+    private UInt256? _hotPathStateWitnessHash;
 
     /// <summary>Create a fail-closed executor for one pinned native SP1 runtime binary.</summary>
     public Sp1StatefulBatchExecutor(
@@ -138,6 +141,9 @@ public sealed class Sp1StatefulBatchExecutor :
                 payloadBytes,
                 snapshot.Witness.Span,
                 output);
+            _hotPathNativeOutput = output;
+            _hotPathPayloadHash = new UInt256(Crypto.Hash256(payloadBytes));
+            _hotPathStateWitnessHash = new UInt256(Crypto.Hash256(snapshot.Witness.Span));
             return new ProofWitnessExecutionResult
             {
                 ExecutionResult = output.ExecutionResult,
@@ -186,21 +192,37 @@ public sealed class Sp1StatefulBatchExecutor :
                     "SP1 durable artifact state witness differs from current pre-state");
 
             var payloadBytes = ExecutionPayloadSerializer.Encode(artifact.ExecutionPayload);
-            var output = await ExecuteNativeAsync(
-                invocationDirectory,
-                payloadBytes,
-                artifact.StateWitness,
-                cancellationToken).ConfigureAwait(false);
-            ValidateOutput(
-                artifact.ExecutionPayload,
-                artifact.PublicInputs,
-                payloadBytes,
-                artifact.StateWitness.Span,
-                output);
-            if (!output.ExecutionResult.Equals(artifact.ExecutionResult)
-                || !output.Effects.Span.SequenceEqual(artifact.Effects.Span))
-                throw new InvalidDataException(
-                    "replayed SP1 execution differs from the durable proof artifact");
+            var payloadHash = new UInt256(Crypto.Hash256(payloadBytes));
+            var stateWitnessHash = new UInt256(Crypto.Hash256(artifact.StateWitness.Span));
+            Sp1NativeExecutionOutputV1 output;
+            if (_hotPathNativeOutput is not null
+                && _hotPathPayloadHash is not null
+                && _hotPathStateWitnessHash is not null
+                && _hotPathPayloadHash.Equals(payloadHash)
+                && _hotPathStateWitnessHash.Equals(stateWitnessHash)
+                && _hotPathNativeOutput.ExecutionResult.Equals(artifact.ExecutionResult)
+                && _hotPathNativeOutput.Effects.Span.SequenceEqual(artifact.Effects.Span))
+            {
+                output = _hotPathNativeOutput;
+            }
+            else
+            {
+                output = await ExecuteNativeAsync(
+                    invocationDirectory,
+                    payloadBytes,
+                    artifact.StateWitness,
+                    cancellationToken).ConfigureAwait(false);
+                ValidateOutput(
+                    artifact.ExecutionPayload,
+                    artifact.PublicInputs,
+                    payloadBytes,
+                    artifact.StateWitness.Span,
+                    output);
+                if (!output.ExecutionResult.Equals(artifact.ExecutionResult)
+                    || !output.Effects.Span.SequenceEqual(artifact.Effects.Span))
+                    throw new InvalidDataException(
+                        "replayed SP1 execution differs from the durable proof artifact");
+            }
 
             var committedRoot = _stateSource.CommitTransition(
                 artifact.ExecutionPayload.PreStateRoot,
@@ -209,6 +231,9 @@ public sealed class Sp1StatefulBatchExecutor :
             if (!committedRoot.Equals(artifact.ExecutionResult.PostStateRoot))
                 throw new InvalidDataException(
                     "committed SP1 state root differs from the durable proof artifact");
+            _hotPathNativeOutput = null;
+            _hotPathPayloadHash = null;
+            _hotPathStateWitnessHash = null;
         }
         finally
         {
@@ -297,6 +322,7 @@ public sealed class Sp1StatefulBatchExecutor :
             L1MessageHash = StateRootCalculator.HashL1Messages(payload.L1Messages),
             DACommitment = ExecutionPayloadSerializer.ComputeCommitment(payloadBytes),
             BlockContextHash = StateRootCalculator.HashBlockContext(payload.BlockContext),
+            ForcedInclusionCount = (uint)payload.ForcedInclusions.Count,
         };
 
     private async ValueTask<Sp1NativeExecutionOutputV1> ExecuteNativeAsync(

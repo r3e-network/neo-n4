@@ -3,7 +3,7 @@ feature: production-ready-audit-wave
 status: delivered
 updated: 2026-09-09
 branch: master
-commits: 13f91058..HEAD # filled at delivery
+commits: 13f91058..335485ba
 ---
 
 # Production-Ready Audit Wave

@@ -12,10 +12,13 @@
   <ItemGroup>
     <PackageReference Include="MSTest" Version="$(MSTestVersion)" />
     <PackageReference Include="MSTest.TestAdapter" Version="4.3.3" />
+    <PackageReference Include="FluentAssertions" Version="6.12.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Neo.L2.Batch\Neo.L2.Batch.csproj" />
+    <ProjectReference Include="..\..\src\Neo.L2.Bridge\Neo.L2.Bridge.csproj" />
+    <ProjectReference Include="..\Neo.L2.UnitTests\Neo.L2.UnitTests.csproj" />
   </ItemGroup>
 
   <ItemGroup>

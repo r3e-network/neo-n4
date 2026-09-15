@@ -5,11 +5,13 @@
     <AssemblyName>Neo.L2.Batch</AssemblyName>
     <Description>Batch building and canonical serialization for Neo Elastic Network L2 chains.</Description>
     <PackageTags>NEO;L2;Batch</PackageTags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Neo.L2.Abstractions\Neo.L2.Abstractions.csproj" />
     <ProjectReference Include="..\Neo.L2.State\Neo.L2.State.csproj" />
+    <ProjectReference Include="..\..\external\neo\src\Neo\Neo.csproj" />
   </ItemGroup>
 
 </Project>

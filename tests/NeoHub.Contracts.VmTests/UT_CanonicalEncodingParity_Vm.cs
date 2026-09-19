@@ -184,9 +184,10 @@ public class UT_CanonicalEncodingParity_Vm
     private static HubPair Settled()
     {
         var pair = DeployHub();
-        pair.Hub.RegisterChain(CanonicalEncodingVectors.ChainConfig());
-        pair.Hub.RegisterGenesisStateRoot(
-            CanonicalEncodingVectors.ChainId, Root(CanonicalEncodingVectors.FillPreStateRoot));
+        pair.Hub.RegisterChain(
+            CanonicalEncodingVectors.ChainId,
+            CanonicalEncodingVectors.ChainConfig(),
+            Root(CanonicalEncodingVectors.FillPreStateRoot));
         pair.Hub.SubmitBatch(
             BuildCommitmentHeader(),
             CanonicalEncodingVectors.Fill(CanonicalEncodingVectors.FillL1MessageHash),
@@ -220,7 +221,7 @@ public class UT_CanonicalEncodingParity_Vm
         var config = CanonicalEncodingVectors.ChainConfig();
         BigInteger chainId = CanonicalEncodingVectors.ChainId;
 
-        pair.Hub.RegisterChain(config);
+        pair.Hub.RegisterChain(chainId, config, Root(CanonicalEncodingVectors.FillPreStateRoot));
 
         CollectionAssert.AreEqual(config, pair.Hub.GetChainConfig(chainId));
         Assert.AreEqual((BigInteger)CanonicalEncodingVectors.ChainConfigSecurityLevel,
@@ -230,7 +231,7 @@ public class UT_CanonicalEncodingParity_Vm
         Assert.AreEqual(0, config[87], "offset 87 permissionlessExit");
         Assert.AreEqual(1, config[88], "offset 88 sequencerModel");
         Assert.AreEqual(2, config[89], "offset 89 exitModel");
-        Assert.IsTrue(pair.Hub.IsChainActive(chainId)!.Value, "offset 90");
+        Assert.IsTrue(pair.Hub.IsActive(chainId)!.Value, "offset 90");
     }
 
     [TestMethod]
@@ -238,8 +239,7 @@ public class UT_CanonicalEncodingParity_Vm
     {
         var pair = DeployHub();
         BigInteger chainId = CanonicalEncodingVectors.ChainId;
-        pair.Hub.RegisterChain(CanonicalEncodingVectors.ChainConfig());
-        pair.Hub.RegisterGenesisStateRoot(chainId, Root(CanonicalEncodingVectors.FillPreStateRoot));
+        pair.Hub.RegisterChain(chainId, CanonicalEncodingVectors.ChainConfig(), Root(CanonicalEncodingVectors.FillPreStateRoot));
 
         var header = BuildCommitmentHeader();
         pair.Hub.SubmitBatch(
@@ -270,9 +270,7 @@ public class UT_CanonicalEncodingParity_Vm
         // Swap txRoot and receiptRoot in the buffer, leaving the recorded publicInputHash alone, which
         // is what a one-sided layout change on either side of the boundary produces.
         var pair = DeployHub();
-        pair.Hub.RegisterChain(CanonicalEncodingVectors.ChainConfig());
-        pair.Hub.RegisterGenesisStateRoot(
-            CanonicalEncodingVectors.ChainId, Root(CanonicalEncodingVectors.FillPreStateRoot));
+        pair.Hub.RegisterChain(CanonicalEncodingVectors.ChainId, CanonicalEncodingVectors.ChainConfig(), Root(CanonicalEncodingVectors.FillPreStateRoot));
         var header = BuildCommitmentHeader();
         var tx = header[OffTxRoot..(OffTxRoot + 32)].ToArray();
         var receipt = header[OffReceiptRoot..(OffReceiptRoot + 32)].ToArray();
@@ -324,13 +322,12 @@ public class UT_CanonicalEncodingParity_Vm
     public void VerifyStateLeafWithProof_FoldsTheGoldenSiblingsAgainstTheCanonicalRoot()
     {
         // RollupHub does not expose VerifyStateLeafWithProof; the same Hash256 fold is covered by
-        // VerifyWithdrawalLeafWithProof. Here we pin that RegisterGenesisStateRoot installs the
+        // VerifyWithdrawalLeafWithProof. Here we pin that atomic RegisterChain installs the
         // golden tree root as the canonical state root (the storage side of the old state-leaf path).
         var pair = DeployHub();
         BigInteger chainId = 1002;
         var root = new UInt256(CanonicalEncodingVectors.WithdrawalRoot());
-        pair.Hub.RegisterChain(ConfigForChain(1002));
-        pair.Hub.RegisterGenesisStateRoot(chainId, root);
+        pair.Hub.RegisterChain(chainId, ConfigForChain(1002), root);
 
         Assert.AreEqual(root, pair.Hub.GetGenesisStateRoot(chainId));
         Assert.AreEqual(root, pair.Hub.GetCanonicalStateRoot(chainId));

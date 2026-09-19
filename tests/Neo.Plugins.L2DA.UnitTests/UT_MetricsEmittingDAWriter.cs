@@ -52,7 +52,7 @@ public class UT_MetricsEmittingDAWriter
     }
 
     [TestMethod]
-    public async Task IsAvailableAsync_PassesThrough_ToInner()
+    public async Task IsAvailableAsync_RecordsProbeCheck_AndResultGauge()
     {
         var inner = new InMemoryDAWriter();
         var metrics = new InMemoryMetrics();
@@ -62,6 +62,67 @@ public class UT_MetricsEmittingDAWriter
         var available = await decorated.IsAvailableAsync(receipt);
 
         Assert.IsTrue(available, "IsAvailableAsync should pass through to inner");
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.DAAvailabilityChecks, ("mode", "Local")));
+        Assert.AreEqual(1.0, metrics.GetGauge(MetricNames.DAAvailabilityResult, ("mode", "Local")));
+    }
+
+    [TestMethod]
+    public async Task IsAvailableAsync_UnavailableInner_SetsResultGaugeZero()
+    {
+        var metrics = new InMemoryMetrics();
+        var decorated = new MetricsEmittingDAWriter(new UnavailableWriter(), metrics);
+
+        var available = await decorated.IsAvailableAsync(new DAReceipt
+        {
+            Layer = DAMode.NeoFS,
+            Commitment = UInt256.Zero,
+            Pointer = ReadOnlyMemory<byte>.Empty,
+        });
+
+        Assert.IsFalse(available);
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.DAAvailabilityChecks, ("mode", "NeoFS")));
+        Assert.AreEqual(0.0, metrics.GetGauge(MetricNames.DAAvailabilityResult, ("mode", "NeoFS")));
+    }
+
+    [TestMethod]
+    public async Task IsAvailableAsync_Cancellation_Propagates_WithoutTouchingResultGauge()
+    {
+        // Cancellation is operator intent, not backend unavailability — the availability
+        // gauge must not flip to 0 when a probe is cancelled mid-flight.
+        var metrics = new InMemoryMetrics();
+        var decorated = new MetricsEmittingDAWriter(new CancellingWriter(), metrics);
+        metrics.SetGauge(MetricNames.DAAvailabilityResult, 1.0, ("mode", "NeoFS"));
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(async () =>
+            await decorated.IsAvailableAsync(new DAReceipt
+            {
+                Layer = DAMode.NeoFS,
+                Commitment = UInt256.Zero,
+                Pointer = ReadOnlyMemory<byte>.Empty,
+            }));
+
+        Assert.AreEqual(1, metrics.GetCounter(MetricNames.DAAvailabilityChecks, ("mode", "NeoFS")),
+            "the probe attempt is still counted");
+        Assert.AreEqual(1.0, metrics.GetGauge(MetricNames.DAAvailabilityResult, ("mode", "NeoFS")),
+            "cancellation must NOT flip the availability gauge to unavailable");
+    }
+
+    private sealed class CancellingWriter : IDAWriter
+    {
+        public DAMode Mode => DAMode.NeoFS;
+        public ValueTask<DAReceipt> PublishAsync(DAPublishRequest request, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+        public ValueTask<bool> IsAvailableAsync(DAReceipt receipt, CancellationToken cancellationToken = default)
+            => throw new OperationCanceledException();
+    }
+
+    private sealed class UnavailableWriter : IDAWriter
+    {
+        public DAMode Mode => DAMode.NeoFS;
+        public ValueTask<DAReceipt> PublishAsync(DAPublishRequest request, CancellationToken cancellationToken = default)
+            => throw new NotImplementedException();
+        public ValueTask<bool> IsAvailableAsync(DAReceipt receipt, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(false);
     }
 
     [TestMethod]

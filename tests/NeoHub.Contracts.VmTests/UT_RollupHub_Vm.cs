@@ -170,16 +170,44 @@ public class UT_RollupHub_Vm
     }
 
     [TestMethod]
-    public void RegisterChain_And_GenesisStateRoot_Succeeds()
+    public void RegisterChain_IsAtomic_ActiveAndIdempotent()
+    {
+        // RegisterChain is the single atomic entry (doc.md §3.2): config + immutable non-zero
+        // genesis root land together, so no partially initialized chain is ever observable.
+        var (_, hub, _) = Deploy();
+        var config = BuildChainConfig(ChainId);
+        hub.RegisterChain(ChainId, config, GenesisStateRoot);
+        Assert.IsTrue(hub.IsActive(ChainId));
+        Assert.AreEqual(GenesisStateRoot, hub.GetGenesisStateRoot(ChainId));
+
+        // Zero root is rejected up front (no partial init).
+        Assert.ThrowsExactly<TestException>(() =>
+            hub.RegisterChain(ChainId, config, UInt256.Zero));
+        // Re-registration may refresh config only with the unchanged genesis root.
+        hub.RegisterChain(ChainId, config, GenesisStateRoot);
+        Assert.IsTrue(hub.IsActive(ChainId));
+        // A different immutable root is rejected.
+        Assert.ThrowsExactly<TestException>(() =>
+            hub.RegisterChain(ChainId, config, new UInt256(R(0x7E))));
+        Assert.AreEqual(GenesisStateRoot, hub.GetGenesisStateRoot(ChainId));
+
+        hub.PauseChain(ChainId);
+        Assert.IsFalse(hub.IsActive(ChainId));
+        hub.ResumeChain(ChainId);
+        Assert.IsTrue(hub.IsActive(ChainId));
+        hub.UpdateChain(config);
+        Assert.IsTrue(hub.IsActive(ChainId));
+    }
+
+    [TestMethod]
+    public void RegisterChain_Atomic_Success()
     {
         var (_, hub, _) = Deploy();
         var config = BuildChainConfig(ChainId);
 
-        hub.RegisterChain(config);
-        Assert.IsTrue(hub.IsChainActive(ChainId));
+        hub.RegisterChain(ChainId, config, GenesisStateRoot);
+        Assert.IsTrue(hub.IsActive(ChainId));
         Assert.AreEqual((BigInteger)3, hub.GetSecurityLevel(ChainId));
-
-        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
         Assert.AreEqual(GenesisStateRoot, hub.GetGenesisStateRoot(ChainId));
         Assert.AreEqual(GenesisStateRoot, hub.GetCanonicalStateRoot(ChainId));
     }
@@ -189,23 +217,21 @@ public class UT_RollupHub_Vm
     {
         var (_, hub, _) = Deploy();
         var config = BuildChainConfig(ChainId);
-        hub.RegisterChain(config);
-
-        Assert.IsTrue(hub.IsChainActive(ChainId));
+        hub.RegisterChain(ChainId, config, GenesisStateRoot);
+        Assert.IsTrue(hub.IsActive(ChainId));
 
         hub.PauseChain(ChainId);
-        Assert.IsFalse(hub.IsChainActive(ChainId));
+        Assert.IsFalse(hub.IsActive(ChainId));
 
         hub.ResumeChain(ChainId);
-        Assert.IsTrue(hub.IsChainActive(ChainId));
+        Assert.IsTrue(hub.IsActive(ChainId));
     }
 
     [TestMethod]
     public void ForcedInclusion_Enqueue_IncrementsPendingCount()
     {
         var (_, hub, _) = Deploy();
-        hub.RegisterChain(BuildChainConfig(ChainId));
-
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
         Assert.AreEqual((BigInteger)0, hub.GetPendingForcedCount(ChainId));
         Assert.AreEqual((BigInteger)0, hub.GetNextForcedNonce(ChainId));
 
@@ -220,8 +246,7 @@ public class UT_RollupHub_Vm
     public void SubmitAndFinalizeBatch_ConsumesForcedInclusionCount()
     {
         var (_, hub, _) = Deploy();
-        hub.RegisterChain(BuildChainConfig(ChainId));
-        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
 
         hub.EnqueueForcedTransaction(ChainId, [0x01], new UInt256(R(0x91)));
         hub.EnqueueForcedTransaction(ChainId, [0x02], new UInt256(R(0x92)));
@@ -247,8 +272,7 @@ public class UT_RollupHub_Vm
         // hash_public_inputs. A contract that rebuilds the preimage in the wrong tail order
         // computes SwappedPublicInputHashHex and rejects this commitment.
         var (engine, hub, _) = Deploy();
-        hub.RegisterChain(BuildChainConfig(ChainId, securityLevel: 1)); // Settled accepts Multisig
-        hub.RegisterGenesisStateRoot(ChainId, new UInt256(R(0x10)));
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId, securityLevel: 1), new UInt256(R(0x10))); // Settled accepts Multisig
 
         var commitment = BuildSharedVectorCommitment(Hex(CanonicalPublicInputHashHex));
         hub.SubmitAndFinalizeBatch(commitment, R(0xB1), R(0xC2), 0u);
@@ -264,8 +288,7 @@ public class UT_RollupHub_Vm
         // appended l1MessageHash at 284, so it accepted commitments carrying the swapped digest
         // and rejected canonical ones. Both directions must now fail closed.
         var (_, hub, _) = Deploy();
-        hub.RegisterChain(BuildChainConfig(ChainId, securityLevel: 1));
-        hub.RegisterGenesisStateRoot(ChainId, new UInt256(R(0x10)));
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId, securityLevel: 1), new UInt256(R(0x10)));
 
         var swapped = BuildSharedVectorCommitment(Hex(SwappedPublicInputHashHex));
         Assert.ThrowsExactly<TestException>(
@@ -276,8 +299,7 @@ public class UT_RollupHub_Vm
     public void SubmitAndFinalizeBatch_RejectsBatchWhenVerifierRejects()
     {
         var (_, hub, _) = Deploy(verifierAccepts: false);
-        hub.RegisterChain(BuildChainConfig(ChainId));
-        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
 
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 3);
 
@@ -290,8 +312,7 @@ public class UT_RollupHub_Vm
     public void SubmitAndFinalizeBatch_RejectsProofTypeBelowChainSecurityLevel()
     {
         var (_, hub, _) = Deploy();
-        hub.RegisterChain(BuildChainConfig(ChainId, securityLevel: 3)); // Validity ⇒ ZK only
-        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId, securityLevel: 3), GenesisStateRoot); // Validity ⇒ ZK only
 
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 1); // Multisig
 
@@ -306,8 +327,7 @@ public class UT_RollupHub_Vm
         // contract, so both settlement entries refuse optimistic batches instead of finalizing
         // them unprotected.
         var (_, hub, _) = Deploy();
-        hub.RegisterChain(BuildChainConfig(ChainId, securityLevel: 2)); // Optimistic
-        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId, securityLevel: 2), GenesisStateRoot); // Optimistic
 
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 2);
 
@@ -318,8 +338,7 @@ public class UT_RollupHub_Vm
     public void SubmitAndFinalizeBatch_AtomicExecution_Success()
     {
         var (_, hub, _) = Deploy();
-        hub.RegisterChain(BuildChainConfig(ChainId));
-        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
 
         var postState = R(0x20);
         var postStateRoot = new UInt256(postState);
@@ -342,8 +361,7 @@ public class UT_RollupHub_Vm
     public void SubmitAndFinalizeBatch_RejectsOptimisticBatch()
     {
         var (_, hub, _) = Deploy();
-        hub.RegisterChain(BuildChainConfig(ChainId, securityLevel: 2));
-        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId, securityLevel: 2), GenesisStateRoot);
 
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 2); // ProofTypeOptimistic = 2
 
@@ -355,8 +373,7 @@ public class UT_RollupHub_Vm
     public void SubmitBatch_TwoStepFlow_Success()
     {
         var (_, hub, _) = Deploy();
-        hub.RegisterChain(BuildChainConfig(ChainId));
-        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
 
         var postState = R(0x20);
         var postStateRoot = new UInt256(postState);
@@ -401,8 +418,7 @@ public class UT_RollupHub_Vm
 
         var hub = engine.Deploy<NeoHubRollupHub>(NeoHubRollupHub.Nef, NeoHubRollupHub.Manifest,
             new object[] { owner, VerifierHash });
-        hub.RegisterChain(BuildChainConfig(ChainId));
-        hub.RegisterGenesisStateRoot(ChainId, GenesisStateRoot);
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
         hub.SharedBridge = sharedBridgeHash;
 
         var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 3);

@@ -147,6 +147,97 @@ public class UT_RpcForcedInclusionEventScanner
         Assert.AreEqual(0, restored.LoadTrackedNonces().Count);
     }
 
+    [TestMethod]
+    public async Task Scan_MalformedBlock_ThrowsWithoutAdvancingCursor()
+    {
+        using var store = new InMemoryKeyValueStore();
+        var (rpc, stub) = BuildRpc();
+        using var _ = rpc;
+        var malformed = true;
+        stub.RegisterRpc((method, parameters) => method switch
+        {
+            "getblockcount" => new JNumber(12),
+            "getblock" => malformed ? new JObject { ["index"] = 10 } : Block(),
+            "getapplicationlog" => ApplicationLog(ChainId, 7, ContractHash),
+            _ => null,
+        });
+        using var scanner = new RpcForcedInclusionEventScanner(
+            rpc, ContractHash, ChainId, store, startHeight: 10, finalityDepth: 1);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(async () => await scanner.ScanAsync(_ => Assert.Fail("invalid block exposed an event")));
+        Assert.AreEqual(0, scanner.LoadTrackedNonces().Count);
+        malformed = false;
+        var observed = new List<ulong>();
+        Assert.AreEqual(1, await scanner.ScanAsync(observed.Add));
+        CollectionAssert.AreEqual(new ulong[] { 7 }, observed);
+        Assert.AreEqual(2, stub.RpcCaptured.Count(call => call.Method == "getblock"));
+    }
+
+    [TestMethod]
+    public async Task Scan_ConsolidatedRollupHubEvent_FailsClosedWithoutAdvancingCursor()
+    {
+        using var store = new InMemoryKeyValueStore();
+        var (rpc, stub) = BuildRpc();
+        using var _ = rpc;
+        var incompatible = true;
+        stub.RegisterRpc((method, parameters) => method switch
+        {
+            "getblockcount" => new JNumber(12),
+            "getblock" => Block(),
+            "getapplicationlog" => incompatible ? ConsolidatedApplicationLog(ContractHash) : ApplicationLog(ChainId, 7, ContractHash),
+            _ => null,
+        });
+        using var scanner = new RpcForcedInclusionEventScanner(
+            rpc, ContractHash, ChainId, store, startHeight: 10, finalityDepth: 1);
+
+        var error = await Assert.ThrowsExactlyAsync<InvalidDataException>(async () =>
+            await scanner.ScanAsync(_ => Assert.Fail("incompatible event exposed a nonce")));
+        StringAssert.Contains(error.Message, "ForcedTransactionEnqueued");
+        Assert.AreEqual(0, scanner.LoadTrackedNonces().Count);
+        incompatible = false;
+        var observed = new List<ulong>();
+        Assert.AreEqual(1, await scanner.ScanAsync(observed.Add));
+        CollectionAssert.AreEqual(new ulong[] { 7 }, observed);
+        Assert.AreEqual(2, stub.RpcCaptured.Count(call => call.Method == "getblock"));
+    }
+
+    [TestMethod]
+    public async Task Scan_ConsolidatedEventFromOtherContract_IsIgnored()
+    {
+        using var store = new InMemoryKeyValueStore();
+        var (rpc, stub) = BuildRpc();
+        using var _ = rpc;
+        stub.RegisterRpc((method, parameters) => method switch
+        {
+            "getblockcount" => new JNumber(12),
+            "getblock" => Block(),
+            "getapplicationlog" => ConsolidatedApplicationLog(UInt160.Parse("0x" + new string('b', 40))),
+            _ => null,
+        });
+        using var scanner = new RpcForcedInclusionEventScanner(
+            rpc, ContractHash, ChainId, store, startHeight: 10, finalityDepth: 1);
+        Assert.AreEqual(1, await scanner.ScanAsync(_ => Assert.Fail("foreign event exposed a nonce")));
+        Assert.AreEqual(0, scanner.LoadTrackedNonces().Count);
+    }
+
+    private static JObject ConsolidatedApplicationLog(UInt160 eventContract)
+    {
+        var log = ApplicationLog(ChainId, 0, eventContract);
+        var execution = (JObject)((JArray)log["executions"]!)[0]!;
+        var notification = (JObject)((JArray)execution["notifications"]!)[0]!;
+        notification["eventname"] = "ForcedTransactionEnqueued";
+        notification["state"] = new JObject
+        {
+            ["type"] = "Array",
+            ["value"] = new JArray
+            {
+                Integer(ChainId), Integer(0UL),
+                new JObject { ["type"] = "ByteString", ["value"] = Convert.ToBase64String(TransactionHash.GetSpan()) },
+            },
+        };
+        return log;
+    }
+
     private static (JsonRpcClient Rpc, StubRpcHandler Stub) BuildRpc()
     {
         var stub = new StubRpcHandler();

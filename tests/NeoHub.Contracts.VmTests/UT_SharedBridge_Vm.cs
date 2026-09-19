@@ -237,8 +237,7 @@ public class UT_SharedBridge_Vm
     /// <paramref name="leaves"/> as its withdrawalRoot, and finalize it.</summary>
     private static void SettleWithdrawalBatch(BridgeStack stack, uint chainId, byte[][] leaves)
     {
-        stack.Hub.RegisterChain(ConfigForChain(chainId));
-        stack.Hub.RegisterGenesisStateRoot(chainId, new UInt256(CanonicalEncodingVectors.Fill(0x10)));
+        stack.Hub.RegisterChain(chainId, ConfigForChain(chainId), new UInt256(CanonicalEncodingVectors.Fill(0x10)));
         stack.Hub.SubmitBatch(
             BuildCommitmentHeader(chainId, TreeRoot(leaves)),
             CanonicalEncodingVectors.Fill(0xB1),

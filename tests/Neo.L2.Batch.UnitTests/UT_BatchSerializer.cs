@@ -25,6 +25,68 @@ public class UT_BatchSerializer
     };
 
     [TestMethod]
+    public void Commitment_Decode_RejectsOversizedProofWithMatchingBufferLength()
+    {
+        const int length = 1024 * 1024 + 1;
+        var bytes = new byte[321 + length];
+        BatchSerializer.Encode(Sample(Array.Empty<byte>())).CopyTo(bytes, 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(317, 4), length);
+        var error = Assert.ThrowsExactly<InvalidDataException>(() => BatchSerializer.Decode(bytes));
+        StringAssert.Contains(error.Message, "Invalid proof length");
+    }
+
+    [TestMethod]
+    public void PublicInputs_Decode_RejectsReversedBlockRange()
+    {
+        var bytes = new byte[352];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(12, 8), ulong.MaxValue);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(20, 8), ulong.MaxValue - 1);
+        var error = Assert.ThrowsExactly<InvalidDataException>(() => BatchSerializer.DecodePublicInputs(bytes));
+        StringAssert.Contains(error.Message, "lastBlock");
+    }
+
+    [TestMethod]
+    public void Commitment_Encode_RejectsEveryNullRoot()
+    {
+        var sample = Sample();
+        var invalid = new[]
+        {
+            sample with { PreStateRoot = null! },
+            sample with { PostStateRoot = null! },
+            sample with { TxRoot = null! },
+            sample with { ReceiptRoot = null! },
+            sample with { WithdrawalRoot = null! },
+            sample with { L2ToL1MessageRoot = null! },
+            sample with { L2ToL2MessageRoot = null! },
+            sample with { DACommitment = null! },
+            sample with { PublicInputHash = null! },
+        };
+        foreach (var input in invalid)
+            Assert.ThrowsExactly<ArgumentNullException>(() => BatchSerializer.Encode(input));
+    }
+
+    [TestMethod]
+    public void PublicInputs_Encode_RejectsEveryNullRoot()
+    {
+        var sample = BatchSerializer.DecodePublicInputs(new byte[352]);
+        var invalid = new[]
+        {
+            sample with { PreStateRoot = null! },
+            sample with { PostStateRoot = null! },
+            sample with { TxRoot = null! },
+            sample with { ReceiptRoot = null! },
+            sample with { WithdrawalRoot = null! },
+            sample with { L2ToL1MessageRoot = null! },
+            sample with { L2ToL2MessageRoot = null! },
+            sample with { L1MessageHash = null! },
+            sample with { DACommitment = null! },
+            sample with { BlockContextHash = null! },
+        };
+        foreach (var input in invalid)
+            Assert.ThrowsExactly<ArgumentNullException>(() => BatchSerializer.EncodePublicInputs(input));
+    }
+
+    [TestMethod]
     public void Commitment_RoundTrips()
     {
         var original = Sample();

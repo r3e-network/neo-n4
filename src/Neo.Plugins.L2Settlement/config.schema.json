@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "L2Settlement Plugin Configuration",
+  "description": "Configuration for Neo L2 Settlement plugin - manages batch submission to NeoHub on L1",
+  "type": "object",
+  "required": ["PluginConfiguration"],
+  "properties": {
+    "PluginConfiguration": {
+      "type": "object",
+      "required": ["ChainId", "L1RpcEndpoint", "ProofType", "Enabled"],
+      "properties": {
+        "ChainId": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295,
+          "description": "L2 chain identifier matching Batch plugin"
+        },
+        "L1RpcEndpoint": {
+          "type": "string",
+          "pattern": "^https?://[\\w\\.\\-]+(:\\d+)?$",
+          "description": "HTTP/HTTPS endpoint URL for Neo N3/N4 full node RPC interface"
+        },
+        "ExpectedNetwork": {
+          "type": ["string", "null"],
+          "description": "Optional network name validation (e.g., 'MainNet', 'PrivateNet') for safety"
+        },
+        "SettlementManagerHash": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$",
+          "description": "Neo address of SettlementManager contract in hex format (20 bytes)"
+        },
+        "ForcedInclusionHash": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$",
+          "description": "Neo address of ForcedInclusion contract in hex format"
+        },
+        "SharedBridgeHash": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$",
+          "description": "Neo address of SharedBridge contract in hex format"
+        },
+        "L2BridgeHash": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$",
+          "description": "Neo address of L2 bridge adapter in hex format"
+        },
+        "MessageRouterHash": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{40}$",
+          "description": "Neo address of MessageRouter contract in hex format"
+        },
+        "ProofType": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3,
+          "default": 1,
+          "description": "Proof system: 0=None/Multisig, 1=Optimistic, 2=RiscVZk, 3=Sp1Zk"
+        },
+        "Enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether settlement client is active and submitting batches"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

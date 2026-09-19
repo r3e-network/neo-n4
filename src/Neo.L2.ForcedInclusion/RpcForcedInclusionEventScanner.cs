@@ -239,9 +239,18 @@ public sealed class RpcForcedInclusionEventScanner : IDisposable
             {
                 if (notificationToken is not JObject notification
                     || !string.Equals(
-                        notification["eventname"]?.AsString(), EventName, StringComparison.Ordinal)
-                    || !string.Equals(
                         notification["contract"]?.AsString(), _contractHash.ToString(), StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var eventName = notification["eventname"]?.AsString();
+                // The consolidated queue lacks the entry/deadline and consumption ABI required
+                // by this source. Skipping its event would permanently advance the scan cursor.
+                if (string.Equals(eventName, "ForcedTransactionEnqueued", StringComparison.Ordinal))
+                    throw new InvalidDataException(
+                        $"ForcedTransactionEnqueued in {transactionHash} uses the incompatible consolidated RollupHub ABI; " +
+                        "this scanner requires ForcedTxEnqueued with getEntry/isConsumed and proof-based consumption. " +
+                        "Verify the configured contract and complete the contract/client migration before resuming.");
+                if (!string.Equals(eventName, EventName, StringComparison.Ordinal))
                     continue;
 
                 if (notification["state"] is not JObject state

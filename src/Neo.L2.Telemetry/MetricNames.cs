@@ -84,6 +84,12 @@ public static class MetricNames
     /// <summary>Counter: DA publishes that threw, tagged by <c>mode</c>.</summary>
     public const string DAPublishFailures = "l2.da.publish_failures";
 
+    /// <summary>Counter: DA availability probe attempts, tagged by <c>mode</c>.</summary>
+    public const string DAAvailabilityChecks = "l2.da.is_available_checks";
+
+    /// <summary>Gauge: result of the latest DA availability probe (1 = available, 0 = unavailable), tagged by <c>mode</c>.</summary>
+    public const string DAAvailabilityResult = "l2.da.is_available_results";
+
     // ---- Sequencer registry ----
 
     /// <summary>Counter: sequencers registered to the local committee.</summary>

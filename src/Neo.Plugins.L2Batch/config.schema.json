@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "L2Batch Plugin Configuration",
+  "description": "Configuration for Neo L2 Batch plugin - controls batch formation and sealing behavior",
+  "type": "object",
+  "required": ["PluginConfiguration"],
+  "properties": {
+    "PluginConfiguration": {
+      "type": "object",
+      "required": ["ChainId", "MaxBlocksPerBatch", "MaxTransactionsPerBatch", "Enabled"],
+      "properties": {
+        "ChainId": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295,
+          "description": "Unique identifier for this L2 chain within the Neo Elastic Network"
+        },
+        "MaxBlocksPerBatch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 50,
+          "description": "Maximum number of L2 blocks to include in a single batch before auto-sealing"
+        },
+        "MaxTransactionsPerBatch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000,
+          "default": 5000,
+          "description": "Maximum number of transactions to accumulate in a batch before sealing"
+        },
+        "MaxBatchAgeMillis": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000,
+          "default": 30000,
+          "description": "Maximum time (milliseconds) to wait for more txs/blocks before forcing batch seal"
+        },
+        "Enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether batch plugin is active and producing batches"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

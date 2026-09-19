@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "L2Metrics Plugin Configuration",
+  "description": "Configuration for Neo L2 Metrics HTTP exporter - exposes Prometheus-format metrics endpoint",
+  "type": "object",
+  "required": ["PluginConfiguration"],
+  "properties": {
+    "PluginConfiguration": {
+      "type": "object",
+      "required": ["Enabled", "BindAddress", "Port", "MaxConcurrentConnections"],
+      "properties": {
+        "Enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether metrics HTTP server is active"
+        },
+        "BindAddress": {
+          "type": "string",
+          "pattern": "^127\\.0\\.0\\.1|^0\\.0\\.0\\.0|[\\w\\-\\.]+$",
+          "default": "127.0.0.1",
+          "description": "IP address to bind metrics HTTP server to (localhost recommended for production)"
+        },
+        "Port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 9090,
+          "description": "TCP port for metrics HTTP server (1024+ required on most systems)"
+        },
+        "MaxConcurrentConnections": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 32,
+          "description": "Maximum simultaneous HTTP connections before returning 503 Service Unavailable"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

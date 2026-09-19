@@ -11,7 +11,7 @@ namespace Neo.L2.Batch;
 /// <para>
 /// The two layouts bind different boundaries, and only one of them is an L1 ABI. The commitment
 /// header is the byte format <c>SettlementManager.submitBatch</c> parses, so any change to it is a
-/// breaking on-chain change. The 332-byte public-inputs form is <em>never</em> transmitted to L1 —
+/// breaking on-chain change. The 352-byte public-inputs form is <em>never</em> transmitted to L1 —
 /// the contract sees only its 32-byte digest, at commitment offset 284 — but it is still the exact
 /// preimage the committee/sequencer signature is taken over
 /// (<c>src/Neo.L2.Proving/Attestation/AttestationProver.cs:36-40</c>,
@@ -46,7 +46,7 @@ namespace Neo.L2.Batch;
 /// </code>
 /// </para>
 /// <para>
-/// <b>PublicInputs layout (348 bytes, fixed):</b>
+/// <b>PublicInputs layout (352 bytes, fixed):</b>
 /// <code>
 /// offset  size  field
 /// 0       4     chainId (uint32)
@@ -63,6 +63,7 @@ namespace Neo.L2.Batch;
 /// 252     32    l1MessageHash
 /// 284     32    daCommitment
 /// 316     32    blockContextHash
+/// 348     4     forcedInclusionCount (uint32)
 /// </code>
 /// </para>
 /// </remarks>

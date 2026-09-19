@@ -6,7 +6,9 @@ namespace Neo.Plugins.L2;
 /// <summary>
 /// Decorates an <see cref="IDAWriter"/> with metric emission on publish. Counts
 /// successful publishes, latency, and failures, all tagged by <c>mode</c> so a single
-/// dashboard can compare DA layers. Pass-through for <see cref="IsAvailableAsync"/>.
+/// dashboard can compare DA layers. Availability probes are metered:
+/// <c>l2.da.is_available_checks</c> per probe and <c>l2.da.is_available_results</c>
+/// (1/0) for each concluded probe; a cancelled probe leaves the gauge untouched.
 /// </summary>
 /// <remarks>
 /// Composition pattern: any new <c>IDAWriter</c> automatically participates in the
@@ -82,6 +84,29 @@ public sealed class MetricsEmittingDAWriter : IDAWriter
     }
 
     /// <inheritdoc />
-    public ValueTask<bool> IsAvailableAsync(DAReceipt receipt, CancellationToken cancellationToken = default)
-        => _inner.IsAvailableAsync(receipt, cancellationToken);
+    public async ValueTask<bool> IsAvailableAsync(DAReceipt receipt, CancellationToken cancellationToken = default)
+    {
+        _metrics.SafeIncrementCounter(MetricNames.DAAvailabilityChecks, 1, _modeTag);
+        bool result;
+        try
+        {
+            result = await _inner.IsAvailableAsync(receipt, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation is the caller giving up, not evidence the backend is down;
+            // recording 0 here would poison the availability gauge with operator-driven
+            // shutdowns. Rethrow without touching the result gauge.
+            throw;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A throwing probe is indistinguishable from an unavailable backend; record it
+            // as such so the dashboard shows a red availability gauge rather than a gap.
+            _metrics.SafeSetGauge(MetricNames.DAAvailabilityResult, 0, _modeTag);
+            throw;
+        }
+        _metrics.SafeSetGauge(MetricNames.DAAvailabilityResult, result ? 1 : 0, _modeTag);
+        return result;
+    }
 }

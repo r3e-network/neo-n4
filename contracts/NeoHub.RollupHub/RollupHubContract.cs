@@ -147,15 +147,37 @@ public class RollupHubContract : SmartContract
     // Pillar 1.1: Chain Registry Management
     // =========================================================================
 
-    public static void RegisterChain(byte[] configBytes)
+    public static void RegisterChain(uint chainId, byte[] configBytes, UInt256 genesisStateRoot)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(configBytes != null && configBytes.Length == ConfigSize, "invalid config size");
-        var chainId = ReadUInt32(configBytes!, 0);
+        var embeddedId = ReadUInt32(configBytes!, 0);
+        ExecutionEngine.Assert(embeddedId == chainId, "config chainId mismatch");
         ExecutionEngine.Assert(chainId > 0, "chainId 0 reserved for L1");
-        var existing = Storage.Get(ConfigKey(chainId));
-        ExecutionEngine.Assert(existing == null, "chain already registered");
-        Storage.Put(ConfigKey(chainId), configBytes!);
+        ExecutionEngine.Assert(!genesisStateRoot.Equals(UInt256.Zero), "genesis root must be non-zero");
+
+        var configKey = ConfigKey(chainId);
+        var genesisKey = GenesisRootKey(chainId);
+        var existingConfig = Storage.Get(configKey);
+        var existingRoot = Storage.Get(genesisKey);
+
+        // First registration atomically persists config and the immutable non-zero genesis root in
+        // one call (doc.md §3.2): no two-step owner path - and no partial initialization - can be
+        // observed as an active chain. Re-registration is idempotent: it may refresh config only
+        // while the already-registered genesis root is unchanged; it can never replace the root.
+        if (existingConfig == null && existingRoot == null)
+        {
+            Storage.Put(configKey, configBytes!);
+            Storage.Put(genesisKey, genesisStateRoot);
+            OnChainRegistered(chainId, configBytes!);
+            OnGenesisRootRegistered(chainId, genesisStateRoot);
+            return;
+        }
+
+        ExecutionEngine.Assert(existingConfig != null, "chain already registered");
+        ExecutionEngine.Assert(existingRoot != null && ((UInt256)existingRoot).Equals(genesisStateRoot),
+            "genesis root already registered");
+        Storage.Put(configKey, configBytes!);
         OnChainRegistered(chainId, configBytes!);
     }
 
@@ -192,16 +214,6 @@ public class RollupHubContract : SmartContract
         OnChainStatusChanged(chainId, true);
     }
 
-    public static void RegisterGenesisStateRoot(uint chainId, UInt256 genesisRoot)
-    {
-        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
-        ExecutionEngine.Assert(!genesisRoot.Equals(UInt256.Zero), "genesis root must be non-zero");
-        var key = GenesisRootKey(chainId);
-        ExecutionEngine.Assert(Storage.Get(key) == null, "genesis root already registered");
-        Storage.Put(key, genesisRoot);
-        OnGenesisRootRegistered(chainId, genesisRoot);
-    }
-
     [Safe]
     public static byte[] GetChainConfig(uint chainId)
     {
@@ -210,12 +222,12 @@ public class RollupHubContract : SmartContract
     }
 
     [Safe]
-    public static bool IsChainActive(uint chainId)
+    public static bool IsActive(uint chainId)
     {
         var raw = Storage.Get(ConfigKey(chainId));
         if (raw == null) return false;
         var bytes = (byte[])raw;
-        return bytes[OffsetActive] == 1;
+        return bytes[OffsetActive] == 1 && Storage.Get(GenesisRootKey(chainId)) != null;
     }
 
     [Safe]
@@ -274,7 +286,7 @@ public class RollupHubContract : SmartContract
         ExecutionEngine.Assert(chainId > 0, "chainId 0 reserved for L1");
         ExecutionEngine.Assert(transactionBytes != null && transactionBytes.Length > 0, "transaction empty");
         ExecutionEngine.Assert(!transactionHash.Equals(UInt256.Zero), "transaction hash zero");
-        ExecutionEngine.Assert(IsChainActive(chainId), "chain inactive");
+        ExecutionEngine.Assert(IsActive(chainId), "chain inactive");
         AssertChainNotPaused(chainId);
 
         var tail = GetForcedTail(chainId);
@@ -377,7 +389,7 @@ public class RollupHubContract : SmartContract
         ExecutionEngine.Assert(blockContextHash != null && blockContextHash.Length == 32, "blockContextHash must be 32 bytes");
         var l1MsgHash = l1MessageHash!;
         var ctxHash = blockContextHash!;
-        ExecutionEngine.Assert(IsChainActive(chainId), "chain inactive");
+        ExecutionEngine.Assert(IsActive(chainId), "chain inactive");
         AssertChainNotPaused(chainId);
         // The optimistic state machine (challenge window, bonds, deadline finalization) is not
         // wired in this contract, so an optimistic batch here would finalize without any
@@ -469,7 +481,7 @@ public class RollupHubContract : SmartContract
     public static void FinalizeBatch(uint chainId, ulong batchNumber)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
-        ExecutionEngine.Assert(IsChainActive(chainId), "chain inactive");
+        ExecutionEngine.Assert(IsActive(chainId), "chain inactive");
         AssertChainNotPaused(chainId);
         var latestFinalized = GetLatestFinalizedBatchNumber(chainId);
         ExecutionEngine.Assert(batchNumber == latestFinalized + 1, "must finalize sequentially");

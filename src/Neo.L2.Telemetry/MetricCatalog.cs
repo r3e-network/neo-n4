@@ -58,6 +58,8 @@ public static class MetricCatalog
         [MetricNames.DAPublished] = "DA payloads published successfully, tagged by DA mode",
         [MetricNames.DAPublishLatencyMs] = "Wall-clock milliseconds for each DA publish, tagged by DA mode",
         [MetricNames.DAPublishFailures] = "DA publishes that threw, tagged by DA mode",
+        [MetricNames.DAAvailabilityChecks] = "DA availability probe attempts, tagged by DA mode",
+        [MetricNames.DAAvailabilityResult] = "Result of the latest DA availability probe (1 available / 0 unavailable), tagged by DA mode",
 
         // Sequencer registry
         [MetricNames.SequencersRegistered] = "Sequencers registered to the local committee",

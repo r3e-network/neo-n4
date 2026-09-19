@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "L2DA Plugin Configuration",
+  "description": "Configuration for Neo L2 Data Availability plugin - selects DA writer implementation and mode",
+  "type": "object",
+  "required": ["PluginConfiguration"],
+  "properties": {
+    "PluginConfiguration": {
+      "type": "object",
+      "required": ["Profile", "DAMode"],
+      "properties": {
+        "Profile": {
+          "type": "string",
+          "enum": ["Development", "Production"],
+          "default": "Development",
+          "description": "Deployment profile - Production enables fail-closed security guards"
+        },
+        "DAMode": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3,
+          "default": 1,
+          "description": "Data availability tier: 0=NoDA, 1=NeoFS, 2=L1Override, 3=DAC (defined in DAMode enum)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

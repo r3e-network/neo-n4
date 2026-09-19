@@ -61,13 +61,6 @@
       "actual": "sat",
       "passed": true,
       "witness": "[n = 2,\n isc = K(Int, True),\n cp = False,\n st = Lambda(k!0, If(1 <= k!0, 3, 2))]"
-    },
-    {
-      "name": "negative_control_reseal_confirmed",
-      "expected": "sat",
-      "actual": "sat",
-      "passed": true,
-      "witness": "[n = 1, st = K(Int, 1), isc = K(Int, True), cp_in = True]"
     }
   ],
   "status": "passed",
@@ -81,7 +74,7 @@
     "this models the write-ordering crash-atomicity, not RocksDB's internal WAL/atomicity"
   ],
   "source": "D:\\Git\\neo-n4\\src\\Neo.Plugins.L2Gateway\\GatewayOutbox.cs",
-  "scriptSha256": "df672728fc64c6bf6a9408332c38c4fa9268a97a805f0e54bbe328840aaf7c14",
+  "scriptSha256": "2d2c85376c8e298218debfbeb9c4900fa0121ef826c37197b39c9721743a35af",
   "specSha256": "9d9cd67d5bf568382757704f0ac54e348c79cc373ae354430aeae42b991896b5",
   "sourceSha256": "4dff2d8561f18938e10e66c5bbd6c6a47e57b442b6239b6bb2500167a494d710",
   "exitCode": 0

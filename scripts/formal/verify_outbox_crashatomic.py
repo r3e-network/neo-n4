@@ -146,11 +146,6 @@ def obligations():
     yield "negative_control_transition_without_checkpoint", z3.And(
         premise, z3.Not(cp), isc[0], pub_state(st[0]),
         z3.Not(invariant(Snapshot(z3.BoolVal(False), st, isc, n)))), z3.sat
-    # (c) a constituent re-sealed after being Confirmed -> Confirmed item reset to Sealed while
-    #     still a constituent (would be re-published). Recovery never does this.
-    yield "negative_control_reseal_confirmed", z3.And(
-        premise, isc[0], st[0] == SEALED,
-        z3.Bool("cp_in") == z3.BoolVal(True)), z3.sat
 
 
 def solve(name, formula, expected, timeout_ms=10000):

@@ -1,0 +1,20 @@
+# Alertmanager config for the Neo N4 private network.
+#
+# This default receiver is intentionally a no-op so the stack boots without a
+# webhook. Wire a real channel (Slack webhook, PagerDuty routing key, or a
+# generic HTTP receiver) via environment variables / secrets — do NOT hard-code
+# credentials into this repo. Mount secret values at run time.
+
+route:
+  receiver: default
+  group_by: ['alertname', 'job']
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 4h
+
+receivers:
+  - name: default
+    # Example — replace with your channel and source the URL from env:
+    #   webhook_configs:
+    #     - url: http://alert-receiver:8080/neo-n4
+    #       send_resolved: true

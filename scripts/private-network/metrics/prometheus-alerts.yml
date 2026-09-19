@@ -1,0 +1,122 @@
+# Neo N4 alerting rules.
+#
+# Every expression references a REAL metric name from the canonical catalog in
+# `docs/telemetry.md` (Prometheus-exposed form: `.` → `_`, counters get `_total`,
+# histograms render as summaries with `_count/_sum/_max`, gauges stay as-is).
+#
+# Grafana dashboards read the same metrics; keep dashboard panel expressions and
+# these alerts consistent with `Neo.L2.Telemetry.{MetricNames,MetricCatalog}`.
+
+groups:
+  - name: neo-n4-critical
+    rules:
+      # A settlement head with the poisoned flag set demands operator recovery.
+      - alert: L2SettlementPoisoned
+        expr: l2_settlement_poisoned > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: settlement
+        annotations:
+          summary: "Settlement head is poisoned"
+          description: "The ordered L2 settlement head is flagged poisoned ({{ $value }}). The node has paused settlement reconciliation and requires explicit operator recovery."
+
+      # Any of the four operator services gone from the scrape set.
+      - alert: L2NodeDown
+        expr: up{job=~"sequencer|batcher|prover|settlement-rpc"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: node
+        annotations:
+          summary: "L2 node {{ $labels.job }} is unreachable"
+          description: "Prometheus cannot scrape {{ $labels.job }} (up == 0). Check the container health and the /metrics endpoint on that service."
+
+      # A staged batch window that produced no new sealed batches means the
+      # sequencer/batcher pipeline has stalled. `for` keeps idle clusters quiet.
+      - alert: L2BatchNotSealing
+        expr: increase(l2_batch_sealed_total[15m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: batch
+        annotations:
+          summary: "No L2 batches sealed in 15 minutes"
+          description: "The counter l2_batch_sealed_total did not increase in the last 15 minutes. The batcher may be stalled or idle. Verify sequencer/batcher health and pending transaction inflow."
+
+      # Canonical artifacts stuck far behind L1. Threshold is intentional slack.
+      - alert: L2SettlementLagHigh
+        expr: l2_settlement_confirmation_lag_batches > 20
+        for: 3m
+        labels:
+          severity: warning
+          component: settlement
+        annotations:
+          summary: "Settlement confirmation lag is high ({{ $value }} batches)"
+          description: "Canonical batches are {{ $value }} ahead of the confirmed L1 head. Investigate L1 settlement throughput or a stalled confirmation watcher before the gap grows."
+
+      # Backlog of not-yet-reconciled canonical artifacts.
+      - alert: L2SettlementPendingHigh
+        expr: l2_settlement_pending > 20
+        for: 5m
+        labels:
+          severity: warning
+          component: settlement
+        annotations:
+          summary: "Settlement backlog high ({{ $value }} artifacts)"
+          description: "{{ $value }} canonical artifacts are not fully reconciled on L1."
+
+      # DA backend reported unavailable on its latest probe (gauge: 1 available / 0 unavailable).
+      - alert: L2DAUnavailable
+        expr: l2_da_is_available_results == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: da
+        annotations:
+          summary: "DA backend {{ $labels.mode }} reported unavailable"
+          description: "The latest availability probe for DA mode {{ $labels.mode }} returned unavailable. Batches cannot be durably published; switch to the standby DA tier."
+
+      # DA publishes throwing (counter increments).
+      - alert: L2DAPublishFailures
+        expr: increase(l2_da_publish_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          component: da
+        annotations:
+          summary: "DA publish failures (mode {{ $labels.mode }})"
+          description: "{{ $value }} DA publish attempts failed in the last 5 minutes for mode {{ $labels.mode }}."
+
+      # Locally generated proofs rejected by the verifier.
+      - alert: L2ProvingRejected
+        expr: increase(l2_proving_rejected_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: proving
+        annotations:
+          summary: "Proving subsystem rejected {{ $value }} proof(s)"
+          description: "The local verifier rejected proofs generated for sealed batches. A proof policy/serialization mismatch is likely; inspect generated proof kinds and verifier configuration."
+
+      # Signing failures (external key providers).
+      - alert: L2SigningFailures
+        expr: increase(l2_signing_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: signing
+        annotations:
+          summary: "Transaction signing failures ({{ $labels.signer_type }})"
+          description: "{{ $value }} signing operations failed for signer {{ $labels.signer_type }}."
+
+      # Chain auditor surfacing findings.
+      - alert: L2AuditFailures
+        expr: increase(l2_audit_failures_total[1m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: audit
+        annotations:
+          summary: "Chain audit is failing"
+          description: "The chain auditor reported {{ $value }} failing audit check(s) in the last minute. A continuity or proof-validity check is failing."

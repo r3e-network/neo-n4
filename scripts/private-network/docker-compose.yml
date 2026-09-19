@@ -141,6 +141,7 @@ services:
     volumes:
       - prometheus-data:/prometheus
       - ./metrics/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./metrics/prometheus-alerts.yml:/etc/prometheus/prometheus-alerts.yml:ro
     ports:
       - "9090:9090"
     command:
@@ -152,6 +153,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    depends_on:
+      - alertmanager
     networks:
       - neo-n4-private
 
@@ -175,6 +178,27 @@ services:
       retries: 5
     depends_on:
       - prometheus
+    networks:
+      - neo-n4-private
+
+  # Alerting - receives fired alerts from Prometheus and routes them to channels
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    platform: linux/amd64
+    container_name: neo-n4-alertmanager
+    volumes:
+      - ./metrics/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "9093:9093"
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - neo-n4-private
 
@@ -204,6 +228,9 @@ volumes:
     driver: local
   grafana-data:
     name: neo-n4-grafana-data
+    driver: local
+  alertmanager-data:
+    name: neo-n4-alertmanager-data
     driver: local
   # Shared caches for build artifacts
   cargo-cache:

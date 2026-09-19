@@ -763,6 +763,7 @@ public class UT_ProductionGapClosure
             return true;
 
         return relative.StartsWith("artifacts/", StringComparison.OrdinalIgnoreCase)
+            || relative.StartsWith("docs/scratch/", StringComparison.OrdinalIgnoreCase)
             || relative.StartsWith("external/neo/", StringComparison.OrdinalIgnoreCase)
             || relative.StartsWith("external/neo-devpack-dotnet/", StringComparison.OrdinalIgnoreCase)
             || relative.StartsWith("external/neo-riscv-vm/", StringComparison.OrdinalIgnoreCase)

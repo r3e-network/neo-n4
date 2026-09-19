@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — optimistic-challenge bisection game model — 2026-09-18
+
+- Added `scripts/formal/verify_bisection.py`: an inductive model of the BisectionGame interval
+  narrowing (src/Neo.L2.Challenge/BisectionGame.cs). It proves 16 solver checks (preconditions
+  imply the initial lo-agree/hi-disagree invariant, each round preserves the invariant, strictly
+  narrows hi-lo and increments rounds, rounds is bounded by tx count via `rounds+(hi-lo)≤n`,
+  adjacent interval settles to a unique disputed index, the midpoint always advances and a round
+  never widens; plus three SAT negative controls: a reversed branch breaks the invariant, a
+  disagreeing preState is reachable if the constructor guard is dropped, and a growing interval
+  is a bad state the shrink property excludes). This covers the "rollback state machines" open
+  obligation at the optimistic-challenge bisection layer (on-chain recording, round deadlines and
+  fraud-proof payload semantics remain separate). Four new checker self-tests pass; the
+  `BisectionGame.cs` digest is pinned and fails closed on drift. EN/zh model notes record trusted
+  assumptions and limits. Whole-system and C#/NeoVM implementation correctness are NOT claimed.
+
 ### Added — Gateway outbox crash-atomicity (write-order) model — 2026-09-18
 
 - Added `scripts/formal/verify_outbox_crashatomic.py`: an inductive model of the durable

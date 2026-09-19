@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — chain-config spec-correspondence model — 2026-09-18
+
+- Added `scripts/formal/verify_config_spec.py`: a spec-to-implementation correspondence model
+  proving that doc.md §3.2's 12-field `L2ChainConfig` struct exactly partitions the 91-byte
+  wire domain serialized by `L2ChainConfigSerializer`. It proves 12 solver checks (contiguous
+  no-gap/no-overlap offsets strictly increasing in doc.md field order, last field ends at
+  ConfigSize = 91 = sum of field widths, encoding injectivity — equal fields imply equal wire
+  and a differing chainId changes the wire — plus three SAT negative controls for an uncovered
+  trailing byte, an overlapping field pair, and a gap byte breaking determinism). This closes
+  the chain-config wire-format slice of the "spec-to-implementation correspondence" open
+  obligation (settlement/batch/bridge ABI correspondence remains open). Four new checker
+  self-tests pass; the `L2ChainConfigSerializer.cs` and `doc.md` digests are recorded and
+  serializer drift fails closed. EN/zh model notes record trusted assumptions and limits.
+  Whole-system and C#/NeoVM implementation correctness are NOT claimed.
+
 ### Added — optimistic-challenge bisection game model — 2026-09-18
 
 - Added `scripts/formal/verify_bisection.py`: an inductive model of the BisectionGame interval

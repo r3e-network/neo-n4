@@ -1,0 +1,101 @@
+{
+  "schema": "neo-n4/config-spec-model/v1",
+  "wholeSystemVerified": false,
+  "scope": "spec-to-implementation correspondence of doc.md \u00a73.2 L2ChainConfig vs the 91-byte serializer",
+  "solver": "4.15.3",
+  "obligations": [
+    {
+      "name": "fields_are_contiguous_no_gaps",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[]"
+    },
+    {
+      "name": "last_field_ends_at_config_size",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "config_size_equals_field_widths",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "offsets_strictly_increase_in_doc_order",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "field_equality_implies_wire_equality",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "chainid_binds_wire",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "active_bit_in_bounds",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "wire_feasible",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[]"
+    },
+    {
+      "name": "distinct_active_bits_feasible",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[wire = 1406491327091006761175825692894883017880068842816703649988803696035130716293175034132808300495671189897615147855590662358245001368748026741493693432742521986601275397125180880363322614229764452284293216146685166490746880,\n wire2 = 0]"
+    },
+    {
+      "name": "negative_control_trailing_byte_uncovered",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[wire2 = 0,\n wire = 1406491327091006761175825692894883017880068842816703649988803696035130716293175034132808300495671189897615147855590662358245001368748026741493693432742521986601275397125180880363322614229764452284293216146685166490746880]"
+    },
+    {
+      "name": "negative_control_overlap_destroys_field",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[w6 = 0]"
+    },
+    {
+      "name": "negative_control_gap_breaks_determinism",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[wg = 1095216660480, wg2 = 0]"
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten correspondence: doc.md \u00a73.2 field list vs serializer offsets",
+    "the wire buffer is a flat 91-byte little-endian domain",
+    "UInt160 fields are 20 bytes; uint32 chainId is 4 bytes LE",
+    "boolean fields are single bytes (0/1); enum fields single bytes",
+    "this models the wire-format correspondence, not the contract's storage semantics",
+    "the chainId-0-reserved and enum-range guards live at the contract/serializer level"
+  ],
+  "source": "D:\\Git\\neo-n4\\src\\Neo.L2.Abstractions\\Models\\L2ChainConfigSerializer.cs",
+  "spec": "D:\\Git\\neo-n4\\doc.md",
+  "scriptSha256": "20a7446305411a89ae7567809e9fb6651377f453d249458163abef8bdef11bb2",
+  "specSha256": "9d9cd67d5bf568382757704f0ac54e348c79cc373ae354430aeae42b991896b5",
+  "sourceSha256": "e07131fbd2b7388088c3b6771e22f69816d48c4266569571f5ee66a516ea6947",
+  "exitCode": 0
+}

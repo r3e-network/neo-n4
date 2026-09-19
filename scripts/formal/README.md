@@ -3,7 +3,7 @@
 ## Status
 
 **Whole-system formal verification is NOT complete.** This directory contains
-thirteen Z3 models and one CTL model — the `BatchSerializer.Decode` length arithmetic,
+fourteen Z3 models and one CTL model — the `BatchSerializer.Decode` length arithmetic,
 an inductive safety model of the atomic `RegisterChain` registration state machine,
 an inductive safety model of the forced-inclusion FIFO queue, inductive safety
 models of SharedBridge L1 escrow conservation and the L2 bridge token-supply
@@ -12,7 +12,8 @@ an inductive safety model of the DA write-side failover policy, a
 structural-injectivity model of the canonical message/withdrawal preimages,
 inductive safety, crash-recovery, crash-atomicity (write-order) and CTL
 reachability-liveness models of the Gateway publication outbox, an inductive model
-of the optimistic-challenge bisection game, and an inductive safety model of a
+of the optimistic-challenge bisection game, a spec-correspondence model of the
+doc.md §3.2 chain-config wire format, and an inductive safety model of a
 registered chain's settlement state machine — not a verifier for C#/NeoVM
 programs. Property tests, mutation tests and SP1 execution proofs are different
 evidence classes; none is a substitute for a system-wide correctness proof. See
@@ -20,7 +21,8 @@ also settlement-model.md, registration-model.md, forced-inclusion-model.md,
 bridge-conservation-model.md, l2-bridge-model.md, governance-model.md,
 da-failover-model.md, preimage-injectivity-model.md, gateway-outbox-model.md,
 gateway-outbox-recovery-model.md, gateway-outbox-crashatomic-model.md,
-gateway-outbox-liveness-model.md, bisection-model.md and mutation-results.md.
+gateway-outbox-liveness-model.md, bisection-model.md, config-spec-model.md and
+mutation-results.md.
 
 ## Reproduce
 
@@ -42,6 +44,7 @@ python -m venv .venv-formal
 .venv-formal/bin/python scripts/formal/verify_outbox_recovery.py
 .venv-formal/bin/python scripts/formal/verify_outbox_crashatomic.py
 .venv-formal/bin/python scripts/formal/verify_bisection.py
+.venv-formal/bin/python scripts/formal/verify_config_spec.py
 .venv-formal/bin/python scripts/formal/verify_l2_bridge.py
 .venv-formal/bin/python scripts/formal/verify_outbox_liveness.py
 .venv-formal/bin/python scripts/formal/verify_settlement.py
@@ -93,23 +96,26 @@ FIFO/queue, bridge L1 escrow and L2 supply conservation, governance authorizatio
 DA write-side failover, canonical-preimage injectivity, Gateway publication-outbox
 (safety, crash-recovery rehydration, crash-atomicity of the write ordering, and CTL
 reachability-liveness), the optimistic-challenge bisection game (rollback narrowing),
-and settlement state machines are now covered by scoped models (see
-registration-model.md, forced-inclusion-model.md, bridge-conservation-model.md,
-l2-bridge-model.md, governance-model.md, da-failover-model.md,
-preimage-injectivity-model.md, gateway-outbox-model.md, gateway-outbox-recovery-model.md,
-gateway-outbox-crashatomic-model.md, gateway-outbox-liveness-model.md,
-bisection-model.md and settlement-model.md). Each model's trusted assumptions are
-recorded in its notes; none claims more than its stated scope. The outbox
-recovery/crashatomic models cover the protocol-layer recovery rehydration and the
-write-ordering crash-atomicity; they do not model RocksDB's internal WAL or the
-atomicity of a single storage write. Remaining proof obligations include
-spec-to-implementation correspondence; execution semantics; full nonce-replay binding
-and SHA-256 collision resistance; RocksDB's internal WAL/durability and the L1-core
-ChainMode-gated GAS hooks; and composition/liveness under explicit network assumptions.
-These need individual models, reviewed assumptions, counterexamples, implementation
-linkage and reproducible CI evidence. The existing SP1 release gates remain separate:
-they attest execution of a pinned program, not every intended property of that program
-and the surrounding system.
+the doc.md §3.2 chain-config wire-format correspondence, and settlement state machines
+are now covered by scoped models (see registration-model.md, forced-inclusion-model.md,
+bridge-conservation-model.md, l2-bridge-model.md, governance-model.md,
+da-failover-model.md, preimage-injectivity-model.md, gateway-outbox-model.md,
+gateway-outbox-recovery-model.md, gateway-outbox-crashatomic-model.md,
+gateway-outbox-liveness-model.md, bisection-model.md, config-spec-model.md and
+settlement-model.md). Each model's trusted assumptions are recorded in its notes;
+none claims more than its stated scope. The outbox recovery/crashatomic models cover
+the protocol-layer recovery rehydration and the write-ordering crash-atomicity; they
+do not model RocksDB's internal WAL or the atomicity of a single storage write. The
+config-spec model covers the chain-config wire-format correspondence slice only;
+broader spec-to-implementation correspondence (settlement ABI, batch ABI, bridge ABI
+beyond the config) remains open. Remaining proof obligations include
+spec-to-implementation correspondence beyond the config wire format; execution
+semantics; full nonce-replay binding and SHA-256 collision resistance; RocksDB's
+internal WAL/durability and the L1-core ChainMode-gated GAS hooks; and
+composition/liveness under explicit network assumptions. These need individual
+models, reviewed assumptions, counterexamples, implementation linkage and reproducible
+CI evidence. The existing SP1 release gates remain separate: they attest execution of a
+pinned program, not every intended property of that program and the surrounding system.
 
 After earlier failed/cancelled attempts, two complete Stryker runs now provide
 measured evidence: 74.81% before and 91.60% after four targeted regressions.

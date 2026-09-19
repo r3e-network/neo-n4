@@ -2,18 +2,18 @@
 
 ## 状态
 
-**全系统形式化验证尚未完成。** 本目录包含十三个 Z3 模型与一个 CTL 模型——BatchSerializer.Decode
+**全系统形式化验证尚未完成。** 本目录包含十四个 Z3 模型与一个 CTL 模型——BatchSerializer.Decode
 长度算术、原子 RegisterChain 注册状态机、强制包含 FIFO 队列、SharedBridge L1 escrow
 守恒、L2 桥代币供给账本、GovernanceController 授权门、DA 写入侧失效切换策略、消息/提款
 canonical preimage 结构注入性、Gateway 发布 outbox（归纳安全、崩溃恢复再水合、写入顺序
-崩溃原子性、CTL 可达性活性）、乐观挑战二分游戏，以及已注册链结算状态机的归纳安全模型
-——不是 C#/NeoVM 程序验证器。性质测试、变异测试与 SP1 执行证明属于不同证据，均不能
-替代全系统正确性证明。另见 settlement-model.md、registration-model.md、
-forced-inclusion-model.md、bridge-conservation-model.md、l2-bridge-model.md、
-governance-model.md、da-failover-model.md、preimage-injectivity-model.md、
-gateway-outbox-model.md、gateway-outbox-recovery-model.md、gateway-outbox-crashatomic-model.md、
-gateway-outbox-liveness-model.md、bisection-model.md（中文要点见下文）与
-mutation-results.zh.md。
+崩溃原子性、CTL 可达性活性）、乐观挑战二分游戏、doc.md §3.2 链配置线格式对应性，以及
+已注册链结算状态机的归纳安全模型——不是 C#/NeoVM 程序验证器。性质测试、变异测试与
+SP1 执行证明属于不同证据，均不能替代全系统正确性证明。另见 settlement-model.md、
+registration-model.md、forced-inclusion-model.md、bridge-conservation-model.md、
+l2-bridge-model.md、governance-model.md、da-failover-model.md、
+preimage-injectivity-model.md、gateway-outbox-model.md、gateway-outbox-recovery-model.md、
+gateway-outbox-crashatomic-model.md、gateway-outbox-liveness-model.md、bisection-model.md、
+config-spec-model.md（中文要点见下文）与 mutation-results.zh.md。
 
 结算模型（`verify_settlement.py`）对提交、两步终局化、原子终局化与故障停等
 四种转移证明了基态满足与归纳保持：批次 N 的 pre 根等于批次 N-1 的 post 根
@@ -44,6 +44,7 @@ python -m venv .venv-formal
 .venv-formal/bin/python scripts/formal/verify_outbox_recovery.py
 .venv-formal/bin/python scripts/formal/verify_outbox_crashatomic.py
 .venv-formal/bin/python scripts/formal/verify_bisection.py
+.venv-formal/bin/python scripts/formal/verify_config_spec.py
 .venv-formal/bin/python scripts/formal/verify_l2_bridge.py
 .venv-formal/bin/python scripts/formal/verify_outbox_liveness.py
 .venv-formal/bin/python scripts/formal/verify_settlement.py
@@ -91,18 +92,20 @@ PublicInputs 是 352 字节（ForcedInclusionCount 在偏移 348），不是这�
 不提供全系统完成百分比。注册、强制包含 FIFO/队列、桥接 L1 escrow 与 L2 供给守恒、
 治理授权、DA 写入侧失效切换、canonical preimage 结构注入性、Gateway 发布 outbox
 （归纳安全、崩溃恢复再水合、写入顺序崩溃原子性、CTL 可达性活性）、乐观挑战二分游戏
-（rollback 收窄）与结算状态机现由有限范围模型覆盖（见 registration-model.md /
-forced-inclusion-model.md / bridge-conservation-model.md / l2-bridge-model.md /
-governance-model.md / da-failover-model.md / preimage-injectivity-model.md /
-gateway-outbox-model.md / gateway-outbox-recovery-model.md /
+（rollback 收窄）、doc.md §3.2 链配置线格式对应性与结算状态机现由有限范围模型覆盖
+（见 registration-model.md / forced-inclusion-model.md / bridge-conservation-model.md /
+l2-bridge-model.md / governance-model.md / da-failover-model.md /
+preimage-injectivity-model.md / gateway-outbox-model.md / gateway-outbox-recovery-model.md /
 gateway-outbox-crashatomic-model.md / gateway-outbox-liveness-model.md /
-bisection-model.md / settlement-model.md）。各模型的信任假设在各自文档中如实记录，均不
-声称超出其所述范围。outbox 的 recovery/crashatomic 模型覆盖协议层恢复再水合与写入顺序
-崩溃原子性；它们不建模 RocksDB 内部 WAL 或单次存储写的原子性。未关闭的证明义务包括：
-规范与实现对应、执行语义、完整 nonce 重放绑定与 SHA-256 抗碰撞、RocksDB 内部
-WAL/持久化与 L1 核心 ChainMode 门控 GAS 钩子，以及明确网络假设下的组合正确性和活性。
-每项均需要模型、审核后的假设、反例、实现关联和可复核 CI 证据。SP1 发布检查保持独立：
-它证明固定程序的执行，不代表程序与外围系统满足所有预期性质。
+bisection-model.md / config-spec-model.md / settlement-model.md）。各模型的信任假设在
+各自文档中如实记录，均不声称超出其所述范围。outbox 的 recovery/crashatomic 模型覆盖
+协议层恢复再水合与写入顺序崩溃原子性；它们不建模 RocksDB 内部 WAL 或单次存储写的
+原子性。config-spec 模型仅覆盖链配置线格式对应性切片；更广的 spec-to-implementation
+对应性（结算 ABI、批次 ABI、配置之外的桥接 ABI）仍未关闭。未关闭的证明义务包括：
+配置线格式之外的 spec 对应、执行语义、完整 nonce 重放绑定与 SHA-256 抗碰撞、
+RocksDB 内部 WAL/持久化与 L1 核心 ChainMode 门控 GAS 钩子，以及明确网络假设下的
+组合正确性和活性。每项均需要模型、审核后的假设、反例、实现关联和可复核 CI 证据。
+SP1 发布检查保持独立：它证明固定程序的执行，不代表程序与外围系统满足所有预期性质。
 
 早期失败/取消的尝试之后，现已完成两次 Stryker 实测：补充四项针对性回归后，
 分数从 74.81% 提升到 91.60%。完整报告、剩余变异及分数排除项见

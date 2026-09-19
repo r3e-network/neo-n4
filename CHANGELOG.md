@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — batch-commitment spec-correspondence model — 2026-09-18
+
+- Added `scripts/formal/verify_batch_spec.py`: a spec-to-implementation correspondence model
+  proving that walking doc.md §3.2's 14 declared `L2BatchCommitment` fields in order with the
+  standard C# wire widths derives exactly the implemented offsets chainId@0 .. proofType@316,
+  that the proof region is a 4-byte length prefix at [317,321) plus payload at 321 (fixed header
+  = 321 = HeaderMinLength), that the public-inputs domain is exactly 352 bytes with the
+  documented sub-offsets, and that the 15-field partition of [0,321) (fixed fields + proofLen
+  prefix) makes the header encoding injective. Three SAT negative controls for a dropped
+  publicInputHash, an uncovered forcedInclusionCount, and an omitted proofLen prefix. This
+  closes the batch-commitment wire-format slice of the "spec-to-implementation correspondence"
+  open obligation (settlement/bridge ABI remains open). Four new checker self-tests pass;
+  fail-closed via source anchors (serializer layout docs + contract OffsetProofType/
+  HeaderMinLength), robust to comment changes. EN/zh model notes record trusted assumptions.
+  Whole-system and C#/NeoVM implementation correctness are NOT claimed.
+
 ### Added — chain-config spec-correspondence model — 2026-09-18
 
 - Added `scripts/formal/verify_config_spec.py`: a spec-to-implementation correspondence model

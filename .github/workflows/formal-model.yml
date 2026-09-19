@@ -47,6 +47,8 @@ jobs:
         run: python scripts/formal/verify_bisection.py
       - name: Verify chain-config spec-correspondence model
         run: python scripts/formal/verify_config_spec.py
+      - name: Verify batch-commitment spec-correspondence model
+        run: python scripts/formal/verify_batch_spec.py
       - name: Verify L2-bridge supply-conservation safety model
         run: python scripts/formal/verify_l2_bridge.py
       - name: Verify gateway-outbox reachability-liveness model (CTL)
@@ -71,6 +73,7 @@ jobs:
             scripts/formal/gateway-outbox-crashatomic-result.json
             scripts/formal/bisection-result.json
             scripts/formal/config-spec-result.json
+            scripts/formal/batch-spec-result.json
             scripts/formal/gateway-outbox-liveness-result.json
             scripts/formal/l2-bridge-result.json
             scripts/formal/settlement-result.json

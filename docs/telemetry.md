@@ -166,11 +166,11 @@ backend automatically participates.
 - `l2.da.published` — counter — `mode` — DA payloads published successfully
 - `l2.da.publish_latency_ms` — histogram — `mode` — Wall-clock milliseconds for each DA publish
 - `l2.da.publish_failures` — counter — `mode` — DA publishes that threw
-- `l2.da.is_available_checks` — counter — `mode` — Availability probe attempts
-- `l2.da.is_available_results` — gauge — `mode` — Result of latest availability check (1 = available, 0 = unavailable)
-- `l2.da.pending_batches` — gauge — Batches awaiting DA confirmation
+- `l2.da.is_available_checks` — counter — `mode` — Availability probe attempts (emitted by the decorator)
+- `l2.da.is_available_results` — gauge — `mode` — Result of latest availability check (1 = available, 0 = unavailable; emitted by the decorator)
+- `l2.da.pending_batches` — gauge — _not yet emitted; reserved for tracking batches awaiting DA confirmation_
 
-**Mode-Specific Metrics:**
+**Mode-Specific Metrics** _(not yet emitted; reserved contracts — the decorator currently emits only the generic `l2.da.*` metrics above):_
 
 #### NeoFS REST Gateway
 - `l2.da.neofs_upload_size_bytes` — histogram — Upload payload sizes

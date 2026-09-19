@@ -5,6 +5,356 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway outbox crash-recovery consistency model — 2026-09-18
+
+- Added `scripts/formal/verify_outbox_recovery.py`: a consistency model of the Gateway outbox
+  `Recover()` rehydration (GatewayOutbox.cs). It proves 7 solver checks (a Confirmed item is
+  never re-sealed, an orphaned Proving item is demoted to Sealed, a non-active item in
+  Proved/Submitted/Poisoned is corruption not silently rehydrated, a declared checkpoint
+  constituent must be present, and recovery is a deterministic function of the persisted
+  snapshot; plus SAT feasibility for a corrupt snapshot and a valid snapshot). This covers the
+  protocol-layer crash-recovery guarantee of the "RocksDB crash-consistency / recovery"
+  obligation (RocksDB's internal WAL / per-write atomicity and the durable write-ordering
+  argument remain separate). Five new checker self-tests pass; the `GatewayOutbox.cs` digest is
+  pinned and fails closed on drift. EN/zh model notes record trusted assumptions and limits.
+  Whole-system and C#/NeoVM implementation correctness are NOT claimed.
+
+### Added — Gateway outbox CTL reachability-liveness model — 2026-09-18
+
+- Added `scripts/formal/verify_outbox_liveness.py`: a CTL temporal-logic model of the
+  Gateway publication outbox checked with the `pyModelChecking` model checker (added to
+  `scripts/formal/requirements.txt`). It proves 10 solver checks over a Kripke structure
+  (Sealed→Proving→Proved→Submitted→Confirmed, Poisoned on retry exhaustion, operator
+  recovery Poisoned→Proving, Confirmed terminal): sealed/publication is eventually
+  confirmable, every reachable state has a path to Confirmed, Poisoned is recoverable, no
+  deadlock trap, and three negative controls where dropping recovery/confirm/prove flips the
+  property to false. Liveness is honestly scoped to reachability-liveness (EF/AG EF), not
+  unconditional termination under operator re-entry, which the real outbox does not guarantee.
+  Two new checker self-tests pass. This installs the requested temporal-logic facility and
+  covers the outbox state machine's composition/liveness obligation at finite-state level
+  (full cross-component composition, network-time liveness and SP1 proof liveness remain
+  separate). Whole-system and C#/NeoVM implementation correctness are NOT claimed.
+
+### Added — L2 bridge token-supply conservation induction model — 2026-09-18
+
+- Added `scripts/formal/verify_l2_bridge.py`: an inductive safety model of the L2 bridge
+  token-supply ledger (external/neo L2NativeContracts.cs ApplyDeposit/InitiateWithdrawal).
+  It proves 15 solver checks (circulating supply = minted - burned, never negative; deposits
+  mint replay-protected per (sourceChainId, nonce); withdrawals burn under the balance guard;
+  platform GAS/NEO follow the same path so GAS is not issued on L2 outside the bridge mint;
+  plus four SAT negative controls including a replayed deposit doubling supply from one L1
+  event). This closes the "L2 mint/burn / GAS" open obligation at the bridge-supply ledger
+  layer (the L1-core ChainMode-gated GAS hooks and BridgedNep17 internals remain separate).
+  Five new checker self-tests pass; the `L2NativeContracts.cs` digest is pinned and fails
+  closed on drift. EN/zh model notes record trusted assumptions and limits. Whole-system and
+  C#/NeoVM implementation correctness are NOT claimed.
+
+### Added — Gateway publication-outbox induction model — 2026-09-18
+
+- Added `scripts/formal/verify_outbox.py`: an inductive safety model of the Gateway
+  publication outbox state machine (GatewayOutbox.cs + L2GatewayPlugin.cs). It proves 17
+  solver checks (state progression Sealed→Proving→Proved→Submitted→Confirmed with Confirmed
+  terminal, L1 confirmation requires Submitted, RetryCount non-negative and monotone, Poisoned
+  only after RetryCount reaches maxAutomaticRetries, RecoverPoisonedPublication only from a
+  poisoned publication resetting retry to 0 into an active state, plus four SAT negative
+  controls for dropped guards). This covers the L1-confirm / poison / recover protocol layer of
+  the "DA/recovery" and "L1 confirm" obligations (RocksDB internal crash-consistency, durable
+  write ordering, and L1 RPC confirmation semantics remain separate). Five new checker
+  self-tests pass; both GatewayOutbox.cs and L2GatewayPlugin.cs digests are pinned and fail
+  closed on drift. EN/zh model notes record trusted assumptions and limits. Whole-system and
+  C#/NeoVM implementation correctness are NOT claimed.
+
+### Added — DA write-side failover and preimage-injectivity induction models — 2026-09-18
+
+- Added `scripts/formal/verify_da_failover.py`: an inductive safety model of the
+  FailoverDAWriter publish loop. It proves 14 solver checks (only a transient IOException
+  advances tiers, a non-transient/cancel/malformed-receipt is never masked by a fallback, a
+  successful publish returns a receipt binding Hash256(payload) with this profile's metadata,
+  the constructor's same-mode/same-receipt-kind invariant prevents any DA profile downgrade,
+  success/fatal are disjoint, and all-tiers-failed iff every tier was transient; plus three
+  SAT negative controls). This covers the write-side DA failover policy half of the "DA/recovery"
+  open obligation (RocksDB crash-consistency / durability / L1 confirm remain separate).
+- Added `scripts/formal/verify_preimage.py`: a structural-injectivity model of the
+  MessageHasher canonical message/withdrawal preimages. It proves 13 solver checks (each of
+  chainId/targetChainId/nonce/sender/receiver/messageType plus the length-prefixed payload
+  binds the preimage, the chainId domain-separator prevents cross-L2 inclusion replay at the
+  preimage level, and three SAT negative controls for dropping a length-prefix/nonce/chainId
+  guard). Under the trusted collision-free Hash256 assumption this covers the nonce/chainId
+  replay-binding and structural message-hashing halves of those open obligations (SHA-256
+  collision resistance itself is a separate trusted assumption). Five new checker self-tests
+  each; both source digests are pinned and fail closed on drift. EN/zh model notes record
+  trusted assumptions and limits. Whole-system and C#/NeoVM implementation correctness are
+  NOT claimed.
+
+### Added — governance-authorization gate induction model — 2026-09-18
+
+- Added `scripts/formal/verify_governance.py`: an inductive safety model of the
+  GovernanceController authorization gate behind `IsApprovedAndTimelocked`. It proves 26
+  solver checks (approve/veto/advance-time each preserve the invariant and the gate's five
+  implications — threshold reached, not vetoed, timelock elapsed, epoch match; veto blocks the
+  gate permanently; plus four SAT negative controls for dropping a single gate conjunct:
+  unapproved proposal, vetoed proposal, pre-timelock execution, stale epoch). This closes the
+  "governance authorization" open obligation in README's open-work list for the authorization
+  gate (cryptographic signature checks remain separate). Five new checker self-tests pass; the
+  `GovernanceControllerContract.cs` digest is pinned and fails closed on drift. EN/zh model
+  notes record trusted assumptions and limits. Whole-system and C#/NeoVM implementation
+  correctness are NOT claimed.
+
+### Added — bridge L1-escrow conservation induction model — 2026-09-18
+
+- Added `scripts/formal/verify_bridge.py`: an inductive safety model of SharedBridge
+  per-(chainId, asset) escrow accounting. It proves 14 solver checks (escrow never negative,
+  `locked == deposited - paid` conservation, payouts never exceed deposits, a withdraw equal
+  to the escrow drains to zero, plus three SAT negative controls for over-payout, double
+  payout, and mint-out-of-nothing). This closes the "bridge conservation" open obligation in
+  README's open-work list at the L1 escrow-ledger level (L2 mint/burn and GAS remain separate).
+  Five new checker self-tests pass; the `SharedBridgeContract.cs` digest is pinned and fails
+  closed on drift. EN/zh model notes record trusted assumptions and limits. Whole-system and
+  C#/NeoVM implementation correctness are NOT claimed.
+
+### Added — forced-inclusion FIFO queue induction model — 2026-09-18
+
+- Added `scripts/formal/verify_forced_inclusion.py`: an inductive safety model of the
+  RollupHub anti-censorship FIFO queue (head/tail counters). It proves 18 solver checks
+  (nonce uniqueness via strict tail increase, head/tail monotonicity, no underflow on
+  consume, pending-count non-negativity, plus three SAT negative controls for a dropped
+  underflow guard, uint64 tail wrap, and FIFO pointer discipline). This partially closes
+  the "nonce/replay" open obligation in README's open-work list for the queue/nonce layer
+  (full nonce-replay binding and message hashing remain separate). Five new checker
+  self-tests pass; source digest is pinned to the migrated `RollupHubContract.cs` and fails
+  closed on drift. EN/zh model notes record trusted assumptions and the uint64 wrap
+  boundary. Whole-system and C#/NeoVM implementation correctness are NOT claimed.
+
+### Added — registration state machine induction model — 2026-09-18
+
+- Added `scripts/formal/verify_registration.py`: an inductive safety model of the atomic
+  `RegisterChain`. It proves 21 solver checks (13 UNSAT safety + 4 SAT reachability + 1 UNSAT
+  active-definition soundness + 3 SAT negative controls) that config and the immutable non-zero
+  genesis root are stored atomically and co-present, that no partially initialized chain is ever
+  observable as active, and that a set genesis root is immutable across every transition. This
+  closes the previously open "registration state machine" obligation in README's open-work list and
+  supplies, at the proof level, the "chain registered + genesis root present" premise the settlement
+  model assumes. Five new checker self-tests pass; source digest is pinned to the migrated
+  `RollupHubContract.cs` and fails closed on drift. EN/zh model notes record trusted assumptions.
+  Whole-system and C#/NeoVM implementation correctness are NOT claimed.
+
+### Fixed — RollupHub atomic registerChain; REG-ATOMIC-01 closed — 2026-09-18
+
+- `contracts/NeoHub.RollupHub/RollupHubContract.cs` registration is now the single atomic
+  entry `RegisterChain(uint chainId, byte[] configBytes, UInt256 genesisStateRoot)`, which
+  persists config and the immutable non-zero genesis root in one call as doc.md §3.2 requires.
+  The separate `registerGenesisStateRoot` ABI was removed: no two-transaction path exists, so a
+  chain can no longer be configured-but-unanchored. Re-registration is idempotent (same-root
+  config refresh allowed; a different root — or a zero root — is rejected). `IsActive(chainId)`
+  (renamed from `IsChainActive`) returns `config[OffsetActive]==1 && genesis-root present`, and
+  the CLI's post-registration verify (`isActive` + `getGenesisStateRoot`) now matches the ABI it was
+  written against, as does the 3-arg `registerChain` the CLI already broadcast.
+- Regenerated `tests/NeoHub.Contracts.VmTests/TestingArtifacts/NeoHubRollupHub.artifacts.cs` and
+  `NeoHub.RollupHub.nef` (nccs 3.9.1), verified base64↔raw-NEF round-trip, manifest equality, and
+  that `isActive`/3-arg `registerChain` are present and `registerGenesisStateRoot` is gone.
+- `tests/NeoHub.Contracts.VmTests/UT_RollupHub_Vm.cs` migrated to the atomic signature; added
+  `RegisterChain_IsAtomic_ActiveAndIdempotent` (zero root rejected, same-root re-registration
+  allowed, different root rejected, pause/resume/update all gated on the anchored root). All
+  `ChainRegistry_*` / forced-inclusion / SharedBridge / canonical-parity call sites now register
+  through the single atomic call.
+- `scripts/formal/verify_settlement.py` `REVIEWED_SOURCE_SHA256` re-pinned to the migrated
+  `RollupHubContract.cs` digest (source changed → fail-closed re-review as designed). Both SMT
+  models re-run green (length 8 queries PROVEN, settlement 21 obligations passed); 7 self-tests
+  pass; VmTests project 623/623. `settlement-model.md`/`.zh` REG-ATOMIC-01 status updated to
+  "closed": the atomic registration and genesis guard are now enforced by contract ABI + VM tests.
+
+### Added — scoped settlement induction model — 2026-09-18
+
+- Added `scripts/formal/verify_settlement.py`: a handwritten registered-chain
+  transition model with 21 solver checks (13 UNSAT safety queries, five SAT
+  feasibility checks, three SAT negative controls). It checks genesis anchoring,
+  relative root continuity, verified-history preservation, canonical-head consistency
+  and monotone height across submit/finalize/atomic/fault-stutter transitions.
+  Seven checker self-tests (five settlement, two length) pass; existing RollupHub VM
+  tests pass 15/15. Whole-system and C#/NeoVM implementation correctness are NOT
+  claimed. Full normalized source digest forces correspondence re-review on drift.
+- Extended the formal CI workflow to execute and retain both model reports; remote
+  CI execution has not been observed. EN/zh model notes record trusted assumptions
+  and the outstanding registration discrepancy: doc.md §3.2 requires atomic
+  config/genesis registration, but current RollupHub exposes separate entry points.
+  This model assumes both registrations have already completed; no ABI or contract
+  logic was changed to make the proof pass.
+
+### Fixed — formal-verification evidence corrected to match what the tests actually verify — 2026-09-17
+
+- **Removed fabricated evidence claims** in `tests/Neo.L2.Batch.UnitTests/FormalVerification/`:
+  the mutation-testing summary no longer hard-codes a "100% mutation score" (no mutation
+  runner exists; the rewritten tests are honest production-path sensitivity checks — hash/layout
+  mutants are killed by independent double-SHA256 cross-checks and 352-byte field-boundary
+  assertions); governance/committee/challenge "property" tests no longer assert a local
+  dictionary model, a local epoch counter, or fabricated ">99.99% confidence" — they now test
+  the real `BatchSerializer.EncodePublicInputs`/`StateRootCalculator.HashPublicInputs` pair and
+  the `RpcOptimisticChallengeClient` fail-closed guards, with XML docs pointing at the actual
+  on-chain coverage in `NeoHub.Contracts.VmTests`.
+- **`UT_L2BatchCommitment_Simplified` rewritten against the production encoder**: the old
+  little-endian test exercised `BinaryPrimitives` on a local stack buffer, not `BatchSerializer`.
+  The replacement suite round-trips all 9 roots + proof bytes over 64 seeded cases, injects full
+  unsigned bit-width boundaries (0 / 1 / high-bit / MaxValue for uint+ulong), asserts production
+  encoded bytes at canonical offsets (ChainId@0 … ProofType@316, proofLen@317, proof@321), and
+  compares against a hand-computed 322-byte golden vector (`ProofType.Multisig` = 0x01 per the
+  production enum). Decoder rejection paths (lastBlock<firstBlock, unknown ProofType byte,
+  truncation, trailing bytes) are pinned.
+- **Measured BatchSerializer mutation campaign**: Stryker.NET 5.0.0 completed
+  two runs (exit 0), with identical filters. Four new tests cover every encoder null
+  root, reversed public-input block ranges, and oversized proof data whose total
+  buffer length matches the declaration. Killed mutants rose from 98 to 120;
+  survivors fell from 29 to 7. Four NoCoverage, two CompileError and six Ignored
+  remain; scores are 74.81% then 91.60%, not 100%. Full JSON snapshots and triage
+  are retained under `scripts/formal/`. Batch regression: 136 passed, 0 failed.
+  The attempted commit was blocked by Mimosa (26 high / 3 medium candidates);
+  no bypass was attempted and no commit was created.
+- **Scoped SMT proof infrastructure**: `scripts/formal/verify_batch_length.py`
+  uses pinned Z3 4.15.3.0 to check signed int32 proof-length arithmetic against a
+  64-bit exact sum under the existing 1 MiB guard. Three counterexample queries
+  are UNSAT; nonempty/boundary premises and a weakened-guard negative control are
+  SAT. Two checker self-tests pass. Source and script hashes, assumptions and exit
+  status are retained in `batch-length-result.txt`; `formal-model.yml` repeats the
+  checks in CI (workflow added, remote execution not observed). This is a guard
+  arithmetic model with trusted cursor/control-flow correspondence, NOT C# symbolic
+  execution or whole-system formal verification. EN/zh instructions document the
+  remaining obligations. Public-input XML documentation now correctly says 352
+  bytes and includes ForcedInclusionCount at offset 348; wire code is unchanged.
+- **Phase 3 verification claims narrowed to executable regressions**:
+  `UT_Phase3AdvancedProperties` replaces its four misleading properties with
+  production-path checks: serialized sequences audited by `ChainAuditor`, ordered
+  serializer equality for independent equal inputs, deposit-message nonce/destination
+  binding, and Merkle inclusion with changed-leaf/root/sibling rejection. Merkle roots
+  are also compared with the vendored Neo implementation. These tests do not prove
+  executor determinism, nonce allocation, replay prevention, or withdrawal settlement.
+  Focused tests: 4 passed; full Batch project after the rewrite: 132 passed, 0 failed,
+  0 skipped. The full solution baseline passed before this rewrite, not after it.
+  Repository evidence review does not establish whole-system formal verification:
+  sampled tests and SP1 execution proofs are not a proof of all system requirements.
+  Existing certification and mutation-score reports must not be used as acceptance
+  evidence without reproducible proof/run artifacts. An isolated Stryker 5.0.0
+  installation succeeded, but the attempted invocation failed argument parsing;
+  no mutation campaign ran and no mutation score is reported.
+- **Extended continuity regression now invokes production enforcement**:
+  `UT_ExtendedVerification_Properties` no longer treats serialized fixture assignments
+  as evidence of state continuity or claims >99.99% confidence. It calls
+  `ContinuityCheck` on 32 linked commitments, then independently corrupts each of the
+  31 relative links and asserts a failing finding identifying the affected batch.
+  The Batch test project explicitly references `Neo.L2.Audit`. This verifies relative
+  link diagnostics, not genesis anchoring, state execution, or on-chain settlement.
+  Focused regression: 1 passed; full Batch project: 132 passed, 0 failed, 0 skipped.
+- **Equality axiom test actually exercises transitivity**: the previous test generated 1000
+  pairwise-distinct objects behind `if (a.Equals(b) && b.Equals(c))`, so the transitivity assert
+  never executed; content-equal independent-buffer copies now run it for real, and symmetry
+  covers both equal and unequal pairs.
+- **Docs**: new design docs have Chinese counterparts (`docs/zh/l2-fee-pricing-design.md`,
+  `docs/zh/l2-auto-recovery-design.md`, `scripts/private-network/metrics/README.zh.md`); the
+  Chinese metrics README corrects the English original's overstatements (self-scrape does not
+  produce node `l2_*` series; `/api/v1/rules` reads state, it does not force-evaluate rules);
+  `TECH_STACK.md` doc counts refreshed (47 EN + 57 zh); the maintained-document translation gate
+  now carries an exact 21-path list of archived root reports (excluded from the gate only; their
+  certification claims are NOT endorsed — they predate the evidence corrections above).
+- **Verification**: full `Neo.L2.sln` regression exit 0, 3169 passed / 0 failed across 38 test
+  projects (Batch 132, VmTests 622, Deploy doc-gates 111 included). P14 concurrency timing
+  assertion passed this run but remains wall-clock sensitive; archived report translations and
+  the 15 Mimosa scan-candidate triage remain open.
+
+- **P14 concurrency test no longer claims linear scaling**: the old assertion timed
+  100 jobs on the thread pool vs 400 jobs and demanded a 0.75x speedup ratio — a
+  wall-clock race that failed spuriously under CI load (both phases are already
+  concurrent). The replacement test pins the real property — concurrent `Encode`
+  output matches a serial baseline byte-for-byte for 400 batches, including decode
+  round-trip inside each worker — and prints timings as diagnostics only.
+- **P04/P15 "size growth"/"bottleneck" tests were measuring a constant**: a
+  commitment carries no transaction payload (content is bound by `TxRoot`), so all
+  five "tx count" fixtures encoded identical 321-byte constants. P04's R² ran over
+  equal sizes (ssTot=0 → NaN → assertion silently skipped); P15's "correlation" was
+  an adjacent-timing min/max ratio that never involved input size. Both are replaced
+  by deterministic assertions: P04 pins that block-range metadata does not change the
+  321-byte fixed size; P15 sweeps real variable-size payloads (proof lengths 0 … 1 MiB
+  including the 1 MiB cap) asserting exact length (321+len), unchanged 317-byte header,
+  little-endian length prefix, payload contents, and decode round-trip. The
+  `CalculateLinearRegression` / `CalculatePairwiseCorrelation` helpers are removed.
+  Fixture renamed `CreateBatchWithTransactions` → `CreateCommitmentFixture` (the old
+  name asserted a payload that does not exist).
+- **DA availability metrics no longer treat cancellation as an outage**:
+  `MetricsEmittingDAWriter.IsAvailableAsync` rethrows `OperationCanceledException`
+  without touching the `l2.da.is_available_results` gauge (operator shutdown must not
+  paint the backend red); the stale "pass-through" XML summary was corrected too.
+  Regression `IsAvailableAsync_Cancellation_Propagates_WithoutTouchingResultGauge`
+  seeds the gauge to 1.0 and asserts it survives a cancelled probe (DA suite 122/122).
+- **Build hygiene**: removed the dangling `Neo.L2.UnitTests` ProjectReference from
+  `tests/Neo.L2.Batch.UnitTests` (MSB9008 on every build; the directory exists only as
+  untracked work-in-progress with no referenced types); Batch project now builds with
+  0 warnings.
+- **Monitoring README accuracy** (`scripts/private-network/metrics/README.md`): the
+  English original is now aligned with the corrected Chinese version — Prometheus
+  self-scraping does not produce node `l2_*` series; `/api/v1/rules` reads state and
+  does not force-evaluate rules; alert validation belongs in `promtool test rules`
+  fixtures, not in poisoning a real settlement head; notification delivery is unproven
+  until a wired receiver is exercised; alert-authoring guidance now covers the
+  idle-traffic vs stalled-processing distinction (short `increase` windows with `for`
+  both false-page on idle chains and miss isolated events).
+- **Mimosa scan-candidate triage for repo-owned paths**: `sdk/python` HTTP transport
+  (`_http_call`) and `scripts/ci/run_sdk_conformance.py` `run()` were reviewed —
+  endpoint is constructor-validated to absolute http(s), no shell interpolation
+  (`subprocess.run` list-form, `check=False`), and a non-zero suite exit already maps
+  to a recorded error + exit 1 (`validation_errors`, runner tests 15/15 including the
+  `missing-sdk-runner` OSError path). This inspection did not establish an exploitable
+  path in those snippets; it is not a complete SDK security assessment. HTTP(S)
+  validation alone does not prevent SSRF when an application accepts untrusted endpoint
+  configuration. Vendored-code and fixture-key candidates still require individual
+  triage; the commit gate is not a substitute for that review.
+- **Verification**: full `Neo.L2.sln` regression exit 0: 3170 passed, 0 failed,
+  5 skipped, 3175 total across 38 test assemblies. Skips include live-node, native
+  executor and DNS checks. Batch 132/132 with 0 build warnings; L2DA 122/122;
+  doc gates 9/9; SDK conformance runner tests 15/15. Still open and NOT claimed fixed:
+  archived report translations, live
+  monitoring acceptance, production wiring of DR seams, end-to-end forced-inclusion ABI
+  verification, real-SP1 release gates, and external/ vendored-code candidates.
+
+### Added — operator monitoring stack, DA availability metrics, and DR recovery seams — 2026-09-17
+
+- **Monitoring/alerting stack** under `scripts/private-network/metrics/`: 10 Prometheus alert
+  rules (`prometheus-alerts.yml`) over the canonical metric catalog, an Alertmanager service +
+  config wired into `docker-compose.yml` / `prometheus.yml`, and a 20-panel provisioned Grafana
+  dashboard (`neo-n4-overview.json`). Every referenced metric name is verified against
+  `MetricNames`/`MetricCatalog`; histogram panels use summary `_sum/_count/_max` (the in-process
+  exporter has no buckets). Grafana datasource is provisioned with a fixed UID
+  (`neo-n4-prometheus`) so panel datasource references survive re-provisioning.
+- **DA availability metrics implemented**: `MetricsEmittingDAWriter.IsAvailableAsync` now emits
+  `l2.da.is_available_checks` (counter) + `l2.da.is_available_results` (gauge, 1/0, unavailable
+  on probe exception) instead of a silent pass-through; `docs/telemetry.md` marks
+  `pending_batches` and the NeoFS/L1 mode-specific metrics as reserved/not-yet-emitted.
+- **DR seam 1 — DA endpoint failover**: `FailoverDAWriter` requires all endpoints to share a
+  fixed DA mode and receipt kind, forbidding NeoFS/L1-to-Local downgrade. Only IO failures
+  advance to another endpoint; cancellation, protocol errors and invalid receipt metadata or
+  payload commitments propagate without fallback. Matching-receipt availability probes may
+  try multiple endpoints. Callers own the undecorated-endpoint metrics boundary; production
+  wiring and a paired independent reader remain unimplemented.
+- **DR seam 2 — prover timeout retry**: `RetryingGatewayProofProver` wraps an idempotent
+  `IGatewayProofProver`; `TimeoutException` triggers resubmit with exponential backoff capped at
+  one minute; non-finite multipliers and out-of-range initial backoff are rejected by the
+  constructor; fail-closed errors (`InvalidDataException`, `ArgumentException`) are never
+  retried; cancellation is honored before and between attempts.
+- **Design-only documents** (spec-gated, per AGENTS.md config rules): `docs/l2-fee-pricing-design.md`
+  (committee-set `BaseFee` + optional L1 DA data-cost pass-through complementing
+  `L2FeeContract`/`L2PaymasterContract`) and `docs/l2-auto-recovery-design.md`
+  (detection→action orchestration over existing health/metrics signals; resource-level actions
+  automatic, fund-level actions stay manual).
+- **Status correction**: consolidated `RollupHubContract.EnqueueForcedTransaction` already
+  provides an on-chain forced-inclusion entry point; absence of a standalone
+  `NeoHub.ForcedInclusion` project is not evidence of a missing capability. End-to-end ABI
+  compatibility verification (contract ↔ RPC scanner ↔ finalizer) remains an acceptance gate.
+- **Forced-inclusion scanner fails closed on the consolidated ABI**: the durable event scanner
+  now throws (and never advances its cursor) when the configured contract emits RollupHub's
+  3-field `ForcedTransactionEnqueued`, whose queue lacks the `getEntry`/`isConsumed`/proof-based
+  `consume` ABI this source requires — silently skipping would permanently lose those entries.
+  Foreign-contract events of the same name remain ignored.
+- Tests: Telemetry completeness 117/117, L2DA 121/121, L2Gateway 114/114, ForcedInclusion 41/41.
+  Live docker-compose
+  bring-up of the monitoring stack was not possible in this environment (Docker Linux engine
+  unavailable); JSON/YAML/compose validation is static only.
+
 ### Fixed — public-inputs wire domain is 352 bytes end-to-end (C# ↔ Rust ↔ fixtures) — 2026-09-09
 
 - Wave 2 had extended the **hash** preimage of `HashPublicInputs` to a fixed 352-byte domain

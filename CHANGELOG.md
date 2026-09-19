@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Gateway outbox crash-atomicity (write-order) model — 2026-09-18
+
+- Added `scripts/formal/verify_outbox_crashatomic.py`: an inductive model of the durable
+  write ordering in GatewayOutbox.cs SavePublication/MarkConfirmed. Modeled as four single-write
+  operations, it proves 9 solver checks (base state satisfies the invariant; write-checkpoint,
+  transition-to-pubstate, confirm-item and delete-checkpoint each preserve it; plus SAT
+  feasibility for a crash mid-save and after delete, and two SAT negative controls for a
+  delete-with-orphaned-pub-state and a transition-without-checkpoint). This establishes that a
+  constituent item is in a publication state only while the checkpoint is present, so every
+  reachable crash-interleaving snapshot is recoverable. This closes the "RocksDB
+  crash-consistency / durable write ordering" obligation at the protocol layer (RocksDB's
+  internal WAL and per-write atomicity remain separate). Four new checker self-tests pass; the
+  `GatewayOutbox.cs` digest is pinned and fails closed on drift. EN/zh model notes record
+  trusted assumptions and limits. Whole-system and C#/NeoVM implementation correctness are NOT
+  claimed.
+
 ### Added — Gateway outbox crash-recovery consistency model — 2026-09-18
 
 - Added `scripts/formal/verify_outbox_recovery.py`: a consistency model of the Gateway outbox

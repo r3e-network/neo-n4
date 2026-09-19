@@ -41,6 +41,8 @@ jobs:
         run: python scripts/formal/verify_outbox.py
       - name: Verify gateway-outbox crash-recovery model
         run: python scripts/formal/verify_outbox_recovery.py
+      - name: Verify gateway-outbox crash-atomicity model
+        run: python scripts/formal/verify_outbox_crashatomic.py
       - name: Verify L2-bridge supply-conservation safety model
         run: python scripts/formal/verify_l2_bridge.py
       - name: Verify gateway-outbox reachability-liveness model (CTL)
@@ -62,6 +64,7 @@ jobs:
             scripts/formal/preimage-injectivity-result.json
             scripts/formal/gateway-outbox-result.json
             scripts/formal/gateway-outbox-recovery-result.json
+            scripts/formal/gateway-outbox-crashatomic-result.json
             scripts/formal/gateway-outbox-liveness-result.json
             scripts/formal/l2-bridge-result.json
             scripts/formal/settlement-result.json

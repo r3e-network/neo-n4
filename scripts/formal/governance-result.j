@@ -1,0 +1,185 @@
+{
+  "schema": "neo-n4/governance-model/v1",
+  "wholeSystemVerified": false,
+  "scope": "inductive safety of the GovernanceController authorization gate",
+  "solver": "4.15.3",
+  "obligations": [
+    {
+      "name": "initial_invariant",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "initial_not_approved",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "initial_gate_false",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "approve_enabled",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[timelock = 0,\n approved = False,\n count = 0,\n threshold = 1,\n inc = 1]"
+    },
+    {
+      "name": "approve_preserves_invariant",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "approve_gate_implies_threshold",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "approve_gate_implies_not_vetoed",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "approve_gate_implies_timelock",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "approve_gate_implies_epoch",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "veto_enabled",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[count = 0, timelock = 0, approved = False, threshold = 1]"
+    },
+    {
+      "name": "veto_preserves_invariant",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "veto_gate_implies_threshold",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "veto_gate_implies_not_vetoed",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "veto_gate_implies_timelock",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "veto_gate_implies_epoch",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "advance_time_enabled",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[dt = 0,\n approved = False,\n count = 0,\n timelock = 0,\n threshold = 1]"
+    },
+    {
+      "name": "advance_time_preserves_invariant",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "advance_time_gate_implies_threshold",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "advance_time_gate_implies_not_vetoed",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "advance_time_gate_implies_timelock",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "advance_time_gate_implies_epoch",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "veto_blocks_gate",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "negative_control_gate_without_threshold",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[timelock = 0,\n threshold = 1,\n now = 0,\n count = 0,\n approved = False,\n vetoed = False,\n epoch_match = True]"
+    },
+    {
+      "name": "negative_control_gate_while_vetoed",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[timelock = 0,\n count = 1,\n now = 0,\n threshold = 1,\n approved = True,\n vetoed = True,\n epoch_match = True]"
+    },
+    {
+      "name": "negative_control_gate_before_timelock",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[timelock = 0,\n now = -1,\n count = 1,\n threshold = 1,\n approved = True,\n vetoed = False,\n epoch_match = True]"
+    },
+    {
+      "name": "negative_control_gate_stale_epoch",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[now = 0,\n timelock = 0,\n count = 1,\n threshold = 1,\n approved = True,\n vetoed = False,\n epoch_match = False]"
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten C#/NeoVM correspondence, not an extracted transition relation",
+    "IsApprovedAndTimelocked is the sole gate for verifier/bridge/admission upgrades",
+    "first threshold-crossing records approvedAt; later votes cannot reset the timer",
+    "veto is permanent and replay-safe; epoch must match the current council epoch",
+    "timelock is a pure delay window during which the governance owner may veto",
+    "no governance rollback, reconfiguration or concurrency transitions"
+  ],
+  "source": "D:\\Git\\neo-n4\\contracts\\NeoHub.GovernanceController\\GovernanceControllerContract.cs",
+  "scriptSha256": "cf857d743c2d534039814d99af6ad0dad907de86cff066375cc020005074bc48",
+  "specSha256": "9d9cd67d5bf568382757704f0ac54e348c79cc373ae354430aeae42b991896b5",
+  "sourceSha256": "439b9642d0bfaad416ccad0137113cf8048d2b932335d2aaadcb9c51efcb0af9",
+  "exitCode": 0
+}

@@ -90,7 +90,7 @@ public class UT_AdditionalExtendedProperties
     #region Property 7: Equality Axioms (Reflexivity, Symmetry, Transitivity, Hash Contract)
 
     /// <summary>
-    /// Property: L2BatchCommitment satisfies ALL object equality axioms universally.
+    /// Checks L2BatchCommitment equality on deterministic samples with independent byte buffers.
     /// Reflexivity: a.Equals(a) MUST be true for all instances
     /// Symmetry: a.Equals(b) == b.Equals(a) MUST hold for all pairs
     /// Transitivity: (a.Equals(b) AND b.Equals(c)) implies a.Equals(c)
@@ -104,14 +104,13 @@ public class UT_AdditionalExtendedProperties
     public void L2BatchCommitment_Equality_Axioms_Held()
     {
         const int batchSize = 1000;
-        var rng = new Random(7000);
 
         #region Axiom 1: Reflexivity (a.Equals(a) == true)
 
         for (int i = 0; i < batchSize; i++)
         {
             // Arrange: Create deterministic batch commitment
-            var commitment = CreateRandomBatchCommitment(rng, i);
+            var commitment = CreateBatchCommitment(i);
 
             // Act & Assert
             commitment.Equals(commitment).Should().BeTrue(
@@ -127,8 +126,10 @@ public class UT_AdditionalExtendedProperties
 
         for (int i = 0; i < batchSize; i++)
         {
-            leftBatches.Add(CreateRandomBatchCommitment(rng, i));
-            rightBatches.Add(CreateRandomBatchCommitment(rng, i + batchSize));
+            // Even cases reuse the seed so symmetry is exercised on equal pairs too;
+            // odd cases use a different seed so it is exercised on unequal pairs.
+            leftBatches.Add(CreateBatchCommitment(i));
+            rightBatches.Add(CreateBatchCommitment(i % 2 == 0 ? i : i + batchSize));
         }
 
         for (int i = 0; i < batchSize; i++)
@@ -148,42 +149,25 @@ public class UT_AdditionalExtendedProperties
 
         #region Axiom 3: Transitivity ((a.Equals(b) AND b.Equals(c)) → a.Equals(c))
 
-        // Group 1: Equal batches (should all compare equal)
-        var groupA = Enumerable.Range(0, 10)
-            .Select(i => CreateRandomBatchCommitment(rng, 10000 + i))
-            .ToList();
-
-        // Group 2: Equal batches (disjoint from group A)
-        var groupB = Enumerable.Range(0, 10)
-            .Select(i => CreateRandomBatchCommitment(rng, 11000 + i))
-            .ToList();
-
-        // Group 3: Equal batches (disjoint from A and B)
-        var groupC = Enumerable.Range(0, 10)
-            .Select(i => CreateRandomBatchCommitment(rng, 12000 + i))
-            .ToList();
-
-        for (int ai = 0; ai < groupA.Count; ai++)
+        // Independent buffers per instance: content-equal copies built through the same
+        // helper, not shared references, so equality is content-driven, not aliasing.
+        var equalTriples = new List<(L2BatchCommitment A, L2BatchCommitment B, L2BatchCommitment C)>(batchSize);
+        for (int i = 0; i < batchSize; i++)
         {
-            for (int bi = 0; bi < groupB.Count; bi++)
-            {
-                for (int ci = 0; ci < groupC.Count; ci++)
-                {
-                    var a = groupA[ai];
-                    var b = groupB[bi];
-                    var c = groupC[ci];
+            equalTriples.Add((
+                CreateBatchCommitment(20000 + i),
+                CreateBatchCommitment(20000 + i),
+                CreateBatchCommitment(20000 + i)));
+        }
 
-                    var aEqualsB = a.Equals(b);
-                    var bEqualsC = b.Equals(c);
+        for (int i = 0; i < batchSize; i++)
+        {
+            var (a, b, c) = equalTriples[i];
 
-                    if (aEqualsB && bEqualsC)
-                    {
-                        a.Equals(c).Should().BeTrue(
-                            $"Transitivity VIOLATED at case ({ai},{bi},{ci}): " +
-                            $"a.Equals(b)=true AND b.Equals(c)=true but a.Equals(c)=false!");
-                    }
-                }
-            }
+            a.Equals(b).Should().BeTrue($"Transitivity setup FAILED at case #{i}: content-equal copies differ");
+            b.Equals(c).Should().BeTrue($"Transitivity setup FAILED at case #{i}: content-equal copies differ");
+            a.Equals(c).Should().BeTrue(
+                $"Transitivity VIOLATED at case #{i}: a.Equals(b)=true AND b.Equals(c)=true but a.Equals(c)=false!");
         }
 
         #endregion
@@ -210,9 +194,9 @@ public class UT_AdditionalExtendedProperties
         #endregion
     }
 
-    private static L2BatchCommitment CreateRandomBatchCommitment(Random rng, int seed)
+    private static L2BatchCommitment CreateBatchCommitment(int seed)
     {
-        // Helper method to create deterministic batch commitment for equality testing
+        var rng = new Random(seed);
         var preStateBytes = new byte[32];
         var postStateBytes = new byte[32];
 

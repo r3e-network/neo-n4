@@ -1,0 +1,67 @@
+{
+  "schema": "neo-n4/gateway-outbox-recovery-model/v1",
+  "wholeSystemVerified": false,
+  "scope": "consistency of Gateway outbox crash-recovery rehydration (protocol layer)",
+  "solver": "4.15.3",
+  "obligations": [
+    {
+      "name": "confirmed_item_never_resealed",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "orphan_proving_demoted_to_sealed",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "nonactive_later_state_is_corruption",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[st = K(Int, 3),\n cp_state = 2,\n n = 1,\n active_ref = K(Int, False),\n has_cp = True]"
+    },
+    {
+      "name": "nonactive_later_state_not_silently_sealed",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "checkpoint_constituents_present",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "recovery_is_function_of_snapshot",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "recovery_feasible",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[n = 2,\n active_ref = K(Int, False),\n has_cp = False,\n cp_state = 0,\n st = Lambda(k!0, If(1 <= k!0, 2, 1))]"
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten C#/NeoVM correspondence, not an extracted transition relation",
+    "Recover() maps a persisted (item-state, checkpoint) snapshot to sealed items + publication",
+    "a Confirmed item is never re-sealed",
+    "an orphaned Proving item is demoted to Sealed",
+    "a non-active item in Proved/Submitted/Poisoned is corruption, not silently rehydrated",
+    "a declared checkpoint constituent must be present in the store",
+    "this models the recovery protocol, not RocksDB's internal crash-consistency"
+  ],
+  "source": "D:\\Git\\neo-n4\\src\\Neo.Plugins.L2Gateway\\GatewayOutbox.cs",
+  "scriptSha256": "80ee1b24090792ee1e70eeba0664a7d80e223bd09361d6d54a2b509d76e63168",
+  "specSha256": "9d9cd67d5bf568382757704f0ac54e348c79cc373ae354430aeae42b991896b5",
+  "sourceSha256": "4dff2d8561f18938e10e66c5bbd6c6a47e57b442b6239b6bb2500167a494d710",
+  "exitCode": 0
+}

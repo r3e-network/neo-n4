@@ -1,52 +1,37 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
-using FluentAssertions;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Neo;
+using Neo.L2.Audit;
 
 namespace Neo.L2.Batch.FormalVerification;
 
 /// <summary>
-/// Extended formal verification properties for complete system coverage.
-/// Focuses on 5 additional critical invariants beyond the base 4 properties.
+/// Regression coverage for the production relative state-root continuity check.
+/// This does not prove execution correctness or anchor the first batch to genesis.
 /// </summary>
+/// <remarks>See doc.md §7.3. Finite fixtures do not establish statistical confidence.</remarks>
 [TestClass]
 public class UT_ExtendedVerification_Properties
 {
-    #region Property 5: State Root Continuity Across Batches
-    
-    /// <summary>
-    /// Property: Sequential batches maintain perfect state continuity.
-    /// Critical invariant: Batch(n+1).PreStateRoot must equal Batch(n).PostStateRoot ALWAYS.
-    /// Security impact: Violation indicates critical state transition bug or execution divergence.
-    /// Specification: doc.md §7.3 - State root generation and continuity
-    /// Test cases: 1000 sequential batch simulations from genesis
-    /// Confidence level: >99.99%
-    /// </summary>
     [TestMethod]
-    public void StateRootContinuity_SuccessiveBatches_MustHold()
+    public async Task ContinuityCheck_AcceptsLinkedRoots_ReportsEachBrokenLink()
     {
-        // Simulate a sequence of batch executions starting from genesis state root
-        UInt256 currentStateRoot = UInt256.Zero;
-        
-        for (int batchNumber = 1; batchNumber <= 1000; batchNumber++)
+        const int batchCount = 32;
+        var batches = new L2BatchCommitment[batchCount];
+        var previousRoot = UInt256.Zero;
+        for (var index = 0; index < batchCount; index++)
         {
-            var rng = new Random(8000 + batchNumber);
-            
-            // Generate random post-state root for current batch
-            var postStateRootBytes = new byte[32];
-            rng.NextBytes(postStateRootBytes);
-            var postStateRoot = new UInt256(postStateRootBytes);
-            
-            // Create current batch with previous post-state as pre-state
-            var currentBatch = new L2BatchCommitment
+            var rootBytes = new byte[32];
+            rootBytes[index] = (byte)(index + 1);
+            var postStateRoot = new UInt256(rootBytes);
+            batches[index] = new L2BatchCommitment
             {
                 ChainId = 1,
-                BatchNumber = (ulong)batchNumber,
-                PreStateRoot = currentStateRoot,  // CRITICAL: Must equal previous batch's post-state!
+                BatchNumber = (ulong)index + 1,
+                FirstBlock = (ulong)index * 100,
+                LastBlock = (ulong)index * 100 + 99,
+                PreStateRoot = previousRoot,
                 PostStateRoot = postStateRoot,
-                FirstBlock = (ulong)batchNumber * 100,
-                LastBlock = (ulong)batchNumber * 100 + 99,
                 TxRoot = UInt256.Zero,
                 ReceiptRoot = UInt256.Zero,
                 WithdrawalRoot = UInt256.Zero,
@@ -57,45 +42,28 @@ public class UT_ExtendedVerification_Properties
                 ProofType = ProofType.Optimistic,
                 Proof = Array.Empty<byte>(),
             };
-            
-            // Create next batch that MUST reuse this post-state as its pre-state
-            var nextBatch = new L2BatchCommitment
-            {
-                ChainId = 1,
-                BatchNumber = (ulong)batchNumber + 1,
-                PreStateRoot = postStateRoot,  // CRITICAL: Continuity requirement enforced!
-                PostStateRoot = UInt256.Zero,
-                FirstBlock = (ulong)(batchNumber + 1) * 100,
-                LastBlock = (ulong)(batchNumber + 1) * 100 + 99,
-                TxRoot = UInt256.Zero,
-                ReceiptRoot = UInt256.Zero,
-                WithdrawalRoot = UInt256.Zero,
-                L2ToL1MessageRoot = UInt256.Zero,
-                L2ToL2MessageRoot = UInt256.Zero,
-                DACommitment = UInt256.Zero,
-                PublicInputHash = UInt256.Zero,
-                ProofType = ProofType.Optimistic,
-                Proof = Array.Empty<byte>(),
-            };
-            
-            // Encode both batches to simulate persistence layer
-            var encodedCurrent = BatchSerializer.Encode(currentBatch);
-            var encodedNext = BatchSerializer.Encode(nextBatch);
-            
-            // Decode and verify state root continuity holds
-            var decodedCurrent = BatchSerializer.Decode(encodedCurrent);
-            var decodedNext = BatchSerializer.Decode(encodedNext);
-            
-            // Assert: Next batch's PreStateRoot MUST match current batch's PostStateRoot
-            decodedNext.PreStateRoot.Should().Be(
-                postStateRoot,
-                $"State continuity MUST hold between batch {batchNumber} and {batchNumber + 1}. " +
-                $"Expected PreStateRoot={postStateRoot:X}, got {decodedNext.PreStateRoot:X}");
-            
-            // Update current state for next iteration simulation
-            currentStateRoot = postStateRoot;
+            previousRoot = postStateRoot;
+        }
+
+        var check = new ContinuityCheck();
+        var validFindings = await check.RunAsync(batches);
+        Assert.AreEqual(1, validFindings.Count);
+        Assert.IsTrue(validFindings[0].Passed);
+        Assert.AreEqual(check.Name, validFindings[0].Check);
+
+        for (var index = 1; index < batchCount; index++)
+        {
+            var broken = (L2BatchCommitment[])batches.Clone();
+            var changedRoot = batches[index].PreStateRoot.GetSpan().ToArray();
+            changedRoot[index % changedRoot.Length] ^= 0x80;
+            broken[index] = batches[index] with { PreStateRoot = new UInt256(changedRoot) };
+
+            var findings = await check.RunAsync(broken);
+            Assert.AreEqual(1, findings.Count, $"Broken link at index {index}");
+            Assert.IsFalse(findings[0].Passed);
+            Assert.AreEqual(check.Name, findings[0].Check);
+            Assert.AreEqual(batches[index].BatchNumber, findings[0].BatchNumber);
+            StringAssert.Contains(findings[0].Detail, "preStateRoot");
         }
     }
-    
-    #endregion
 }

@@ -1,0 +1,113 @@
+{
+  "schema": "neo-n4/da-failover-model/v1",
+  "wholeSystemVerified": false,
+  "scope": "inductive safety of the FailoverDAWriter publish failover and profile invariants",
+  "solver": "4.15.3",
+  "obligations": [
+    {
+      "name": "publish_requires_profile",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "success_requires_valid_tier",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "fatal0_not_masked",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "fatal_not_masked",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "success_and_fatal_are_disjoint",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "all_failed_forward",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "all_failed_backward",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "success_tier0_feasible",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[a0 = True,\n t0 = False,\n a1 = False,\n t1 = False,\n f2 = True,\n a2 = False,\n f1 = True,\n t2 = False,\n f0 = False,\n profile = True]"
+    },
+    {
+      "name": "failover_success_feasible",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[a0 = False,\n t0 = True,\n a1 = False,\n t1 = True,\n f2 = False,\n a2 = True,\n f1 = False,\n t2 = False,\n f0 = False,\n profile = True]"
+    },
+    {
+      "name": "all_transient_fails_feasible",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[a0 = False,\n t0 = True,\n a1 = False,\n t1 = True,\n f2 = False,\n a2 = False,\n f1 = False,\n t2 = True,\n f0 = False,\n profile = True]"
+    },
+    {
+      "name": "fatal_decides_feasible",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[a0 = False,\n t0 = False,\n a1 = False,\n t1 = False,\n f2 = True,\n a2 = False,\n f1 = True,\n t2 = False,\n f0 = True,\n profile = True]"
+    },
+    {
+      "name": "negative_control_success_without_accepted_tier",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[a0 = False,\n t0 = False,\n a1 = False,\n t1 = False,\n f2 = True,\n a2 = False,\n f1 = True,\n t2 = False,\n f0 = True,\n profile = True]"
+    },
+    {
+      "name": "negative_control_masked_fatal",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[a0 = False,\n t0 = False,\n a1 = True,\n t1 = False,\n f2 = True,\n a2 = False,\n f1 = False,\n t2 = False,\n f0 = True,\n profile = True]"
+    },
+    {
+      "name": "negative_control_cross_profile",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": "[a0 = True,\n t0 = False,\n a1 = False,\n t1 = False,\n f2 = True,\n a2 = False,\n f1 = True,\n t2 = False,\n f0 = False,\n profile = False]"
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten C#/NeoVM correspondence, not an extracted transition relation",
+    "transient = IOException excluding InvalidDataException; non-transient never falls back",
+    "a successful publish validates the receipt before returning (metadata + payload binding)",
+    "the failover set is ordered and shares one DAMode and one non-Unspecified DAReceiptKind",
+    "cancellation always propagates and is never masked by a fallback",
+    "recovery here covers the write-side failover policy, not RocksDB crash-consistency or replay"
+  ],
+  "source": "D:\\Git\\neo-n4\\src\\Neo.Plugins.L2DA\\FailoverDAWriter.cs",
+  "scriptSha256": "e8b4d3387862e9d9ecf7f46adb12fa18b9fb896058cbe3350dd73256d15899ed",
+  "specSha256": "9d9cd67d5bf568382757704f0ac54e348c79cc373ae354430aeae42b991896b5",
+  "sourceSha256": "461c2eee154bbc7db542828e05885ca15c577c8ba3c38a9fd33c94778ad4e592",
+  "exitCode": 0
+}

@@ -55,7 +55,7 @@ public class UT_PerformanceBoundary_Verification
     {
         const int MAX_BATCH_SIZE = 1000; // Configurable max batch size
         
-        var batch = CreateBatchWithTransactions(MAX_BATCH_SIZE);
+        var batch = CreateCommitmentFixture(MAX_BATCH_SIZE);
         var serialized = BatchSerializer.Encode(batch);
         
         // Validate size stays within reasonable bounds (< 5MB for 1000 tx)
@@ -81,7 +81,7 @@ public class UT_PerformanceBoundary_Verification
     [TestMethod]
     public void Boundary_P03_EmptyBatch_Handled()
     {
-        var batch = CreateBatchWithTransactions(0);
+        var batch = CreateCommitmentFixture(0);
         batch.FirstBlock.Should().Be(1000UL);
         batch.LastBlock.Should().Be(1000UL); // No blocks if no transactions
         
@@ -95,43 +95,21 @@ public class UT_PerformanceBoundary_Verification
     }
 
     /// <summary>
-    /// Test P04: Batch size growth curve analysis.
-    /// Expected: Linear relationship between transaction count and batch serialization.
+    /// P04 checks that block-range metadata occupies fixed-width fields.
+    /// A commitment binds transaction content through roots; it does not carry transactions.
     /// </summary>
     [TestMethod]
-    public void Boundary_P04_BatchSizeGrowth_LinearCorrelation()
+    public void Boundary_P04_BlockRange_DoesNotChangeCommitmentSize()
     {
-        var sizes = new Dictionary<int, long>();
-        var times = new Dictionary<int, double>();
-        
-        // Test at multiple scales
-        foreach (var count in new[] { 10, 50, 100, 200, 500 })
+        var baseline = CreateCommitmentFixture(1);
+        foreach (var lastBlock in new[] { baseline.FirstBlock, baseline.FirstBlock + 499, ulong.MaxValue })
         {
-            var startTime = DateTime.UtcNow;
-            var batch = CreateBatchWithTransactions(count);
-            var serialized = BatchSerializer.Encode(batch);
-            var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
-            
-            sizes[count] = serialized.Length;
-            times[count] = elapsed;
-            
-            // Verify reasonable performance bounds (< 100ms for 500 tx)
-            elapsed.Should().BeLessThan(100, $"Batch creation should complete within 100ms for {count} transactions");
+            var batch = baseline with { LastBlock = lastBlock };
+            var encoded = BatchSerializer.Encode(batch);
+
+            Assert.AreEqual(321, encoded.Length);
+            Assert.AreEqual(batch, BatchSerializer.Decode(encoded));
         }
-        
-        // Validate linear correlation (R² > 0.5 acceptable for small sample)
-        var sizesArray = sizes.Values.Select(v => (double)v).ToArray();
-        if (sizesArray.Length >= 2) {
-            var regression = CalculateLinearRegression(sizesArray);
-            Console.WriteLine($"Batch size growth R²: {regression:F3}");
-            if (!double.IsNaN(regression)) {
-                regression.Should().BeGreaterThanOrEqualTo(0.5,
-                    $"Batch size growth must show reasonable correlation (R²={regression:F3})");
-            }
-        }
-        
-        // Note: Timing correlation is often noisy due to system variations, so we skip strict validation
-        // Just verify all individual measurements are within bounds (covered by per-count checks above)
     }
 
     /// <summary>
@@ -156,7 +134,7 @@ public class UT_PerformanceBoundary_Verification
             
             for (var i = 0; i < BATCHES_PER_SCALE; i++)
             {
-                var batch = CreateBatchWithTransactions(batchSize);
+                var batch = CreateCommitmentFixture(batchSize);
                 _ = BatchSerializer.Encode(batch);
             }
             
@@ -196,7 +174,7 @@ public class UT_PerformanceBoundary_Verification
         
         var numTxs = (int)(MAX_GAS_PER_BATCH / GAS_PER_TX);
         
-        var batch = CreateBatchWithTransactions(numTxs);
+        var batch = CreateCommitmentFixture(numTxs);
         
         // In production, batch would track total gas consumed
         // For now, we validate batch number calculation accuracy
@@ -216,7 +194,7 @@ public class UT_PerformanceBoundary_Verification
         
         foreach (var txCount in testCases)
         {
-            var batch = CreateBatchWithTransactions(txCount);
+            var batch = CreateCommitmentFixture(txCount);
             
             // Verify batch number tracks transaction count accurately
             batch.BatchNumber.Should().Be((ulong)txCount,
@@ -241,7 +219,7 @@ public class UT_PerformanceBoundary_Verification
         const int STRESS_ITERATIONS = 100;
         const int LARGE_BATCH_SIZE = 1000;
         
-        var highLoadBatch = CreateBatchWithTransactions(LARGE_BATCH_SIZE);
+        var highLoadBatch = CreateCommitmentFixture(LARGE_BATCH_SIZE);
         
         // Validate batch processing completes within reasonable time
         var sw = Stopwatch.StartNew();
@@ -274,7 +252,7 @@ public class UT_PerformanceBoundary_Verification
         
         foreach (var txCount in testCases)
         {
-            var batch = CreateBatchWithTransactions(txCount);
+            var batch = CreateCommitmentFixture(txCount);
             
             var totalAllocated = (ulong)txCount * ORIGINAL_GAS;
             var expectedRefund = (ulong)(totalAllocated * REFUND_RATIO);
@@ -308,7 +286,7 @@ public class UT_PerformanceBoundary_Verification
         
         for (var i = 0; i < ITERATIONS; i++)
         {
-            var batch = CreateBatchWithTransactions(BATCH_SIZE);
+            var batch = CreateCommitmentFixture(BATCH_SIZE);
             _ = BatchSerializer.Encode(batch); // Force serialization
         }
         
@@ -340,7 +318,7 @@ public class UT_PerformanceBoundary_Verification
             
             for (var i = 0; i < BATCHES_PER_ROUND; i++)
             {
-                var batch = CreateBatchWithTransactions(50);
+                var batch = CreateCommitmentFixture(50);
                 _ = BatchSerializer.Encode(batch);
             }
             
@@ -372,7 +350,7 @@ public class UT_PerformanceBoundary_Verification
         // Warmup phase
         for (var i = 0; i < WARMUP_ITERS; i++)
         {
-            var batch = CreateBatchWithTransactions(BATCH_SIZE);
+            var batch = CreateCommitmentFixture(BATCH_SIZE);
             _ = BatchSerializer.Encode(batch);
         }
         
@@ -382,7 +360,7 @@ public class UT_PerformanceBoundary_Verification
         // Measurement phase
         for (var i = 0; i < SAMPLE_ITERS; i++)
         {
-            var batch = CreateBatchWithTransactions(BATCH_SIZE);
+            var batch = CreateCommitmentFixture(BATCH_SIZE);
             _ = BatchSerializer.Encode(batch);
             
             // Periodic collection to prevent unbounded growth
@@ -422,7 +400,7 @@ public class UT_PerformanceBoundary_Verification
         
         for (var i = 0; i < MESSAGES_PER_SECOND; i++)
         {
-            var batch = CreateBatchWithTransactions(10);
+            var batch = CreateCommitmentFixture(10);
             var data = BatchSerializer.Encode(batch);
             
             // Pad to expected network message size if needed
@@ -449,96 +427,69 @@ public class UT_PerformanceBoundary_Verification
     }
 
     /// <summary>
-    /// Test P14: Concurrent batch submission rate testing.
-    /// Expected: Linear throughput scaling with concurrency.
+    /// P14 checks concurrent serializer output against a serial baseline for the same inputs.
+    /// Elapsed times are diagnostics, not a throughput or linear-scaling guarantee.
     /// </summary>
     [TestMethod]
-    public void Boundary_P14_ConcurrentSubmission_LinearScaling()
+    public async Task Boundary_P14_ConcurrentSerialization_MatchesSerialResults()
     {
-        const int SINGLE_THREAD_COUNT = 100;
-        const int CONCURRENT_COUNT = 400; // 4x more work in parallel
-        
-        // Single thread baseline
-        var tasks1 = new Task[SINGLE_THREAD_COUNT];
-        var startTime1 = Stopwatch.StartNew();
-        
-        for (var i = 0; i < SINGLE_THREAD_COUNT; i++)
-        {
-            tasks1[i] = Task.Run(() =>
+        const int count = 400;
+        var batches = Enumerable.Range(0, count)
+            .Select(index => CreateCommitmentFixture(index) with
             {
-                var batch = CreateBatchWithTransactions(25);
-                _ = BatchSerializer.Encode(batch);
-            });
-        }
-        
-        Task.WaitAll(tasks1);
-        var totalTime1 = startTime1.Elapsed.TotalMilliseconds;
-        
-        // Concurrent execution
-        var tasks2 = new Task[CONCURRENT_COUNT];
-        var startTime2 = Stopwatch.StartNew();
-        
-        for (var i = 0; i < CONCURRENT_COUNT; i++)
+                Proof = new byte[] { (byte)index, (byte)(index >> 8), 0xA5 },
+            }).ToArray();
+
+        var serialTimer = Stopwatch.StartNew();
+        var expected = batches.Select(BatchSerializer.Encode).ToArray();
+        serialTimer.Stop();
+
+        var concurrentTimer = Stopwatch.StartNew();
+        var actual = await Task.WhenAll(batches.Select(batch => Task.Run(() =>
         {
-            tasks2[i] = Task.Run(() =>
-            {
-                var batch = CreateBatchWithTransactions(25);
-                _ = BatchSerializer.Encode(batch);
-            });
-        }
-        
-        Task.WaitAll(tasks2);
-        var totalTime2 = startTime2.Elapsed.TotalMilliseconds;
-        
-        // Validate concurrent achieves good speedup
-        var expectedSingleForConcurrent = totalTime1 * 4; // Theoretical 4x longer if sequential
-        totalTime2.Should().BeLessThan(expectedSingleForConcurrent * 0.75,
-            $"Concurrent execution ({totalTime2:F0}ms) should achieve significant speedup vs sequential ({expectedSingleForConcurrent:F0}ms)");
-        
-        // Should be faster or comparable despite doing 4x work
-        Console.WriteLine($"Single thread (100 tx): {totalTime1:F0}ms");
-        Console.WriteLine($"Concurrent (400 tx): {totalTime2:F0}ms");
-        Console.WriteLine($"Speedup ratio: {totalTime1 / totalTime2:F2}x");
+            var encoded = BatchSerializer.Encode(batch);
+            var decoded = BatchSerializer.Decode(encoded);
+            Assert.AreEqual(batch, decoded);
+            Assert.AreSequenceEqual(batch.Proof.ToArray(), decoded.Proof.ToArray());
+            return encoded;
+        })));
+        concurrentTimer.Stop();
+
+        Assert.AreEqual(count, actual.Length);
+        for (var index = 0; index < count; index++)
+            Assert.AreSequenceEqual(expected[index], actual[index], $"Batch {index}");
+
+        Console.WriteLine($"Serial encoding ({count} batches): {serialTimer.Elapsed.TotalMilliseconds:F3}ms");
+        Console.WriteLine($"Concurrent encode/decode ({count} batches): {concurrentTimer.Elapsed.TotalMilliseconds:F3}ms");
     }
 
     /// <summary>
-    /// Test P15: Network serialization bottleneck identification.
-    /// Expected: Serialization time scales predictably with data size.
+    /// P15 checks the variable proof payload's canonical length, prefix, and contents.
+    /// These finite boundary cases are not a throughput benchmark or an asymptotic proof.
     /// </summary>
     [TestMethod]
-    public void Boundary_P15_SerializationBottleneck_Analysis()
+    public void Boundary_P15_ProofPayload_PreservesCanonicalLayoutAcrossSizes()
     {
-        var sizesAndTimes = new Dictionary<int, double>();
-        
-        foreach (var txCount in new[] { 10, 50, 100, 200, 500 })
+        var baseline = CreateCommitmentFixture(1);
+        var header = BatchSerializer.Encode(baseline).AsSpan(0, 317).ToArray();
+
+        foreach (var proofLength in new[] { 0, 1, 255, 256, 65535, 65536, 1024 * 1024 })
         {
-            var batch = CreateBatchWithTransactions(txCount);
-            var iterations = 100;
-            
-            var sw = Stopwatch.StartNew();
-            for (var i = 0; i < iterations; i++)
-            {
-                _ = BatchSerializer.Encode(batch);
-            }
-            sw.Stop();
-            
-            var avgMs = sw.Elapsed.TotalMilliseconds / iterations;
-            sizesAndTimes[txCount] = avgMs;
-        }
-        
-        // Validate O(n) complexity (correlation coefficient > 0.8)
-        var times = sizesAndTimes.Values.Select(v => (double)v).ToArray();
-        var correlation = CalculatePairwiseCorrelation(times);
-        
-        Console.WriteLine($"Serialization correlation: {correlation:F3}");
-        correlation.Should().BeGreaterThanOrEqualTo(0.8,
-            $"Serialization must show consistent O(n) complexity (correlation={correlation:F3})");
-        
-        // Print detailed timing analysis
-        Console.WriteLine("Serialization Time Analysis:");
-        foreach (var kvp in sizesAndTimes.OrderBy(k => k.Key))
-        {
-            Console.WriteLine($"  {kvp.Key,-4} transactions: {kvp.Value:F4}ms avg");
+            var proof = new byte[proofLength];
+            new Random(proofLength).NextBytes(proof);
+            var batch = baseline with { Proof = proof };
+            var encoded = BatchSerializer.Encode(batch);
+
+            Assert.AreEqual(321 + proofLength, encoded.Length, $"Proof length {proofLength}");
+            Assert.AreSequenceEqual(header, encoded.AsSpan(0, 317).ToArray());
+            for (var index = 0; index < 4; index++)
+                Assert.AreEqual((byte)(proofLength >> (8 * index)), encoded[317 + index],
+                    $"Proof length {proofLength}, prefix byte {index}");
+            Assert.AreSequenceEqual(proof, encoded.AsSpan(321).ToArray());
+
+            var decoded = BatchSerializer.Decode(encoded);
+            Assert.AreEqual(batch, decoded);
+            Assert.AreSequenceEqual(proof, decoded.Proof.ToArray());
         }
     }
 
@@ -548,10 +499,11 @@ public class UT_PerformanceBoundary_Verification
     
     private static L2BatchCommitment CreateMinimalBatch(int seed)
     {
-        return CreateBatchWithTransactions(seed);
+        return CreateCommitmentFixture(seed);
     }
 
-    private static L2BatchCommitment CreateBatchWithTransactions(int count)
+    /// Fixed-header commitment fixture; only LastBlock/BatchNumber vary with <paramref name="count"/>.
+    private static L2BatchCommitment CreateCommitmentFixture(int count)
     {
         var rng = new Random(count);
         var preStateBytes = new byte[32];
@@ -575,51 +527,6 @@ public class UT_PerformanceBoundary_Verification
             ProofType = ProofType.Optimistic,
             Proof = Array.Empty<byte>(),
         };
-    }
-
-    private static double CalculateLinearRegression(double[] values)
-    {
-        if (values.Length < 2) return 0.0;
-        
-        var n = values.Length;
-        var sumX = Enumerable.Range(0, n).Sum(i => (double)i);
-        var sumY = values.Sum();
-        var sumXY = Enumerable.Range(0, n).Select(i => i * values[i]).Sum();
-        var sumXX = Enumerable.Range(0, n).Select(i => i * i).Sum();
-        
-        var denominator = n * sumXX - sumX * sumX;
-        if (Math.Abs(denominator) < 1e-10) return 0.0;
-        
-        var slope = (n * sumXY - sumX * sumY) / denominator;
-        var intercept = (sumY - slope * sumX) / n;
-        
-        // Calculate R²
-        var meanY = sumY / n;
-        var ssTot = values.Select(y => (y - meanY) * (y - meanY)).Sum();
-        var ssRes = Enumerable.Range(0, n).Select(i => values[i] - (slope * i + intercept))
-            .Select(e => e * e).Sum();
-        
-        return 1 - (ssRes / ssTot);
-    }
-
-    private static double CalculatePairwiseCorrelation(double[] values)
-    {
-        if (values.Length < 2) return 0.0;
-        
-        var correlations = new List<double>();
-        var n = values.Length;
-        
-        // Correlate adjacent pairs
-        for (var i = 0; i < n - 1; i++)
-        {
-            if (values[i] != 0 && values[i + 1] != 0)
-            {
-                var ratio = Math.Min(values[i], values[i + 1]) / Math.Max(values[i], values[i + 1]);
-                correlations.Add(ratio);
-            }
-        }
-        
-        return correlations.Any() ? correlations.Average() : 0.0;
     }
 
     private static bool RoundTripCompare(L2BatchCommitment original, L2BatchCommitment decoded)

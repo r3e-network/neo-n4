@@ -1,0 +1,21 @@
+BatchSerializer.Decode proof-length arithmetic verification
+scope=signed 32-bit length guards; whole_system_verified=false
+source=src/Neo.L2.Batch/BatchSerializer.cs
+source_sha256=06802a0d840f77f25bc387afc0ae7d067d8b1dbd73212f1f790d76f61b7d95c5
+script_sha256=277d8fbf69c56db2478c05307df806d3fd7788c5759fd7e66fafb18460ccfcfb
+solver=4.15.3
+assumptions=buffer length is a nonnegative C# int; proofLen is a signed int32; pos is 321 after the fixed header; C# comparisons are signed
+source_link=guard text and cap checked; pos/layout and runtime semantics are trusted, not derived by a C# verifier
+accepted_domain_nonempty: sat (expected sat)
+  witness=[data_len = 65800, proof_len = 65479]
+zero_length_accepted: sat (expected sat)
+  witness=[proof_len = 0, data_len = 321]
+maximum_length_accepted: sat (expected sat)
+  witness=[proof_len = 1048576, data_len = 1048897]
+signed_addition_overflow_counterexample: unsat (expected unsat)
+accepted_length_mismatch_counterexample: unsat (expected unsat)
+accepted_invalid_payload_length_counterexample: unsat (expected unsat)
+negative_control_weakened_guard_accepts_trailing_byte: sat (expected sat)
+  witness=[proof_len = 1, data_len = 323]
+result=PROVEN for stated arithmetic model and assumptions only
+exit_code=0

@@ -1,0 +1,68 @@
+name: Scoped formal model
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof-length-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install pinned solver
+        run: python -m pip install -r scripts/formal/requirements.txt
+      - name: Check fail-closed self-tests
+        run: python -m unittest discover -s scripts/formal -p 'test_*.py' -v
+      - name: Verify scoped length arithmetic model
+        run: python scripts/formal/verify_batch_length.py
+      - name: Verify registration inductive safety model
+        run: python scripts/formal/verify_registration.py
+      - name: Verify forced-inclusion FIFO safety model
+        run: python scripts/formal/verify_forced_inclusion.py
+      - name: Verify bridge-conservation safety model
+        run: python scripts/formal/verify_bridge.py
+      - name: Verify governance-authorization safety model
+        run: python scripts/formal/verify_governance.py
+      - name: Verify DA-failover safety model
+        run: python scripts/formal/verify_da_failover.py
+      - name: Verify preimage-injectivity safety model
+        run: python scripts/formal/verify_preimage.py
+      - name: Verify gateway-outbox safety model
+        run: python scripts/formal/verify_outbox.py
+      - name: Verify gateway-outbox crash-recovery model
+        run: python scripts/formal/verify_outbox_recovery.py
+      - name: Verify L2-bridge supply-conservation safety model
+        run: python scripts/formal/verify_l2_bridge.py
+      - name: Verify gateway-outbox reachability-liveness model (CTL)
+        run: python scripts/formal/verify_outbox_liveness.py
+      - name: Verify settlement inductive safety model
+        run: python scripts/formal/verify_settlement.py
+      - name: Retain scoped solver evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proof-length-model-${{ github.sha }}
+          path: |
+            scripts/formal/batch-length-result.txt
+            scripts/formal/registration-result.json
+            scripts/formal/forced-inclusion-result.json
+            scripts/formal/bridge-conservation-result.json
+            scripts/formal/governance-result.json
+            scripts/formal/da-failover-result.json
+            scripts/formal/preimage-injectivity-result.json
+            scripts/formal/gateway-outbox-result.json
+            scripts/formal/gateway-outbox-recovery-result.json
+            scripts/formal/gateway-outbox-liveness-result.json
+            scripts/formal/l2-bridge-result.json
+            scripts/formal/settlement-result.json
+          if-no-files-found: error

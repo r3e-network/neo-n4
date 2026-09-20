@@ -126,7 +126,7 @@
   "source": "D:\\Git\\neo-n4\\src\\Neo.Plugins.L2Gateway\\GatewayOutbox.cs",
   "plugin": "D:\\Git\\neo-n4\\src\\Neo.Plugins.L2Gateway\\L2GatewayPlugin.cs",
   "scriptSha256": "7c9fb23c0610a545aa4b3225fad313c64c9cf35bccf3a8f7a2e0b5114979120e",
-  "specSha256": "9d9cd67d5bf568382757704f0ac54e348c79cc373ae354430aeae42b991896b5",
+  "specSha256": "d9cc5cc2dc5f3f68570830237f88116b8d6290d4d5d63862c3a53112d6fa0dec",
   "sourceSha256": "4dff2d8561f18938e10e66c5bbd6c6a47e57b442b6239b6bb2500167a494d710:f04c2ede93e11c77c8c4406a10737c5c2edf523be41dea4c9f8b43544b9b5928",
   "exitCode": 0
 }

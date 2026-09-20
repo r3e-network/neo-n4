@@ -17,7 +17,7 @@ import z3
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "contracts/NeoHub.RollupHub/RollupHubContract.cs"
-REVIEWED_SOURCE_SHA256 = "14d67fb5926adc3ebbf9e55ee0ad693ac5f1265cf2d15accfa6b5c01d17a01e7"
+REVIEWED_SOURCE_SHA256 = "4477ae0bbf3cdad0c476f50eade98ac7b03ce0e82c4747548a64245fdd296361"
 
 
 def source_digest(path):

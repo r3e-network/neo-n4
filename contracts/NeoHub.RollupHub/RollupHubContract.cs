@@ -446,7 +446,8 @@ public class RollupHubContract : SmartContract
         // it is also recorded per batch so RevertBatch can rewind the queue head (anti-censorship
         // requires the forced txs to survive a governance rollback of a bad batch).
         ConsumeForcedTransactionsInternal(chainId, forcedInclusionCount);
-        Storage.Put(BatchForcedCountKey(chainId, batchNumber), (BigInteger)forcedInclusionCount);
+        if (forcedInclusionCount > 0)
+            Storage.Put(BatchForcedCountKey(chainId, batchNumber), (BigInteger)forcedInclusionCount);
     }
 
     /// <summary>
@@ -594,13 +595,13 @@ public class RollupHubContract : SmartContract
     {
         var countKey = BatchForcedCountKey(chainId, batchNumber);
         var raw = Storage.Get(countKey);
+        Storage.Delete(countKey);
         if (raw == null) return;
         var consumed = (ulong)(BigInteger)raw;
         if (consumed == 0) return;
         var head = GetForcedHead(chainId);
         ExecutionEngine.Assert(head >= consumed, "forced head rewind underflow");
         Storage.Put(ForcedHeadKey(chainId), (BigInteger)(head - consumed));
-        Storage.Delete(countKey);
     }
 
     /// <summary>

@@ -302,17 +302,16 @@ struct CrossChainMessage {
 }
 ```
 
-核心方法：
+核心方法（跨 SharedBridge（L1 侧）与 L2 原生桥两个合约实现）：
 ```text
-registerMapping(mappingBytes)                            // 注册 L1 与 L2 资产及 decimals 对应关系
-getL2Asset(l1Asset, targetChainId)
-getL1Asset(l2Asset, sourceChainId)
-deposit(targetChainId, l1Asset, amount, receiver)
-finalizeWithdrawal(sourceChainId, batchNumber, withdrawalBytes, proofBytes)
+registerMapping(mappingBytes)                            // SharedBridge：注册 L1 与 L2 资产及 decimals 对应关系
+getL2Asset(l1Asset, targetChainId)                       // SharedBridge 与 L2 原生桥各实现一份
+getL1Asset(l2Asset, sourceChainId)                       // L2 原生桥
+deposit(asset, amount, targetChainId, l2Recipient)       // SharedBridge
+finalizeWithdrawal(chainId, withdrawalLeafHash, emittingContract, l2Sender, l2Asset, withdrawalNonce, asset, recipient, amount) // SharedBridge；V5 叶哈希绑定（另有 At/WithProof/Emergency 变体）
 publishMessageRoots(chainId, batchNumber, l2ToL1MessageRoot, l2ToL2MessageRoot) // 仅由 RollupHub 同事务原子调用
-routeMessage(targetChainId, receiver, messageType, payload)
-enqueueL1ToL2Message(targetChainId, receiver, payload)
-isMessageConsumed(messageHash)
+sendMessage(targetChainId, targetContract, messagePayload) // SharedBridge；合并早期 routeMessage + enqueueL1ToL2Message
+isL2ToL1MessageConsumed(messageHash)                     // SharedBridge（原 isMessageConsumed）
 ```
 
 L1 侧的 `finalizeWithdrawal` 校验 `RollupHub` 状态根提款证明后直接向收款人发放 L1 资产。跨链消息重放保护通过 `messageHash` 消耗记录确保一次性处理。

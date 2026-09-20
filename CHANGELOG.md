@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — bridge method-surface correspondence model — 2026-09-18
+
+- Added `scripts/formal/verify_bridge_abi.py`: a spec-correspondence model for doc.md
+  §10/§11's bridge method surface, closing the last ABI slice of the
+  "spec-to-implementation correspondence" obligation. doc declares one logical bridge method
+  list; the model pins the cross-contract split (L1 SharedBridge manifest + L2 native bridge
+  source anchors) and the documented renames/merges/supersets: isMessageConsumed renamed
+  isL2ToL1MessageConsumed, routeMessage + enqueueL1ToL2Message merged into sendMessage,
+  finalizeWithdrawal's doc arity 4 superseded to 9..12 by the V5 leaf-hash binding (all four
+  variants must exist), deposit arity 4 with a recorded parameter-order difference. 16
+  obligations all pass; 4 self-tests including rename-drift detection. doc.md §10's method
+  list updated to the implemented surface in the same change set. Whole-system verification
+  is NOT claimed.
+
 ### Added — RollupHub governance lock + revertBatch; settlement-ABI correspondence model — 2026-09-18
 
 - Implemented the two doc.md §3.2 settlement methods the contract did not yet expose, closing

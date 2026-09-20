@@ -1,0 +1,118 @@
+{
+  "schema": "neo-n4/bridge-abi-model/v1",
+  "wholeSystemVerified": false,
+  "scope": "spec-to-implementation correspondence of doc.md \u00a710/\u00a711 bridge method surface",
+  "obligations": [
+    {
+      "name": "bridge_method_implemented_registerMapping",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "bridge_method_implemented_getL2Asset",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "bridge_method_implemented_getL1Asset",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "bridge_method_implemented_deposit",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "bridge_method_implemented_finalizeWithdrawal",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "bridge_method_implemented_publishMessageRoots",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "bridge_method_implemented_sendMessage",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "bridge_method_implemented_isL2ToL1MessageConsumed",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "l2_native_bridge_anchors_present",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "renamed_message_consumed_pinned",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "merged_send_message_pinned",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "finalize_variant_present_finalizeWithdrawal",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "finalize_variant_present_finalizeWithdrawalAt",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "finalize_variant_present_finalizeWithdrawalWithProof",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "finalize_variant_present_emergencyFinalizeWithdrawalWithProof",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "deposit_arity_matches_doc",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten correspondence: doc.md \u00a710/\u00a711 method list vs deployed manifests + L2 source anchors",
+    "the doc surface spans two contracts: L1 SharedBridge and the L2 native bridge",
+    "finalizeWithdrawal's doc arity (4) was deliberately superseded (9..12) by the V5 leaf-hash binding",
+    "deposit parameter ORDER differs from doc (asset-first vs targetChainId-first); arity matches",
+    "routeMessage and enqueueL1ToL2Message were merged into sendMessage",
+    "isMessageConsumed was renamed isL2ToL1MessageConsumed",
+    "cryptographic identity of checkpoints/leaf hashes is a separate trust"
+  ],
+  "source": "D:\\Git\\neo-n4\\tests\\NeoHub.Contracts.VmTests\\TestingArtifacts\\NeoHubSharedBridge.artifacts.cs",
+  "spec": "D:\\Git\\neo-n4\\doc.md",
+  "scriptSha256": "dbc46bfb63cd307b363d765f2bd40cc804c5703e7a4cd51d8f8bbc77606d5dfd",
+  "specSha256": "d9cc5cc2dc5f3f68570830237f88116b8d6290d4d5d63862c3a53112d6fa0dec",
+  "exitCode": 0
+}

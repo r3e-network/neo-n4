@@ -212,13 +212,14 @@ struct L2BatchCommitment {
 
 核心结算方法：
 ```text
-submitBatch(commitmentBytes, l1MessageHash, blockContextHash)
-submitAndFinalizeBatch(commitmentBytes, l1MessageHash, blockContextHash) // ZK 单步原子提交并终局化
+submitBatch(commitmentBytes, l1MessageHash, blockContextHash, forcedInclusionCount)
+submitAndFinalizeBatch(commitmentBytes, l1MessageHash, blockContextHash, forcedInclusionCount) // ZK 单步原子提交并终局化
 finalizeBatch(chainId, batchNumber)
-revertBatch(chainId, batchNumber)                         // 仅 bootstrap owner 或治理委员会
+revertBatch(chainId, batchNumber)                         // 仅 bootstrap owner 或治理委员会；Gateway 已发布的批次永不可回滚
 publishGatewayGlobalRoot(epoch, globalRoot, proofSystem, publicInputs, proof, …) // Gateway 聚合发布入口（见 §4）
 setGovernanceController(governanceController)
 lockGovernance()                                         // 生产不可逆锁
+isGovernanceLocked()                                     // [Safe]
 getCanonicalStateRoot(chainId)
 isProofTypeCompatible(securityLevel, proofType)          // [Safe]
 ```

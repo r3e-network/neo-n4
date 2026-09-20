@@ -38,6 +38,7 @@ public class RollupHubContract : SmartContract
     private const byte PrefixForcedTail = 0x41;       // 0x41 + chainId(4B) -> BigInteger (next to enqueue)
     private const byte PrefixForcedTx = 0x42;         // 0x42 + chainId(4B) + nonce(8B) -> txHash (32B)
     private const byte PrefixGovernanceController = 0x43; // 0x43 -> GovernanceController hash
+    private const byte PrefixGovernanceLocked = 0x44;     // 0x44 -> 1 once lockGovernance() succeeds (irreversible)
 
     // Gateway / SharedBridge (doc.md §4) — reserved lean prefixes matching historical SettlementManager layout.
     private const byte PrefixGatewayFinalizedRecord = 0x09;   // 0x09 + chainId(4) + batch(8) -> 64B record
@@ -128,6 +129,12 @@ public class RollupHubContract : SmartContract
 
     [DisplayName("GlobalRootProofAccepted")]
     public static event Action<ulong, UInt256, UInt256> OnGlobalRootProofAccepted = default!;
+
+    [DisplayName("BatchReverted")]
+    public static event Action<uint, ulong> OnBatchReverted = default!;
+
+    [DisplayName("GovernanceLocked")]
+    public static event Action OnGovernanceLocked = default!;
 
     public static void _deploy(object data, bool update)
     {
@@ -508,6 +515,92 @@ public class RollupHubContract : SmartContract
         RecordGatewayFinalizedBatch(chainId, batchNumber, (byte[])rawCommitment!);
 
         OnBatchFinalized(chainId, batchNumber, postStateRoot);
+    }
+
+    /// <summary>
+    /// Roll back a disputed batch (doc.md §3.2 <c>revertBatch</c>). Before
+    /// <see cref="LockGovernance"/> only the bootstrap owner may call it; after the lock only
+    /// the GovernanceController contract (a relayed council proposal that reached threshold and
+    /// cleared its timelock) may. Gateway-published batches are irreversible.
+    /// </summary>
+    /// <remarks>
+    /// Revertable targets, in decreasing recency: the pending batch
+    /// (<c>batchNumber == latestFinalized + 1</c>) and the latest finalized batch — no earlier
+    /// finalized batch can be reverted without breaking the canonical-root chain. Reverting the
+    /// latest finalized batch restores the canonical state root to that batch's pre-state root
+    /// and rewinds the finalized watermark; the batch's tombstone status (<see cref="StatusReverted"/>)
+    /// stays for audit. A reverted batch's consumed forced-inclusion transactions are NOT
+    /// restored — they were bound into the reverted batch's sealed public inputs, and a
+    /// replacement batch must re-include them itself.
+    /// </remarks>
+    public static void RevertBatch(uint chainId, ulong batchNumber)
+    {
+        if (IsGovernanceLocked())
+            ExecutionEngine.Assert(Runtime.CheckWitness(GetGovernanceController()), "not authorized");
+        else
+            ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+
+        var statusKey = BatchStatusKey(chainId, batchNumber);
+        var currentStatus = Storage.Get(statusKey);
+        ExecutionEngine.Assert(currentStatus != null, "batch not found");
+
+        var latestFinalized = GetLatestFinalizedBatchNumber(chainId);
+        if (batchNumber == latestFinalized)
+        {
+            // Latest finalized batch: undo finalize (only while not yet Gateway-published).
+            ExecutionEngine.Assert(currentStatus![0] == StatusFinalized, "batch not finalized");
+            ExecutionEngine.Assert(batchNumber > GetGatewayFinalizedThrough(chainId),
+                "batch already published by gateway");
+
+            var rawCommitment = Storage.Get(BatchCommitmentKey(chainId, batchNumber));
+            ExecutionEngine.Assert(rawCommitment != null, "missing commitment");
+            var preStateRoot = (UInt256)ReadBytes((byte[])rawCommitment!, OffsetPreStateRoot, 32);
+
+            Storage.Put(statusKey, new byte[] { StatusReverted });
+            Storage.Delete(BatchCommitmentKey(chainId, batchNumber));
+            Storage.Delete(GatewayFinalizedRecordKey(chainId, batchNumber));
+            Storage.Delete(BatchDAKey(chainId, batchNumber));
+            Storage.Put(CanonicalRootKey(chainId), preStateRoot);
+            Storage.Put(LatestBatchKey(chainId), (BigInteger)(batchNumber - 1));
+        }
+        else if (batchNumber == latestFinalized + 1)
+        {
+            // Pending batch: discard it so a replacement batch can take the slot.
+            ExecutionEngine.Assert(currentStatus![0] == StatusPending, "batch not pending");
+            Storage.Put(statusKey, new byte[] { StatusReverted });
+            Storage.Delete(BatchCommitmentKey(chainId, batchNumber));
+            Storage.Delete(BatchDAKey(chainId, batchNumber));
+        }
+        else
+        {
+            ExecutionEngine.Assert(false, "only the pending or latest finalized batch can be reverted");
+        }
+
+        OnBatchReverted(chainId, batchNumber);
+    }
+
+    /// <summary>
+    /// One-time, irreversible production lock (doc.md §3.2 <c>lockGovernance</c>). Requires the
+    /// GovernanceController and SharedBridge to be wired first. After the lock the bootstrap
+    /// owner can no longer transfer ownership or revert batches directly — batch reverts must be
+    /// relayed through the GovernanceController, and <see cref="SetOwner"/> refuses.
+    /// </summary>
+    public static void LockGovernance()
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero, "governance controller not configured");
+        ExecutionEngine.Assert(GetSharedBridge() != UInt160.Zero, "shared bridge not configured");
+        ExecutionEngine.Assert(!IsGovernanceLocked(), "governance already locked");
+
+        Storage.Put(new byte[] { PrefixGovernanceLocked }, new byte[] { 1 });
+        OnGovernanceLocked();
+    }
+
+    /// <summary>True once <see cref="LockGovernance"/> has succeeded (irreversible).</summary>
+    [Safe]
+    public static bool IsGovernanceLocked()
+    {
+        return Storage.Get(new byte[] { PrefixGovernanceLocked }) != null;
     }
 
     // =========================================================================
@@ -953,6 +1046,7 @@ public class RollupHubContract : SmartContract
     public static void SetOwner(UInt160 newOwner)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(), "governance locked");
         ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid owner");
         Storage.Put(new byte[] { PrefixOwner }, newOwner);
     }
@@ -1005,7 +1099,13 @@ public class RollupHubContract : SmartContract
 
     public static void SetGovernanceController(UInt160 controller)
     {
-        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        // Pre-lock the bootstrap owner wires the controller; post-lock only the controller
+        // itself can rotate it (a relayed council proposal) — otherwise the owner could point
+        // RevertBatch's post-lock authorization at a contract it controls.
+        if (IsGovernanceLocked())
+            ExecutionEngine.Assert(Runtime.CheckWitness(GetGovernanceController()), "not authorized");
+        else
+            ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(controller.IsValid && !controller.IsZero, "invalid governance controller");
         Storage.Put(new byte[] { PrefixGovernanceController }, controller);
     }

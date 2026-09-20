@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — RollupHub governance lock + revertBatch; settlement-ABI correspondence model — 2026-09-18
+
+- Implemented the two doc.md §3.2 settlement methods the contract did not yet expose, closing
+  the settlement method-surface slice of the "spec-to-implementation correspondence" obligation:
+  - `revertBatch(chainId, batchNumber)`: pre-lock bootstrap-owner only, post-lock only the
+    GovernanceController contract (relayed council proposal past threshold + timelock). Only the
+    pending batch (latest+1) or the latest finalized batch is revertible — an earlier finalized
+    batch would break the canonical-root chain — and Gateway-published batches
+    (`batchNumber <= getGatewayFinalizedThrough`) are irreversible. Reverting the latest
+    finalized batch restores the canonical state root to that batch's pre-state root and rewinds
+    the finalized watermark; the tombstone status (`StatusReverted = 4`, previously declared but
+    unused) stays for audit; the DA record and gateway finalized record are deleted so a
+    replacement batch can take the slot. Consumed forced-inclusion transactions are NOT restored
+    (documented in the XML remarks).
+  - `lockGovernance()`: one-time irreversible production lock per doc.md §3.2 — requires the
+    GovernanceController and SharedBridge wired first. Post-lock, `SetOwner` is refused,
+    `RevertBatch` refuses the owner's witness, and `SetGovernanceController` requires the
+    controller's own witness (otherwise the owner could point post-lock revert authorization at
+    a contract it controls). `isGovernanceLocked()` [Safe] query added; `BatchReverted` and
+    `GovernanceLocked` events emitted.
+- Regenerated TestingArtifacts (nccs 3.9.1) with verified base64↔NEF round-trip; 7 new VM tests
+  cover the lock lifecycle, pending revert + replacement resubmission, latest-finalized revert
+  root rewind, gateway-published irreversibility, non-latest rejection, unknown batch, and the
+  post-lock owner-revert refusal. VmTests 630/630.
+- Added `scripts/formal/verify_settlement_abi.py`: a spec-correspondence model parsing the
+  deployed contract manifest and proving all 10 doc.md §3.2 settlement methods exist with the
+  doc-declared parameter counts (now recording the 4th `forcedInclusionCount` parameter, with
+  doc.md §3.2 signatures updated to match), plus revert/lock invariants and registry surface
+  presence. 3 self-tests; doc.md and TestingArtifacts-driven, fails closed on missing methods.
+- Re-pinned the registration/settlement/forced-inclusion model digests to the changed contract
+  source (fail-closed re-review as designed; the changed regions do not touch those modeled
+  paths). 73 formal self-tests pass; all 17 model runners exit 0; full solution 38 assemblies
+  0 failures. Whole-system verification is NOT claimed.
+
 ### Added — batch-commitment spec-correspondence model — 2026-09-18
 
 - Added `scripts/formal/verify_batch_spec.py`: a spec-to-implementation correspondence model

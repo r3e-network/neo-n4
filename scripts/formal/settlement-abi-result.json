@@ -1,0 +1,124 @@
+{
+  "schema": "neo-n4/settlement-abi-model/v1",
+  "wholeSystemVerified": false,
+  "scope": "spec-to-implementation correspondence of doc.md \u00a73.2 settlement method surface",
+  "obligations": [
+    {
+      "name": "doc_method_implemented_submitBatch",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "doc_method_implemented_submitAndFinalizeBatch",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "doc_method_implemented_finalizeBatch",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "doc_method_implemented_revertBatch",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "doc_method_implemented_publishGatewayGlobalRoot",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "doc_method_implemented_setGovernanceController",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "doc_method_implemented_lockGovernance",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "doc_method_implemented_isGovernanceLocked",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "doc_method_implemented_getCanonicalStateRoot",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "doc_method_implemented_isProofTypeCompatible",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "revert_batch_takes_chain_and_batch",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "lock_governance_is_parameterless",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "governance_lock_is_queryable",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "registry_surface_present_registerChain",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "registry_surface_present_updateChain",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "registry_surface_present_pauseChain",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "registry_surface_present_resumeChain",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten correspondence: doc.md \u00a73.2 method list vs the generated contract manifest",
+    "the manifest is the same NEF/manifest the VmTests execute against (TestingArtifacts)",
+    "submitBatch/submitAndFinalizeBatch deliberately supersede the doc signature with a",
+    "4th forcedInclusionCount parameter sealed into the 352-byte public-inputs domain",
+    "publishGatewayGlobalRoot's long tail is existence-checked, not arity-checked",
+    "post-lock authorization relies on Runtime.CheckWitness of the GovernanceController",
+    "contract; relay-proposal execution semantics live in GovernanceController"
+  ],
+  "source": "D:\\Git\\neo-n4\\tests\\NeoHub.Contracts.VmTests\\TestingArtifacts\\NeoHubRollupHub.artifacts.cs",
+  "spec": "D:\\Git\\neo-n4\\doc.md",
+  "scriptSha256": "01ff3d7c67e3fa23fd47a27c61a0c40c891fc16b974aebb79732586f04472c86",
+  "specSha256": "9efc0585855e4caac03c6ed5b5d233dc69f657939ba7111d2613d74fdd902310",
+  "exitCode": 0
+}

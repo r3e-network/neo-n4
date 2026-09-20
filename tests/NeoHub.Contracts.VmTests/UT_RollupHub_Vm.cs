@@ -450,6 +450,156 @@ public class UT_RollupHub_Vm
         Assert.AreNotEqual(UInt256.Zero, hub.GetGlobalRootProofInputHash(42));
     }
 
+    [TestMethod]
+    public void LockGovernance_IsOneTimeAndBlocksOwnerSelfService()
+    {
+        var (_, hub, owner) = Deploy();
+        var config = BuildChainConfig(ChainId);
+        hub.RegisterChain(ChainId, config, GenesisStateRoot);
+        hub.SharedBridge = VerifierHash; // any non-zero target satisfies the wiring precondition
+
+        // Lock requires the governance controller wired first.
+        Assert.ThrowsExactly<TestException>(() => hub.LockGovernance());
+        hub.GovernanceController = VerifierHash;
+
+        hub.LockGovernance();
+        Assert.IsTrue(hub.IsGovernanceLocked!.Value);
+
+        // Irreversible.
+        Assert.ThrowsExactly<TestException>(() => hub.LockGovernance());
+
+        // Post-lock the bootstrap owner can no longer self-service.
+        Assert.ThrowsExactly<TestException>(() => hub.Owner = owner);
+        Assert.ThrowsExactly<TestException>(() => hub.GovernanceController = owner);
+    }
+
+    [TestMethod]
+    public void RevertBatch_PendingBatch_DiscardsSlotForReplacement()
+    {
+        var (_, hub, owner) = Deploy();
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
+
+        var postState = R(0x20);
+        var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, postState, proofType: 3);
+        hub.SubmitBatch(c, l1msg, blkctx, 0u);
+        Assert.AreEqual((BigInteger)1, hub.GetBatchStatus(ChainId, 1)); // StatusPending
+
+        hub.RevertBatch(ChainId, 1);
+        Assert.AreEqual((BigInteger)4, hub.GetBatchStatus(ChainId, 1)); // StatusReverted
+        Assert.AreEqual((BigInteger)0, hub.GetLatestFinalizedBatchNumber(ChainId));
+
+        // The slot is free for a replacement batch 1.
+        var replacement = R(0x2A);
+        var (c2, l1msg2, blkctx2) = BuildCommitment(1, GenesisState, replacement, proofType: 3);
+        hub.SubmitAndFinalizeBatch(c2, l1msg2, blkctx2, 0u);
+        Assert.AreEqual((BigInteger)3, hub.GetBatchStatus(ChainId, 1)); // StatusFinalized
+        Assert.AreEqual(new UInt256(replacement), hub.GetCanonicalStateRoot(ChainId));
+    }
+
+    [TestMethod]
+    public void RevertBatch_LatestFinalized_RestoresPreStateRoot()
+    {
+        var (_, hub, _) = Deploy();
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
+
+        var postState = R(0x20);
+        var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, postState, proofType: 3);
+        hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 0u);
+        Assert.AreEqual((BigInteger)1, hub.GetLatestFinalizedBatchNumber(ChainId));
+
+        hub.RevertBatch(ChainId, 1);
+        Assert.AreEqual((BigInteger)4, hub.GetBatchStatus(ChainId, 1)); // StatusReverted
+        Assert.AreEqual((BigInteger)0, hub.GetLatestFinalizedBatchNumber(ChainId));
+        // Canonical root rewinds to the reverted batch's pre-state (== genesis for batch 1).
+        Assert.AreEqual(GenesisStateRoot, hub.GetCanonicalStateRoot(ChainId));
+    }
+
+    [TestMethod]
+    public void RevertBatch_GatewayPublishedBatch_IsIrreversible()
+    {
+        var sharedBridgeHash = UInt160.Parse("0x" + new string('7', 40));
+        var engine = new TestEngine(true);
+        engine.Fee = 100_000_000_000L;
+        engine.FromHash<StubVerifier>(VerifierHash, mock =>
+        {
+            mock.Setup(v => v.VerifyProof(It.IsAny<byte[]>())).Returns(true);
+            mock.Setup(v => v.VerifyZkProof(
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<byte[]?>(),
+                    It.IsAny<byte[]?>(),
+                    It.IsAny<byte[]?>()))
+                .Returns(true);
+        }, checkExistence: false);
+        engine.FromHash<StubSharedBridge>(sharedBridgeHash, mock =>
+            mock.Setup(b => b.PublishMessageRoots(
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<UInt256?>(),
+                    It.IsAny<UInt256?>())),
+            checkExistence: false);
+        var hub = engine.Deploy<NeoHubRollupHub>(NeoHubRollupHub.Nef, NeoHubRollupHub.Manifest,
+            new object[] { engine.Sender, VerifierHash });
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
+        hub.SharedBridge = sharedBridgeHash;
+        var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, R(0x20), proofType: 3);
+        hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 0u);
+
+        // Publish the epoch to the Gateway (advances the per-chain watermark past batch 1).
+        var references = new byte[12];
+        BinaryPrimitives.WriteUInt32LittleEndian(references.AsSpan(0, 4), ChainId);
+        BinaryPrimitives.WriteUInt64LittleEndian(references.AsSpan(4, 8), 1);
+        hub.PublishGatewayGlobalRoot(
+            42, references, new UInt256(R(0xEE)), new UInt256(Hash256(c)), 1, 2, 1,
+            new UInt256(R(0xA1)), new UInt256(R(0xD1)), [0xCA, 0xFE]);
+        Assert.AreEqual((BigInteger)1, hub.GetGatewayFinalizedThrough(ChainId));
+
+        Assert.ThrowsExactly<TestException>(() => hub.RevertBatch(ChainId, 1));
+        Assert.AreEqual((BigInteger)3, hub.GetBatchStatus(ChainId, 1)); // still finalized
+    }
+
+    [TestMethod]
+    public void RevertBatch_NonLatestFinalizedBatch_IsRejected()
+    {
+        var (_, hub, _) = Deploy();
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
+        var (c1, l1msg1, blkctx1) = BuildCommitment(1, GenesisState, R(0x20), proofType: 3);
+        hub.SubmitAndFinalizeBatch(c1, l1msg1, blkctx1, 0u);
+        var (c2, l1msg2, blkctx2) = BuildCommitment(2, R(0x20), R(0x30), proofType: 3);
+        hub.SubmitAndFinalizeBatch(c2, l1msg2, blkctx2, 0u);
+
+        // Batch 1 is no longer the latest finalized batch — reverting it would break the
+        // canonical-root chain (batch 2's pre-state points at batch 1's post-state).
+        Assert.ThrowsExactly<TestException>(() => hub.RevertBatch(ChainId, 1));
+        Assert.AreEqual((BigInteger)2, hub.GetLatestFinalizedBatchNumber(ChainId));
+    }
+
+    [TestMethod]
+    public void LockGovernance_PostLock_OwnerCannotRevertDirectly()
+    {
+        var (_, hub, _) = Deploy();
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
+        // Submit while the governance controller is unwired (pause check skipped), then wire
+        // the controller + bridge and lock.
+        var (cL, mL, bL) = BuildCommitment(1, GenesisState, R(0x20), proofType: 3);
+        hub.SubmitAndFinalizeBatch(cL, mL, bL, 0u);
+        hub.GovernanceController = VerifierHash;
+        hub.SharedBridge = VerifierHash;
+        hub.LockGovernance();
+
+        // Post-lock the bootstrap owner's witness no longer authorizes reverts — the relayed
+        // council proposal (witnessed by the GovernanceController contract) is the only path.
+        Assert.ThrowsExactly<TestException>(() => hub.RevertBatch(ChainId, 1));
+        Assert.AreEqual((BigInteger)1, hub.GetLatestFinalizedBatchNumber(ChainId));
+    }
+
+    [TestMethod]
+    public void RevertBatch_UnknownBatch_IsRejected()
+    {
+        var (_, hub, _) = Deploy();
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
+        Assert.ThrowsExactly<TestException>(() => hub.RevertBatch(ChainId, 9));
+    }
+
     private static byte[] Hex(string value)
     {
         var bytes = new byte[value.Length / 2];

@@ -17,7 +17,7 @@ import z3
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "contracts/NeoHub.RollupHub/RollupHubContract.cs"
-REVIEWED_SOURCE_SHA256 = "f2b4f03648926c5fc29d2d19698ca1ff71a3c9e7b4cb576bc370dc60e4a070aa"
+REVIEWED_SOURCE_SHA256 = "10504d10c0f74669f15fe9455a4d3426f8bd5967b36221654976bec574bd93a3"
 # ConsumeForcedTransactionsInternal asserts head + count <= tail; the loop is a simple
 # index advance with no wrap within the uint64 domain (GetForcedTail casts BigInteger -> ulong).
 MAX = 2**64 - 1

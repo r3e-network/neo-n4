@@ -3,7 +3,7 @@
 ## Status
 
 **Whole-system formal verification is NOT complete.** This directory contains
-fifteen Z3 models and one CTL model — the `BatchSerializer.Decode` length arithmetic,
+sixteen Z3 models and one CTL model — the `BatchSerializer.Decode` length arithmetic,
 an inductive safety model of the atomic `RegisterChain` registration state machine,
 an inductive safety model of the forced-inclusion FIFO queue, inductive safety
 models of SharedBridge L1 escrow conservation and the L2 bridge token-supply
@@ -13,7 +13,8 @@ structural-injectivity model of the canonical message/withdrawal preimages,
 inductive safety, crash-recovery, crash-atomicity (write-order) and CTL
 reachability-liveness models of the Gateway publication outbox, an inductive model
 of the optimistic-challenge bisection game, spec-correspondence models of the
-doc.md §3.2 chain-config and batch-commitment wire formats, and an inductive safety
+doc.md §3.2 chain-config and batch-commitment wire formats and the §3.2 settlement
+method surface, and an inductive safety
 model of a registered chain's settlement state machine — not a verifier for C#/NeoVM
 programs. Property tests, mutation tests and SP1 execution proofs are different
 evidence classes; none is a substitute for a system-wide correctness proof. See
@@ -21,7 +22,7 @@ also settlement-model.md, registration-model.md, forced-inclusion-model.md,
 bridge-conservation-model.md, l2-bridge-model.md, governance-model.md,
 da-failover-model.md, preimage-injectivity-model.md, gateway-outbox-model.md,
 gateway-outbox-recovery-model.md, gateway-outbox-crashatomic-model.md,
-gateway-outbox-liveness-model.md, bisection-model.md, config-spec-model.md, batch-spec-model.md and
+gateway-outbox-liveness-model.md, bisection-model.md, config-spec-model.md, batch-spec-model.md, settlement-abi-model.md and
 mutation-results.md.
 
 ## Reproduce
@@ -46,6 +47,7 @@ python -m venv .venv-formal
 .venv-formal/bin/python scripts/formal/verify_bisection.py
 .venv-formal/bin/python scripts/formal/verify_config_spec.py
 .venv-formal/bin/python scripts/formal/verify_batch_spec.py
+.venv-formal/bin/python scripts/formal/verify_settlement_abi.py
 .venv-formal/bin/python scripts/formal/verify_l2_bridge.py
 .venv-formal/bin/python scripts/formal/verify_outbox_liveness.py
 .venv-formal/bin/python scripts/formal/verify_settlement.py
@@ -102,16 +104,16 @@ settlement state machines are now covered by scoped models (see registration-mod
 bridge-conservation-model.md, l2-bridge-model.md, governance-model.md,
 da-failover-model.md, preimage-injectivity-model.md, gateway-outbox-model.md,
 gateway-outbox-recovery-model.md, gateway-outbox-crashatomic-model.md,
-gateway-outbox-liveness-model.md, bisection-model.md, config-spec-model.md, batch-spec-model.md and
+gateway-outbox-liveness-model.md, bisection-model.md, config-spec-model.md, batch-spec-model.md, settlement-abi-model.md and
 settlement-model.md). Each model's trusted assumptions are recorded in its notes;
 none claims more than its stated scope. The outbox recovery/crashatomic models cover
 the protocol-layer recovery rehydration and the write-ordering crash-atomicity; they
 do not model RocksDB's internal WAL or the atomicity of a single storage write. The
-config-spec and batch-spec models cover the chain-config and batch-commitment
-wire-format correspondence slices; broader spec-to-implementation correspondence
-(settlement/bridge ABI) remains open. Remaining proof obligations include
-spec-to-implementation correspondence beyond the config wire format; execution
-semantics; full nonce-replay binding and SHA-256 collision resistance; RocksDB's
+config-spec, batch-spec and settlement-abi models cover the chain-config,
+batch-commitment wire-format and settlement method-surface correspondence slices;
+broader spec-to-implementation correspondence (bridge ABI) remains open. Remaining proof obligations include
+spec-to-implementation correspondence beyond the config/batch wire formats and the
+settlement method surface; execution semantics; full nonce-replay binding and SHA-256 collision resistance; RocksDB's
 internal WAL/durability and the L1-core ChainMode-gated GAS hooks; and
 composition/liveness under explicit network assumptions. These need individual
 models, reviewed assumptions, counterexamples, implementation linkage and reproducible

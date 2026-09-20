@@ -810,7 +810,13 @@ public class RollupHubContract : SmartContract
     /// <remarks>See doc.md §4 and §11.</remarks>
     public static void SetSharedBridge(UInt160 sharedBridge)
     {
-        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        // Post-lock only the GovernanceController can rotate the bridge (a relayed proposal):
+        // SharedBridge receives the per-epoch message-root fan-out, so leaving it
+        // owner-changeable would let the bootstrap owner redirect custody after the lock.
+        if (IsGovernanceLocked())
+            ExecutionEngine.Assert(Runtime.CheckWitness(GetGovernanceController()), "not authorized");
+        else
+            ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(sharedBridge.IsValid && !sharedBridge.IsZero, "invalid shared bridge");
         Storage.Put(new byte[] { PrefixSharedBridge }, sharedBridge);
     }

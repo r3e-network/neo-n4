@@ -220,6 +220,9 @@ publishGatewayGlobalRoot(epoch, globalRoot, proofSystem, publicInputs, proof, �
 setGovernanceController(governanceController)
 lockGovernance()                                         // 生产不可逆锁
 isGovernanceLocked()                                     // [Safe]
+// 锁定后 owner 不能转移 owner、更换 SharedBridge / governance controller，或直接回滚 batch；
+// 这些入口仅治理控制器自身（阈值提案 + timelock）可触碰。verifier registry 在部署时一次
+// 性写入，任何人都不可变更。
 getCanonicalStateRoot(chainId)
 isProofTypeCompatible(securityLevel, proofType)          // [Safe]
 ```

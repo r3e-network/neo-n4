@@ -471,6 +471,7 @@ public class UT_RollupHub_Vm
         // Post-lock the bootstrap owner can no longer self-service.
         Assert.ThrowsExactly<TestException>(() => hub.Owner = owner);
         Assert.ThrowsExactly<TestException>(() => hub.GovernanceController = owner);
+        Assert.ThrowsExactly<TestException>(() => hub.SharedBridge = owner);
     }
 
     [TestMethod]

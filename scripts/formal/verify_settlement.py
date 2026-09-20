@@ -14,7 +14,7 @@ import z3
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "contracts/NeoHub.RollupHub/RollupHubContract.cs"
-REVIEWED_SOURCE_SHA256 = "10504d10c0f74669f15fe9455a4d3426f8bd5967b36221654976bec574bd93a3"
+REVIEWED_SOURCE_SHA256 = "cbf074482d00c01c9b4e8b8d79a987efc7bcdab025e31ce6f707ed8ca9f009ea"
 MAX_HEIGHT = 2**64 - 1
 
 

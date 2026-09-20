@@ -39,6 +39,7 @@ public class RollupHubContract : SmartContract
     private const byte PrefixForcedTx = 0x42;         // 0x42 + chainId(4B) + nonce(8B) -> txHash (32B)
     private const byte PrefixGovernanceController = 0x43; // 0x43 -> GovernanceController hash
     private const byte PrefixGovernanceLocked = 0x44;     // 0x44 -> 1 once lockGovernance() succeeds (irreversible)
+    private const byte PrefixBatchForcedCount = 0x45;     // 0x45 + chainId(4B) + batchNumber(8B) -> forced txs consumed by this batch
 
     // Gateway / SharedBridge (doc.md §4) — reserved lean prefixes matching historical SettlementManager layout.
     private const byte PrefixGatewayFinalizedRecord = 0x09;   // 0x09 + chainId(4) + batch(8) -> 64B record
@@ -441,8 +442,11 @@ public class RollupHubContract : SmartContract
         // Store commitment bytes
         Storage.Put(BatchCommitmentKey(chainId, batchNumber), commitmentBytes);
 
-        // Advance the anti-censorship queue. Count is sealed into the public-input hash above.
+        // Advance the anti-censorship queue. Count is sealed into the public-input hash above;
+        // it is also recorded per batch so RevertBatch can rewind the queue head (anti-censorship
+        // requires the forced txs to survive a governance rollback of a bad batch).
         ConsumeForcedTransactionsInternal(chainId, forcedInclusionCount);
+        Storage.Put(BatchForcedCountKey(chainId, batchNumber), (BigInteger)forcedInclusionCount);
     }
 
     /// <summary>
@@ -529,9 +533,10 @@ public class RollupHubContract : SmartContract
     /// finalized batch can be reverted without breaking the canonical-root chain. Reverting the
     /// latest finalized batch restores the canonical state root to that batch's pre-state root
     /// and rewinds the finalized watermark; the batch's tombstone status (<see cref="StatusReverted"/>)
-    /// stays for audit. A reverted batch's consumed forced-inclusion transactions are NOT
-    /// restored — they were bound into the reverted batch's sealed public inputs, and a
-    /// replacement batch must re-include them itself.
+    /// stays for audit. The forced-inclusion transactions the batch consumed are RESTORED by
+    /// rewinding the queue head (anti-censorship: users' forced txs must survive a governance
+    /// rollback; safe because only the most recent batch can be reverted, so no later
+    /// consumption can have advanced the head past the rewind point).
     /// </remarks>
     public static void RevertBatch(uint chainId, ulong batchNumber)
     {
@@ -560,6 +565,7 @@ public class RollupHubContract : SmartContract
             Storage.Delete(BatchCommitmentKey(chainId, batchNumber));
             Storage.Delete(GatewayFinalizedRecordKey(chainId, batchNumber));
             Storage.Delete(BatchDAKey(chainId, batchNumber));
+            RestoreForcedHead(chainId, batchNumber);
             Storage.Put(CanonicalRootKey(chainId), preStateRoot);
             Storage.Put(LatestBatchKey(chainId), (BigInteger)(batchNumber - 1));
         }
@@ -570,6 +576,7 @@ public class RollupHubContract : SmartContract
             Storage.Put(statusKey, new byte[] { StatusReverted });
             Storage.Delete(BatchCommitmentKey(chainId, batchNumber));
             Storage.Delete(BatchDAKey(chainId, batchNumber));
+            RestoreForcedHead(chainId, batchNumber);
         }
         else
         {
@@ -577,6 +584,23 @@ public class RollupHubContract : SmartContract
         }
 
         OnBatchReverted(chainId, batchNumber);
+    }
+
+    /// <summary>
+    /// Rewind the forced-inclusion queue head by the count the reverted batch consumed,
+    /// returning those transactions to the pending queue (doc.md §15 anti-censorship).
+    /// </summary>
+    private static void RestoreForcedHead(uint chainId, ulong batchNumber)
+    {
+        var countKey = BatchForcedCountKey(chainId, batchNumber);
+        var raw = Storage.Get(countKey);
+        if (raw == null) return;
+        var consumed = (ulong)(BigInteger)raw;
+        if (consumed == 0) return;
+        var head = GetForcedHead(chainId);
+        ExecutionEngine.Assert(head >= consumed, "forced head rewind underflow");
+        Storage.Put(ForcedHeadKey(chainId), (BigInteger)(head - consumed));
+        Storage.Delete(countKey);
     }
 
     /// <summary>
@@ -1144,6 +1168,7 @@ public class RollupHubContract : SmartContract
     private static byte[] BatchStatusKey(uint id, ulong num) => Append4And8(PrefixBatchStatus, id, num);
     private static byte[] BatchCommitmentKey(uint id, ulong num) => Append4And8(PrefixBatchCommitment, id, num);
     private static byte[] BatchDAKey(uint id, ulong num) => Append4And8(PrefixBatchDA, id, num);
+    private static byte[] BatchForcedCountKey(uint id, ulong num) => Append4And8(PrefixBatchForcedCount, id, num);
     private static byte[] ForcedTxKey(uint id, ulong nonce) => Append4And8(PrefixForcedTx, id, nonce);
 
     private static byte[] Append4(byte pfx, uint val)

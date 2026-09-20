@@ -62,7 +62,8 @@ public class UT_RollupHub_Vm
         byte[] preState,
         byte[] postState,
         byte proofType = 3,
-        byte[]? proof = null)
+        byte[]? proof = null,
+        uint forcedInclusionCount = 0)
     {
         proof ??= [0x01, 0x02, 0x03];
         var c = new byte[ProofBytesOffset + proof.Length];
@@ -84,7 +85,7 @@ public class UT_RollupHub_Vm
 
         var l1msg = new byte[32];
         var blkctx = new byte[32];
-        var pubInputHash = Hash256(BuildPublicInputsBuffer(c, l1msg, blkctx));
+        var pubInputHash = Hash256(BuildPublicInputsBuffer(c, l1msg, blkctx, forcedInclusionCount));
         pubInputHash.CopyTo(c.AsSpan(OffPublicInputHash, 32));
 
         return (c, l1msg, blkctx);
@@ -599,6 +600,35 @@ public class UT_RollupHub_Vm
         var (_, hub, _) = Deploy();
         hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
         Assert.ThrowsExactly<TestException>(() => hub.RevertBatch(ChainId, 9));
+    }
+
+    [TestMethod]
+    public void RevertBatch_RestoresConsumedForcedTransactions()
+    {
+        // Anti-censorship (doc.md §15): reverting a batch must return its consumed forced
+        // transactions to the pending queue, so a governance rollback cannot silence users.
+        var (_, hub, _) = Deploy();
+        hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
+
+        hub.EnqueueForcedTransaction(ChainId, [0x01], new UInt256(R(0x91)));
+        hub.EnqueueForcedTransaction(ChainId, [0x02], new UInt256(R(0x92)));
+        Assert.AreEqual((BigInteger)2, hub.GetPendingForcedCount(ChainId));
+
+        var postState = R(0x20);
+        var (c, l1msg, blkctx) = BuildCommitment(1, GenesisState, postState, proofType: 3, forcedInclusionCount: 2);
+        hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 2u);
+        Assert.AreEqual((BigInteger)0, hub.GetPendingForcedCount(ChainId)); // consumed
+
+        hub.RevertBatch(ChainId, 1);
+        Assert.AreEqual((BigInteger)2, hub.GetPendingForcedCount(ChainId)); // restored
+        Assert.AreEqual((BigInteger)0, hub.GetNextForcedNonce(ChainId));    // head rewound
+
+        // The replacement batch can re-consume the restored transactions.
+        var replacement = R(0x30);
+        var (c2, l1msg2, blkctx2) = BuildCommitment(1, GenesisState, replacement, proofType: 3, forcedInclusionCount: 2);
+        hub.SubmitAndFinalizeBatch(c2, l1msg2, blkctx2, 2u);
+        Assert.AreEqual((BigInteger)0, hub.GetPendingForcedCount(ChainId));
+        Assert.AreEqual(new UInt256(replacement), hub.GetCanonicalStateRoot(ChainId));
     }
 
     private static byte[] Hex(string value)

@@ -45,8 +45,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     finalized batch restores the canonical state root to that batch's pre-state root and rewinds
     the finalized watermark; the tombstone status (`StatusReverted = 4`, previously declared but
     unused) stays for audit; the DA record and gateway finalized record are deleted so a
-    replacement batch can take the slot. Consumed forced-inclusion transactions are NOT restored
-    (documented in the XML remarks).
+    replacement batch can take the slot. Consumed forced-inclusion transactions ARE RESTORED on
+    revert (anti-censorship, doc.md §15): SubmitBatchCore records the per-batch consumed count
+    (prefix 0x45) and RevertBatch rewinds the queue head by it — safe because only the most
+    recent batch is revertible — and the replacement batch re-consumes the restored
+    transactions. Zero-count batches store no key; the count key is always deleted on revert.
   - `lockGovernance()`: one-time irreversible production lock per doc.md §3.2 — requires the
     GovernanceController and SharedBridge wired first. Post-lock, `SetOwner` is refused,
     `RevertBatch` refuses the owner's witness, and `SetGovernanceController` requires the

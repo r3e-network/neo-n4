@@ -53,6 +53,8 @@ jobs:
         run: python scripts/formal/verify_settlement_abi.py
       - name: Verify bridge-ABI correspondence model
         run: python scripts/formal/verify_bridge_abi.py
+      - name: Verify cross-component pipeline liveness model (CTL)
+        run: python scripts/formal/verify_pipeline_liveness.py
       - name: Verify L2-bridge supply-conservation safety model
         run: python scripts/formal/verify_l2_bridge.py
       - name: Verify gateway-outbox reachability-liveness model (CTL)
@@ -80,6 +82,7 @@ jobs:
             scripts/formal/batch-spec-result.json
             scripts/formal/settlement-abi-result.json
             scripts/formal/bridge-abi-result.json
+            scripts/formal/pipeline-liveness-result.json
             scripts/formal/gateway-outbox-liveness-result.json
             scripts/formal/l2-bridge-result.json
             scripts/formal/settlement-result.json

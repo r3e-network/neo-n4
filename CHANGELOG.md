@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — cross-component pipeline liveness model — 2026-09-18
+
+- Added `scripts/formal/verify_pipeline_liveness.py`: a CTL composition model of the sequencer
+  batch pipeline, composing the anti-censorship forced-inclusion FIFO queue with the batch
+  settlement lifecycle in one product Kripke structure (queue depth 0..2 × 6 phases = 18
+  states, checked with pyModelChecking). It proves 7 obligations: the pipeline is fully
+  drainable (AG EF confirmed∧queue-empty), queued forced txs drain only via batch sealing
+  (never silently dropped), no deadlock trap, every phase advances, plus two SAT negative
+  controls (dropping the seal-consumption edge leaves a queue-full deadlock; dropping submit
+  leaves Confirmed unreachable). This extends the single-component outbox liveness model to
+  the cross-component composition slice. Two new self-tests pass. Honest scope: two-component
+  composition; full multi-component network composition remains separate. Whole-system
+  verification is NOT claimed.
+
 ### Added — bridge method-surface correspondence model — 2026-09-18
 
 - Added `scripts/formal/verify_bridge_abi.py`: a spec-correspondence model for doc.md

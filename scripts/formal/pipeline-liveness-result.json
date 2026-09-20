@@ -1,0 +1,62 @@
+{
+  "schema": "neo-n4/pipeline-liveness-model/v1",
+  "wholeSystemVerified": false,
+  "scope": "CTL cross-component composition: forced-inclusion queue -> batch settlement lifecycle",
+  "tool": "pyModelChecking 1.3.4",
+  "obligations": [
+    {
+      "name": "pipeline_fully_drainable",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "queue_drains_via_batch",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "no_deadlock_trap",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "idle_reaches_sealed",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "submitted_reaches_confirmed",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "negative_control_queue_full_deadlock",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "name": "negative_control_confirmed_unreachable",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten Kripke abstraction of the queue + batch pipeline composition",
+    "queue depth bounded to 2 (bounded-model-check; the FIFO model proves the unbounded invariant)",
+    "sealing consumes all queued forced txs (full-drain discipline); partial consumption is",
+    "modeled in the forced-inclusion FIFO model",
+    "proof retry loops back to proving; failures folded into the retry self-loop",
+    "enqueue only while collecting (single batch in flight)",
+    "this models the composition, not RocksDB internals or L1 RPC"
+  ],
+  "source": "D:\\Git\\neo-n4\\scripts\\formal\\verify_pipeline_liveness.py",
+  "exitCode": 0
+}

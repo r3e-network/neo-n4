@@ -3,7 +3,7 @@
 ## Status
 
 **Whole-system formal verification is NOT complete.** This directory contains
-seventeen Z3 models and one CTL model — the `BatchSerializer.Decode` length arithmetic,
+seventeen Z3 models and two CTL models — the `BatchSerializer.Decode` length arithmetic,
 an inductive safety model of the atomic `RegisterChain` registration state machine,
 an inductive safety model of the forced-inclusion FIFO queue, inductive safety
 models of SharedBridge L1 escrow conservation and the L2 bridge token-supply
@@ -11,7 +11,8 @@ ledger, an inductive safety model of the GovernanceController authorization gate
 an inductive safety model of the DA write-side failover policy, a
 structural-injectivity model of the canonical message/withdrawal preimages,
 inductive safety, crash-recovery, crash-atomicity (write-order) and CTL
-reachability-liveness models of the Gateway publication outbox, an inductive model
+reachability-liveness models of the Gateway publication outbox, a CTL cross-component
+pipeline composition model (forced-inclusion queue × batch lifecycle), an inductive model
 of the optimistic-challenge bisection game, spec-correspondence models of the
 doc.md §3.2 chain-config and batch-commitment wire formats the §3.2 settlement
 method surface, and the §10/§11 bridge method surface, and an inductive safety
@@ -22,8 +23,8 @@ also settlement-model.md, registration-model.md, forced-inclusion-model.md,
 bridge-conservation-model.md, l2-bridge-model.md, governance-model.md,
 da-failover-model.md, preimage-injectivity-model.md, gateway-outbox-model.md,
 gateway-outbox-recovery-model.md, gateway-outbox-crashatomic-model.md,
-gateway-outbox-liveness-model.md, bisection-model.md, config-spec-model.md, batch-spec-model.md, settlement-abi-model.md, bridge-abi-model.md and
-mutation-results.md.
+gateway-outbox-liveness-model.md, bisection-model.md, config-spec-model.md, batch-spec-model.md, settlement-abi-model.md, bridge-abi-model.md,
+pipeline-liveness-model.md and mutation-results.md.
 
 ## Reproduce
 
@@ -49,6 +50,7 @@ python -m venv .venv-formal
 .venv-formal/bin/python scripts/formal/verify_batch_spec.py
 .venv-formal/bin/python scripts/formal/verify_settlement_abi.py
 .venv-formal/bin/python scripts/formal/verify_bridge_abi.py
+.venv-formal/bin/python scripts/formal/verify_pipeline_liveness.py
 .venv-formal/bin/python scripts/formal/verify_l2_bridge.py
 .venv-formal/bin/python scripts/formal/verify_outbox_liveness.py
 .venv-formal/bin/python scripts/formal/verify_settlement.py
@@ -113,7 +115,9 @@ do not model RocksDB's internal WAL or the atomicity of a single storage write. 
 config-spec, batch-spec, settlement-abi and bridge-abi models cover the chain-config,
 batch-commitment wire-format, settlement method-surface and bridge method-surface
 correspondence slices; the spec-to-implementation correspondence obligation is now
-covered at the method-surface level for the doc-declared contract surfaces. Remaining proof obligations include
+covered at the method-surface level for the doc-declared contract surfaces. The
+pipeline-liveness model covers the two-component sequencer pipeline composition
+(queue × batch lifecycle); full multi-component network composition remains open. Remaining proof obligations include
 spec-to-implementation correspondence beyond the doc-declared method surfaces (field-
 and state-level semantics); execution semantics; full nonce-replay binding and SHA-256 collision resistance; RocksDB's
 internal WAL/durability and the L1-core ChainMode-gated GAS hooks; and

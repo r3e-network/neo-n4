@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — batch arithmetic invariants model — 2026-09-18
+
+- Added `scripts/formal/verify_batch_arithmetic.py`: a Z3 symbolic execution model of the batch
+  settlement arithmetic layer, proving batch numbers strictly increase (no gaps, no rewind),
+  block ranges form non-overlapping intervals (firstBlock > previous lastBlock), finalized
+  batches monotonic, and revert constraints hold (only pending or latest finalized revertible;
+  reverting latest rewinds watermark to latestBatch - 1). 9 obligations (6 invariants + 3 SAT
+  negative controls: batch-gap/block-overlap/revert-earlier all flip to unsat), all pass. Two
+  new self-tests pass. Bounded-model-check over symbolic transitions; invariants hold for
+  unbounded sequences by construction. This covers the arithmetic execution-semantics slice;
+  full execution semantics remain separate. Whole-system verification is NOT claimed.
+
 ### Added — cross-component pipeline liveness model — 2026-09-18
 
 - Added `scripts/formal/verify_pipeline_liveness.py`: a CTL composition model of the sequencer

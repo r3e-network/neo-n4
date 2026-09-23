@@ -1,0 +1,69 @@
+{
+  "schema": "neo-n4/state-monotonicity-model/v1",
+  "wholeSystemVerified": false,
+  "scope": "Z3 state monotonicity invariants: finalized state roots and Gateway watermark never rewind",
+  "obligations": [
+    {
+      "name": "prestate_matches_canonical",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "canonical_advances_to_poststate",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "canonical_root_never_spontaneously_rewinds",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "gateway_watermark_monotonic",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "gateway_published_irreversible",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "revert_restores_prestate_root",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "gateway_published_not_revertible",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "negative_control_prestate_mismatch",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "negative_control_gateway_rewind",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten Z3 abstraction of state-root chain continuity and Gateway watermark monotonicity",
+    "bounded-model-check over finalize/revert transitions",
+    "this models the state-layer monotonicity, not cryptographic state-root identity or full execution"
+  ],
+  "source": "D:\\Git\\neo-n4\\scripts\\formal\\verify_state_monotonicity.py",
+  "exitCode": 0
+}

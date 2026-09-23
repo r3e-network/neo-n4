@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — state monotonicity invariants model — 2026-09-18
+
+- Added `scripts/formal/verify_state_monotonicity.py`: a Z3 symbolic execution model of the
+  state-layer monotonicity, proving finalized state roots form a continuous chain (pre-state
+  of batch N+1 == post-state of batch N), the canonical state root never spontaneously rewinds
+  (only explicit governance revert of the latest finalized batch restores its pre-state), and
+  the Gateway finalized-through watermark strictly increases (never decreases). 9 obligations
+  (6 invariants + 3 SAT/unsat controls: pre-state mismatch/Gateway watermark rewind/reverting
+  Gateway-published batch all flip to unsat), all pass. Two new self-tests pass.
+  Bounded-model-check over symbolic transitions; invariants hold for unbounded sequences by
+  construction. This covers the state-layer execution-semantics slice; cryptographic state-root
+  identity and full execution semantics remain separate. Whole-system verification is NOT
+  claimed.
+
 ### Added — batch arithmetic invariants model — 2026-09-18
 
 - Added `scripts/formal/verify_batch_arithmetic.py`: a Z3 symbolic execution model of the batch

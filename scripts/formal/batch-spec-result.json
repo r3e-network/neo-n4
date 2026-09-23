@@ -99,7 +99,7 @@
   "source": "D:\\Git\\neo-n4\\src\\Neo.L2.Batch\\BatchSerializer.cs",
   "spec": "D:\\Git\\neo-n4\\doc.md",
   "scriptSha256": "6c8eb0167b95bf9add405dc8a8ca5cd28ff95a4cd051543549a9a3841a97512a",
-  "specSha256": "d9cc5cc2dc5f3f68570830237f88116b8d6290d4d5d63862c3a53112d6fa0dec",
+  "specSha256": "e296ce61e8fe4a64a81adf1b72be0f0ccafaf826c4b81b415eb5edf409d02816",
   "anchorsChecked": [
     "D:\\Git\\neo-n4\\src\\Neo.L2.Batch\\BatchSerializer.cs",
     "D:\\Git\\neo-n4\\contracts\\NeoHub.RollupHub\\RollupHubContract.cs"

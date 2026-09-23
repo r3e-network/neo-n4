@@ -129,8 +129,8 @@
     "each batch seals forcedInclusionCount into the public-input hash (replay-bound)"
   ],
   "source": "D:\\Git\\neo-n4\\contracts\\NeoHub.RollupHub\\RollupHubContract.cs",
-  "scriptSha256": "74e2f550de9a06df42775484f0a52648f3e856410471193f59fb1e44d1fff44e",
-  "specSha256": "d9cc5cc2dc5f3f68570830237f88116b8d6290d4d5d63862c3a53112d6fa0dec",
-  "sourceSha256": "10504d10c0f74669f15fe9455a4d3426f8bd5967b36221654976bec574bd93a3",
+  "scriptSha256": "d7863b6dbf043dfce09ff07d071607070d40c8b9b179ea754cda9ea129d185de",
+  "specSha256": "e296ce61e8fe4a64a81adf1b72be0f0ccafaf826c4b81b415eb5edf409d02816",
+  "sourceSha256": "4477ae0bbf3cdad0c476f50eade98ac7b03ce0e82c4747548a64245fdd296361",
   "exitCode": 0
 }

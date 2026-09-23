@@ -2,19 +2,20 @@
 
 ## 状态
 
-**全系统形式化验证尚未完成。** 本目录包含十九个 Z3 模型与两个 CTL 模型——BatchSerializer.Decode
+**全系统形式化验证尚未完成。** 本目录包含二十个 Z3 模型与两个 CTL 模型——BatchSerializer.Decode
 长度算术、原子 RegisterChain 注册状态机、强制包含 FIFO 队列、SharedBridge L1 escrow
 守恒、L2 桥代币供给账本、GovernanceController 授权门、DA 写入侧失效切换策略、消息/提款
 canonical preimage 结构注入性、Gateway 发布 outbox（归纳安全、崩溃恢复再水合、写入顺序
 崩溃原子性、CTL 可达性活性）、乐观挑战二分游戏、doc.md §3.2 链配置与批次承诺线格式对应性、§3.2 结算方法面、§10/§11 桥接方法面、跨组件管道组合
 （强制入列队列 × 批次生命周期）、批次算术不变量（单调性、不重叠、回滚约束）、状态
-单调性（已终局状态根与 Gateway 水位永不回退），以及已注册链结算状态机的归纳安全模型——不是 C#/NeoVM 程序验证器。性质测试、变异测试与
+单调性（已终局状态根与 Gateway 水位永不回退）、算术溢出安全（ulong 递增与键构造无
+碰撞），以及已注册链结算状态机的归纳安全模型——不是 C#/NeoVM 程序验证器。性质测试、变异测试与
 SP1 执行证明属于不同证据，均不能替代全系统正确性证明。另见 settlement-model.md、
 registration-model.md、forced-inclusion-model.md、bridge-conservation-model.md、
 l2-bridge-model.md、governance-model.md、da-failover-model.md、
 preimage-injectivity-model.md、gateway-outbox-model.md、gateway-outbox-recovery-model.md、
 gateway-outbox-crashatomic-model.md、gateway-outbox-liveness-model.md、bisection-model.md、
-config-spec-model.md、batch-spec-model.md、settlement-abi-model.md、bridge-abi-model.md、pipeline-liveness-model.md、batch-arithmetic-model.md、state-monotonicity-model.md（中文要点见下文）与 mutation-results.zh.md。
+config-spec-model.md、batch-spec-model.md、settlement-abi-model.md、bridge-abi-model.md、pipeline-liveness-model.md、batch-arithmetic-model.md、state-monotonicity-model.md、overflow-safety-model.md（中文要点见下文）与 mutation-results.zh.md。
 
 结算模型（`verify_settlement.py`）对提交、两步终局化、原子终局化与故障停等
 四种转移证明了基态满足与归纳保持：批次 N 的 pre 根等于批次 N-1 的 post 根
@@ -52,6 +53,7 @@ python -m venv .venv-formal
 .venv-formal/bin/python scripts/formal/verify_pipeline_liveness.py
 .venv-formal/bin/python scripts/formal/verify_batch_arithmetic.py
 .venv-formal/bin/python scripts/formal/verify_state_monotonicity.py
+.venv-formal/bin/python scripts/formal/verify_overflow_safety.py
 .venv-formal/bin/python scripts/formal/verify_l2_bridge.py
 .venv-formal/bin/python scripts/formal/verify_outbox_liveness.py
 .venv-formal/bin/python scripts/formal/verify_settlement.py
@@ -99,8 +101,8 @@ PublicInputs 是 352 字节（ForcedInclusionCount 在偏移 348），不是这�
 不提供全系统完成百分比。注册、强制包含 FIFO/队列、桥接 L1 escrow 与 L2 供给守恒、
 治理授权、DA 写入侧失效切换、canonical preimage 结构注入性、Gateway 发布 outbox
 （归纳安全、崩溃恢复再水合、写入顺序崩溃原子性、CTL 可达性活性）、乐观挑战二分游戏
-（rollback 收窄）、doc.md §3.2 链配置与批次承诺线格式对应性、§3.2 结算方法面、§10/§11 桥接方法面、跨组件管道组合、批次算术不变量、状态单调性与结算状态机现由有限
-范围模型覆盖
+（rollback 收窄）、doc.md §3.2 链配置与批次承诺线格式对应性、§3.2 结算方法面、§10/§11 桥接方法面、跨组件管道组合、批次算术不变量、状态单调性、溢出安全与结算状态
+机现由有限范围模型覆盖
 （见 registration-model.md / forced-inclusion-model.md / bridge-conservation-model.md /
 l2-bridge-model.md / governance-model.md / da-failover-model.md /
 preimage-injectivity-model.md / gateway-outbox-model.md / gateway-outbox-recovery-model.md /
@@ -114,7 +116,8 @@ settlement-model.md）。各模型的信任假设在
 doc 声明的方法面层面关闭；pipeline-liveness 模型覆盖双组件排序器管道组合（队列 ×
 批次生命周期），batch-arithmetic 模型覆盖执行语义算术层（批次/区块单调性、不重叠、
 回滚约束），state-monotonicity 模型覆盖执行语义状态层（已终局状态根链连续性、
-Gateway 水位单调），完整多组件网络组合与完整执行语义仍未关闭。未关闭的证明义务包括：方法面之外的
+Gateway 水位单调），overflow-safety 模型覆盖算术溢出安全切片（ulong 递增与键构造
+无碰撞），完整多组件网络组合与完整执行语义仍未关闭。未关闭的证明义务包括：方法面之外的
 spec 对应（字段级/状态级语义）、完整多组件网络组合、执行语义、完整 nonce 重放绑定与 SHA-256 抗碰撞、
 RocksDB 内部 WAL/持久化与 L1 核心 ChainMode 门控 GAS 钩子，以及明确网络假设下的
 组合正确性和活性。每项均需要模型、审核后的假设、反例、实现关联和可复核 CI 证据。

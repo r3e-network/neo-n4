@@ -1,0 +1,63 @@
+{
+  "schema": "neo-n4/overflow-safety-model/v1",
+  "wholeSystemVerified": false,
+  "scope": "Z3 arithmetic overflow safety: batch/block/nonce increments and key construction non-collision",
+  "obligations": [
+    {
+      "name": "batch_increment_safe",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "block_increment_safe",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "nonce_increment_safe",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "batch_key_chainid_collision_free",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "batch_key_batch_collision_free",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "forced_key_nonce_collision_free",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "negative_control_overflow_at_boundary",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "negative_control_key_collision_same_params",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten Z3 abstraction of ulong (uint64) arithmetic and key-construction helpers",
+    "bounded-model-check over 64-bit bitvectors; practical batch/block/nonce sequences stay far below 2^63",
+    "this models the overflow-safety slice, not full execution semantics or cryptographic identity"
+  ],
+  "source": "D:\\Git\\neo-n4\\scripts\\formal\\verify_overflow_safety.py",
+  "exitCode": 0
+}

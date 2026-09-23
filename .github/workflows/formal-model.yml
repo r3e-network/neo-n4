@@ -59,6 +59,8 @@ jobs:
         run: python scripts/formal/verify_batch_arithmetic.py
       - name: Verify state monotonicity invariants model (Z3)
         run: python scripts/formal/verify_state_monotonicity.py
+      - name: Verify arithmetic overflow safety model (Z3)
+        run: python scripts/formal/verify_overflow_safety.py
       - name: Verify L2-bridge supply-conservation safety model
         run: python scripts/formal/verify_l2_bridge.py
       - name: Verify gateway-outbox reachability-liveness model (CTL)
@@ -89,6 +91,7 @@ jobs:
             scripts/formal/pipeline-liveness-result.json
             scripts/formal/batch-arithmetic-result.json
             scripts/formal/state-monotonicity-result.json
+            scripts/formal/overflow-safety-result.json
             scripts/formal/gateway-outbox-liveness-result.json
             scripts/formal/l2-bridge-result.json
             scripts/formal/settlement-result.json

@@ -3,7 +3,7 @@
 ## Status
 
 **Whole-system formal verification is NOT complete.** This directory contains
-nineteen Z3 models and two CTL models — the `BatchSerializer.Decode` length arithmetic,
+twenty Z3 models and two CTL models — the `BatchSerializer.Decode` length arithmetic,
 an inductive safety model of the atomic `RegisterChain` registration state machine,
 an inductive safety model of the forced-inclusion FIFO queue, inductive safety
 models of SharedBridge L1 escrow conservation and the L2 bridge token-supply
@@ -14,7 +14,9 @@ inductive safety, crash-recovery, crash-atomicity (write-order) and CTL
 reachability-liveness models of the Gateway publication outbox, a CTL cross-component
 pipeline composition model (forced-inclusion queue × batch lifecycle), a Z3 batch
 arithmetic invariants model (monotonicity, non-overlap, revert constraints), a Z3 state
-monotonicity model (finalized state roots and Gateway watermark never rewind), an inductive model
+monotonicity model (finalized state roots and Gateway watermark never rewind), a Z3
+arithmetic overflow safety model (ulong increments and key-construction non-collision),
+an inductive model
 of the optimistic-challenge bisection game, spec-correspondence models of the
 doc.md §3.2 chain-config and batch-commitment wire formats the §3.2 settlement
 method surface, and the §10/§11 bridge method surface, and an inductive safety
@@ -26,8 +28,7 @@ bridge-conservation-model.md, l2-bridge-model.md, governance-model.md,
 da-failover-model.md, preimage-injectivity-model.md, gateway-outbox-model.md,
 gateway-outbox-recovery-model.md, gateway-outbox-crashatomic-model.md,
 gateway-outbox-liveness-model.md, bisection-model.md, config-spec-model.md, batch-spec-model.md, settlement-abi-model.md, bridge-abi-model.md,
-pipeline-liveness-model.md, batch-arithmetic-model.md, state-monotonicity-model.md
-and mutation-results.md.
+pipeline-liveness-model.md, batch-arithmetic-model.md, state-monotonicity-model.md, overflow-safety-model.md and mutation-results.md.
 
 ## Reproduce
 
@@ -56,6 +57,7 @@ python -m venv .venv-formal
 .venv-formal/bin/python scripts/formal/verify_pipeline_liveness.py
 .venv-formal/bin/python scripts/formal/verify_batch_arithmetic.py
 .venv-formal/bin/python scripts/formal/verify_state_monotonicity.py
+.venv-formal/bin/python scripts/formal/verify_overflow_safety.py
 .venv-formal/bin/python scripts/formal/verify_l2_bridge.py
 .venv-formal/bin/python scripts/formal/verify_outbox_liveness.py
 .venv-formal/bin/python scripts/formal/verify_settlement.py
@@ -125,8 +127,9 @@ pipeline-liveness model covers the two-component sequencer pipeline composition
 (queue × batch lifecycle); the batch-arithmetic model covers the execution-semantics
 arithmetic layer (batch/block monotonicity, non-overlap, revert constraints); the
 state-monotonicity model covers the state-layer execution-semantics slice (finalized state
-roots chain continuity, Gateway watermark monotonic); full multi-component network
-composition and complete execution semantics remain open. Remaining proof obligations include
+roots chain continuity, Gateway watermark monotonic); the overflow-safety model covers the
+arithmetic overflow-safety slice (ulong increments and key-construction non-collision); full
+multi-component network composition and complete execution semantics remain open. Remaining proof obligations include
 spec-to-implementation correspondence beyond the doc-declared method surfaces (field-
 and state-level semantics); execution semantics; full nonce-replay binding and SHA-256 collision resistance; RocksDB's
 internal WAL/durability and the L1-core ChainMode-gated GAS hooks; and

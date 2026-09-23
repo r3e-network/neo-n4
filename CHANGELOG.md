@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — arithmetic overflow safety model — 2026-09-18
+
+- Added `scripts/formal/verify_overflow_safety.py`: a Z3 bitvector model of the arithmetic
+  overflow-safety layer, proving batch/block/nonce (ulong/uint64) increments are safe (far
+  below 2^63) and key-construction helpers produce collision-free keys (different
+  (chainId, batch)/(chainId, nonce) pairs => different storage keys). 8 obligations (6 safety
+  invariants + 2 controls: incrementing at 2^64 boundary overflows wraps to 0 flips unsat;
+  identical params => identical key sat), all pass. Two new self-tests pass. Bounded-model-check
+  over 64-bit bitvectors; practical batch/block/nonce sequences stay far below the bound. This
+  covers the overflow-safety execution-semantics slice; full execution semantics remain
+  separate. Whole-system verification is NOT claimed.
+
 ### Added — state monotonicity invariants model — 2026-09-18
 
 - Added `scripts/formal/verify_state_monotonicity.py`: a Z3 symbolic execution model of the

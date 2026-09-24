@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — post-lock governance methods — 2026-09-24
+
+- **`contracts/NeoHub.RollupHub/RollupHubContract.cs`**: Added three ViaProposal methods for
+  post-lock governance administration through the GovernanceController:
+  
+  - `RevertBatchViaProposal(chainId, batchNumber, proposalId)`: Revert a batch after governance
+    lock via approved council proposal. Verifies proposal approval, timelock completion, and
+    payload binding before executing the revert.
+  
+  - `UpdateChainViaProposal(configBytes, proposalId)`: Update chain configuration after governance
+    lock via approved council proposal.
+  
+  - `SetChainActiveViaProposal(chainId, active, proposalId)`: Pause/resume a chain after governance
+    lock via approved council proposal. Replaces direct `PauseChain()`/`ResumeChain()` calls.
+
+  Each method follows the governance pattern: verify `isApprovedAndTimelocked(proposalId)`,
+  assert payload matches via `matchesProposalPayload()`, then execute the action. Corresponding
+  `Build*Action()` methods provide canonical action encoding for off-chain tooling to construct
+  proposal payloads.
+
+  Refactored `RevertBatch()` to call internal `RevertBatchInternal()` shared by both direct and
+  ViaProposal code paths, eliminating 40 lines of duplication.
+
 ### Fixed — sequencer bond accumulation — 2026-09-24
 
 - **`contracts/NeoHub.GovernanceController/GovernanceControllerContract.cs`**: `DepositBond()` now

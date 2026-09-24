@@ -546,6 +546,126 @@ public class RollupHubContract : SmartContract
         else
             ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
 
+        RevertBatchInternal(chainId, batchNumber);
+        OnBatchReverted(chainId, batchNumber);
+    }
+
+    /// <summary>
+    /// Post-lock version of <see cref="RevertBatch"/> that routes through GovernanceController.
+    /// Requires an approved + timelocked proposal whose payload matches the action encoding.
+    /// </summary>
+    public static void RevertBatchViaProposal(uint chainId, ulong batchNumber, ulong proposalId)
+    {
+        ExecutionEngine.Assert(IsGovernanceLocked(), "governance not locked");
+        var gov = GetGovernanceController();
+        ExecutionEngine.Assert(Runtime.CheckWitness(gov), "not authorized");
+
+        // Verify proposal is approved, timelocked, and matches the expected action
+        var isApproved = (bool)Contract.Call(gov, "isApprovedAndTimelocked", CallFlags.ReadOnly, proposalId);
+        ExecutionEngine.Assert(isApproved, "proposal not approved + timelocked");
+
+        var expectedAction = BuildRevertBatchAction(chainId, batchNumber);
+        var matches = (bool)Contract.Call(gov, "matchesProposalPayload", CallFlags.ReadOnly, proposalId, expectedAction);
+        ExecutionEngine.Assert(matches, "proposal payload mismatch");
+
+        // Execute the revert (reusing internal logic)
+        RevertBatchInternal(chainId, batchNumber);
+        OnBatchReverted(chainId, batchNumber);
+    }
+
+    /// <summary>
+    /// Post-lock version of <see cref="UpdateChain"/> that routes through GovernanceController.
+    /// </summary>
+    public static void UpdateChainViaProposal(byte[] configBytes, ulong proposalId)
+    {
+        ExecutionEngine.Assert(IsGovernanceLocked(), "governance not locked");
+        var gov = GetGovernanceController();
+        ExecutionEngine.Assert(Runtime.CheckWitness(gov), "not authorized");
+
+        var isApproved = (bool)Contract.Call(gov, "isApprovedAndTimelocked", CallFlags.ReadOnly, proposalId);
+        ExecutionEngine.Assert(isApproved, "proposal not approved + timelocked");
+
+        var expectedAction = BuildUpdateChainAction(configBytes);
+        var matches = (bool)Contract.Call(gov, "matchesProposalPayload", CallFlags.ReadOnly, proposalId, expectedAction);
+        ExecutionEngine.Assert(matches, "proposal payload mismatch");
+
+        ExecutionEngine.Assert(configBytes != null && configBytes.Length == ConfigSize, "invalid config size");
+        var chainId = ReadUInt32(configBytes!, 0);
+        var existing = Storage.Get(ConfigKey(chainId));
+        ExecutionEngine.Assert(existing != null, "chain not registered");
+        Storage.Put(ConfigKey(chainId), configBytes!);
+        OnChainRegistered(chainId, configBytes!);
+    }
+
+    /// <summary>
+    /// Post-lock version of <see cref="PauseChain"/> / <see cref="ResumeChain"/> that routes
+    /// through GovernanceController.
+    /// </summary>
+    public static void SetChainActiveViaProposal(uint chainId, bool active, ulong proposalId)
+    {
+        ExecutionEngine.Assert(IsGovernanceLocked(), "governance not locked");
+        var gov = GetGovernanceController();
+        ExecutionEngine.Assert(Runtime.CheckWitness(gov), "not authorized");
+
+        var isApproved = (bool)Contract.Call(gov, "isApprovedAndTimelocked", CallFlags.ReadOnly, proposalId);
+        ExecutionEngine.Assert(isApproved, "proposal not approved + timelocked");
+
+        var expectedAction = BuildSetChainActiveAction(chainId, active);
+        var matches = (bool)Contract.Call(gov, "matchesProposalPayload", CallFlags.ReadOnly, proposalId, expectedAction);
+        ExecutionEngine.Assert(matches, "proposal payload mismatch");
+
+        var raw = Storage.Get(ConfigKey(chainId));
+        ExecutionEngine.Assert(raw != null, "chain not registered");
+        var config = (byte[])raw!;
+        config[OffsetActive] = active ? (byte)1 : (byte)0;
+        Storage.Put(ConfigKey(chainId), config);
+        OnChainStatusChanged(chainId, active);
+    }
+
+    /// <summary>Canonical action encoding for RevertBatch governance proposal.</summary>
+    [Safe]
+    public static byte[] BuildRevertBatchAction(uint chainId, ulong batchNumber)
+    {
+        // "neo4-rollup:revertBatch"
+        byte[] tag = new byte[] { 0x6e, 0x65, 0x6f, 0x34, 0x2d, 0x72, 0x6f, 0x6c, 0x6c, 0x75, 0x70, 0x3a, 0x72, 0x65, 0x76, 0x65, 0x72, 0x74, 0x42, 0x61, 0x74, 0x63, 0x68 };
+        var buf = new byte[tag.Length + 4 + 8];
+        var pos = 0;
+        for (var i = 0; i < tag.Length; i++) buf[pos++] = tag[i];
+        WriteUInt32(buf, pos, chainId); pos += 4;
+        WriteUInt64(buf, pos, batchNumber);
+        return buf;
+    }
+
+    /// <summary>Canonical action encoding for UpdateChain governance proposal.</summary>
+    [Safe]
+    public static byte[] BuildUpdateChainAction(byte[] configBytes)
+    {
+        // "neo4-rollup:updateChain"
+        byte[] tag = new byte[] { 0x6e, 0x65, 0x6f, 0x34, 0x2d, 0x72, 0x6f, 0x6c, 0x6c, 0x75, 0x70, 0x3a, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x69, 0x6e };
+        var buf = new byte[tag.Length + configBytes.Length];
+        var pos = 0;
+        for (var i = 0; i < tag.Length; i++) buf[pos++] = tag[i];
+        for (var i = 0; i < configBytes.Length; i++) buf[pos++] = configBytes[i];
+        return buf;
+    }
+
+    /// <summary>Canonical action encoding for SetChainActive governance proposal.</summary>
+    [Safe]
+    public static byte[] BuildSetChainActiveAction(uint chainId, bool active)
+    {
+        // "neo4-rollup:setChainActive"
+        byte[] tag = new byte[] { 0x6e, 0x65, 0x6f, 0x34, 0x2d, 0x72, 0x6f, 0x6c, 0x6c, 0x75, 0x70, 0x3a, 0x73, 0x65, 0x74, 0x43, 0x68, 0x61, 0x69, 0x6e, 0x41, 0x63, 0x74, 0x69, 0x76, 0x65 };
+        var buf = new byte[tag.Length + 4 + 1];
+        var pos = 0;
+        for (var i = 0; i < tag.Length; i++) buf[pos++] = tag[i];
+        WriteUInt32(buf, pos, chainId); pos += 4;
+        buf[pos] = active ? (byte)1 : (byte)0;
+        return buf;
+    }
+
+    /// <summary>Internal revert logic shared by RevertBatch and RevertBatchViaProposal.</summary>
+    private static void RevertBatchInternal(uint chainId, ulong batchNumber)
+    {
         var statusKey = BatchStatusKey(chainId, batchNumber);
         var currentStatus = Storage.Get(statusKey);
         ExecutionEngine.Assert(currentStatus != null, "batch not found");
@@ -553,7 +673,6 @@ public class RollupHubContract : SmartContract
         var latestFinalized = GetLatestFinalizedBatchNumber(chainId);
         if (batchNumber == latestFinalized)
         {
-            // Latest finalized batch: undo finalize (only while not yet Gateway-published).
             ExecutionEngine.Assert(currentStatus![0] == StatusFinalized, "batch not finalized");
             ExecutionEngine.Assert(batchNumber > GetGatewayFinalizedThrough(chainId),
                 "batch already published by gateway");
@@ -572,7 +691,6 @@ public class RollupHubContract : SmartContract
         }
         else if (batchNumber == latestFinalized + 1)
         {
-            // Pending batch: discard it so a replacement batch can take the slot.
             ExecutionEngine.Assert(currentStatus![0] == StatusPending, "batch not pending");
             Storage.Put(statusKey, new byte[] { StatusReverted });
             Storage.Delete(BatchCommitmentKey(chainId, batchNumber));
@@ -583,8 +701,6 @@ public class RollupHubContract : SmartContract
         {
             ExecutionEngine.Assert(false, "only the pending or latest finalized batch can be reverted");
         }
-
-        OnBatchReverted(chainId, batchNumber);
     }
 
     /// <summary>

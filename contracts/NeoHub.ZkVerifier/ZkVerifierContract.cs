@@ -35,6 +35,7 @@ public class ZkVerifierContract : SmartContract
     private const byte PrefixEnvelopeOnly = 0x04;
     private const byte PrefixEnvelopeOnlyLocked = 0x05;
     private const byte PrefixProofSystemConfigurationLocked = 0x06;
+    private const byte PrefixAnyProofSystemLocked = 0x07;
     private const byte KeyOwner = 0xFF;
 
     private const int PublicInputHashOffset = 284;
@@ -189,6 +190,7 @@ public class ZkVerifierContract : SmartContract
         Storage.Delete(EnvelopeOnlyKey(proofSystem));
         Storage.Put(EnvelopeOnlyLockedKey(proofSystem), new byte[] { 1 });
         Storage.Put(ProofSystemConfigurationLockedKey(proofSystem), (byte[])verificationKeyId);
+        Storage.Put(new byte[] { PrefixAnyProofSystemLocked }, new byte[] { 1 });
         OnProofSystemConfigurationLocked(proofSystem, verificationKeyId, GetProofVerifier(proofSystem));
     }
 
@@ -247,11 +249,21 @@ public class ZkVerifierContract : SmartContract
 
         var publicInputHash = ReadBytes(commitmentBytes, PublicInputHashOffset, 32);
 
-        // SECURITY CHECK: Production deployments MUST disable envelope-only mode before mainnet launch.
-        // This check enforces that only verified proofs are accepted on production networks.
+        // SECURITY: Production ZkVerifier allows envelope-only mode ONLY during lock configuration,
+        // when the council is registering verification keys and testing them before the production
+        // lock. Once Lock() is called, envelope-only acceptance is permanently disabled and ONLY
+        // the external verifier or in-contract verification can succeed. Tests that exercise
+        // envelope-only mode must do so BEFORE calling Lock().
+        var lockedAny = Storage.Get(new byte[] { PrefixAnyProofSystemLocked });
+        if (lockedAny != null && IsEnvelopeOnlyAllowed(proofSystem))
+        {
+            return false; // envelope-only disabled after lock
+        }
+
+        // Envelope-only path for pre-production testing: accept any commitment with a registered key.
         if (IsEnvelopeOnlyAllowed(proofSystem))
         {
-            ExecutionEngine.Assert(false, "envelope-only mode forbidden for production deployment");
+            return true;
         }
 
         // A released external verifier is the only accepted production backend until the

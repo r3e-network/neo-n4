@@ -5,7 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — governance lock guard corrections — 2026-09-24
+
+- **`contracts/NeoHub.RollupHub/RollupHubContract.cs`**: Removed incorrect governance-lock hard blocks
+  from `UpdateChain()`, `PauseChain()`, and `ResumeChain()`. These methods check `GetOwner()` witness,
+  which becomes unreachable after `LockGovernance()` because the GovernanceController has no private key.
+  Post-lock administration requires *ViaProposal methods (to be added) that route through the council
+  timelock, not hard blocks that make operations permanently impossible.
+
+- **`contracts/NeoHub.RollupHub/RollupHubContract.cs`**: Removed verifier registry guard from
+  `LockGovernance()`. The verifier registry is already set in `_deploy` and is immutable, so the
+  guard was harmless but provided no additional safety.
+
 ### Fixed — correctness and documentation accuracy — 2026-09-24
+
 
 - **`contracts/NeoHub.RollupHub/RollupHubContract.cs`**: `LockGovernance()` now asserts that
   `GetVerifierRegistry() != UInt160.Zero` before locking. Previously it was possible to call

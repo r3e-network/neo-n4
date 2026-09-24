@@ -53,7 +53,7 @@ neo4/
 │   ├── Neo.L2.Settlement.Rpc/       # JSON-RPC client for L1
 │   └── Neo.Plugins.L2*/             # neo-node Plugin subclasses
 ├── contracts/                       # deployable NeoHub SmartContract.Framework projects
-│   └── NeoHub.*/                    # 25 L1 projects (24 production + 1 test-only stub)
+│   └── NeoHub.*/                    # 5 L1 contract projects (4-pillar lean architecture: RollupHub, SharedBridge, ZkVerifier, GovernanceController, Sp1Groth16Verifier)
 ├── external/neo/                    # r3e Neo fork, L2 branch r3e/neo-n4-core
 ├── tools/
 │   ├── Neo.Stack.Cli/               # neo-stack CLI

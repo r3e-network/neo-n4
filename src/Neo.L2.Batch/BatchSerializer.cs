@@ -10,7 +10,7 @@ namespace Neo.L2.Batch;
 /// are encoded as their 20- / 32-byte payloads. Proof bytes are length-prefixed (32-bit LE length).
 /// <para>
 /// The two layouts bind different boundaries, and only one of them is an L1 ABI. The commitment
-/// header is the byte format <c>SettlementManager.submitBatch</c> parses, so any change to it is a
+/// header is the byte format <c>RollupHub.submitBatch</c> parses, so any change to it is a
 /// breaking on-chain change. The 352-byte public-inputs form is <em>never</em> transmitted to L1 —
 /// the contract sees only its 32-byte digest, at commitment offset 284 — but it is still the exact
 /// preimage the committee/sequencer signature is taken over

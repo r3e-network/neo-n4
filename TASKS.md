@@ -144,8 +144,7 @@ Anything touching **NeoVM execution semantics, native contracts, dBFT consensus,
 
 This backlog is not release evidence. Exact test counts and results belong to the
 CI run for the reviewed commit, not to a timeless task list. The current source
-inventory is 38 .NET test projects, 26 NeoHub projects (24 production, one
-advisory, one test-only), 10 L2 native contracts, and 44 Foundry tests. Consult
+inventory is 38 .NET test projects, 5 NeoHub contract projects (all production, 4-pillar lean architecture post-consolidation), 10 L2 native contracts, and 44 Foundry tests. Consult
 [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for maturity boundaries and
 [`SECURITY.md`](SECURITY.md) for the release/deployment gates; no exact-revision
 public deployment or production release is claimed here.

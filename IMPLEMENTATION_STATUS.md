@@ -10,7 +10,7 @@ working code without having a reviewed live deployment or being production-ready
 | Phase | Goal | Design / spec | Code shape | Integrated path | Cryptographically enforced | Current-revision deployment evidence | Production-ready |
 | ----- | ---- | :-----------: | :--------: | :-------------: | :------------------------: | :----------------------------------: | :--------------: |
 | 0 | Sidechain PoC | ✅ | ✅ | ✅ local devnet | N/A | ❌ no exact-revision public deployment | ❌ |
-| 1 | NeoHub v0 + Shared Bridge | ✅ | ✅ 26 projects / 24 production | ✅ planner + runtime composition | 🟡 security profile dependent | ❌ no exact-revision reviewed deployment | ❌ |
+| 1 | NeoHub v0 + Shared Bridge | ✅ | ✅ 5 contract projects (4-pillar lean architecture: RollupHub, SharedBridge, ZkVerifier, GovernanceController + stateless Sp1Groth16Verifier) | ✅ planner + runtime composition | 🟡 security profile dependent | ❌ no exact-revision reviewed deployment | ❌ |
 | 2 | Batch Settlement | ✅ | ✅ | ✅ local end-to-end path | 🟡 multisig / optimistic / ZK profile dependent | ❌ no exact-revision reviewed deployment | ❌ |
 | 3 | Optimistic Challenge Window | ✅ | 🟡 restricted executable v4 | 🟡 one committed Counter transition | 🟡 exact registered v4 only; general NeoVM fails closed | ❌ no exact-revision reviewed deployment | ❌ |
 | 4 | NeoVM2 / RISC-V ZK Validity Proof | ✅ | ✅ PolkaVM profile + exact-semantic SP1 profile | ✅ native C#→Rust + terminal proof in local/CI gates | ✅ `Sp1StatefulNeoVmV1` native/guest parity, pinned Groth16 verifier, binding, and tamper rejection; PolkaVM validity requires a matching prover | ❌ reviewed NEF/VK deployment evidence absent | ❌ |

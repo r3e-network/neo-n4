@@ -232,7 +232,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
 # --- L1 deploy (when ready) ---
 
-# Generate a NeoHub deploy bundle (24 production contracts, declarative, dependency-resolved)
+# Generate a NeoHub deploy bundle (4-pillar lean architecture: RollupHub, SharedBridge, ZkVerifier, GovernanceController + Sp1Groth16Verifier, declarative, dependency-resolved)
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan \

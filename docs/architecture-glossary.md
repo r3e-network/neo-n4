@@ -8,7 +8,7 @@
 ## Table of contents
 
 1. [Glossary of terms](#1-glossary-of-terms)
-2. [NeoHub L1 contracts](#2-neohub-l1-contracts-26)
+2. [NeoHub L1 contracts](#2-neohub-l1-contracts-4-pillars)
 3. [L2 native contracts](#3-l2-native-contracts-10)
 4. [L2 plugins](#4-l2-plugins-8)
 5. [Off-chain operators](#5-off-chain-operators)

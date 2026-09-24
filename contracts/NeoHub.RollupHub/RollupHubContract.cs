@@ -606,15 +606,18 @@ public class RollupHubContract : SmartContract
 
     /// <summary>
     /// One-time, irreversible production lock (doc.md §3.2 <c>lockGovernance</c>). Requires the
-    /// GovernanceController and SharedBridge to be wired first. After the lock the bootstrap
-    /// owner can no longer transfer ownership or revert batches directly — batch reverts must be
-    /// relayed through the GovernanceController, and <see cref="SetOwner"/> refuses.
+    /// GovernanceController, SharedBridge, and VerifierRegistry to be wired first. After the
+    /// lock the bootstrap owner can no longer transfer ownership or revert batches directly —
+    /// batch reverts must be relayed through the GovernanceController, and
+    /// <see cref="SetOwner"/> refuses. The verifier registry cannot be updated after the lock
+    /// without a governance proposal, so it must be correctly wired before locking.
     /// </summary>
     public static void LockGovernance()
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(GetGovernanceController() != UInt160.Zero, "governance controller not configured");
         ExecutionEngine.Assert(GetSharedBridge() != UInt160.Zero, "shared bridge not configured");
+        ExecutionEngine.Assert(GetVerifierRegistry() != UInt160.Zero, "verifier registry not configured");
         ExecutionEngine.Assert(!IsGovernanceLocked(), "governance already locked");
 
         Storage.Put(new byte[] { PrefixGovernanceLocked }, new byte[] { 1 });

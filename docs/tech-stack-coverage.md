@@ -33,7 +33,7 @@ any other project's source.
 - **Fraud verifier (advisory structural v1/v2 reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/` (excluded from production challenge routing)
 - **Fraud verifier (advisory structural v3 + committed-root-bound restricted executable v4)** 🟡 — `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (state-changing only for exact registered single-tx Counter v4; general NeoVM ❌)
 
-**26 NeoHub contract projects** (24 production + advisory-only `GovernanceFraudVerifier` + test-only `ExternalBridgeStubVerifier`). All type-check via `Neo.SmartContract.Framework`; CI
+**5 NeoHub contract projects** (all production — 4-pillar lean architecture: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`, `Sp1Groth16Verifier`; see `docs/audit/neohub-lean-consolidation.md`). All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 - **L2 batch info (chainId, batch number, L1 height)** ✅ — Neo core native `L2BatchInfoContract`.

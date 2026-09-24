@@ -59,8 +59,7 @@ off-chain infrastructure that connects them:
 
 ### Tier 1: NeoHub (L1)
 
-The L1 anchor. **24 production contracts plus 1 advisory structural verifier and 1 test-only stub** grouped by
-concern:
+The L1 anchor. **5 production contracts — 4-pillar lean architecture: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`, plus the stateless `Sp1Groth16Verifier`** (see `docs/audit/neohub-lean-consolidation.md` for the consolidation from the original 26 micro-contracts):
 
 <p align="center">
   <img src="figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy: contracts grouped into Settlement, Bridge, Messaging, Security, Governance, and External Bridge concerns" width="900">

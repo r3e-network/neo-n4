@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — correctness and documentation accuracy — 2026-09-24
+
+- **`contracts/NeoHub.RollupHub/RollupHubContract.cs`**: `LockGovernance()` now asserts that
+  `GetVerifierRegistry() != UInt160.Zero` before locking. Previously it was possible to call
+  `LockGovernance()` with a zero verifier registry, making it permanently impossible to wire one
+  without a council governance proposal — every subsequent `SubmitBatch` / `SubmitAndFinalizeBatch`
+  would immediately fault with "verifier registry not configured".
+
+- **`src/Neo.L2.Gateway.Rpc/RpcGlobalRootPublisher.cs`**: Updated stale XML doc comment that
+  described the constructor parameter as "The deployed NeoHub.MessageRouter contract hash".
+  `NeoHub.MessageRouter` no longer exists after the 4-pillar lean consolidation (commit 13f91058);
+  the parameter should now receive the `NeoHub.RollupHub` hash.
+
+- **`src/Neo.L2.Batch/BatchSerializer.cs`**: XML remarks updated from `SettlementManager.submitBatch`
+  to `RollupHub.submitBatch` to reflect the 4-pillar consolidation.
+
+- **`IMPLEMENTATION_STATUS.md`**: Phase 1 matrix row updated from "26 projects / 24 production" to
+  "5 contract projects (4-pillar lean architecture)" — the 26-contract figure predates the 13f91058
+  consolidation that ships in this repository.
+
+- **`TASKS.md`**: Validation snapshot updated from "26 NeoHub projects (24 production, one advisory,
+  one test-only)" to "5 NeoHub contract projects (all production, 4-pillar lean architecture)".
+
+- **`CONTRIBUTING.md`**: `contracts/` directory comment updated from "25 L1 projects" to "5 L1
+  contract projects (4-pillar lean architecture)".
+
+- **`docs/architecture-l2-lifecycle.md`**: Tier 1 NeoHub heading updated from "24 production
+  contracts plus 1 advisory … 1 test-only stub" to the current 4-pillar description.
+
+- **`docs/tech-stack-coverage.md`**: NeoHub project count updated from "26 NeoHub contract
+  projects (24 production + …)" to "5 NeoHub contract projects".
+
+- **`docs/README.md`**: Deploy bundle comment updated from "24 production contracts" to the
+  4-pillar description.
+
+- **`docs/architecture-glossary.md`**: Table-of-contents anchor updated from
+  "#2-neohub-l1-contracts-26" to "#2-neohub-l1-contracts-4-pillars".
+
 ### Added — arithmetic overflow safety model — 2026-09-18
 
 - Added `scripts/formal/verify_overflow_safety.py`: a Z3 bitvector model of the arithmetic

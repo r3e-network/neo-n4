@@ -4,18 +4,22 @@ using Neo.Plugins.L2Gateway;
 namespace Neo.L2.Gateway.Rpc;
 
 /// <summary>
-/// Legacy compatibility publisher for the pre-proof-binding MessageRouter ABI.
+/// Legacy compatibility publisher for the pre-proof-binding Gateway ABI.
 /// </summary>
 /// <remarks>
 /// See doc.md §4 (Neo Gateway). This type intentionally cannot publish production Gateway roots:
 /// it omits replay domain, constituent root/count, aggregation backend, and proof system. Retain it
 /// only for source compatibility with pre-R2 callers. New deployments must use
-/// <see cref="ProofBoundRpcGlobalRootPublisher"/>.
+/// <see cref="ProofBoundRpcGlobalRootPublisher"/>, which targets the consolidated
+/// <c>NeoHub.RollupHub</c> contract (the <c>NeoHub.MessageRouter</c> contract no longer exists
+/// as a standalone deployment after the 4-pillar consolidation).
 /// </remarks>
 public sealed class RpcGlobalRootPublisher : IGlobalRootPublisher, IDisposable
 {
     /// <summary>Delegate for signing + sending the <c>PublishGlobalRoot</c> transaction.</summary>
-    /// <param name="messageRouterHash">The deployed NeoHub.MessageRouter contract hash.</param>
+    /// <param name="messageRouterHash">The target contract hash. After the 4-pillar consolidation
+    /// this should be the <c>NeoHub.RollupHub</c> contract hash; the standalone
+    /// <c>NeoHub.MessageRouter</c> no longer exists.</param>
     /// <param name="batchEpoch">Operator-defined epoch number (forwarded as-is).</param>
     /// <param name="globalRoot">32-byte global message root (the proof's single public input).</param>
     /// <param name="verificationKeyId">32-byte governance-registered Groth16 VK id.</param>

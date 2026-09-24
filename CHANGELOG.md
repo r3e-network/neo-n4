@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — sequencer bond accumulation — 2026-09-24
+
+- **`contracts/NeoHub.GovernanceController/GovernanceControllerContract.cs`**: `DepositBond()` now
+  accumulates deposits instead of overwriting the previous balance. The bug: `Storage.Put(key, amount)`
+  replaced the stored bond with the new deposit amount, losing all prior deposits. Fixed to read the
+  current balance and add: `newBalance = (cur == null ? amount : cur + amount)`. Multiple deposits
+  from the same sequencer now correctly accumulate their bond balance.
+
 ### Fixed — governance lock guard corrections — 2026-09-24
 
 - **`contracts/NeoHub.RollupHub/RollupHubContract.cs`**: Removed incorrect governance-lock hard blocks

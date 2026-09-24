@@ -1114,7 +1114,9 @@ public class GovernanceControllerContract : SmartContract
             "GAS transfer failed (insufficient balance or transfer rejected)");
 
         var key = SequencerBondKey(chainId, sequencer);
-        Storage.Put(key, amount); // First deposit initializes counter
+        var cur = Storage.Get(key);
+        var newBalance = cur == null ? amount : (BigInteger)cur! + amount;
+        Storage.Put(key, newBalance);
         OnBondDeposited(chainId, sequencer, amount);
     }
 

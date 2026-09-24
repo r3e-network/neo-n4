@@ -192,6 +192,7 @@ public class RollupHubContract : SmartContract
     public static void UpdateChain(byte[] configBytes)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(), "governance locked");
         ExecutionEngine.Assert(configBytes != null && configBytes.Length == ConfigSize, "invalid config size");
         var chainId = ReadUInt32(configBytes!, 0);
         var existing = Storage.Get(ConfigKey(chainId));
@@ -203,6 +204,7 @@ public class RollupHubContract : SmartContract
     public static void PauseChain(uint chainId)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(), "governance locked");
         var raw = Storage.Get(ConfigKey(chainId));
         ExecutionEngine.Assert(raw != null, "chain not registered");
         var config = (byte[])raw!;
@@ -214,6 +216,7 @@ public class RollupHubContract : SmartContract
     public static void ResumeChain(uint chainId)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(), "governance locked");
         var raw = Storage.Get(ConfigKey(chainId));
         ExecutionEngine.Assert(raw != null, "chain not registered");
         var config = (byte[])raw!;
@@ -1195,6 +1198,15 @@ public class RollupHubContract : SmartContract
         return (UInt256)ReadBytes(c, OffsetWithdrawalRoot, 32);
     }
 
+    /// <summary>
+    /// Fast-path single-leaf withdrawal check. Returns true only if <paramref name="leafHash"/>
+    /// equals the withdrawal root of the latest finalized batch — which is only valid when the
+    /// batch contains exactly one withdrawal (the leaf is the root in a single-entry Merkle tree).
+    /// For batches with multiple withdrawals, callers MUST use
+    /// <see cref="VerifyWithdrawalLeafWithProof"/> which performs correct Merkle inclusion.
+    /// </summary>
+    /// <remarks>See doc.md §15.3. SharedBridge.FinalizeWithdrawal uses this path for
+    /// single-withdrawal batches only; all other callers should use the proof variant.</remarks>
     [Safe]
     public static bool VerifyWithdrawalLeaf(uint chainId, UInt256 leafHash)
     {
@@ -1202,6 +1214,12 @@ public class RollupHubContract : SmartContract
         return VerifyWithdrawalLeafAt(chainId, (ulong)latest, leafHash);
     }
 
+    /// <summary>
+    /// Fast-path single-leaf withdrawal check for a specific batch. Returns true only if
+    /// <paramref name="leafHash"/> equals the batch's withdrawalRoot — valid only when the batch
+    /// contains exactly one withdrawal (leaf equals root in a one-entry Merkle tree).
+    /// For batches with multiple withdrawals, use <see cref="VerifyWithdrawalLeafWithProof"/>.
+    /// </summary>
     [Safe]
     public static bool VerifyWithdrawalLeafAt(uint chainId, ulong batchNumber, UInt256 leafHash)
     {

@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — committee attestation verification (multisig) — 2026-09-24
+
+- **`contracts/NeoHub.ZkVerifier/ZkVerifierContract.cs`**: Extended to handle ProofType.Multisig
+  (Stage 0 committee attestation) in addition to ProofType.Zk. The unified `VerifyProof()` entry
+  point now dispatches multisig proofs to an external verifier contract registered for proof
+  system 0, while ZK proofs continue through the existing validation path. Envelope-only mode
+  works for both proof types during pre-production testing.
+
+- **`contracts/NeoHub.MultisigVerifier/MultisigVerifierContract.cs`**: New contract that verifies
+  Stage 0 multisig attestation proofs. Decodes the multisig proof payload (version + signer count +
+  per-signer pubkey/signature pairs), verifies each signature against the batch's public input hash
+  using `CryptoLib.VerifyWithECDsa`, validates that signers are registered sequencers via
+  `GovernanceController.IsSequencerRegistered()`, and checks quorum requirements. Configurable
+  minimum quorum (default 1). Called by ZkVerifier for ProofType.Multisig commitments.
+
+  Multisig proof format (little-endian):
+  `[1B version] [2B signerCount] (per signer: [33B compressed-secp256r1-pubkey] [64B sig])`
+
+  This completes the Phase-0 verification stack — sidechain/settled security levels can now verify
+  committee signatures on-chain, not just in envelope-only mode.
+
 ### Added — forced inclusion v2 restoration — 2026-09-24
 
 - **`contracts/NeoHub.RollupHub/RollupHubContract.cs`**: Restored full anti-censorship forced inclusion

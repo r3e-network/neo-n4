@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NeoHub.MultisigVerifier</RootNamespace>
+    <AssemblyName>NeoHub.MultisigVerifier</AssemblyName>
+  </PropertyGroup>
+
+</Project>

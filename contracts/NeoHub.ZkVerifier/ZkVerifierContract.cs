@@ -43,12 +43,20 @@ public class ZkVerifierContract : SmartContract
     private const int ProofLenOffset = 317;
     private const int ProofBytesOffset = 321;
 
+    public const byte ProofTypeMultisig = 1;
     public const byte ProofTypeZk = 3;
     private const byte ZkPayloadVersion = 1;
     private const int ZkPayloadVerificationKeyOffset = 2;
     private const int ZkPayloadInnerProofLenOffset = 34;
     private const int ZkPayloadProofBytesOffset = 38;
     private const int MaxProofPayloadBytes = 1 * 1024 * 1024;
+
+    private const byte MultisigPayloadVersion = 1;
+    private const int MultisigPayloadSignerCountOffset = 1;
+    private const int MultisigPayloadSignaturesOffset = 3;
+    private const int MultisigPublicKeySize = 33;
+    private const int MultisigSignatureSize = 64;
+    private const int MaxMultisigSigners = 256;
 
     public const byte ProofSystemSp1 = 1;
     public const byte ProofSystemRiscZero = 2;
@@ -205,7 +213,7 @@ public class ZkVerifierContract : SmartContract
     #region Proof Verification
 
     /// <summary>
-    /// Verify a canonical N4 batch commitment's ZK proof (ProofType.Zk envelope).
+    /// Verify a canonical N4 batch commitment's proof (ProofType.Multisig or ProofType.Zk envelope).
     /// </summary>
     /// <remarks>
     /// See doc.md §8. This is the settlement entry point RollupHub invokes
@@ -213,12 +221,26 @@ public class ZkVerifierContract : SmartContract
     /// locked, ONLY the locked verification key is acceptable — keys registered before the lock
     /// stop verifying, so the lock pins the proof semantics to one key no matter what storage
     /// still holds.
+    ///
+    /// For ProofType.Multisig (Stage 0 attestation), delegates verification to the external
+    /// verifier contract registered for proof system 0 (must implement verifyMultisigProof method).
+    /// For ProofType.Zk, uses the ZK verification path.
     /// </remarks>
     [Safe]
     public static bool VerifyProof(byte[] commitmentBytes)
     {
         if (commitmentBytes == null || commitmentBytes.Length < ProofBytesOffset) return false;
-        if (commitmentBytes[ProofTypeOffset] != ProofTypeZk) return false;
+
+        var proofType = commitmentBytes[ProofTypeOffset];
+
+        // Multisig attestation (Stage 0) - delegate to external verifier
+        if (proofType == ProofTypeMultisig)
+        {
+            return VerifyMultisigProof(commitmentBytes);
+        }
+
+        // ZK validity proof (Stage 2)
+        if (proofType != ProofTypeZk) return false;
 
         var proofLen = ReadInt32(commitmentBytes, ProofLenOffset);
         if (proofLen <= 0 || proofLen > MaxProofPayloadBytes) return false;
@@ -276,6 +298,47 @@ public class ZkVerifierContract : SmartContract
                 externalVerifier, "verifyZkProof",
                 CallFlags.All,
                 new object[] { proofSystem, (byte[])vkId, publicInputHash, innerProof }, 1000000);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Verify a multisig attestation proof by delegating to the registered external verifier.
+    /// </summary>
+    /// <remarks>
+    /// Multisig verification (ProofType.Multisig, Stage 0) requires validating committee signatures
+    /// against registered sequencer keys and checking quorum. This is delegated to an external
+    /// verifier contract because signature verification is expensive and the committee registry
+    /// lives in GovernanceController. The external verifier must implement:
+    /// <c>verifyMultisigProof(byte[] commitmentBytes) → bool</c>
+    ///
+    /// Proof system 0 is reserved for multisig attestation. If envelope-only mode is enabled for
+    /// proof system 0, accepts any commitment without verification (pre-production testing only).
+    /// </remarks>
+    private static bool VerifyMultisigProof(byte[] commitmentBytes)
+    {
+        const byte MultisigProofSystem = 0;
+
+        var proofLen = ReadInt32(commitmentBytes, ProofLenOffset);
+        if (proofLen <= 0 || proofLen > MaxProofPayloadBytes) return false;
+        if (commitmentBytes.Length < ProofBytesOffset + proofLen) return false;
+
+        // Envelope-only path for pre-production testing
+        var lockedAny = Storage.Get(new byte[] { PrefixAnyProofSystemLocked });
+        if (lockedAny == null && IsEnvelopeOnlyAllowed(MultisigProofSystem))
+        {
+            return true;
+        }
+
+        // Production path: delegate to external multisig verifier
+        var externalVerifier = GetProofVerifier(MultisigProofSystem);
+        if (externalVerifier.IsValid && !externalVerifier.IsZero)
+        {
+            return (bool)Contract.Call(
+                externalVerifier, "verifyMultisigProof",
+                CallFlags.All,
+                commitmentBytes);
         }
 
         return false;

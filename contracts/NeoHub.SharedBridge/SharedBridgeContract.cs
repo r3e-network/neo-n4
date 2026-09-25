@@ -42,6 +42,7 @@ public class SharedBridgeContract : SmartContract
     private const byte PrefixEmergencyManager = 0xFC;
     private const byte PrefixSettlementManager = 0xFD;
     private const byte PrefixTokenRegistry = 0xFE;
+    private const byte KeyGovernanceLocked = 0xFB;
     private const byte KeyOwner = 0xFF;
 
     private const byte AssetTypeGas = 0;
@@ -85,6 +86,9 @@ public class SharedBridgeContract : SmartContract
     [DisplayName("LockedBalanceMigrationSealed")]
     public static event Action OnLockedBalanceMigrationSealed = default!;
 
+    [DisplayName("GovernanceLocked")]
+    public static event Action<UInt160> OnGovernanceLocked = default!;
+
     #endregion
 
     public static void _deploy(object data, bool update)
@@ -119,10 +123,43 @@ public class SharedBridgeContract : SmartContract
     public static void SetOwner(UInt160 newOwner)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(), "governance locked");
         ExecutionEngine.Assert(newOwner.IsValid && !newOwner.IsZero, "invalid new owner");
         var oldOwner = GetOwner();
         Storage.Put(new byte[] { KeyOwner }, newOwner);
         OnOwnerChanged(oldOwner, newOwner);
+    }
+
+    [Safe]
+    public static bool IsGovernanceLocked()
+    {
+        var raw = Storage.Get(new byte[] { KeyGovernanceLocked });
+        return raw != null && ((byte[])raw)[0] == 1;
+    }
+
+    /// <summary>
+    /// Lock SharedBridge governance by transferring ownership to GovernanceController.
+    /// After locking, administrative functions require council proposals through the
+    /// GovernanceController. This is a one-time, irreversible operation that aligns
+    /// SharedBridge governance with the RollupHub governance model.
+    /// </summary>
+    public static void LockGovernance(UInt160 governanceController)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(!IsGovernanceLocked(), "already locked");
+        ExecutionEngine.Assert(governanceController.IsValid && !governanceController.IsZero,
+            "invalid governance controller");
+
+        // Verify settlement manager is configured - withdrawals depend on it
+        var sm = GetSettlementManager();
+        ExecutionEngine.Assert(sm.IsValid && !sm.IsZero,
+            "settlement manager must be configured before locking");
+
+        Storage.Put(new byte[] { KeyGovernanceLocked }, new byte[] { 1 });
+        var oldOwner = GetOwner();
+        Storage.Put(new byte[] { KeyOwner }, governanceController);
+        OnGovernanceLocked(governanceController);
+        OnOwnerChanged(oldOwner, governanceController);
     }
 
     [Safe]

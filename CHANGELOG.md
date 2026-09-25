@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — SharedBridge governance lock — 2026-09-24
+
+- **`contracts/NeoHub.SharedBridge/SharedBridgeContract.cs`**: Added `LockGovernance(governanceController)`
+  method to align SharedBridge governance with RollupHub's post-lock model. After locking, ownership
+  transfers to GovernanceController, making administrative functions (SetSettlementManager, 
+  SetTokenRegistry, SetEmergencyManager, RegisterMapping, SetActive) require council proposals.
+  
+  The lock is one-time and irreversible, checks that settlement manager is configured before locking
+  (withdrawals depend on it), and prevents direct `SetOwner()` calls post-lock. This completes the
+  governance alignment across the 5-pillar architecture: RollupHub, GovernanceController, ZkVerifier,
+  MultisigVerifier, and SharedBridge all follow the same bootstrap-owner → locked-governance pattern.
+
 ### Added — committee attestation verification (multisig) — 2026-09-24
 
 - **`contracts/NeoHub.ZkVerifier/ZkVerifierContract.cs`**: Extended to handle ProofType.Multisig

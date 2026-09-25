@@ -9,9 +9,10 @@
 > See [TESTNET_DEPLOYMENT_RESULT.md](./TESTNET_DEPLOYMENT_RESULT.md) for addresses and validation results.
 
 > [!TIP]
-> **🎉 7 Official Elastic Chains Deployed!** Neo N4 now includes 7 specialized elastic chains maintained by the Neo official team:
+> **🎉 7 Elastic Chain Templates Deployed!** This technical exploration includes 7 specialized elastic chain templates inspired by ZKsync's model:
 > NeoSwap (DEX), NeoGame (Gaming), NeoFi (DeFi), NeoSocial (Social), NeoNFT (NFT), NeoPayment (Payment), and NeoEnterprise (Enterprise).
-> See [ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md](./ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md) for complete specifications and [official-chains/](./official-chains/) for deployment artifacts.
+> These are research prototypes for validation and testing, not official Neo Foundation chains.
+> See [ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md](./ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md) for specifications and [official-chains/](./official-chains/) for artifacts.
 
 > [!IMPORTANT]
 > **Independent implementation, not the official Neo 4 release.** This repository is
@@ -97,9 +98,9 @@ All core contracts are deployed and operational:
 
 ## Official Elastic Chains
 
-**Status**: ✅ 7 chains deployed and validated (2026-09-25)
+**Status**: ✅ 7 chain templates deployed and validated (2026-09-25)
 
-Neo N4 includes 7 specialized elastic chains, officially maintained by the Neo team. Inspired by ZKsync's elastic chain model with key Neo-specific innovations:
+This technical exploration includes 7 specialized elastic chain templates inspired by ZKsync's elastic chain model, adapted for Neo's architecture:
 
 | Chain ID | Name | Template | Use Case | TPS Target | DA Layer | Security |
 |----------|------|----------|----------|------------|----------|----------|
@@ -111,12 +112,14 @@ Neo N4 includes 7 specialized elastic chains, officially maintained by the Neo t
 | 600 | **NeoPayment** | payment | Payments | 10,000 | L1 | Validity |
 | 700 | **NeoEnterprise** | enterprise | Enterprise | 5,000 | NeoFS | Sidechain |
 
-**Key Differentiators**:
-- 🏛️ **Official Maintenance**: All chains maintained by Neo core team (vs. permissionless deployment)
-- 💾 **NeoFS Integration**: 100x cost reduction using NeoFS data availability
-- 🎯 **Specialized Templates**: Each chain optimized for specific use cases
-- 🌉 **Unified Gateway**: Seamless cross-chain interoperability via Neo Gateway
-- 🔐 **Neo Council Governance**: Unified governance across all chains
+**Research Focus**:
+- 🔬 **Technical Exploration**: Research prototypes for validating multi-L2 architecture patterns
+- 💾 **NeoFS Integration**: Testing NeoFS as data availability layer (100x cost reduction potential)
+- 🎯 **Specialized Templates**: Exploring use-case-specific optimizations
+- 🌉 **Cross-chain Patterns**: Validating Neo Gateway interoperability model
+- 🔐 **Governance Models**: Testing different governance and security approaches
+
+**Note**: These are experimental templates for research and validation purposes, not production-ready or Neo Foundation-endorsed chains.
 
 **Documentation**:
 - [ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md](./ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md) - Complete deployment report

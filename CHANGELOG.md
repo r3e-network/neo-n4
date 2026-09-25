@@ -5,6 +5,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — 7 Official Elastic Chains — 2026-09-25
+
+- **Official Elastic Chains Deployment**: Implemented and deployed 7 Neo-maintained elastic chains
+  inspired by ZKsync's elastic chain model, with key differentiators:
+  
+  **Deployed Chains**:
+  - Chain 100 (NeoSwap): DEX-optimized, 10,000+ TPS, NeoFS DA, Validium mode
+  - Chain 200 (NeoGame): Gaming-optimized, 50,000+ TPS, NeoFS DA, Rollup mode
+  - Chain 300 (NeoFi): DeFi security focus, 5,000 TPS, L1 DA, ZK validity proofs
+  - Chain 400 (NeoSocial): Social apps, 100,000+ TPS, NeoFS DA, Rollup mode
+  - Chain 500 (NeoNFT): NFT specialized, 20,000+ TPS, NeoFS DA, Validium mode
+  - Chain 600 (NeoPayment): Payment focused, 10,000 TPS, L1 DA, ZK validity proofs
+  - Chain 700 (NeoEnterprise): Enterprise sidechain, 5,000 TPS, NeoFS DA, Multisig
+  
+  **Key Features**:
+  - Official Neo maintenance (vs. permissionless deployment in ZKsync)
+  - NeoFS data availability layer (100x cost reduction vs. L1 storage)
+  - Specialized templates for specific use cases
+  - Unified Neo Gateway for cross-chain interoperability
+  - dBFT consensus across all chains
+  - Neo Council governance
+  
+  **Deployment Automation**:
+  - `scripts/deploy-official-elastic-chains.sh`: 4-phase deployment pipeline
+    (Processing, Deployment, Validation, Testing)
+  - `scripts/test-official-elastic-chains.sh`: 80+ validation checks
+  - Complete configuration, genesis state, and registration plans for all 7 chains
+  
+  **Documentation**:
+  - `official-chains/README.md`: Complete guide in Chinese
+  - `ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md`: Comprehensive deployment report
+  - `OFFICIAL_ELASTIC_CHAINS.md`: Technical planning document
+  - `DA_LAYER_EXPLAINED_ZH.md`: NeoFS data availability explanation
+  
+  All chains ready for L1 registration on Neo N3 Testnet.
+
 ## [1.0.0-testnet] - 2026-09-25
 
 ### Testnet Deployment

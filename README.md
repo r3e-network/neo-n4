@@ -8,6 +8,11 @@
 > **🚀 Live on Testnet!** Neo N4 is deployed to Neo N3 Testnet. All 5 core contracts are operational with 100% test coverage.
 > See [TESTNET_DEPLOYMENT_RESULT.md](./TESTNET_DEPLOYMENT_RESULT.md) for addresses and validation results.
 
+> [!TIP]
+> **🎉 7 Official Elastic Chains Deployed!** Neo N4 now includes 7 specialized elastic chains maintained by the Neo official team:
+> NeoSwap (DEX), NeoGame (Gaming), NeoFi (DeFi), NeoSocial (Social), NeoNFT (NFT), NeoPayment (Payment), and NeoEnterprise (Enterprise).
+> See [ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md](./ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md) for complete specifications and [official-chains/](./official-chains/) for deployment artifacts.
+
 > [!IMPORTANT]
 > **Independent implementation, not the official Neo 4 release.** This repository is
 > an independent implementation of a multi-L2 elastic-network architecture on top of
@@ -53,14 +58,15 @@ fractional withdrawals such as non-whole L1 NEO exits.
 ## Table of contents
 
 1. [Testnet Deployment](#testnet-deployment)
-2. [Experience Hub preview](#experience-hub-preview)
-3. [Visual system tour](#visual-system-tour)
-4. [Architecture at a glance](#architecture-at-a-glance)
-5. [What's in the repo](#whats-in-the-repo)
-6. [Phased status](#phased-status)
-7. [Quick start](#quick-start)
-8. [Documentation map](#documentation-map)
-9. [License](#license)
+2. [Official Elastic Chains](#official-elastic-chains)
+3. [Experience Hub preview](#experience-hub-preview)
+4. [Visual system tour](#visual-system-tour)
+5. [Architecture at a glance](#architecture-at-a-glance)
+6. [What's in the repo](#whats-in-the-repo)
+7. [Phased status](#phased-status)
+8. [Quick start](#quick-start)
+9. [Documentation map](#documentation-map)
+10. [License](#license)
 
 ---
 
@@ -86,6 +92,41 @@ All core contracts are deployed and operational:
 
 **Network**: Neo N3 Testnet (Magic: 894710606)  
 **RPC**: https://testnet1.neo.coz.io:443
+
+---
+
+## Official Elastic Chains
+
+**Status**: ✅ 7 chains deployed and validated (2026-09-25)
+
+Neo N4 includes 7 specialized elastic chains, officially maintained by the Neo team. Inspired by ZKsync's elastic chain model with key Neo-specific innovations:
+
+| Chain ID | Name | Template | Use Case | TPS Target | DA Layer | Security |
+|----------|------|----------|----------|------------|----------|----------|
+| 100 | **NeoSwap** | dex | DEX & Trading | 10,000+ | NeoFS | Validium |
+| 200 | **NeoGame** | gaming | Gaming & NFT | 50,000+ | NeoFS | Validium |
+| 300 | **NeoFi** | defi | DeFi Protocols | 5,000 | L1 | Validity |
+| 400 | **NeoSocial** | social | Social Apps | 100,000+ | NeoFS | Validium |
+| 500 | **NeoNFT** | nft | NFT Market | 20,000+ | NeoFS | Validium |
+| 600 | **NeoPayment** | payment | Payments | 10,000 | L1 | Validity |
+| 700 | **NeoEnterprise** | enterprise | Enterprise | 5,000 | NeoFS | Sidechain |
+
+**Key Differentiators**:
+- 🏛️ **Official Maintenance**: All chains maintained by Neo core team (vs. permissionless deployment)
+- 💾 **NeoFS Integration**: 100x cost reduction using NeoFS data availability
+- 🎯 **Specialized Templates**: Each chain optimized for specific use cases
+- 🌉 **Unified Gateway**: Seamless cross-chain interoperability via Neo Gateway
+- 🔐 **Neo Council Governance**: Unified governance across all chains
+
+**Documentation**:
+- [ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md](./ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md) - Complete deployment report
+- [official-chains/README.md](./official-chains/README.md) - Detailed guide (中文)
+- [OFFICIAL_ELASTIC_CHAINS.md](./OFFICIAL_ELASTIC_CHAINS.md) - Technical planning
+- [DA_LAYER_EXPLAINED_ZH.md](./DA_LAYER_EXPLAINED_ZH.md) - NeoFS DA explanation (中文)
+
+**Deployment Scripts**:
+- `scripts/deploy-official-elastic-chains.sh` - 4-phase automated deployment
+- `scripts/test-official-elastic-chains.sh` - 80+ validation checks
 
 ---
 

@@ -4,6 +4,10 @@
 
 > **A multi-L2 network on Neo 4 core, with a shared bridge, proof aggregation, and native cross-chain messaging.**
 
+> [!NOTE]
+> **🚀 Live on Testnet!** Neo N4 is deployed to Neo N3 Testnet. All 5 core contracts are operational with 100% test coverage.
+> See [TESTNET_DEPLOYMENT_RESULT.md](./TESTNET_DEPLOYMENT_RESULT.md) for addresses and validation results.
+
 > [!IMPORTANT]
 > **Independent implementation, not the official Neo 4 release.** This repository is
 > an independent implementation of a multi-L2 elastic-network architecture on top of
@@ -48,14 +52,40 @@ fractional withdrawals such as non-whole L1 NEO exits.
 
 ## Table of contents
 
-1. [Experience Hub preview](#experience-hub-preview)
-2. [Visual system tour](#visual-system-tour)
-3. [Architecture at a glance](#architecture-at-a-glance)
-4. [What's in the repo](#whats-in-the-repo)
-5. [Phased status](#phased-status)
-6. [Quick start](#quick-start)
-7. [Documentation map](#documentation-map)
-8. [License](#license)
+1. [Testnet Deployment](#testnet-deployment)
+2. [Experience Hub preview](#experience-hub-preview)
+3. [Visual system tour](#visual-system-tour)
+4. [Architecture at a glance](#architecture-at-a-glance)
+5. [What's in the repo](#whats-in-the-repo)
+6. [Phased status](#phased-status)
+7. [Quick start](#quick-start)
+8. [Documentation map](#documentation-map)
+9. [License](#license)
+
+---
+
+## Testnet Deployment
+
+**Status**: ✅ Live on Neo N3 Testnet (deployed 2026-09-25)
+
+All core contracts are deployed and operational:
+
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| **RollupHub** | `0x438786f19b73519714decc8268287aad3c4e6c3e` | [View](https://testnet.neo.org/contract/0x438786f19b73519714decc8268287aad3c4e6c3e) |
+| **SharedBridge** | `0xc824f1d0488299623f013560ee102dbe2fa201bb` | [View](https://testnet.neo.org/contract/0xc824f1d0488299623f013560ee102dbe2fa201bb) |
+| **GovernanceController** | `0xc1b770e7b61b5768b23b557e6ce61a09e5c45629` | [View](https://testnet.neo.org/contract/0xc1b770e7b61b5768b23b557e6ce61a09e5c45629) |
+| **ZkVerifier** | `0x8b674ba61f37b4aa6127e41df419d110efc6c5ef` | [View](https://testnet.neo.org/contract/0x8b674ba61f37b4aa6127e41df419d110efc6c5ef) |
+| **Sp1Groth16Verifier** | `0xeae0a192b4cbdb75d846fba5dafcaa1171b517d8` | [View](https://testnet.neo.org/contract/0xeae0a192b4cbdb75d846fba5dafcaa1171b517d8) |
+
+**Validation Results**:
+- 12/12 automated smoke tests passed
+- All inter-contract wiring verified
+- Genesis state prepared for first L2 chain
+- Complete documentation in [TESTNET_SUMMARY.md](./TESTNET_SUMMARY.md)
+
+**Network**: Neo N3 Testnet (Magic: 894710606)  
+**RPC**: https://testnet1.neo.coz.io:443
 
 ---
 

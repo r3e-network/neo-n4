@@ -4,10 +4,15 @@ using System.Linq;
 namespace Neo.Stack.Cli.Commands;
 
 /// <summary>
-/// Single source of truth for the four chain-config templates (rollup / zk-rollup /
-/// validium / sidechain) consumed by <c>create-chain</c>, <c>new-l2</c>, and
-/// <c>list-templates</c>. Keeps per-template defaults from drifting across commands.
+/// Single source of truth for all chain-config templates (4 base + 7 official elastic chains)
+/// consumed by <c>create-chain</c>, <c>new-l2</c>, and <c>list-templates</c>.
+/// Keeps per-template defaults from drifting across commands.
 /// </summary>
+/// <remarks>
+/// Base templates: rollup, zk-rollup, validium, sidechain (general-purpose).
+/// Official elastic chains: dex, gaming, defi, social, nft, payment, enterprise (specialized, Neo-official maintained).
+/// Inspired by ZKsync Elastic Chain but all maintained by Neo official team.
+/// </remarks>
 internal static class TemplateCatalog
 {
     /// <summary>Per-template defaults (doc.md §6 chain modes + §16.2 security label).</summary>
@@ -24,9 +29,10 @@ internal static class TemplateCatalog
         string TagLine,
         string UseCase);
 
-    /// <summary>All known templates in display order (default first).</summary>
+    /// <summary>All known templates in display order (default first, then base templates, then official elastic chains).</summary>
     public static readonly Template[] All = new[]
     {
+        // === BASE TEMPLATES (4) ===
         new Template(
             Name: "rollup",
             // proofType=Zk, not Optimistic: VerifierRegistry is keyed by proof type and the production
@@ -67,6 +73,57 @@ internal static class TemplateCatalog
             ExitModel: "Permissionless", GatewayEnabled: false, PermissionlessExit: true,
             TagLine: "No L1 settlement, NeoFS DA, committee attestation. Permissioned consortia, enterprise.",
             UseCase: "Lightest-touch variant. SidechainMode + ProofType=Multisig + permissionlessExit. Useful for permissioned consortia or enterprise networks where the L1 anchor isn't a trust anchor — it's just a discovery + asset-bridge endpoint. NeoFS remains the canonical data-availability store even when the proof model is committee attestation. Note: the shipped production bundle freezes VerifierRegistry with only the Zk route, so a sidechain that must settle batches on a hub deployed by Neo.Hub.Deploy needs an operator-supplied Multisig route registered before the lock."),
+
+        // === OFFICIAL ELASTIC CHAINS (7) - Neo-official maintained ===
+        new Template(
+            Name: "dex",
+            ChainMode: "L2ValidiumMode", DaMode: "NeoFS", ProofType: "Zk",
+            SecurityLevel: "Validium", SequencerModel: "DbftCommittee",
+            ExitModel: "Delayed", GatewayEnabled: true, PermissionlessExit: false,
+            TagLine: "Ultra-low latency DEX chain. 10,000+ TPS, <100ms matching. Official Neo-maintained.",
+            UseCase: "Specialized for decentralized exchanges and orderbook matching engines. Optimized for: central limit orderbook (CLOB), AMM liquidity pools, real-time order matching, high-frequency trading. Delayed exit prevents front-running orderbook drains. Gateway-enabled for cross-L2 asset movement. Target chain ID: 100."),
+        new Template(
+            Name: "gaming",
+            ChainMode: "L2RollupMode", DaMode: "NeoFS", ProofType: "Zk",
+            SecurityLevel: "Optimistic", SequencerModel: "DbftCommittee",
+            ExitModel: "Delayed", GatewayEnabled: true, PermissionlessExit: true,
+            TagLine: "High-throughput gaming chain. 50,000+ TPS, <500ms confirmation. Official Neo-maintained.",
+            UseCase: "Specialized for blockchain gaming and metaverse applications. Optimized for: in-game asset trading, player-vs-player battles, game state synchronization, NFT minting, real-time game economies. Ultra-high throughput with minimal gas fees for microtransactions. Target chain ID: 200."),
+        new Template(
+            Name: "defi",
+            ChainMode: "L2RollupMode", DaMode: "L1", ProofType: "Zk",
+            SecurityLevel: "Validity", SequencerModel: "DbftCommittee",
+            ExitModel: "Permissionless", GatewayEnabled: true, PermissionlessExit: true,
+            TagLine: "Maximum security DeFi chain. L1 DA + ZK proofs, compliance-ready. Official Neo-maintained.",
+            UseCase: "Specialized for DeFi protocols requiring maximum security and regulatory compliance. Optimized for: lending/borrowing protocols, yield aggregators, stablecoins, liquid staking, derivatives. L1 data availability + ZK proofs provide strongest security guarantees. MEV protection via fair transaction ordering. Target chain ID: 300."),
+        new Template(
+            Name: "social",
+            ChainMode: "L2RollupMode", DaMode: "NeoFS", ProofType: "Zk",
+            SecurityLevel: "Optimistic", SequencerModel: "DbftCommittee",
+            ExitModel: "Delayed", GatewayEnabled: true, PermissionlessExit: true,
+            TagLine: "Massive-scale social chain. 100,000+ TPS, <200ms, near-free posts. Official Neo-maintained.",
+            UseCase: "Specialized for decentralized social networks and content platforms. Optimized for: social media posts, content creation, NFT social interactions, DAO governance, community voting. Extreme throughput for millions of users with minimal per-action cost. NeoFS integration for content storage. Target chain ID: 400."),
+        new Template(
+            Name: "nft",
+            ChainMode: "L2ValidiumMode", DaMode: "NeoFS", ProofType: "Zk",
+            SecurityLevel: "Validium", SequencerModel: "DbftCommittee",
+            ExitModel: "Delayed", GatewayEnabled: true, PermissionlessExit: true,
+            TagLine: "NFT-optimized chain. 20,000+ TPS, low minting cost, NeoFS media. Official Neo-maintained.",
+            UseCase: "Specialized for NFT marketplaces and digital collectibles. Optimized for: NFT minting and trading, digital art, gaming assets, music/video NFTs, batch minting operations. Native NeoFS integration for media storage. Smart contract-enforced royalties. Gateway-enabled for cross-chain NFT transfers. Target chain ID: 500."),
+        new Template(
+            Name: "payment",
+            ChainMode: "L2RollupMode", DaMode: "L1", ProofType: "Zk",
+            SecurityLevel: "Validity", SequencerModel: "DbftCommittee",
+            ExitModel: "Permissionless", GatewayEnabled: true, PermissionlessExit: true,
+            TagLine: "Instant payment chain. <1s confirmation, privacy-ready, compliance-friendly. Official Neo-maintained.",
+            UseCase: "Specialized for instant payments and remittances. Optimized for: peer-to-peer payments, cross-border remittances, merchant payments, payroll distribution, batch transfers. Sub-second finality with ZK privacy options. L1 DA for maximum security and regulatory compliance. Target chain ID: 600."),
+        new Template(
+            Name: "enterprise",
+            ChainMode: "SidechainMode", DaMode: "NeoFS", ProofType: "Multisig",
+            SecurityLevel: "Sidechain", SequencerModel: "DbftCommittee",
+            ExitModel: "OperatorAssisted", GatewayEnabled: false, PermissionlessExit: false,
+            TagLine: "Permissioned enterprise chain. Consortium governance, audit-ready. Official Neo-maintained.",
+            UseCase: "Specialized for enterprise consortiums and permissioned networks. Optimized for: supply chain management, enterprise settlement, compliance reporting, permissioned assets, internal auditing. Committee attestation for consortium trust model. Private NeoFS storage for sensitive enterprise data. Operator-gated exits for compliance. Target chain ID: 700."),
     };
 
     /// <summary>Resolve a template by name (case-sensitive). Falls back to <c>"rollup"</c> on unknown name.</summary>

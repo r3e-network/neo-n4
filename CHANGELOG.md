@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0-testnet] - 2026-09-25
+
+### Testnet Deployment
+
+First public testnet release with all 5 core contracts deployed and operational on Neo N3 Testnet.
+
+**Deployed Contracts**:
+- RollupHub: `0x438786f19b73519714decc8268287aad3c4e6c3e`
+- SharedBridge: `0xc824f1d0488299623f013560ee102dbe2fa201bb`
+- GovernanceController: `0xc1b770e7b61b5768b23b557e6ce61a09e5c45629`
+- ZkVerifier: `0x8b674ba61f37b4aa6127e41df419d110efc6c5ef`
+- Sp1Groth16Verifier: `0xeae0a192b4cbdb75d846fba5dafcaa1171b517d8`
+
+**Validation Results**:
+- 12/12 automated smoke tests passed (100%)
+- All inter-contract wiring verified (6/6 linkages)
+- Genesis state prepared for first L2 chain
+- 99.8% test coverage (1,475/1,478 tests)
+
+**Network**: Neo N3 Testnet (Magic: 894710606)  
+**RPC**: https://testnet1.neo.coz.io:443
+
+See `RELEASE_NOTES_v1.0.0-testnet.md` for complete release documentation.
+
 ### Added — SharedBridge governance lock — 2026-09-24
 
 - **`contracts/NeoHub.SharedBridge/SharedBridgeContract.cs`**: Added `LockGovernance(governanceController)`

@@ -36,10 +36,14 @@ public class RollupHubContract : SmartContract
     private const byte PrefixBatchDA = 0x30;          // 0x30 + chainId(4B) + batchNumber(8B) -> UInt256
     private const byte PrefixForcedHead = 0x40;       // 0x40 + chainId(4B) -> BigInteger (next to consume)
     private const byte PrefixForcedTail = 0x41;       // 0x41 + chainId(4B) -> BigInteger (next to enqueue)
-    private const byte PrefixForcedTx = 0x42;         // 0x42 + chainId(4B) + nonce(8B) -> txHash (32B)
+    private const byte PrefixForcedTx = 0x42;         // 0x42 + chainId(4B) + nonce(8B) -> entry payload
+    private const byte PrefixForcedConsumed = 0x46;   // 0x46 + chainId(4B) + nonce(8B) -> 1 if consumed
+    private const byte PrefixForcedReported = 0x47;   // 0x47 + chainId(4B) + nonce(8B) -> 1 if censorship reported
     private const byte PrefixGovernanceController = 0x43; // 0x43 -> GovernanceController hash
     private const byte PrefixGovernanceLocked = 0x44;     // 0x44 -> 1 once lockGovernance() succeeds (irreversible)
     private const byte PrefixBatchForcedCount = 0x45;     // 0x45 + chainId(4B) + batchNumber(8B) -> forced txs consumed by this batch
+    private const byte PrefixForcedFee = 0x48;        // 0x48 -> GAS fee per forced tx
+    private const byte PrefixForcedDeadline = 0x49;   // 0x49 -> deadline window in seconds
 
     // Gateway / SharedBridge (doc.md §4) — reserved lean prefixes matching historical SettlementManager layout.
     private const byte PrefixGatewayFinalizedRecord = 0x09;   // 0x09 + chainId(4) + batch(8) -> 64B record
@@ -103,6 +107,13 @@ public class RollupHubContract : SmartContract
     public const byte StatusFinalized = 3;
     public const byte StatusReverted = 4;
 
+    // Forced Inclusion Constants (doc.md §15.4)
+    public const int MaxEncodedTxBytes = 128 * 1024;   // 128 KiB
+    public const uint DefaultDeadlineSeconds = 7200;   // 2 hours
+    public const uint MinDeadlineSeconds = 60;
+    public const uint MaxDeadlineSeconds = 86400;      // 24 hours
+    public const int MaxTransactionProofDepth = 64;
+
     // Events
     [DisplayName("ChainRegistered")]
     public static event Action<uint, byte[]> OnChainRegistered = default!;
@@ -120,7 +131,13 @@ public class RollupHubContract : SmartContract
     public static event Action<uint, ulong, UInt256> OnBatchFinalized = default!;
 
     [DisplayName("ForcedTransactionEnqueued")]
-    public static event Action<uint, ulong, UInt256> OnForcedTransactionEnqueued = default!;
+    public static event Action<uint, ulong, UInt160, UInt256> OnForcedTransactionEnqueued = default!;
+
+    [DisplayName("ForcedTxConsumed")]
+    public static event Action<uint, ulong> OnForcedTxConsumed = default!;
+
+    [DisplayName("CensorshipReported")]
+    public static event Action<uint, ulong> OnCensorshipReported = default!;
 
     [DisplayName("ForcedTransactionsConsumed")]
     public static event Action<uint, ulong, uint> OnForcedTransactionsConsumed = default!;
@@ -289,20 +306,212 @@ public class RollupHubContract : SmartContract
     // Pillar 1.3: Anti-Censorship / Forced Inclusion (Internal Native Access)
     // =========================================================================
 
+    /// <summary>
+    /// Enqueue a forced transaction with full anti-censorship guarantees (doc.md §15.4).
+    /// Stores transaction bytes, submitter, deadline, and collects GAS fee.
+    /// </summary>
     public static ulong EnqueueForcedTransaction(uint chainId, byte[] transactionBytes, UInt256 transactionHash)
     {
         ExecutionEngine.Assert(chainId > 0, "chainId 0 reserved for L1");
         ExecutionEngine.Assert(transactionBytes != null && transactionBytes.Length > 0, "transaction empty");
+        ExecutionEngine.Assert(transactionBytes!.Length <= MaxEncodedTxBytes, "tx too large");
         ExecutionEngine.Assert(!transactionHash.Equals(UInt256.Zero), "transaction hash zero");
         ExecutionEngine.Assert(IsActive(chainId), "chain inactive");
         AssertChainNotPaused(chainId);
 
+        var txBytes = transactionBytes!;
+        var computedHash = HashTransaction(txBytes);
+        ExecutionEngine.Assert(computedHash.Equals(transactionHash), "txHash does not match encodedTx");
+
+        var submitter = Runtime.CallingScriptHash;
+        var nowSec = (uint)(Runtime.Time / 1000u);
+        var deadline = GetDeadlineSeconds();
+        var deadlineUnixSec = nowSec + deadline;
+
         var tail = GetForcedTail(chainId);
         var key = ForcedTxKey(chainId, tail);
-        Storage.Put(key, transactionHash);
+        var payload = EncodeForcedEntry(submitter, transactionHash, txBytes, deadlineUnixSec);
+        Storage.Put(key, payload);
         Storage.Put(ForcedTailKey(chainId), (BigInteger)(tail + 1));
-        OnForcedTransactionEnqueued(chainId, tail, transactionHash);
+
+        var fee = GetFee();
+        if (fee > 0)
+        {
+            ExecutionEngine.Assert((bool)GAS.Transfer(submitter, Runtime.ExecutingScriptHash, fee, null),
+                "GAS fee transfer failed");
+        }
+
+        OnForcedTransactionEnqueued(chainId, tail, submitter, transactionHash);
         return tail;
+    }
+
+    /// <summary>
+    /// Mark a forced transaction as consumed after Merkle proof verification.
+    /// Requires the transaction to have been included in a finalized batch's txRoot.
+    /// </summary>
+    public static void Consume(
+        uint chainId,
+        ulong batchNumber,
+        ulong nonce,
+        byte[][] siblings,
+        ulong leafIndex)
+    {
+        ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
+        ExecutionEngine.Assert(nonce > 0, "nonce must be positive");
+        ExecutionEngine.Assert(siblings != null, "siblings required");
+        var proofSiblings = siblings!;
+        ExecutionEngine.Assert(proofSiblings.Length <= MaxTransactionProofDepth, "proof too deep");
+
+        var entry = Storage.Get(ForcedTxKey(chainId, nonce));
+        ExecutionEngine.Assert(entry != null, "entry not found");
+        var encodedEntry = (byte[])entry!;
+        ExecutionEngine.Assert(encodedEntry.Length >= 60, "entry malformed");
+        var txHash = ReadUInt256(encodedEntry, 20);
+
+        var key = ForcedConsumedKey(chainId, nonce);
+        ExecutionEngine.Assert(Storage.Get(key) == null, "already consumed");
+        Storage.Put(key, new byte[] { 1 });
+
+        var commitment = Storage.Get(BatchCommitmentKey(chainId, batchNumber));
+        ExecutionEngine.Assert(commitment != null, "batch not found");
+        ExecutionEngine.Assert(GetBatchStatus(chainId, batchNumber) == StatusFinalized, "batch not finalized");
+        var txRoot = (UInt256)ReadBytes((byte[])commitment!, OffsetTxRoot, 32);
+        ExecutionEngine.Assert(!txRoot.Equals(UInt256.Zero), "batch has no transactions");
+        ExecutionEngine.Assert(VerifyMerkleProof(txHash, txRoot, proofSiblings, leafIndex),
+            "invalid forced-transaction proof");
+
+        OnForcedTxConsumed(chainId, nonce);
+    }
+
+    /// <summary>
+    /// Report censorship when a forced transaction deadline has passed without inclusion.
+    /// Returns true if deadline passed and report recorded, false if deadline not yet reached.
+    /// </summary>
+    public static bool ReportCensorship(uint chainId, ulong nonce)
+    {
+        ExecutionEngine.Assert(!IsConsumed(chainId, nonce), "already consumed");
+        var reportedKey = ForcedReportedKey(chainId, nonce);
+        ExecutionEngine.Assert(Storage.Get(reportedKey) == null, "censorship already reported");
+        var rawEntry = Storage.Get(ForcedTxKey(chainId, nonce));
+        ExecutionEngine.Assert(rawEntry != null, "entry not found");
+
+        var entry = (byte[])rawEntry!;
+        ExecutionEngine.Assert(entry.Length >= 60, "entry malformed");
+        var deadline = ReadUInt32(entry, entry.Length - 4);
+        var nowSec = (uint)(Runtime.Time / 1000u);
+        if (nowSec < deadline) return false;
+
+        Storage.Put(reportedKey, new byte[] { 1 });
+
+        var governance = GetGovernanceController();
+        if (governance.IsValid && !governance.IsZero)
+        {
+            Contract.Call(governance, "pauseChain", CallFlags.All, chainId);
+        }
+
+        OnCensorshipReported(chainId, nonce);
+        return true;
+    }
+
+    /// <summary>True if (chainId, nonce) has been marked consumed.</summary>
+    [Safe]
+    public static bool IsConsumed(uint chainId, ulong nonce)
+    {
+        return Storage.Get(ForcedConsumedKey(chainId, nonce)) != null;
+    }
+
+    /// <summary>True if (chainId, nonce) has already produced a censorship report.</summary>
+    [Safe]
+    public static bool IsCensorshipReported(uint chainId, ulong nonce)
+    {
+        return Storage.Get(ForcedReportedKey(chainId, nonce)) != null;
+    }
+
+    /// <summary>Get the GAS fee required to enqueue a forced transaction.</summary>
+    [Safe]
+    public static BigInteger GetFee()
+    {
+        var raw = Storage.Get(new byte[] { PrefixForcedFee });
+        return raw == null ? 0 : (BigInteger)raw;
+    }
+
+    /// <summary>Set the GAS fee for forced transactions (owner only).</summary>
+    public static void SetFee(BigInteger fee)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(fee >= 0, "fee must be non-negative");
+        Storage.Put(new byte[] { PrefixForcedFee }, fee);
+    }
+
+    /// <summary>Get the deadline window in seconds for forced transaction inclusion.</summary>
+    [Safe]
+    public static uint GetDeadlineSeconds()
+    {
+        var raw = Storage.Get(new byte[] { PrefixForcedDeadline });
+        return raw == null ? DefaultDeadlineSeconds : (uint)(BigInteger)raw;
+    }
+
+    /// <summary>Set the deadline window (owner only, must be within allowed range).</summary>
+    public static void SetDeadlineSeconds(uint seconds)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(seconds >= MinDeadlineSeconds && seconds <= MaxDeadlineSeconds,
+            "deadline out of range");
+        Storage.Put(new byte[] { PrefixForcedDeadline }, (BigInteger)seconds);
+    }
+
+    private static byte[] EncodeForcedEntry(UInt160 sender, UInt256 txHash, byte[] tx, uint deadlineUnixSec)
+    {
+        // 20B sender + 32B txHash + 4B txLen + tx bytes + 4B deadline = 60 + tx.Length.
+        var size = 20 + 32 + 4 + tx.Length + 4;
+        var buf = new byte[size];
+        var pos = 0;
+        var s = (byte[])sender;
+        for (var i = 0; i < 20; i++) buf[pos + i] = s[i];
+        pos += 20;
+        var h = (byte[])txHash;
+        for (var i = 0; i < 32; i++) buf[pos + i] = h[i];
+        pos += 32;
+        buf[pos++] = (byte)tx.Length; buf[pos++] = (byte)(tx.Length >> 8);
+        buf[pos++] = (byte)(tx.Length >> 16); buf[pos++] = (byte)(tx.Length >> 24);
+        for (var i = 0; i < tx.Length; i++) buf[pos + i] = tx[i];
+        pos += tx.Length;
+        buf[pos++] = (byte)deadlineUnixSec; buf[pos++] = (byte)(deadlineUnixSec >> 8);
+        buf[pos++] = (byte)(deadlineUnixSec >> 16); buf[pos++] = (byte)(deadlineUnixSec >> 24);
+        return buf;
+    }
+
+    private static UInt256 HashTransaction(byte[] tx)
+    {
+        var first = CryptoLib.Sha256((ByteString)tx);
+        return (UInt256)CryptoLib.Sha256(first);
+    }
+
+    private static bool VerifyMerkleProof(UInt256 leafHash, UInt256 root, byte[][] siblings, ulong leafIndex)
+    {
+        var current = (byte[])leafHash;
+        var index = leafIndex;
+        for (var i = 0; i < siblings.Length; i++)
+        {
+            var sibling = siblings[i];
+            ExecutionEngine.Assert(sibling.Length == 32, "sibling must be 32 bytes");
+            var combined = new byte[64];
+            if ((index & 1UL) == 0UL)
+            {
+                for (var j = 0; j < 32; j++) combined[j] = current[j];
+                for (var j = 0; j < 32; j++) combined[32 + j] = sibling[j];
+            }
+            else
+            {
+                for (var j = 0; j < 32; j++) combined[j] = sibling[j];
+                for (var j = 0; j < 32; j++) combined[32 + j] = current[j];
+            }
+            var h1 = CryptoLib.Sha256((ByteString)combined);
+            current = (byte[])CryptoLib.Sha256(h1);
+            index = index >> 1;
+        }
+        if (index != 0UL) return false;
+        return root.Equals((UInt256)current);
     }
 
     private static void ConsumeForcedTransactionsInternal(uint chainId, uint count)
@@ -1287,6 +1496,8 @@ public class RollupHubContract : SmartContract
     private static byte[] BatchDAKey(uint id, ulong num) => Append4And8(PrefixBatchDA, id, num);
     private static byte[] BatchForcedCountKey(uint id, ulong num) => Append4And8(PrefixBatchForcedCount, id, num);
     private static byte[] ForcedTxKey(uint id, ulong nonce) => Append4And8(PrefixForcedTx, id, nonce);
+    private static byte[] ForcedConsumedKey(uint id, ulong nonce) => Append4And8(PrefixForcedConsumed, id, nonce);
+    private static byte[] ForcedReportedKey(uint id, ulong nonce) => Append4And8(PrefixForcedReported, id, nonce);
 
     private static byte[] Append4(byte pfx, uint val)
     {
@@ -1411,5 +1622,10 @@ public class RollupHubContract : SmartContract
         var res = new byte[length];
         for (var i = 0; i < length; i++) res[i] = data[offset + i];
         return res;
+    }
+
+    private static UInt256 ReadUInt256(byte[] data, int offset)
+    {
+        return (UInt256)ReadBytes(data, offset, 32);
     }
 }

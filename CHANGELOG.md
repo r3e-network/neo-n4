@@ -5,6 +5,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — forced inclusion v2 restoration — 2026-09-24
+
+- **`contracts/NeoHub.RollupHub/RollupHubContract.cs`**: Restored full anti-censorship forced inclusion
+  mechanism (doc.md §15.4) lost during 4-pillar consolidation. The minimal v1 implementation only stored
+  transaction hashes, making it impossible for sequencers to include forced transactions (they need the
+  full transaction bytes). Forced inclusion v2 adds:
+  
+  - **Full transaction storage**: `EnqueueForcedTransaction` now stores the complete transaction bytes
+    plus submitter address, transaction hash, and deadline timestamp in a canonical 60+txLen byte entry
+    format (20B sender + 32B txHash + 4B txLen + tx bytes + 4B deadline).
+  
+  - **Deadline tracking**: Configurable inclusion deadline (default 2 hours, range 60s–24h) with
+    Unix timestamp stored per entry. New methods `GetDeadlineSeconds()` / `SetDeadlineSeconds()`.
+  
+  - **Fee mechanism**: Optional GAS payment per forced transaction for spam prevention.
+    New methods `GetFee()` / `SetFee()`.
+  
+  - **Censorship reporting**: `ReportCensorship(chainId, nonce)` checks if deadline has passed and
+    automatically pauses the chain via GovernanceController if configured. Returns false if deadline
+    not yet reached, true if report recorded.
+  
+  - **Consumption verification**: `Consume(chainId, batchNumber, nonce, siblings, leafIndex)` verifies
+    Merkle inclusion proof against the batch's txRoot and marks the forced transaction as consumed,
+    preventing duplicate claims.
+  
+  - **Query methods**: `IsConsumed()` and `IsCensorshipReported()` check forced transaction status.
+  
+  Entry encoding matches the canonical format used by the old standalone ForcedInclusion contract
+  (commit fa0ebe30), ensuring operator tooling compatibility. Hash verification uses double-SHA256
+  matching Neo's standard transaction hash. Merkle proof verification uses the same double-SHA256
+  fold as withdrawal proofs.
+
 ### Added — post-lock governance methods — 2026-09-24
 
 - **`contracts/NeoHub.RollupHub/RollupHubContract.cs`**: Added three ViaProposal methods for

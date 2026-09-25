@@ -205,4 +205,3 @@ bash scripts/test-official-elastic-chains.sh
 **Commit**: 356c66f7  
 **Branch**: master
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

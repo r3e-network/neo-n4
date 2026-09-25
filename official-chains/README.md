@@ -221,4 +221,3 @@ bash scripts/test-official-elastic-chains.sh
 **项目性质**: 技术探索和验证（非官方）  
 **状态**: 配置完成，待进一步验证
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -53,3 +53,14 @@ CODEX_DEEP_AUDIT/
 .serena/
 outputs/
 tools/_tmp_deposit_smoke/
+
+# IDE and analysis tools temporary files
+.codegraph/
+.mimosa/
+.qoder/
+
+# Local L2 chain data directories
+chain-*/
+
+# Temporary script directories
+scripts/contracts/

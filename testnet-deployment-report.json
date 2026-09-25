@@ -1,0 +1,14 @@
+{
+  "network": "neo-n3-testnet",
+  "rpc": "https://testnet1.neo.coz.io:443",
+  "networkMagic": 894710606,
+  "deployedContracts": {
+    "RollupHub": "0x438786f19b73519714decc8268287aad3c4e6c3e",
+    "SharedBridge": "0xc824f1d0488299623f013560ee102dbe2fa201bb",
+    "GovernanceController": "0xc1b770e7b61b5768b23b557e6ce61a09e5c45629",
+    "ZkVerifier": "0x8b674ba61f37b4aa6127e41df419d110efc6c5ef",
+    "MultisigVerifier": "0x0000000000000000000000000000000000000000",
+    "Sp1Groth16Verifier": "0xeae0a192b4cbdb75d846fba5dafcaa1171b517d8"
+  },
+  "deployer": "0xe40261f2aed8a131d9558e76d908b22b50ba26f7"
+}

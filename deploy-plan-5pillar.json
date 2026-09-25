@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "network": "neo-n3-testnet",
+  "steps": [
+    {
+      "name": "GovernanceController",
+      "nefPath": "contracts/NeoHub.GovernanceController/bin/sc/NeoHub.GovernanceController.nef",
+      "manifestPath": "contracts/NeoHub.GovernanceController/bin/sc/NeoHub.GovernanceController.manifest.json",
+      "deployData": ["OWNER_REPLACE_ME"],
+      "dependsOn": []
+    },
+    {
+      "name": "ZkVerifier",
+      "nefPath": "contracts/NeoHub.ZkVerifier/bin/sc/NeoHub.ZkVerifier.nef",
+      "manifestPath": "contracts/NeoHub.ZkVerifier/bin/sc/NeoHub.ZkVerifier.manifest.json",
+      "deployData": ["OWNER_REPLACE_ME"],
+      "dependsOn": []
+    },
+    {
+      "name": "MultisigVerifier",
+      "nefPath": "contracts/NeoHub.MultisigVerifier/bin/sc/NeoHub.MultisigVerifier.nef",
+      "manifestPath": "contracts/NeoHub.MultisigVerifier/bin/sc/NeoHub.MultisigVerifier.manifest.json",
+      "deployData": ["OWNER_REPLACE_ME"],
+      "dependsOn": []
+    },
+    {
+      "name": "RollupHub",
+      "nefPath": "contracts/NeoHub.RollupHub/bin/sc/NeoHub.RollupHub.nef",
+      "manifestPath": "contracts/NeoHub.RollupHub/bin/sc/NeoHub.RollupHub.manifest.json",
+      "deployData": ["OWNER_REPLACE_ME", "$step:ZkVerifier"],
+      "dependsOn": ["ZkVerifier"]
+    },
+    {
+      "name": "SharedBridge",
+      "nefPath": "contracts/NeoHub.SharedBridge/bin/sc/NeoHub.SharedBridge.nef",
+      "manifestPath": "contracts/NeoHub.SharedBridge/bin/sc/NeoHub.SharedBridge.manifest.json",
+      "deployData": ["OWNER_REPLACE_ME", "$step:RollupHub", "$step:SharedBridge"],
+      "dependsOn": ["RollupHub"]
+    },
+    {
+      "name": "Sp1Groth16Verifier",
+      "nefPath": "contracts/NeoHub.Sp1Groth16Verifier/bin/sc/NeoHub.Sp1Groth16Verifier.nef",
+      "manifestPath": "contracts/NeoHub.Sp1Groth16Verifier/bin/sc/NeoHub.Sp1Groth16Verifier.manifest.json",
+      "deployData": [],
+      "dependsOn": []
+    }
+  ]
+}

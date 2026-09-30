@@ -158,6 +158,12 @@ This section is the fastest way to understand what the project looks like, what
 runs where, and how data moves. The complete diagram set lives in
 [`docs/visual-guide.md`](./docs/visual-guide.md).
 
+> [!TIP]
+> **🎬 Interactive 3D Visualization!** Experience Neo N4 architecture in an interactive 3D demo
+> built with Three.js. Watch the complete 6-phase workflow from transaction collection to Gateway
+> publish with real-time animations and statistics. One-click startup with `start.bat` (Windows)
+> or `./start.sh` (Linux/Mac). See [`demo/neo-n4-visualization/`](./demo/neo-n4-visualization/).
+
 ### Paper-style core figures
 
 These four figures are the recommended starting point for learning the system

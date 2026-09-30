@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo N4 架构可视化 - Layer 2 Rollup 技术演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            color: #ffffff;
+            overflow: hidden;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #ui-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(15, 20, 40, 0.9);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+        }
+        
+        .info-panel h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #00ffff;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        
+        .info-panel p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #a0b0ff;
+            margin-bottom: 15px;
+        }
+        
+        .stats-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(15, 20, 40, 0.9);
+            border: 1px solid rgba(0, 255, 100, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            min-width: 250px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+        }
+        
+        .stats-panel h3 {
+            color: #00ff88;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+        
+        .stat-label {
+            color: #8090c0;
+        }
+        
+        .stat-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        
+        .controls-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 20, 40, 0.9);
+            border: 1px solid rgba(255, 100, 0, 0.3);
+            border-radius: 30px;
+            padding: 15px 30px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .control-btn {
+            background: linear-gradient(135deg, #ff6b00 0%, #ff9500 100%);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(255, 107, 0, 0.3);
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 0, 0.5);
+        }
+        
+        .control-btn:active {
+            transform: translateY(0);
+        }
+        
+        .control-btn.active {
+            background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%);
+            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+        }
+        
+        .phase-indicator {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 20, 40, 0.95);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 20px 40px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+            min-width: 300px;
+        }
+        
+        .phase-indicator h2 {
+            font-size: 20px;
+            color: #ffaa00;
+            margin-bottom: 8px;
+            text-shadow: 0 0 10px rgba(255, 170, 0, 0.5);
+        }
+        
+        .phase-indicator p {
+            font-size: 14px;
+            color: #a0b0ff;
+        }
+        
+        .legend {
+            position: absolute;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            background: rgba(15, 20, 40, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+        }
+        
+        .legend h3 {
+            color: #ffffff;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 12px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 20px;
+            color: #00ffff;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+            z-index: 100;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="ui-overlay">
+        <div class="info-panel">
+            <h1>🔷 Neo N4 Layer 2 Rollup</h1>
+            <p>
+                高性能 Layer 2 扩容方案，使用 zkVM (SP1) 零知识证明技术，
+                实现 Neo 主网的安全扩展。通过批处理交易和链下执行，
+                大幅提升吞吐量并降低交易成本。
+            </p>
+            <p>
+                <strong>核心特性：</strong><br>
+                • 零知识证明验证<br>
+                • 强制入列反审查<br>
+                • DA 失效切换机制<br>
+                • 去中心化治理锁
+            </p>
+        </div>
+        
+        <div class="stats-panel">
+            <h3>📊 实时统计</h3>
+            <div class="stat-item">
+                <span class="stat-label">批次编号：</span>
+                <span class="stat-value" id="batch-number">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">交易数量：</span>
+                <span class="stat-value" id="tx-count">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">区块范围：</span>
+                <span class="stat-value" id="block-range">0-0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">状态转换：</span>
+                <span class="stat-value" id="state-transition">待处理</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">证明状态：</span>
+                <span class="stat-value" id="proof-status">未生成</span>
+            </div>
+        </div>
+        
+        <div class="legend">
+            <h3>🎨 组件图例</h3>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00ffff;"></div>
+                <span>L2 序列器节点</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff6b00;"></div>
+                <span>Neo 主链 (L1)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00ff88;"></div>
+                <span>RollupHub 合约</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffaa00;"></div>
+                <span>交易批次</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff0088;"></div>
+                <span>zkVM 证明器</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #8088ff;"></div>
+                <span>Gateway 网关</span>
+            </div>
+        </div>
+        
+        <div class="phase-indicator" id="phase-indicator">
+            <h2 id="phase-title">初始化中...</h2>
+            <p id="phase-description">正在加载 Neo N4 架构组件</p>
+        </div>
+        
+        <div class="controls-panel">
+            <button class="control-btn" id="btn-start">▶ 开始演示</button>
+            <button class="control-btn" id="btn-pause">⏸ 暂停</button>
+            <button class="control-btn" id="btn-reset">🔄 重置</button>
+            <button class="control-btn" id="btn-speed">⚡ 2x 速度</button>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">正在加载 Neo N4 可视化引擎...</div>
+    
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>

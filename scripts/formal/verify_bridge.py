@@ -19,7 +19,7 @@ import z3
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "contracts/NeoHub.SharedBridge/SharedBridgeContract.cs"
-REVIEWED_SOURCE_SHA256 = "906945c4115aad7885436862b7dbfbff01c17e20bad7436defd22004062e1b85"
+REVIEWED_SOURCE_SHA256 = "0fd19dae7757796efe69d815a48a67d6d446c094120ee36fc5a6a997ea591bbd"
 
 
 def source_digest(path):

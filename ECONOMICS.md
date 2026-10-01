@@ -1,5 +1,13 @@
 # Neo N4 Economics Model
 
+> [!WARNING]
+> **Status: Model projections, not actuals.** Revenue, cost, TPS, and profit
+> figures below are **modeled scenarios** for a system that is not yet operating
+> commercially. They are planning inputs for parameter design and treasury
+> policy — not financial results, forecasts of return, or measured performance.
+> Assumptions (token price, L1 gas, sustained TPS) are stated in the appendices
+> and must be re-derived from real operating data before being relied upon.
+
 ## Executive Summary
 
 This document defines the economic model of the Neo N4 Layer 2 Rollup system, including fee mechanisms, incentive structures, treasury management, and sustainability analysis. The goal is to create a self-sustaining, economically secure system that aligns incentives across all participants.

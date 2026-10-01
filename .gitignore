@@ -64,3 +64,8 @@ chain-*/
 
 # Temporary script directories
 scripts/contracts/
+
+# Stray artifacts seen on Windows dev hosts
+nul
+test-results.txt
+*-result.j

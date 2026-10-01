@@ -1,5 +1,14 @@
 # Neo N4 Performance Benchmarks
 
+> [!WARNING]
+> **Status: Design targets, not measurements.** All figures in this document are
+> **modeled projections** for a production deployment that has not yet run. No
+> mainnet or load-test campaign has produced these numbers (the repository's
+> measured evidence is the test suite plus the devnet audit pass; see
+> [`docs/testing-approach.md`](./docs/testing-approach.md)). Treat every number
+> here as an engineering target to validate during the planned benchmark
+> campaign, and do not cite it as a measured result.
+
 ## Executive Summary
 
 This document presents comprehensive performance benchmarks for the Neo N4 Layer 2 Rollup system, demonstrating its throughput, latency, and cost efficiency compared to Neo N3 Layer 1.

@@ -10,10 +10,10 @@ These reports document the pre-testnet validation and audit phases. They have be
 
 ## Current Documentation
 For the latest status, see:
-- `../../FINAL_REPORT.md` - Complete testnet deployment report
-- `../../TESTNET_DEPLOYMENT_RESULT.md` - Deployment results
-- `../../TESTNET_VALIDATION_REPORT.md` - Post-deployment validation
-- `../../PRODUCTION_READINESS.md` - Production readiness assessment
+- `../../status-reports-2026/FINAL_REPORT.md` - Complete testnet deployment report
+- `../../status-reports-2026/TESTNET_DEPLOYMENT_RESULT.md` - Deployment results
+- `../../status-reports-2026/TESTNET_VALIDATION_REPORT.md` - Post-deployment validation
+- `../../status-reports-2026/PRODUCTION_READINESS.md` - Production readiness assessment
 - `../../IMPLEMENTATION_STATUS.md` - Current implementation status
 
 ## Archived Reports

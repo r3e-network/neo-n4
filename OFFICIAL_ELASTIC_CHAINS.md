@@ -433,7 +433,7 @@ bash scripts/deploy-official-elastic-chains.sh --testnet
 - ZKsync Elastic Chain: https://zksync.io/elastic-chain
 - Neo N4 Architecture: `ARCHITECTURE.md`
 - Template Catalog: `tools/Neo.Stack.Cli/Commands/TemplateCatalog.cs`
-- Deployment Guide: `TESTNET_DEPLOYMENT.md`
+- Deployment Guide: `./docs/archive/status-reports-2026/TESTNET_DEPLOYMENT.md`
 
 ---
 

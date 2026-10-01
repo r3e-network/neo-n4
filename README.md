@@ -6,7 +6,7 @@
 
 > [!NOTE]
 > **🚀 Live on Testnet!** Neo N4 is deployed to Neo N3 Testnet. All 5 core contracts are operational with 100% test coverage.
-> See [TESTNET_DEPLOYMENT_RESULT.md](./TESTNET_DEPLOYMENT_RESULT.md) for addresses and validation results.
+> See [TESTNET_DEPLOYMENT_RESULT.md](./docs/archive/status-reports-2026/TESTNET_DEPLOYMENT_RESULT.md) for addresses and validation results.
 
 > [!TIP]
 > **🎉 7 Elastic Chain Templates Deployed!** This technical exploration includes 7 specialized elastic chain templates inspired by ZKsync's model:
@@ -89,7 +89,7 @@ All core contracts are deployed and operational:
 - 12/12 automated smoke tests passed
 - All inter-contract wiring verified
 - Genesis state prepared for first L2 chain
-- Complete documentation in [TESTNET_SUMMARY.md](./TESTNET_SUMMARY.md)
+- Complete documentation in [TESTNET_SUMMARY.md](./docs/archive/status-reports-2026/TESTNET_SUMMARY.md)
 
 **Network**: Neo N3 Testnet (Magic: 894710606)  
 **RPC**: https://testnet1.neo.coz.io:443
@@ -125,7 +125,7 @@ This technical exploration includes 7 specialized elastic chain templates inspir
 - [ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md](./ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md) - Complete deployment report
 - [official-chains/README.md](./official-chains/README.md) - Detailed guide (中文)
 - [OFFICIAL_ELASTIC_CHAINS.md](./OFFICIAL_ELASTIC_CHAINS.md) - Technical planning
-- [DA_LAYER_EXPLAINED_ZH.md](./DA_LAYER_EXPLAINED_ZH.md) - NeoFS DA explanation (中文)
+- [DA_LAYER_EXPLAINED_ZH.md](./docs/DA_LAYER_EXPLAINED_ZH.md) - NeoFS DA explanation (中文)
 
 **Deployment Scripts**:
 - `scripts/deploy-official-elastic-chains.sh` - 4-phase automated deployment
@@ -157,12 +157,6 @@ signing, deployment, or secret-bearing controls in the browser.
 This section is the fastest way to understand what the project looks like, what
 runs where, and how data moves. The complete diagram set lives in
 [`docs/visual-guide.md`](./docs/visual-guide.md).
-
-> [!TIP]
-> **🎬 Interactive 3D Visualization!** Experience Neo N4 architecture in an interactive 3D demo
-> built with Three.js. Watch the complete 6-phase workflow from transaction collection to Gateway
-> publish with real-time animations and statistics. One-click startup with `start.bat` (Windows)
-> or `./start.sh` (Linux/Mac). See [`demo/neo-n4-visualization/`](./demo/neo-n4-visualization/).
 
 ### Paper-style core figures
 

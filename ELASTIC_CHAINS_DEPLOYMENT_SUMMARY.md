@@ -174,7 +174,7 @@ bash scripts/test-official-elastic-chains.sh
 
 ### Technical Documentation
 - `OFFICIAL_ELASTIC_CHAINS.md` - Complete planning and design document
-- `DA_LAYER_EXPLAINED_ZH.md` - NeoFS data availability layer explanation (Chinese)
+- `./docs/DA_LAYER_EXPLAINED_ZH.md` - NeoFS data availability layer explanation (Chinese)
 - `official-chains/README.md` - Deployment guide and chain specifications (Chinese)
 - `doc.md` - Architecture specification (Chinese)
 - `IMPLEMENTATION_STATUS.md` - Implementation coverage matrix

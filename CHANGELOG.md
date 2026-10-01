@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Repository cleanup — 2026-10-01
+
+- **Removed the rejected `demo/` visualization projects** (Three.js investor/whiteboard demos,
+  ~139 MB with `node_modules`); they were experimental and explicitly set aside. The README
+  "Interactive 3D Visualization" tip and `VISUALIZATION_QUICKSTART.md` were removed with them.
+- **Archived 18 point-in-time status/release reports** from the repository root to
+  `docs/archive/status-reports-2026/` (testnet deployment/validation records, release-process
+  notes, cleanup/completion summaries, status snapshots), with an index README. They are
+  preserved for history and no longer maintained; links from `README.md`, `CHANGELOG.md`,
+  `OFFICIAL_ELASTIC_CHAINS.md`, `official-chains/`, and the Sept-2024 audit archive were
+  updated to the new paths.
+- **Deduplicated the incident-response docs**: removed the root-level v1.0
+  `INCIDENT_RESPONSE.md`; the maintained v2.0 runbook at
+  [`docs/INCIDENT_RESPONSE.md`](./docs/INCIDENT_RESPONSE.md) is canonical.
+- **Moved `DA_LAYER_EXPLAINED_ZH.md`** (Chinese data-availability explainer) to `docs/`.
+- **Honesty banners** added to `PERFORMANCE.md` and `ECONOMICS.md`: their figures are design
+  targets and model projections for a system that has not operated commercially — not
+  measured results.
+- **Housekeeping**: session-work artifact `.claude-work-status.md` deleted; `.gitignore` now
+  covers Windows stray artifacts (`nul`, `test-results.txt`, `*-result.j`).
+- **Formal verification**: refreshed evidence for the 5 digest-pinned models
+  (registration/settlement/forced-inclusion/governance/bridge-conservation) and committed the
+  missing `end-to-end-conservation-result.json`; 91 self-tests pass.
+
 ### Added — 7 Official Elastic Chains — 2026-09-25
 
 - **Official Elastic Chains Deployment**: Implemented and deployed 7 Neo-maintained elastic chains
@@ -37,7 +61,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `official-chains/README.md`: Complete guide in Chinese
   - `ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md`: Comprehensive deployment report
   - `OFFICIAL_ELASTIC_CHAINS.md`: Technical planning document
-  - `DA_LAYER_EXPLAINED_ZH.md`: NeoFS data availability explanation
+  - `docs/DA_LAYER_EXPLAINED_ZH.md`: NeoFS data availability explanation
   
   All chains ready for L1 registration on Neo N3 Testnet.
 
@@ -63,7 +87,7 @@ First public testnet release with all 5 core contracts deployed and operational 
 **Network**: Neo N3 Testnet (Magic: 894710606)  
 **RPC**: https://testnet1.neo.coz.io:443
 
-See `RELEASE_NOTES_v1.0.0-testnet.md` for complete release documentation.
+See `docs/archive/status-reports-2026/RELEASE_NOTES_v1.0.0-testnet.md` for complete release documentation.
 
 ### Added — SharedBridge governance lock — 2026-09-24
 

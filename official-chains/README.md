@@ -203,7 +203,7 @@ bash scripts/test-official-elastic-chains.sh
 ## 参考文档
 
 - `ELASTIC_CHAINS_DEPLOYMENT_SUMMARY.md` - 技术验证报告
-- `DA_LAYER_EXPLAINED_ZH.md` - NeoFS数据可用性研究
+- `../docs/DA_LAYER_EXPLAINED_ZH.md` - NeoFS数据可用性研究
 - `OFFICIAL_ELASTIC_CHAINS.md` - 技术规划
 - `doc.md` - 完整架构规范
 

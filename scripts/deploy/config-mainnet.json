@@ -1,0 +1,44 @@
+{
+  "environment": "mainnet",
+  "network": {
+    "l1_rpc": "http://seed1.neo.org:10332",
+    "l1_chain_id": 877933390,
+    "l2_chain_id": 1
+  },
+  "contracts": {
+    "rollup_hub": "0x...",
+    "shared_bridge": "0x...",
+    "governance_controller": "0x...",
+    "settlement_manager": "0x..."
+  },
+  "sequencer": {
+    "host": "0.0.0.0",
+    "port": 10332,
+    "batch_size": 1000,
+    "batch_interval_seconds": 600,
+    "max_gas_per_batch": 100000000
+  },
+  "prover": {
+    "instances": 8,
+    "timeout_seconds": 180,
+    "sp1_binary": "/usr/local/bin/sp1-prover"
+  },
+  "infrastructure": {
+    "aws_region": "us-east-1",
+    "k8s_namespace": "neo-n4-mainnet",
+    "docker_registry": "123456789.dkr.ecr.us-east-1.amazonaws.com"
+  },
+  "monitoring": {
+    "prometheus_endpoint": "http://prometheus-prod:9090",
+    "grafana_endpoint": "http://grafana-prod:3000",
+    "alertmanager_endpoint": "http://alertmanager-prod:9093",
+    "pagerduty_key": "REDACTED"
+  },
+  "deployment": {
+    "multisig_threshold": "5-of-7",
+    "timelock_hours": 72,
+    "rollback_enabled": true,
+    "rate_limit_initial": 1000,
+    "max_tvl_initial": 10000000
+  }
+}

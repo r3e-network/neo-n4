@@ -1,0 +1,41 @@
+{
+  "environment": "testnet",
+  "network": {
+    "l1_rpc": "http://seed1.neo.org:10332",
+    "l1_chain_id": 877933390,
+    "l2_chain_id": 1
+  },
+  "contracts": {
+    "rollup_hub": "",
+    "shared_bridge": "",
+    "governance_controller": "",
+    "settlement_manager": ""
+  },
+  "sequencer": {
+    "host": "0.0.0.0",
+    "port": 10332,
+    "batch_size": 500,
+    "batch_interval_seconds": 300,
+    "max_gas_per_batch": 50000000
+  },
+  "prover": {
+    "instances": 4,
+    "timeout_seconds": 120,
+    "sp1_binary": "/usr/local/bin/sp1-prover"
+  },
+  "infrastructure": {
+    "aws_region": "us-east-1",
+    "k8s_namespace": "neo-n4-testnet",
+    "docker_registry": "123456789.dkr.ecr.us-east-1.amazonaws.com"
+  },
+  "monitoring": {
+    "prometheus_endpoint": "http://prometheus:9090",
+    "grafana_endpoint": "http://grafana:3000",
+    "alertmanager_endpoint": "http://alertmanager:9093"
+  },
+  "deployment": {
+    "multisig_threshold": "5-of-7",
+    "timelock_hours": 72,
+    "rollback_enabled": true
+  }
+}

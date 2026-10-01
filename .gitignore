@@ -62,9 +62,6 @@ tools/_tmp_deposit_smoke/
 # Local L2 chain data directories
 chain-*/
 
-# Temporary script directories
-scripts/contracts/
-
 # Stray artifacts seen on Windows dev hosts
 nul
 test-results.txt

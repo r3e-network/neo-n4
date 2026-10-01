@@ -25,6 +25,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   measured results.
 - **Housekeeping**: session-work artifact `.claude-work-status.md` deleted; `.gitignore` now
   covers Windows stray artifacts (`nul`, `test-results.txt`, `*-result.j`).
+- **Codebase tidy-up (same pass)**:
+  - `scripts/contracts/` removed from `.gitignore`'s temporary-dirs rule and
+    `regenerate-testing-artifacts.sh` is now tracked — this is the canonical (and previously
+    unversioned) way to refresh the VmTests TestingArtifacts after contract source changes;
+    it also documents the nccs build prerequisite.
+  - `NeoHub.Sp1Groth16Verifier` and `NeoHub.MultisigVerifier` contract projects added to
+    `Neo.L2.sln` via `dotnet sln add` — both were on disk with no solution membership
+    (Sp1Groth16Verifier's own unit tests were in the sln while the contract was not).
+  - Regenerable tool output wiped from the working tree (no tracked content affected):
+    `artifacts/` (548 MB devnet/CI output), `book/` (24 MB), `coverage/` (60 MB), an empty
+    rehearsal `logs/` dir, and all main-repo `bin/`/`obj/` (164 dirs; `external/` build
+    caches left intact). Clean `dotnet build Neo.L2.sln` re-verified: 0 warnings, 0 errors.
 - **Formal verification**: refreshed evidence for the 5 digest-pinned models
   (registration/settlement/forced-inclusion/governance/bridge-conservation) and committed the
   missing `end-to-end-conservation-result.json`; 91 self-tests pass.

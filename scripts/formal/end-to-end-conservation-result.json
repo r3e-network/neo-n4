@@ -1,0 +1,109 @@
+{
+  "schema": "neo-n4/end-to-end-conservation/v1",
+  "wholeSystemVerified": false,
+  "scope": "End-to-end asset conservation: L2 total supply \u2264 L1 locked balance",
+  "obligations": [
+    {
+      "name": "initial_state_satisfies_invariant",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "deposit_preserves_invariant",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "withdrawal_preserves_invariant",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "l2_to_l2_transfer_preserves_total",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "l2_to_l2_transfer_preserves_invariant",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "multiple_deposits_preserve_invariant",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "equilibrium_withdrawal_maintains_equality",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "cannot_mint_without_deposit",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    },
+    {
+      "name": "zero_supply_chain_does_not_break_invariant",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true
+    },
+    {
+      "name": "negative_control_unchecked_mint_breaks_invariant",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": {
+        "locked_balance": "2",
+        "l2_supply_0": "1",
+        "l2_supply_2": "0",
+        "l2_supply_1": "1"
+      }
+    },
+    {
+      "name": "negative_control_over_withdrawal_negative_locked",
+      "expected": "sat",
+      "actual": "sat",
+      "passed": true,
+      "witness": {
+        "locked_balance": "2",
+        "l2_supply_0": "1",
+        "l2_supply_2": "0",
+        "l2_supply_1": "1"
+      }
+    },
+    {
+      "name": "negative_control_supply_exceeds_locked",
+      "expected": "unsat",
+      "actual": "unsat",
+      "passed": true
+    }
+  ],
+  "status": "passed",
+  "trustedAssumptions": [
+    "handwritten composition of bridge and settlement models",
+    "symbolic reasoning over N=3 L2 chains (representative)",
+    "models deposit/withdrawal/transfer operations abstractly",
+    "assumes per-operation atomicity (transaction isolation)",
+    "does not model concurrent operations or Byzantine actors",
+    "does not verify C#/NeoVM runtime or cryptographic proofs"
+  ],
+  "contracts": {
+    "SharedBridge": "D:\\Git\\neo-n4\\contracts\\NeoHub.SharedBridge\\SharedBridgeContract.cs",
+    "RollupHub": "D:\\Git\\neo-n4\\contracts\\NeoHub.RollupHub\\RollupHubContract.cs"
+  },
+  "reviewedDigests": {
+    "SharedBridge": "0fd19dae7757796efe69d815a48a67d6d446c094120ee36fc5a6a997ea591bbd",
+    "RollupHub": "e5f3917dd48bdf99cf877ea10a9cd3ee4cefa3e5a916ab1da29a002d67e44ccf"
+  },
+  "exitCode": 0
+}

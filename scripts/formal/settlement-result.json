@@ -149,8 +149,8 @@
     "no governance rollback, reconfiguration or concurrency transitions"
   ],
   "source": "D:\\Git\\neo-n4\\contracts\\NeoHub.RollupHub\\RollupHubContract.cs",
-  "scriptSha256": "9716aa257aaf4ec60f21f397c219cb40a754118c42b866870de7bd6e21169d0c",
+  "scriptSha256": "19381faed13ca380e0f9b0ff7be47e74c5855e2700b94e183d0189e13a33449d",
   "specSha256": "e296ce61e8fe4a64a81adf1b72be0f0ccafaf826c4b81b415eb5edf409d02816",
-  "sourceSha256": "4477ae0bbf3cdad0c476f50eade98ac7b03ce0e82c4747548a64245fdd296361",
+  "sourceSha256": "e5f3917dd48bdf99cf877ea10a9cd3ee4cefa3e5a916ab1da29a002d67e44ccf",
   "exitCode": 0
 }

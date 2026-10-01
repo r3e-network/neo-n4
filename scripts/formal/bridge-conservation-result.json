@@ -105,8 +105,8 @@
     "bridge conservation here covers L1 escrow accounting, not L2 mint/burn or GAS"
   ],
   "source": "D:\\Git\\neo-n4\\contracts\\NeoHub.SharedBridge\\SharedBridgeContract.cs",
-  "scriptSha256": "ce8d9010f8d09c74bd4ac9bd43ac42d4c14aa7a4c2534877108c2147cc124020",
+  "scriptSha256": "816532165fe0f31e3b29fde5e47abf7348d26b12dbddfb8b33307e1033788877",
   "specSha256": "e296ce61e8fe4a64a81adf1b72be0f0ccafaf826c4b81b415eb5edf409d02816",
-  "sourceSha256": "906945c4115aad7885436862b7dbfbff01c17e20bad7436defd22004062e1b85",
+  "sourceSha256": "0fd19dae7757796efe69d815a48a67d6d446c094120ee36fc5a6a997ea591bbd",
   "exitCode": 0
 }

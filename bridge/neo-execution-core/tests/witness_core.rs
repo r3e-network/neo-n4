@@ -1,7 +1,8 @@
 //! Witness authorization tests: every witness must be verified against its signer before any
-//! execution. Only standard Neo N3 account shapes are acceptable — single-signature and
-//! single-byte-count m-of-n multi-signature — signed over `SHA256(network ‖ txHash)`. An
-//! unverifiable witness is a fatal protocol error, never a "trusted signer".
+//! execution. Only standard fork-VM account shapes are acceptable — single-signature and
+//! constant-push m-of-n multi-signature, all using the fork's PUSHDATA1 encoding — signed
+//! over `SHA256(network ‖ txHash)`. An unverifiable witness is a fatal protocol error,
+//! never a "trusted signer".
 
 use neo_execution_core::{
     BatchBlockContext, ExecutionPayload, ExecutionError, ProtocolConfig, StateWitness,
@@ -21,24 +22,33 @@ fn compressed_pubkey(key: &SigningKey) -> Vec<u8> {
     key.verifying_key().to_encoded_point(true).as_bytes().to_vec()
 }
 
+/// The FORK-VM dialect: PUSHBYTES1..75 was replaced by Bitcoin-style PUSHDATA1/2/4, so
+/// `Contract.CreateSignatureRedeemScript` emits `PUSHDATA1 0x21 <pubkey> SYSCALL <hash>`
+/// (40 bytes). The stock-N3 shape (`0x21 <pubkey> ...`, 39 bytes) is NOT a CheckSig script
+/// in this VM: 0x21 is NOP here.
 fn single_sig_verification_script(pubkey: &[u8]) -> Vec<u8> {
-    let mut script = Vec::with_capacity(41);
-    script.push(0x21);
+    let mut script = Vec::with_capacity(40);
+    script.push(0x0C); // fork OpCode.PUSHDATA1
+    script.push(0x21); // length: 33
     script.extend_from_slice(pubkey);
-    script.push(0x41); // Neo3 OpCode.SYSCALL
+    script.push(0x41); // OpCode.SYSCALL
     script.extend_from_slice(&[0x56, 0xe7, 0xb3, 0x27]); // System.Crypto.CheckSig
     script
 }
 
+/// Fork dialect multisig: `PUSHm | n×[PUSHDATA1 <pubkey>] | PUSHn | SYSCALL <hash>` where
+/// PUSH1..PUSH16 are 0x11..0x20 (the stock-N3 0x51..0x60 bytes mean different instructions
+/// in the fork's opcode table).
 fn multisig_verification_script(keys: &[SigningKey], m: usize) -> Vec<u8> {
     let mut script = Vec::new();
-    script.push(0x50 + m as u8);
+    script.push(0x10 + m as u8); // fork PUSH1..PUSH16
     for key in keys {
-        script.push(0x21);
+        script.push(0x0C); // PUSHDATA1
+        script.push(0x21); // length: 33
         script.extend_from_slice(&compressed_pubkey(key));
     }
-    script.push(0x50 + keys.len() as u8);
-    script.push(0x41); // Neo3 OpCode.SYSCALL
+    script.push(0x10 + keys.len() as u8); // fork PUSHn
+    script.push(0x41); // OpCode.SYSCALL
     script.extend_from_slice(&[0x9e, 0xd0, 0xdc, 0x3a]); // System.Crypto.CheckMultisig
     script
 }
@@ -84,7 +94,8 @@ fn build_transaction(
 
     let mut invocation = Vec::new();
     for signature in signatures {
-        invocation.push(0x40);
+        invocation.push(0x0C); // fork OpCode.PUSHDATA1
+        invocation.push(0x40); // length: 64
         invocation.extend_from_slice(signature);
     }
 
@@ -276,5 +287,64 @@ fn wrong_signer_signature_is_fatal() {
     assert!(matches!(
         result,
         Err(ExecutionError::Invalid("transaction witness"))
+    ));
+}
+
+#[test]
+fn csharp_redeem_script_bytes_parse_in_the_fork_dialect() {
+    // Cross-language dialect anchor: these are the EXACT 40 bytes produced by the C# core's
+    // `Contract.CreateSignatureRedeemScript` for the key with private scalar 7 (dumped from
+    // external/neo's ScriptBuilder on 2026-10-23). The zkVM witness parser must accept the
+    // C# ScriptBuilder's actual output byte for byte — the batch it verifies is built by the
+    // C# side, and the fork's opcode table (PUSHDATA1 = 0x0C, PUSHBYTES1..75 removed) makes
+    // the stock-N3 shape meaningless here (0x21 is NOP in this VM).
+    let verification: [u8; 40] = [
+        0x0C, 0x21, // PUSHDATA1, length 33
+        0x02, 0x8E, 0x53, 0x3B, 0x6F, 0xA0, 0xBF, 0x7B, 0x46, 0x25, 0xBB, 0x30, 0x66, 0x7C, 0x01,
+        0xFB, 0x60, 0x7E, 0xF9, 0xF8, 0xB8, 0xA8, 0x0F, 0xEF, 0x5B, 0x30, 0x06, 0x28, 0x70, 0x31,
+        0x87, 0xB2, 0xA3, // compressed secp256r1 public key
+        0x41, 0x56, 0xE7, 0xB3, 0x27, // SYSCALL System.Crypto.CheckSig
+    ];
+    let mut scalar = [0u8; 32];
+    scalar[31] = 7; // the same private scalar the C# dump used
+    let key = SigningKey::from_bytes(&scalar.into()).expect("valid signing key");
+    assert_eq!(
+        key.verifying_key().to_encoded_point(true).as_bytes(),
+        &verification[2..35],
+        "the pinned script must carry the public key of scalar 7"
+    );
+    let account: [u8; 20] = neo_execution_core::hash160(&verification).into();
+    let signature = sign_message(&key, &unsigned_hash(1, account));
+    let transaction = build_transaction(1, account, &verification, &[&signature]);
+    let result = compute_batch_with(&payload(vec![transaction]), &witness(), |_, _, _, _| {
+        Ok(VmOutcome::fault(0))
+    });
+    assert!(
+        result.is_ok(),
+        "the C# ScriptBuilder's actual redeem-script bytes must verify: {result:?}"
+    );
+}
+
+#[test]
+fn stock_n3_witness_shape_is_rejected_in_the_fork_dialect() {
+    // The pre-fork Neo N3 encoding (`0x21 <pubkey> 0x41 <hash>`, 39 bytes) is NOT a
+    // CheckSig script in the fork's VM — 0x21 is NOP there — so accepting it would let a
+    // batch carry witnesses the actual VM cannot execute. The parser must reject the
+    // stock shape outright (fail-closed on dialect, not just on validity).
+    let mut script = Vec::with_capacity(39);
+    let key = signing_key(42);
+    script.push(0x21); // stock PUSHBYTES33 — NOP in the fork
+    script.extend_from_slice(&compressed_pubkey(&key));
+    script.push(0x41);
+    script.extend_from_slice(&[0x56, 0xe7, 0xb3, 0x27]);
+    let account: [u8; 20] = neo_execution_core::hash160(&script).into();
+    let signature = sign_message(&key, &unsigned_hash(1, account));
+    let transaction = build_transaction(1, account, &script, &[&signature]);
+    let result = compute_batch_with(&payload(vec![transaction]), &witness(), |_, _, _, _| {
+        panic!("stock-N3 witness shape must never execute")
+    });
+    assert!(matches!(
+        result,
+        Err(ExecutionError::Unsupported("transaction witness script shape"))
     ));
 }

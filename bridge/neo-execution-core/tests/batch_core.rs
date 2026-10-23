@@ -165,8 +165,10 @@ mod validity_window {
             .to_encoded_point(true)
             .as_bytes()
             .to_vec();
-        let mut verification = Vec::with_capacity(41);
-        verification.push(0x21);
+        // Fork-VM dialect: PUSHDATA1(0x0C) length-prefixed push, not stock-N3 PUSHBYTES33.
+        let mut verification = Vec::with_capacity(40);
+        verification.push(0x0C);
+        verification.push(0x21); // length: 33
         verification.extend_from_slice(&pubkey);
         verification.push(0x41);
         verification.extend_from_slice(&[0x56, 0xe7, 0xb3, 0x27]); // CheckSig syscall
@@ -193,8 +195,9 @@ mod validity_window {
             .0;
 
         tx.push(1); // witness count
-        tx.push(65); // invocation script length
-        tx.push(0x40);
+        tx.push(66); // invocation script length (PUSHDATA1 + length + 64-byte signature)
+        tx.push(0x0C); // fork OpCode.PUSHDATA1
+        tx.push(0x40); // length: 64
         let sig_bytes: [u8; 64] = signature.to_bytes().into();
         tx.extend_from_slice(&sig_bytes);
         tx.push(verification.len() as u8);

@@ -715,9 +715,11 @@ public sealed class UT_Sp1StatefulBatchExecutor
                 D = privateKey,
             });
         var signature = ecdsa.SignData(signData, System.Security.Cryptography.HashAlgorithmName.SHA256);
+        // The fork VM's ScriptBuilder encodes the 64-byte signature as
+        // PUSHDATA1(0x0C) 0x40 <sig> — the stock-N3 0x40 prefix is not a push here.
         transaction.Witnesses[0] = new Witness
         {
-            InvocationScript = new byte[] { 0x40 }.Concat(signature).ToArray(),
+            InvocationScript = new byte[] { 0x0C, 0x40 }.Concat(signature).ToArray(),
             VerificationScript = verification,
         };
         return transaction.ToArray();

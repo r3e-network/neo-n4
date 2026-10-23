@@ -41,14 +41,14 @@ public sealed class RocksDbKeyValueStore : IAtomicL2KeyValueStore, IDurableL2Key
     private sealed class TempDirectory : IDisposable
     {
         private readonly string _path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName());
-        
+
         public string DirectoryPath => _path;
-        
+
         public TempDirectory()
         {
             System.IO.Directory.CreateDirectory(_path);
         }
-        
+
         public void Dispose()
         {
             try { if (System.IO.Directory.Exists(_path)) System.IO.Directory.Delete(_path, true); }
@@ -353,8 +353,8 @@ public sealed class RocksDbKeyValueStore : IAtomicL2KeyValueStore, IDurableL2Key
         foreach (var file in System.IO.Directory.GetFiles(sourceDir))
         {
             var fileName = System.IO.Path.GetFileName(file);
-            if (!fileName.StartsWith("CURRENT") && 
-                !fileName.StartsWith("LOCK") && 
+            if (!fileName.StartsWith("CURRENT") &&
+                !fileName.StartsWith("LOCK") &&
                 !fileName.StartsWith("LOG") &&
                 !fileName.StartsWith("MANIFEST"))
             {
@@ -364,7 +364,7 @@ public sealed class RocksDbKeyValueStore : IAtomicL2KeyValueStore, IDurableL2Key
         }
         return checkpointPath;
     }
-    
+
     internal void CompactRange()
     {
         // Trigger a minor compaction by writing an empty value
@@ -474,14 +474,14 @@ internal static class RocksDbBackupExtensions
 internal sealed class InternalTempDirectory : IDisposable
 {
     private readonly string _path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName());
-    
+
     public string DirectoryPath => _path;
-    
+
     public InternalTempDirectory()
     {
         System.IO.Directory.CreateDirectory(_path);
     }
-    
+
     public void Dispose()
     {
         try { if (System.IO.Directory.Exists(_path)) System.IO.Directory.Delete(_path, true); }

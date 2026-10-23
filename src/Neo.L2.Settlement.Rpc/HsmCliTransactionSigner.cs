@@ -14,14 +14,14 @@ namespace Neo.L2.Settlement.Rpc;
 /// See doc.md §14.2. Production custody systems can integrate custom HSM devices via
 /// command-line interface. This implementation uses stdin/stdout JSON protocol for
 /// secure communication with external signing devices.
-/// 
+///
 /// <para>Protocol specification:</para>
 /// <list type="bullet">
 /// <item>Input: JSON object with fields: "tx" (base64 hex), "network" (int)</item>
 /// <item>Output: JSON object with fields: "success", "signature" (base64 hex), "error"</item>
 /// <item>Exit codes: 0 = success, 1 = failure, 2 = timeout/error</item>
 /// </list>
-/// 
+///
 /// <para>Example external HSM client script:</para>
 /// <code language="bash">
 /// #!/bin/bash
@@ -147,11 +147,11 @@ public sealed class HsmCliTransactionSigner : INeoTransactionSigner, IDisposable
         cancellationToken.ThrowIfCancellationRequested();
 
         var startTime = DateTime.UtcNow;
-        
+
         try
         {
             using var process = await SpawnHsmProcessAsync(cancellationToken).ConfigureAwait(false);
-            
+
             if (process == null)
             {
                 throw new InvalidOperationException("Failed to spawn HSM signing process");
@@ -159,10 +159,10 @@ public sealed class HsmCliTransactionSigner : INeoTransactionSigner, IDisposable
 
             var txHash = transaction.Hash.ToByteArray();
             var request = BuildSigningRequest(txHash, network);
-            
+
             await SendRequestAsync(process, request, cancellationToken).ConfigureAwait(false);
             var response = await ReadResponseAsync(process, cancellationToken).ConfigureAwait(false);
-            
+
             if (!response.Success)
             {
                 throw new InvalidOperationException(response.Error);
@@ -242,7 +242,7 @@ public sealed class HsmCliTransactionSigner : INeoTransactionSigner, IDisposable
     {
         using var reader = new StreamReader(process.StandardOutput!);
         var responseText = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-        
+
         process.WaitForExit((int)_commandTimeout.TotalMilliseconds);
         var exitCode = process.ExitCode;
 
@@ -277,7 +277,7 @@ public sealed class HsmCliTransactionSigner : INeoTransactionSigner, IDisposable
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        
+
         // Process disposal happens automatically via 'using' statement
     }
 

@@ -20,7 +20,7 @@ namespace Neo.L2.Settlement.Rpc;
 /// This implementation uses AWS KMS for cryptographic operations while maintaining
 /// full compliance with the INeoTransactionSigner interface pattern established by
 /// LocalKeyTransactionSigner.
-/// 
+///
 /// <para>Security considerations:</para>
 /// <list type="bullet">
 /// <item>AWS IAM roles control KMS access - use least-privilege policy</item>
@@ -339,16 +339,16 @@ public sealed class AwsKmsTransactionSigner : INeoTransactionSigner, IDisposable
     public async Task<KeyState> CheckKeyStatusAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        
+
         try
         {
             var keyId = ExtractKeyId();
             var request = new GetPublicKeyRequest { KeyId = keyId };
             var response = await _kmsClient.GetPublicKeyAsync(request, cancellationToken).ConfigureAwait(false);
-            
+
             var state = ParseKeyState(response.KeyMetadata.State);
             _logger?.LogInformation("Key status: {State}", state);
-            
+
             return state;
         }
         catch (Exception ex)
@@ -381,7 +381,7 @@ public sealed class AwsKmsTransactionSigner : INeoTransactionSigner, IDisposable
 
         InvalidateSignatureCache();
         _cacheLock.Dispose();
-        
+
         if (_kmsClient is IDisposable disposableKms)
         {
             disposableKms.Dispose();

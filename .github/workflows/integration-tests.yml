@@ -67,12 +67,15 @@ jobs:
       - name: Integration tests
         run: |
           echo "Running integration tests..."
+          # No --configuration here (and no --no-build mismatch): the Build step above
+          # builds the default (Debug) configuration, so the test invocation must match
+          # it or vstest rejects the assembly from the never-built Release output
+          # ("The argument ... .dll is invalid").
           dotnet test tests/Neo.L2.IntegrationTests/Neo.L2.IntegrationTests.csproj \
             /p:NuGetAudit=false \
             --nologo \
             --verbosity minimal \
             --logger:"trx;LogFileName=integration-tests.trx" \
-            --configuration Release \
             --no-build
 
       - name: Upload unit test results

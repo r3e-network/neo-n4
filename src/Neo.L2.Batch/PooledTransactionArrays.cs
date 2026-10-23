@@ -13,10 +13,10 @@ namespace Neo.L2.Batch;
 /// transaction array allocations. Historical analysis shows ~12KB/batch allocated from transactions
 /// alone (tx.ToArray() calls in SealedBatch constructor), creating significant Gen0 collection spikes
 /// under moderate load (~10K tx/s). Expected cumulative improvements with O-004:
-/// - Additional -10% Gen0 reduction beyond O-004's -15-20%  
+/// - Additional -10% Gen0 reduction beyond O-004's -15-20%
 /// - Cumulative -25-30% total GC overhead reduction
 /// - Combined +8-10% throughput increase
-/// 
+///
 /// This pooled API provides an optional path using pooled arrays instead of new byte[],
 /// minimizing transient allocations in high-throughput batch sealing scenarios.
 /// </remarks>
@@ -38,7 +38,7 @@ public static class PooledTransactionArrays
 
         // Rent pooled array for holding references
         var rental = ArrayPool<ReadOnlyMemory<byte>>.Shared.Rent(transactions.Count);
-        
+
         try
         {
             for (int i = 0; i < transactions.Count; i++)
@@ -68,13 +68,13 @@ public static class PooledTransactionArrays
     {
         int poolSize = Math.Max(256, Math.Min(transactionBytes.Length, 64 * 1024));
         poolSize = NextPowerOfTwo(poolSize);
-        
+
         var rented = ArrayPool<byte>.Shared.Rent(poolSize);
-        
+
         try
         {
             transactionBytes.Span.CopyTo(rented.AsSpan(0, transactionBytes.Length));
-            
+
             // Return only the portion actually used
             return new ArrayPoolOwner<byte>(rented, transactionBytes.Length);
         }
@@ -89,11 +89,11 @@ public static class PooledTransactionArrays
     {
         if (value <= 0) return 1;
         if ((value & (value - 1)) == 0) return value;
-        
+
         int result = 1;
         while (result > 0 && result < value)
             result <<= 1;
-            
+
         return result;
     }
 

@@ -18,7 +18,7 @@ public class UT_AttestationMessage
         Assert.AreEqual(AttestationMessage.Size, message.Length);
         CollectionAssert.AreEqual("N4ATTST1"u8.ToArray(), message.AsSpan(0, AttestationMessage.DomainSize).ToArray());
         CollectionAssert.AreEqual(
-            publicInputHash.ToArray(),
+            publicInputHash.GetSpan().ToArray(),
             message.AsSpan(AttestationMessage.DomainSize).ToArray());
     }
 
@@ -74,6 +74,6 @@ public class UT_AttestationMessage
     [TestMethod]
     public void Build_RejectsNullHash()
     {
-        Assert.ThrowsExactly<ArgumentNullException>(() => AttestationMessage.Build(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => AttestationMessage.Build((UInt256)null!));
     }
 }

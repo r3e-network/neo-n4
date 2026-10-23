@@ -18,9 +18,8 @@ public class UT_PooledSerialization
         WithdrawalRoot = H('e'),
         L2ToL1MessageRoot = H('f'),
         L2ToL2MessageRoot = H('1'),
-        L1MessageHash = H('2'),
-        DACommitment = H('3'),
-        BlockContextHash = H('4'),
+        DACommitment = H('2'),
+        PublicInputHash = H('3'),
         ProofType = ProofType.Zk,
         Proof = new byte[1 + (seed % 64)],
     };

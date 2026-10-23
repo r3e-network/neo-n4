@@ -14,12 +14,14 @@
 #      `NeoHub.<Name>` (not a valid C# identifier) to `NeoHub<Name>`, and normalising to LF.
 #
 # Usage: scripts/contracts/regenerate-testing-artifacts.sh [Name ...]
-#   Names default to all five NeoHub contracts. Set NCCS to override the compiler path.
+#   Names default to all NeoHub contracts. Set NCCS to override the compiler path.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TESTING_ARTIFACTS="$ROOT/tests/NeoHub.Contracts.VmTests/TestingArtifacts"
-ALL_CONTRACTS=(RollupHub SharedBridge GovernanceController ZkVerifier Sp1Groth16Verifier)
+# Every production NeoHub contract. `MultisigVerifier` was missing from this list, so its
+# checked-in artifact was never refreshed and the contract had no VM test coverage.
+ALL_CONTRACTS=(RollupHub SharedBridge GovernanceController ZkVerifier Sp1Groth16Verifier MultisigVerifier)
 
 resolve_nccs() {
     if [ -n "${NCCS:-}" ]; then

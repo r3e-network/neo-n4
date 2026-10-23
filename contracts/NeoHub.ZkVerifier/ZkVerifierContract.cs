@@ -36,6 +36,7 @@ public class ZkVerifierContract : SmartContract
     private const byte PrefixEnvelopeOnlyLocked = 0x05;
     private const byte PrefixProofSystemConfigurationLocked = 0x06;
     private const byte PrefixAnyProofSystemLocked = 0x07;
+    private const byte PrefixMultisigVerifier = 0x08;   // 0x08 -> multisig verifier contract hash
     private const byte KeyOwner = 0xFF;
 
     private const int PublicInputHashOffset = 284;
@@ -62,6 +63,12 @@ public class ZkVerifierContract : SmartContract
     public const byte ProofSystemRiscZero = 2;
     public const byte ProofSystemHalo2 = 3;
 
+    /// <summary>
+    /// Sentinel proof system used by the global envelope-only lock to close every proof system
+    /// at once. It is never a valid registered proof system.
+    /// </summary>
+    private const byte ProofSystemAny = 0xFF;
+
     #region Events
 
     [DisplayName("VerificationKeyRegistered")]
@@ -69,6 +76,9 @@ public class ZkVerifierContract : SmartContract
 
     [DisplayName("ProofVerifierRegistered")]
     public static event Action<byte, UInt160, bool> OnProofVerifierRegistered = default!;
+
+    [DisplayName("MultisigVerifierRegistered")]
+    public static event Action<UInt160, bool> OnMultisigVerifierRegistered = default!;
 
     [DisplayName("EnvelopeOnlyModeSet")]
     public static event Action<byte, bool> OnEnvelopeOnlyModeSet = default!;
@@ -133,6 +143,14 @@ public class ZkVerifierContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(!IsProofSystemConfigurationLocked(proofSystem), "configuration locked");
+        // Proof system 0 is NOT a valid ZK proof system. It is reserved for the multisig
+        // attestation route, which has its own slot (`PrefixMultisigVerifier`) and carries
+        // no verification key — see `RegisterMultisigVerifier`.
+        //
+        // Allowing 0 here would make byte 0 mean two different things at once ("unset"
+        // for `GetProofVerifier`, and "the multisig backend" for the routing below), and a
+        // `Storage.Delete` on an unset entry could never be distinguished from an explicit
+        // revocation.
         ExecutionEngine.Assert(proofSystem > 0, "invalid proof system");
         ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier contract");
 
@@ -149,10 +167,57 @@ public class ZkVerifierContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
+    /// <summary>
+    /// Register the verifier contract that backs the MULTISIG attestation route.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The multisig route is a chain-committee attestation, not a ZK proof: it has no
+    /// verification key and no proof system. It therefore gets its OWN storage slot rather
+    /// than borrowing the `proofSystem` key space.
+    /// </para>
+    /// <para>
+    /// This split fixes a real functional break: `VerifyMultisigProof` dispatches on the
+    /// reserved system byte 0, while `RegisterProofVerifier` rejects byte 0 — so
+    /// `GetProofVerifier(0)` could never return anything and the multisig route was
+    /// permanently unreachable (every multisig commitment verified as `false`).
+    /// </para>
+    /// </remarks>
+    public static void RegisterMultisigVerifier(UInt160 verifier, bool allowed)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(verifier.IsValid && !verifier.IsZero, "invalid verifier contract");
+        var key = new byte[] { PrefixMultisigVerifier };
+        if (allowed) Storage.Put(key, verifier);
+        else Storage.Delete(key);
+        OnMultisigVerifierRegistered(verifier, allowed);
+    }
+
+    /// <summary>The verifier contract backing the multisig attestation route, or zero.</summary>
+    [Safe]
+    public static UInt160 GetMultisigVerifier()
+    {
+        var raw = Storage.Get(new byte[] { PrefixMultisigVerifier });
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
     public static void SetEnvelopeOnlyAllowed(byte proofSystem, bool allowed)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        // The global lock is irreversible for the whole registry: once ANY proof system has
+        // been closed (or the configuration locked), envelope-only must never be re-enabled
+        // for any proof system — including a different one.
+        ExecutionEngine.Assert(Storage.Get(new byte[] { PrefixAnyProofSystemLocked }) == null,
+            "envelope-only permanently locked");
         ExecutionEngine.Assert(!IsEnvelopeOnlyLocked(proofSystem), "envelope-only permanently locked");
+        // The reserved byte 0 means "unset" in the proof-system key space — every other
+        // control surface (RegisterProofVerifier, RegisterVerificationKey, and through it
+        // LockProofSystemConfiguration) rejects it. This one must too: enabling envelope-only
+        // on byte 0 would flip the MULTISIG route's dispatch into a fail-open that accepts
+        // any commitment with zero signatures, and byte 0 has no configuration lock to close
+        // it with (verification keys cannot be registered for it) — only the irreversible
+        // registry-wide lock would remain.
+        ExecutionEngine.Assert(proofSystem > 0, "invalid proof system");
         var key = EnvelopeOnlyKey(proofSystem);
         if (allowed) Storage.Put(key, new byte[] { 1 });
         else Storage.Delete(key);
@@ -162,6 +227,10 @@ public class ZkVerifierContract : SmartContract
     [Safe]
     public static bool IsEnvelopeOnlyAllowed(byte proofSystem)
     {
+        // The global lock disables envelope-only for EVERY proof system, so the read side must
+        // honour it too — otherwise a stale per-system flag would keep the fail-open path
+        // reachable after the registry has been closed.
+        if (Storage.Get(new byte[] { PrefixAnyProofSystemLocked }) != null) return false;
         var raw = Storage.Get(EnvelopeOnlyKey(proofSystem));
         return raw != null && ((byte[])raw)[0] == 1;
     }
@@ -171,6 +240,13 @@ public class ZkVerifierContract : SmartContract
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         Storage.Delete(EnvelopeOnlyKey(proofSystem));
         Storage.Put(EnvelopeOnlyLockedKey(proofSystem), new byte[] { 1 });
+        // Closing envelope-only for ONE proof system must close it for EVERY proof system.
+        // `proofSystem` is an attacker-controlled payload field, so a per-system lock alone
+        // would leave the attacker free to pick a proof system that is still fail-open and
+        // submit an arbitrary (forged) state root under it. The global lock makes the
+        // downgrade irreversible for the whole registry in the same transaction.
+        Storage.Delete(EnvelopeOnlyKey(ProofSystemAny));
+        Storage.Put(new byte[] { PrefixAnyProofSystemLocked }, new byte[] { 1 });
         OnEnvelopeOnlyPermanentlyDisabled(proofSystem);
     }
 
@@ -276,13 +352,10 @@ public class ZkVerifierContract : SmartContract
         // lock. Once Lock() is called, envelope-only acceptance is permanently disabled and ONLY
         // the external verifier or in-contract verification can succeed. Tests that exercise
         // envelope-only mode must do so BEFORE calling Lock().
-        var lockedAny = Storage.Get(new byte[] { PrefixAnyProofSystemLocked });
-        if (lockedAny != null && IsEnvelopeOnlyAllowed(proofSystem))
-        {
-            return false; // envelope-only disabled after lock
-        }
-
-        // Envelope-only path for pre-production testing: accept any commitment with a registered key.
+        //
+        // `IsEnvelopeOnlyAllowed` already returns false once the registry-wide lock
+        // (`PrefixAnyProofSystemLocked`) is present, so the fail-open path below is unreachable
+        // after ANY proof system has been closed — not just the one being verified.
         if (IsEnvelopeOnlyAllowed(proofSystem))
         {
             return true;
@@ -294,10 +367,19 @@ public class ZkVerifierContract : SmartContract
         var externalVerifier = GetProofVerifier(proofSystem);
         if (externalVerifier.IsValid && !externalVerifier.IsZero)
         {
+            // The devpack exposes a single `Contract.Call(hash, method, flags, params object[] args)`
+            // overload. Arguments MUST therefore be passed as individual trailing values so the
+            // VM sees the target method's real arity — `ApplicationEngine.Contract.Call` resolves
+            // the ABI with `GetMethod(method, args.Count)`. Packing them into a nested array
+            // (e.g. `new object[] { a, b, c, d }`) would make the VM see arity 1 and the call
+            // would never resolve against `verifyZkProof(byte, byte[], byte[], byte[])`.
             return (bool)Contract.Call(
                 externalVerifier, "verifyZkProof",
-                CallFlags.All,
-                new object[] { proofSystem, (byte[])vkId, publicInputHash, innerProof }, 1000000);
+                // `ReadOnly` (= ReadStates | AllowCall) rather than `All`: the callee
+                // (`verifyZkProof`) is `[Safe]` and only reads state, so requesting write
+                // flags is meaningless. The VM masks them off for a safe callee regardless.
+                CallFlags.ReadOnly,
+                proofSystem, (byte[])vkId, publicInputHash, innerProof);
         }
 
         return false;
@@ -318,26 +400,43 @@ public class ZkVerifierContract : SmartContract
     /// </remarks>
     private static bool VerifyMultisigProof(byte[] commitmentBytes)
     {
-        const byte MultisigProofSystem = 0;
-
         var proofLen = ReadInt32(commitmentBytes, ProofLenOffset);
         if (proofLen <= 0 || proofLen > MaxProofPayloadBytes) return false;
         if (commitmentBytes.Length < ProofBytesOffset + proofLen) return false;
 
-        // Envelope-only path for pre-production testing
-        var lockedAny = Storage.Get(new byte[] { PrefixAnyProofSystemLocked });
-        if (lockedAny == null && IsEnvelopeOnlyAllowed(MultisigProofSystem))
-        {
-            return true;
-        }
+        // NO envelope-only path here — deliberately.
+        //
+        // Every other proof-system control surface rejects the reserved byte 0, so it can
+        // never legitimately carry an envelope-only flag; and a fail-open on this route
+        // would accept a multisig commitment with ZERO signatures. Pre-production testing of
+        // the success path does not need a contract-level bypass: deploy a stub verifier
+        // (a contract whose verifyMultisigProof returns true) and register it — that is what
+        // the dedicated multisig slot is for.
 
-        // Production path: delegate to external multisig verifier
-        var externalVerifier = GetProofVerifier(MultisigProofSystem);
+        // Production path: delegate to external multisig verifier.
+        //
+        // The verifier lives in its OWN slot (`PrefixMultisigVerifier`), not in the
+        // `proofSystem` key space: the reserved system byte 0 is rejected by
+        // `RegisterProofVerifier`, so `GetProofVerifier(0)` could never resolve and the
+        // multisig route was permanently unreachable.
+        var externalVerifier = GetMultisigVerifier();
         if (externalVerifier.IsValid && !externalVerifier.IsZero)
         {
+            // The callee's ABI name is camelCase ("verifyMultisigProof") — nccs camel-cases
+            // the PascalCase C# method name, and `ContractAbi.GetMethod` resolves the name
+            // with an ordinal comparison, so the string must match the manifest entry
+            // exactly. `scripts/ci/verify_cross_language_encoding.py` checks every
+            // cross-contract call against the generated manifest.
             return (bool)Contract.Call(
                 externalVerifier, "verifyMultisigProof",
-                CallFlags.All,
+                // `ReadOnly` (= ReadStates | AllowCall) rather than `All`.
+                //
+                // The callee (`verifyMultisigProof`) is `[Safe]` and only reads state, so
+                // asking for write flags is meaningless. The VM masks the write flags off
+                // for a safe callee anyway (`ApplicationEngine.CallContractInternal`:
+                // `if (method.Safe) flags &= ~(CallFlags.WriteStates | CallFlags.AllowNotify);`),
+                // so this is a precision improvement rather than a behavioural fix.
+                CallFlags.ReadOnly,
                 commitmentBytes);
         }
 
@@ -350,6 +449,24 @@ public class ZkVerifierContract : SmartContract
     [Safe]
     public static byte[] GetRecursionVkRoot() => new byte[0];
 
+    /// <summary>
+    /// Verifies one ZK proof through the external verifier registered for
+    /// <paramref name="proofSystem"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is the router entry point used by <c>RollupHub.PublishGatewayGlobalRoot</c>, which
+    /// holds a reference to this contract (the verifier registry) rather than to a concrete
+    /// proof-system implementation. It must therefore forward to the registered external
+    /// verifier instead of re-implementing verification.
+    ///
+    /// The external verifier is expected to expose
+    /// <c>verifyZkProof(byte, byte[], byte[], byte[]) → bool</c>. The proof system must be
+    /// registered and (when the proof-system configuration is locked) must carry exactly the
+    /// locked verification key, so a proof can never be accepted under a different key.
+    ///
+    /// When no external verifier is registered the call is fail-closed: an unconfigured
+    /// verifier registry must never accept a proof.
+    /// </remarks>
     [Safe]
     public static bool VerifyZkProof(
         byte proofSystem,
@@ -357,10 +474,33 @@ public class ZkVerifierContract : SmartContract
         byte[] publicInputHash,
         byte[] proofBytes)
     {
-        // No generated SP1 release parameters are checked into this source tree. The former
-        // zero/fixture constants are intentionally not a verifier: until a typed external
-        // verifier is registered, this legacy direct-call surface is fail-closed.
-        return false;
+        if (verificationKeyId == null || verificationKeyId.Length != 32) return false;
+        if (publicInputHash == null || publicInputHash.Length != 32) return false;
+        if (proofBytes == null || proofBytes.Length == 0) return false;
+
+        // A configuration lock supersedes the registry: only the locked key verifies.
+        var lockedVkRaw = Storage.Get(ProofSystemConfigurationLockedKey(proofSystem));
+        if (lockedVkRaw != null)
+        {
+            if (!BytesEqual((byte[])lockedVkRaw, 0, verificationKeyId)) return false;
+        }
+        else if (!IsVerificationKeyRegistered(proofSystem, (UInt256)verificationKeyId))
+        {
+            return false;
+        }
+
+        var externalVerifier = GetProofVerifier(proofSystem);
+        if (!externalVerifier.IsValid || externalVerifier.IsZero) return false;
+
+        // Individual trailing arguments — see the arity note in VerifyProof.
+        return (bool)Contract.Call(
+            externalVerifier, "verifyZkProof",
+            // `ReadOnly` (= ReadStates | AllowCall) rather than `All`: the callee
+            // (`verifyZkProof`) is `[Safe]` and only reads state, so requesting write flags
+            // is meaningless. The VM masks them off for a safe callee regardless, so this
+            // is a precision improvement, not a behavioural fix.
+            CallFlags.ReadOnly,
+            proofSystem, verificationKeyId, publicInputHash, proofBytes);
     }
 
     #endregion
@@ -397,6 +537,16 @@ public class ZkVerifierContract : SmartContract
         var res = new byte[length];
         for (var i = 0; i < length; i++) res[i] = data[offset + i];
         return res;
+    }
+
+    /// <summary>Constant-time-enough equality for a byte slice against an expected array.</summary>
+    private static bool BytesEqual(byte[] value, int offset, byte[] expected)
+    {
+        if (value == null || expected == null) return false;
+        if (offset < 0 || offset + expected.Length > value.Length) return false;
+        for (var i = 0; i < expected.Length; i++)
+            if (value[offset + i] != expected[i]) return false;
+        return true;
     }
 
     #endregion

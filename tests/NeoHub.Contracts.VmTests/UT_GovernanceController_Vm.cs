@@ -53,6 +53,11 @@ public class UT_GovernanceController_Vm
     private static NeoHubGovernanceController Deploy(TestEngine engine, UInt160? owner = null,
         uint threshold = 2, uint timelock = Timelock, ECPoint[]? members = null)
     {
+        // GovernanceController is the largest NeoHub contract; its deployment exceeds the
+        // TestEngine's default GAS budget, so every test in this class failed with
+        // "Insufficient GAS" unless the budget was raised. Set it here, once, so a future
+        // contract growth does not silently break the whole suite.
+        engine.Fee = 100_000_000_000L;
         var o = owner ?? engine.Sender;
         var council = members ?? new ECPoint[] { Member1, Member2 };
         return engine.Deploy<NeoHubGovernanceController>(
@@ -720,5 +725,52 @@ public class UT_GovernanceController_Vm
         Buffer.BlockCopy(scalarBytes, 0, paddedScalar, paddedScalar.Length - scalarBytes.Length, scalarBytes.Length);
         var point = ECCurve.Secp256r1.G * paddedScalar;
         return ECPoint.DecodePoint(point.EncodePoint(true), ECCurve.Secp256r1);
+    }
+
+    [TestMethod]
+    public void RegisterGovernanceTarget_RejectsThe257th_Target0CannotBeSilentlyReplaced()
+    {
+        // The relay target index is embedded in ONE key byte (GovernanceTargetKey does
+        // `(byte)index`), so the registry is bounded to 256 entries. Before the bound,
+        // registering a 257th DISTINCT target would write GovernanceTargetKey(256) ==
+        // GovernanceTargetKey(0) and SILENTLY REPLACE target 0 — every later
+        // RelayGovernanceAction(0, ...) would execute on the wrong contract, and
+        // RelayConsumedKey(256, p) would collide with target 0's consumed flags. The
+        // registry must fail loudly at the cap instead.
+        var engine = new TestEngine(true);
+        var gov = Deploy(engine);
+
+        // Fill the registry with 256 distinct targets. Encode the index across two bytes
+        // so index 255 stays distinct from index 0 (a single (byte)(i + 1) truncates to
+        // zero at i == 255 and produces the invalid all-zero address).
+        for (uint i = 0; i < 256; i++)
+        {
+            var addr = new byte[20];
+            addr[0] = (byte)(i + 1);
+            addr[1] = (byte)((i + 1) >> 8);
+            gov.RegisterGovernanceTarget(new UInt160(addr));
+        }
+        Assert.AreEqual((BigInteger)256, gov.GovernanceTargetCount);
+
+        // The 257th distinct target must fault — not overwrite index 0.
+        // Two non-zero bytes: a single 0xAB byte would collide with loop address
+        // i=170 ([0xAB, 0x00, ...]) and exercise the idempotent path instead of the cap.
+        var extra = new byte[20];
+        extra[0] = 0xAB;
+        extra[1] = 0xCD;
+        Assert.ThrowsExactly<TestException>(() =>
+            gov.RegisterGovernanceTarget(new UInt160(extra)),
+            "the byte-indexed registry must refuse a 257th target rather than wrap onto index 0");
+
+        // Target 0 must be unchanged (the first registered target, not the extra one).
+        var first = new byte[20];
+        first[0] = 1;
+        Assert.AreEqual(new UInt160(first), gov.GetGovernanceTarget(0));
+        Assert.AreEqual((BigInteger)256, gov.GovernanceTargetCount);
+
+        // Idempotent re-registration of an existing target is still accepted at the cap
+        // (it must not consume a slot nor fault).
+        gov.RegisterGovernanceTarget(new UInt160(first));
+        Assert.AreEqual((BigInteger)256, gov.GovernanceTargetCount);
     }
 }

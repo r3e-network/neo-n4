@@ -51,12 +51,32 @@ public class GovernanceControllerContract : SmartContract
     private const byte KeyGlobalPaused = 0x31;
     private const byte PrefixChainPaused = 0x32;           // 0x32 + chainId(4B) → 1
     private const byte PrefixSequencer = 0x40;             // 0x40 + chainId(4B) + pubkey(33B) → 20B address
+
+    // Governance relay: contracts whose owner is transferred to this GovernanceController
+    // (RollupHub, SharedBridge) need a way for an approved proposal to reach them.
+    //
+    // `Runtime.CheckWitness(governanceControllerHash)` succeeds when the CALLER IS this
+    // contract (see ApplicationEngine.CheckWitnessInternal: `if (hash.Equals(CallingScriptHash))
+    // return true;`). A transaction signed by an EOA can never satisfy it. So without an
+    // outbound relay the governance-locked contracts' privileged entry points are
+    // permanently unreachable — the system would enter an unrecoverable state the moment
+    // governance is locked.
+    private const byte KeyGovernanceTargetCount = 0x50;    // number of registered relay targets
+    private const byte PrefixGovernanceTarget = 0x51;      // 0x51 + index(1B) → 20B target hash
+    private const byte PrefixConsumedRelay = 0x52;          // 0x52 + targetIndex(1B) + proposalId(8B) → 1
     private const byte PrefixSequencerBond = 0x42;         // 0x42 + chainId(4B) + sequencer(20B) → BigInteger
     private const byte KeyMinBond = 0x43;
 
     private const byte KeyOwner = 0xFF;
 
     private const uint MaxCouncilMembers = 64;
+
+    /// <summary>
+    /// Hard cap on registered governance relay targets. The target index is embedded in a
+    /// single key byte (<see cref="GovernanceTargetKey"/> / <see cref="RelayConsumedKey"/>),
+    /// so indices beyond 255 would truncate and collide — see RegisterGovernanceTarget.
+    /// </summary>
+    private const uint MaxGovernanceTargets = 256;
     private const ulong InitialCouncilEpoch = 1;
 
     public const byte StagePending = 0;
@@ -147,6 +167,12 @@ public class GovernanceControllerContract : SmartContract
 
     [DisplayName("BondWithdrawn")]
     public static event Action<uint, UInt160, BigInteger> OnBondWithdrawn = default!;
+
+    [DisplayName("GovernanceTargetRegistered")]
+    public static event Action<UInt160> OnGovernanceTargetRegistered = default!;
+
+    [DisplayName("GovernanceActionRelayed")]
+    public static event Action<UInt160, ulong> OnGovernanceActionRelayed = default!;
 
     /// <summary>
     /// Set the initial council, threshold, timelock, and governance epoch. Council replacement is
@@ -991,6 +1017,15 @@ public class GovernanceControllerContract : SmartContract
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         ExecutionEngine.Assert(council.IsValid && !council.IsZero, "invalid council");
+        // A CONTRACT address must never be usable as the emergency council.
+        //
+        // `Runtime.CheckWitness(hash)` returns true when `hash == CallingScriptHash` — i.e.
+        // the caller IS that contract. So if the emergency council were set to, say, the
+        // RollupHub contract, then every call the RollupHub makes INTO this contract would
+        // pass the council check — including `PauseChain`, which a permissionless
+        // `ReportCensorship` can trigger. That turns the anti-censorship mechanism into a
+        // denial-of-service lever against any chain.
+        ExecutionEngine.Assert(council != Runtime.ExecutingScriptHash, "emergency council must not be a contract");
         Storage.Put(new byte[] { KeyEmergencyCouncil }, council);
         OnEmergencyCouncilChanged(council);
     }
@@ -1010,7 +1045,6 @@ public class GovernanceControllerContract : SmartContract
         Storage.Put(new byte[] { KeyGlobalPaused }, new byte[] { 1 });
         OnEmergencyPaused();
     }
-
     public static void Unpause()
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized to unpause");
@@ -1027,7 +1061,18 @@ public class GovernanceControllerContract : SmartContract
     public static void PauseChain(uint chainId)
     {
         var council = GetEmergencyCouncil();
-        var authorized = Runtime.CheckWitness(GetOwner()) || (council != UInt160.Zero && Runtime.CheckWitness(council));
+        // `Runtime.CheckWitness(council)` is satisfied by ANY call whose CallingScriptHash
+        // equals `council` — including a call made BY a contract that happens to be
+        // registered as the emergency council. A permissionless entry point on such a
+        // contract (e.g. RollupHub.ReportCensorship) would then be able to pause any chain.
+        //
+        // The council check therefore only counts when the council is an ACCOUNT (an EOA or
+        // multisig), which can only be satisfied by a real signature. Contract-to-contract
+        // calls must come from the owner/governance path instead.
+        var councilIsAccount = council != UInt160.Zero
+            && council != Runtime.ExecutingScriptHash
+            && Runtime.CheckWitness(council);
+        var authorized = Runtime.CheckWitness(GetOwner()) || councilIsAccount;
         ExecutionEngine.Assert(authorized, "not authorized to pause chain");
         Storage.Put(ChainPausedKey(chainId), new byte[] { 1 });
         OnChainPaused(chainId);
@@ -1045,6 +1090,120 @@ public class GovernanceControllerContract : SmartContract
     {
         if (IsPaused()) return true;
         return Storage.Get(ChainPausedKey(chainId)) != null;
+    }
+
+    // ─────────────── governance relay ───────────────
+    //
+    // Contracts that transfer ownership to this GovernanceController (RollupHub,
+    // SharedBridge) expose privileged entry points that require
+    // `Runtime.CheckWitness(governanceController)`. That check only succeeds when THIS
+    // contract is the caller, so an approved proposal must be relayed from here.
+    //
+    // The relay is deliberately narrow:
+    //   * the target must be registered (owner-gated),
+    //   * the proposal must be approved, timelocked, and NOT vetoed,
+    //   * the proposal payload must equal the canonical action encoding for the action,
+    //   * each (target, proposalId) pair can be executed exactly once.
+
+    /// <summary>
+    /// Register a contract that this GovernanceController may relay approved proposals to.
+    /// </summary>
+    /// <remarks>
+    /// Owner-gated. Registration is a one-way operation for a given index; re-registering
+    /// the same index with a different contract is rejected so a registered slot cannot be
+    /// silently repointed.
+    /// </remarks>
+    public static void RegisterGovernanceTarget(UInt160 target)
+    {
+        ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        ExecutionEngine.Assert(target.IsValid && !target.IsZero, "invalid governance target");
+        var count = GetGovernanceTargetCount();
+        for (uint i = 0; i < count; i++)
+        {
+            var existing = GetGovernanceTarget(i);
+            if (existing.Equals(target)) return; // already registered — idempotent
+        }
+        // The relay target index is embedded in ONE key byte (GovernanceTargetKey /
+        // RelayConsumedKey both do `(byte)index`), so the registry is bounded to 256
+        // entries (indices 0..255). Without this bound, registering a 257th distinct
+        // target would write GovernanceTargetKey(256) == GovernanceTargetKey(0) and
+        // SILENTLY REPLACE target 0 — every later relay to index 0 would execute on the
+        // wrong contract, and RelayConsumedKey(256, p) would collide with target 0's
+        // consumed flags. The check sits AFTER the idempotency probe so re-registering
+        // an already-registered target stays a no-op at the cap. Fail loudly instead of
+        // wrapping.
+        ExecutionEngine.Assert(count < MaxGovernanceTargets, "governance target registry full (256)");
+        Storage.Put(GovernanceTargetKey(count), (byte[])target);
+        Storage.Put(new byte[] { KeyGovernanceTargetCount }, (BigInteger)(count + 1));
+        OnGovernanceTargetRegistered(target);
+    }
+
+    [Safe]
+    public static uint GetGovernanceTargetCount()
+    {
+        var raw = Storage.Get(new byte[] { KeyGovernanceTargetCount });
+        return raw == null ? 0 : (uint)(BigInteger)raw;
+    }
+
+    [Safe]
+    public static UInt160 GetGovernanceTarget(uint index)
+    {
+        var raw = Storage.Get(GovernanceTargetKey(index));
+        return raw == null ? UInt160.Zero : (UInt160)raw;
+    }
+
+    /// <summary>
+    /// Relay an approved governance proposal to a registered target contract.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="action"/> is the canonical action encoding the council voted on
+    /// (as produced by the target's <c>Build*Action</c> helper). The target's own
+    /// proposal-execution entry point re-derives the expected encoding from its own
+    /// arguments and asserts byte-equality, so this relay cannot be used to smuggle a
+    /// different action past the council vote.
+    ///
+    /// The relay is permissionless: anyone may execute an approved, timelocked proposal
+    /// once it is ready. That is the intended property — the council's vote is the
+    /// authorization, and liveness should not depend on a specific caller.
+    /// </remarks>
+    public static void RelayGovernanceAction(uint targetIndex, byte[] action, ulong proposalId)
+    {
+        ExecutionEngine.Assert(action != null, "action required");
+        // Bind to a non-null local: `ExecutionEngine.Assert` does not tell the compiler
+        // that `action` is non-null, so every later dereference would be a warning.
+        var act = action!;
+        var target = GetGovernanceTarget(targetIndex);
+        ExecutionEngine.Assert(target.IsValid && !target.IsZero, "governance target not registered");
+
+        // Replay protection: one execution per (target, proposal).
+        var consumedKey = RelayConsumedKey(targetIndex, proposalId);
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+        ExecutionEngine.Assert(IsApprovedAndTimelocked(proposalId), "proposal not approved + timelocked");
+        AssertProposalBinding(proposalId, act);
+
+        // The target contract's entry point re-derives the expected action from its own
+        // arguments and compares it against the proposal payload, so the council's exact
+        // vote is what executes.
+        Storage.Put(consumedKey, new byte[] { 1 });
+        Contract.Call(target, "executeGovernanceProposal", CallFlags.All, act, proposalId);
+        OnGovernanceActionRelayed(target, proposalId);
+    }
+
+    private static byte[] GovernanceTargetKey(uint index)
+    {
+        var k = new byte[2];
+        k[0] = PrefixGovernanceTarget;
+        k[1] = (byte)index;
+        return k;
+    }
+
+    private static byte[] RelayConsumedKey(uint targetIndex, ulong proposalId)
+    {
+        var k = new byte[10];
+        k[0] = PrefixConsumedRelay;
+        k[1] = (byte)targetIndex;
+        WriteUInt64LittleEndian(k, 2, proposalId);
+        return k;
     }
 
     private static byte[] ChainPausedKey(uint chainId)

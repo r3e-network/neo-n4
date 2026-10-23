@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Security.Cryptography;
 using Moq;
 using Neo;
+using Neo.L2.TestInfra;
 using Neo.SmartContract.Testing;
 using Neo.SmartContract.Testing.Exceptions;
 
@@ -40,6 +41,20 @@ public class UT_RollupHub_Vm
     /// test instead of silently re-forking the protocol.</summary>
     private const string SwappedPublicInputHashHex =
         "8d68e62ccddbc753fad17dc3e61486b6c28765576456839a60453382e524bb9a";
+
+    /// <summary>
+    /// Canonical transaction hash, mirroring the contract's `HashTransaction`
+    /// (double SHA-256 over the encoded transaction bytes).
+    ///
+    /// `EnqueueForcedTransaction` asserts that the supplied hash matches the encoded
+    /// transaction, so a fixture that passes an arbitrary constant is rejected. The
+    /// fixture must therefore derive the hash the same way the contract does.
+    /// </summary>
+    private static UInt256 TxHashOf(byte[] tx)
+    {
+        var first = Neo.Cryptography.Helper.Sha256(tx);
+        return new UInt256(Neo.Cryptography.Helper.Sha256(first));
+    }
 
     private static byte[] R(byte fill) { var b = new byte[32]; for (var i = 0; i < 32; i++) b[i] = fill; return b; }
     private static byte[] Hash256(byte[] x) => SHA256.HashData(SHA256.HashData(x));
@@ -236,8 +251,9 @@ public class UT_RollupHub_Vm
         Assert.AreEqual((BigInteger)0, hub.GetPendingForcedCount(ChainId));
         Assert.AreEqual((BigInteger)0, hub.GetNextForcedNonce(ChainId));
 
-        var txHash = new UInt256(R(0x99));
-        var nonce = hub.EnqueueForcedTransaction(ChainId, [0x01, 0x02], txHash);
+        var txBytes = new byte[] { 0x01, 0x02 };
+        var txHash = TxHashOf(txBytes);
+        var nonce = hub.EnqueueForcedTransaction(ChainId, txBytes, txHash);
 
         Assert.AreEqual((BigInteger)0, nonce);
         Assert.AreEqual((BigInteger)1, hub.GetPendingForcedCount(ChainId));
@@ -249,8 +265,8 @@ public class UT_RollupHub_Vm
         var (_, hub, _) = Deploy();
         hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
 
-        hub.EnqueueForcedTransaction(ChainId, [0x01], new UInt256(R(0x91)));
-        hub.EnqueueForcedTransaction(ChainId, [0x02], new UInt256(R(0x92)));
+        hub.EnqueueForcedTransaction(ChainId, [0x01], TxHashOf([0x01]));
+        hub.EnqueueForcedTransaction(ChainId, [0x02], TxHashOf([0x02]));
         Assert.AreEqual((BigInteger)2, hub.GetPendingForcedCount(ChainId));
 
         var postState = R(0x20);
@@ -451,6 +467,191 @@ public class UT_RollupHub_Vm
         Assert.AreNotEqual(UInt256.Zero, hub.GetGlobalRootProofInputHash(42));
     }
 
+    /// <summary>
+    /// Level-by-level mirror of the Gateway frontier fold (the structure the Rust gateway
+    /// guest uses). Anchored to the shared third-implementation vector, then used as the
+    /// expected-root oracle for the 3-constituent end-to-end test below.
+    /// </summary>
+    private static byte[] MirrorFold(byte[][] leaves, bool promoteOdd)
+    {
+        var level = leaves.Select(l => (byte[])l).ToArray();
+        while (level.Length > 1)
+        {
+            var next = new List<byte[]>();
+            for (var i = 0; i < level.Length; i += 2)
+            {
+                if (i + 1 < level.Length)
+                {
+                    var pair = level[i].Concat(level[i + 1]).ToArray();
+                    next.Add(Hash256(pair));
+                }
+                else
+                {
+                    // Odd node: promoted as-is, or Bitcoin-style duplicated.
+                    next.Add(promoteOdd ? level[i] : Hash256(level[i].Concat(level[i]).ToArray()));
+                }
+            }
+            level = next.ToArray();
+        }
+        return level[0];
+    }
+
+    [TestMethod]
+    public void GatewayFrontierMirrorFold_MatchesTheSharedVector()
+    {
+        // The contract folds the SAME leaves two ways: constituent commitments with
+        // odd-node DUPLICATION, global message roots with odd-node PROMOTION. The Rust
+        // gateway guest implements both (merkle_root_duplicate_odd / merkle_root_promote_odd).
+        // The asymmetry is invisible to a single-constituent test — both folds return the
+        // leaf — so the shared vector uses THREE leaves (the smallest odd count where the
+        // two folds diverge).
+        var leaves = new[]
+        {
+            CanonicalEncodingVectors.GatewayLeaf0(),
+            CanonicalEncodingVectors.GatewayLeaf1(),
+            CanonicalEncodingVectors.GatewayLeaf2(),
+        };
+
+        var duplicateRoot = MirrorFold(leaves, promoteOdd: false);
+        Assert.AreEqual(
+            Convert.ToHexString(CanonicalEncodingVectors.GatewayRootDuplicateOdd()),
+            Convert.ToHexString(duplicateRoot),
+            "the mirror's duplicate-odd fold must reproduce the shared vector");
+
+        var promoteRoot = MirrorFold(leaves, promoteOdd: true);
+        Assert.AreEqual(
+            Convert.ToHexString(CanonicalEncodingVectors.GatewayRootPromoteOdd()),
+            Convert.ToHexString(promoteRoot),
+            "the mirror's promote-odd fold must reproduce the shared vector");
+
+        Assert.AreNotEqual(
+            Convert.ToHexString(duplicateRoot),
+            Convert.ToHexString(promoteRoot),
+            "control: with three leaves the two folds MUST differ — if they equal, this "
+            + "vector has stopped pinning the asymmetry");
+    }
+
+    [TestMethod]
+    public void PublishGatewayGlobalRoot_ThreeConstituents_FoldsAsymmetrically()
+    {
+        // End-to-end: the deployed contract rebuilds BOTH roots through its incremental
+        // frontier and must accept exactly the mirror-computed (shared-vector-anchored)
+        // values. Three constituents is the smallest count where duplicate-odd and
+        // promote-odd diverge, so passing the WRONG fold's root as either argument must
+        // fault — that is the negative control proving the contract really implements the
+        // asymmetric fold rather than agreeing with the oracle by coincidence.
+        var sharedBridgeHash = UInt160.Parse("0x" + new string('7', 40));
+        var engine = new TestEngine(true);
+        engine.Fee = 100_000_000_000L;
+        var owner = engine.Sender;
+        engine.FromHash<StubVerifier>(VerifierHash, mock =>
+        {
+            mock.Setup(v => v.VerifyProof(It.IsAny<byte[]>())).Returns(true);
+            mock.Setup(v => v.VerifyZkProof(
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<byte[]?>(),
+                    It.IsAny<byte[]?>(),
+                    It.IsAny<byte[]?>()))
+                .Returns(true);
+        }, checkExistence: false);
+        engine.FromHash<StubSharedBridge>(sharedBridgeHash, mock =>
+            mock.Setup(b => b.PublishMessageRoots(
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<BigInteger?>(),
+                    It.IsAny<UInt256?>(),
+                    It.IsAny<UInt256?>())),
+            checkExistence: false);
+
+        var hub = engine.Deploy<NeoHubRollupHub>(NeoHubRollupHub.Nef, NeoHubRollupHub.Manifest,
+            new object[] { owner, VerifierHash });
+        hub.SharedBridge = sharedBridgeHash;
+
+        var chainIds = new[] { 1101u, 1102u, 1103u };
+        var commitments = new byte[3][];
+        for (var i = 0; i < chainIds.Length; i++)
+        {
+            hub.RegisterChain(chainIds[i], BuildChainConfig(chainIds[i]), GenesisStateRoot);
+            var (c, l1msg, blkctx) = BuildCommitmentForChain(chainIds[i], 1, GenesisState, R(0x20));
+            hub.SubmitAndFinalizeBatch(c, l1msg, blkctx, 0u);
+            commitments[i] = c;
+        }
+
+        // Frontier leaves, exactly as RecordGatewayFinalizedBatch derives them:
+        // commitment leaf = double-SHA256(commitment); message leaf = l2ToL2 root (R(0xEE)).
+        var commitmentLeaves = commitments.Select(Hash256).ToArray();
+        var messageLeaves = new[] { R(0xEE), R(0xEE), R(0xEE) };
+
+        var expectedCommitmentRoot = new UInt256(MirrorFold(commitmentLeaves, promoteOdd: false));
+        var expectedGlobalRoot = new UInt256(MirrorFold(messageLeaves, promoteOdd: true));
+
+        var references = new byte[36];
+        for (var i = 0; i < chainIds.Length; i++)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(references.AsSpan(i * 12, 4), chainIds[i]);
+            BinaryPrimitives.WriteUInt64LittleEndian(references.AsSpan(i * 12 + 4, 8), 1UL);
+        }
+
+        var vk = new UInt256(R(0xA1));
+        var replay = new UInt256(R(0xD1));
+
+        Assert.IsTrue(hub.PublishGatewayGlobalRoot(
+            42, references, expectedGlobalRoot, expectedCommitmentRoot, 3,
+            2, 1, vk, replay, [0xCA, 0xFE]),
+            "the contract's frontier must accept the shared-vector-anchored mirror roots");
+
+        for (var i = 0; i < chainIds.Length; i++)
+            Assert.AreEqual((BigInteger)1, hub.GetGatewayFinalizedThrough(chainIds[i]),
+                $"watermark must advance for chain {chainIds[i]}");
+        Assert.AreEqual(expectedGlobalRoot, hub.GetGlobalRoot(42));
+
+        // NEGATIVE CONTROL 1: the duplicate-odd root is NOT the global message root.
+        // A fresh epoch with the folds swapped must fault on the message-root assert.
+        Assert.ThrowsExactly<TestException>(() =>
+            hub.PublishGatewayGlobalRoot(
+                43, references, expectedCommitmentRoot, expectedCommitmentRoot, 3,
+                2, 1, vk, replay, [0xCA, 0xFE]),
+            "passing the duplicate-odd fold as the global root must fault — the contract "
+            + "promotes odd message leaves, and with three constituents the two folds differ");
+
+        // NEGATIVE CONTROL 2: the promote-odd root is NOT the commitments root.
+        Assert.ThrowsExactly<TestException>(() =>
+            hub.PublishGatewayGlobalRoot(
+                44, references, expectedGlobalRoot, expectedGlobalRoot, 3,
+                2, 1, vk, replay, [0xCA, 0xFE]),
+            "passing the promote-odd fold as the commitments root must fault — the contract "
+            + "duplicates odd commitment leaves");
+    }
+
+    /// <summary>BuildCommitment variant that takes the chain id (the shared builder hardcodes
+    /// <see cref="ChainId"/> into the commitment header, which SubmitBatchCore reads back).</summary>
+    private static (byte[] commitment, byte[] l1msg, byte[] blkctx) BuildCommitmentForChain(
+        uint chainId, ulong batch, byte[] preState, byte[] postState, byte proofType = 3)
+    {
+        var proof = new byte[] { 0x01, 0x02, 0x03 };
+        var c = new byte[ProofBytesOffset + proof.Length];
+        BinaryPrimitives.WriteUInt32LittleEndian(c.AsSpan(OffChainId, 4), chainId);
+        BinaryPrimitives.WriteUInt64LittleEndian(c.AsSpan(OffBatch, 8), batch);
+        BinaryPrimitives.WriteUInt64LittleEndian(c.AsSpan(OffFirstBlock, 8), (batch - 1) * 10 + 1);
+        BinaryPrimitives.WriteUInt64LittleEndian(c.AsSpan(OffLastBlock, 8), batch * 10);
+        preState.CopyTo(c.AsSpan(OffPreState, 32));
+        postState.CopyTo(c.AsSpan(OffPostState, 32));
+        R(0xAA).CopyTo(c.AsSpan(OffTxRoot, 32));
+        R(0xBB).CopyTo(c.AsSpan(OffReceiptRoot, 32));
+        R(0xCC).CopyTo(c.AsSpan(OffWithdrawal, 32));
+        R(0xDD).CopyTo(c.AsSpan(OffL2ToL1, 32));
+        R(0xEE).CopyTo(c.AsSpan(OffL2ToL2, 32));
+        R(0xDA).CopyTo(c.AsSpan(OffDaCommitment, 32));
+        c[OffProofType] = proofType;
+        BinaryPrimitives.WriteInt32LittleEndian(c.AsSpan(OffProofLen, 4), proof.Length);
+        proof.CopyTo(c.AsSpan(ProofBytesOffset, proof.Length));
+
+        var l1msg = new byte[32];
+        var blkctx = new byte[32];
+        var pubInputHash = Hash256(BuildPublicInputsBuffer(c, l1msg, blkctx, 0));
+        pubInputHash.CopyTo(c.AsSpan(OffPublicInputHash, 32));
+        return (c, l1msg, blkctx);
+    }
+
     [TestMethod]
     public void LockGovernance_IsOneTimeAndBlocksOwnerSelfService()
     {
@@ -610,8 +811,8 @@ public class UT_RollupHub_Vm
         var (_, hub, _) = Deploy();
         hub.RegisterChain(ChainId, BuildChainConfig(ChainId), GenesisStateRoot);
 
-        hub.EnqueueForcedTransaction(ChainId, [0x01], new UInt256(R(0x91)));
-        hub.EnqueueForcedTransaction(ChainId, [0x02], new UInt256(R(0x92)));
+        hub.EnqueueForcedTransaction(ChainId, [0x01], TxHashOf([0x01]));
+        hub.EnqueueForcedTransaction(ChainId, [0x02], TxHashOf([0x02]));
         Assert.AreEqual((BigInteger)2, hub.GetPendingForcedCount(ChainId));
 
         var postState = R(0x20);

@@ -45,6 +45,13 @@ public class RollupHubContract : SmartContract
     private const byte PrefixForcedFee = 0x48;        // 0x48 -> GAS fee per forced tx
     private const byte PrefixForcedDeadline = 0x49;   // 0x49 -> deadline window in seconds
 
+    // Governance-relay replay protection: one execution per (action type, proposalId).
+    // Without these, a single approved proposal could be replayed to revert several
+    // batches / toggle several chains.
+    private const byte PrefixConsumedRevertBatch = 0x4A;    // 0x4A + proposalId(8B) -> 1
+    private const byte PrefixConsumedSetChainActive = 0x4B; // 0x4B + proposalId(8B) -> 1
+    private const byte PrefixConsumedUpdateChain = 0x4C;   // 0x4C + proposalId(8B) -> 1
+
     // Gateway / SharedBridge (doc.md §4) — reserved lean prefixes matching historical SettlementManager layout.
     private const byte PrefixGatewayFinalizedRecord = 0x09;   // 0x09 + chainId(4) + batch(8) -> 64B record
     private const byte PrefixGatewayFinalizedThrough = 0x0A;  // 0x0A + chainId(4) -> ulong watermark
@@ -357,7 +364,9 @@ public class RollupHubContract : SmartContract
         ulong leafIndex)
     {
         ExecutionEngine.Assert(chainId > 0, "chainId 0 is reserved for L1");
-        ExecutionEngine.Assert(nonce > 0, "nonce must be positive");
+        // nonce 0 is a VALID forced-transaction nonce: `EnqueueForcedTransaction` allocates
+        // the first entry at tail = 0. Rejecting nonce 0 here would leave the very first
+        // forced transaction permanently unmarkable by the Consume path.
         ExecutionEngine.Assert(siblings != null, "siblings required");
         var proofSiblings = siblings!;
         ExecutionEngine.Assert(proofSiblings.Length <= MaxTransactionProofDepth, "proof too deep");
@@ -401,15 +410,28 @@ public class RollupHubContract : SmartContract
         var nowSec = (uint)(Runtime.Time / 1000u);
         if (nowSec < deadline) return false;
 
+        // Record the censorship report FIRST, unconditionally.
+        //
+        // The report is the anti-censorship EVIDENCE: it must be recorded even when the
+        // caller is not allowed to escalate to a pause. Recording it only inside the
+        // privileged branch meant that a rejected report rolled back the evidence too, so
+        // the censorship could never be proven.
         Storage.Put(reportedKey, new byte[] { 1 });
+        OnCensorshipReported(chainId, nonce);
 
+        // Escalation to a pause is a separate, PRIVILEGED step. An unprivileged report must
+        // not be able to pause a chain — otherwise anyone could DoS a chain by reporting a
+        // stale forced transaction.
         var governance = GetGovernanceController();
         if (governance.IsValid && !governance.IsZero)
         {
-            Contract.Call(governance, "pauseChain", CallFlags.All, chainId);
+            var authorized = Runtime.CheckWitness(GetOwner()) || Runtime.CheckWitness(governance);
+            if (authorized)
+            {
+                Contract.Call(governance, "pauseChain", CallFlags.All, chainId);
+            }
         }
 
-        OnCensorshipReported(chainId, nonce);
         return true;
     }
 
@@ -522,6 +544,17 @@ public class RollupHubContract : SmartContract
         ExecutionEngine.Assert(head + count <= tail, "forced transaction queue underflow");
         var newHead = head + count;
         Storage.Put(ForcedHeadKey(chainId), (BigInteger)newHead);
+        // Mark each consumed nonce as consumed.
+        //
+        // Without this, `IsConsumed(chainId, nonce)` stays false for every transaction that
+        // was included via the batch path, so anyone could later call ReportCensorship on
+        // an already-included transaction and (via the governance pause) DoS the chain —
+        // the anti-censorship mechanism could be turned against honest sequencers.
+        // The `Consume` path already writes this flag; the batch path must do the same.
+        for (var nonce = head; nonce < newHead; nonce++)
+        {
+            Storage.Put(ForcedConsumedKey(chainId, nonce), new byte[] { 1 });
+        }
         OnForcedTransactionsConsumed(chainId, head, count);
     }
 
@@ -783,6 +816,107 @@ public class RollupHubContract : SmartContract
     }
 
     /// <summary>
+    /// Governance-relay entry point: execute an approved, timelocked proposal relayed by the
+    /// GovernanceController.
+    /// </summary>
+    /// <remarks>
+    /// The GovernanceController calls this method after verifying that the proposal is
+    /// approved, timelocked, not vetoed, and that its payload matches
+    /// <paramref name="action"/>. This method re-derives the expected action encoding from
+    /// the action's own parameters and asserts byte-equality — so the council's exact vote
+    /// is what executes, and a relayed action cannot smuggle different parameters.
+    ///
+    /// The per-action consumed flag below makes each proposal executable exactly once per
+    /// action type. Without it a single approved proposal could be replayed to revert
+    /// several batches.
+    /// </remarks>
+    public static void ExecuteGovernanceProposal(byte[] action, ulong proposalId)
+    {
+        ExecutionEngine.Assert(action != null, "action required");
+        // Bind to a non-null local: `ExecutionEngine.Assert` does not tell the compiler
+        // that `action` is non-null, so every later dereference would be a warning.
+        var act = action!;
+        ExecutionEngine.Assert(IsGovernanceLocked(), "governance not locked");
+        var gov = GetGovernanceController();
+        ExecutionEngine.Assert(Runtime.CheckWitness(gov), "not authorized");
+
+        var isApproved = (bool)Contract.Call(gov, "isApprovedAndTimelocked", CallFlags.ReadOnly, proposalId);
+        ExecutionEngine.Assert(isApproved, "proposal not approved + timelocked");
+
+        // Dispatch on the action tag. Each branch re-derives the canonical encoding and
+        // asserts it equals `action` — so the proposal payload and the executed action are
+        // provably the same bytes.
+        if (StartsWith(act, ActionTagRevertBatch))
+        {
+            var expectedSize = ActionTagRevertBatch.Length + 4 + 8;
+            ExecutionEngine.Assert(act.Length == expectedSize, "invalid revertBatch action size");
+            var chainId = ReadUInt32(act, ActionTagRevertBatch.Length);
+            var batchNumber = ReadUInt64(act, ActionTagRevertBatch.Length + 4);
+            AssertActionEquals(act, BuildRevertBatchAction(chainId, batchNumber));
+            AssertProposalNotConsumed(GovernanceConsumedKey(PrefixConsumedRevertBatch, proposalId));
+            Storage.Put(GovernanceConsumedKey(PrefixConsumedRevertBatch, proposalId), new byte[] { 1 });
+            RevertBatchInternal(chainId, batchNumber);
+            OnBatchReverted(chainId, batchNumber);
+            return;
+        }
+
+        if (StartsWith(act, ActionTagSetChainActive))
+        {
+            var expectedSize = ActionTagSetChainActive.Length + 4 + 1;
+            ExecutionEngine.Assert(act.Length == expectedSize, "invalid setChainActive action size");
+            var chainId = ReadUInt32(act, ActionTagSetChainActive.Length);
+            var active = act[ActionTagSetChainActive.Length + 4] != 0;
+            AssertActionEquals(act, BuildSetChainActiveAction(chainId, active));
+            AssertProposalNotConsumed(GovernanceConsumedKey(PrefixConsumedSetChainActive, proposalId));
+            Storage.Put(GovernanceConsumedKey(PrefixConsumedSetChainActive, proposalId), new byte[] { 1 });
+            var raw = Storage.Get(ConfigKey(chainId));
+            ExecutionEngine.Assert(raw != null, "chain not registered");
+            var config = (byte[])raw!;
+            config[OffsetActive] = active ? (byte)1 : (byte)0;
+            Storage.Put(ConfigKey(chainId), config);
+            OnChainStatusChanged(chainId, active);
+            return;
+        }
+
+        if (StartsWith(act, ActionTagUpdateChain))
+        {
+            var configBytes = act[ActionTagUpdateChain.Length..];
+            ExecutionEngine.Assert(configBytes.Length == ConfigSize, "invalid config size");
+            AssertActionEquals(act, BuildUpdateChainAction(configBytes));
+            AssertProposalNotConsumed(GovernanceConsumedKey(PrefixConsumedUpdateChain, proposalId));
+            Storage.Put(GovernanceConsumedKey(PrefixConsumedUpdateChain, proposalId), new byte[] { 1 });
+            var chainId = ReadUInt32(configBytes, 0);
+            var existing = Storage.Get(ConfigKey(chainId));
+            ExecutionEngine.Assert(existing != null, "chain not registered");
+            Storage.Put(ConfigKey(chainId), configBytes);
+            OnChainRegistered(chainId, configBytes);
+            return;
+        }
+
+        ExecutionEngine.Assert(false, "unknown governance action");
+    }
+
+    private static void AssertActionEquals(byte[] action, byte[] expected)
+    {
+        ExecutionEngine.Assert(action.Length == expected.Length, "governance action length mismatch");
+        for (var i = 0; i < expected.Length; i++)
+            ExecutionEngine.Assert(action[i] == expected[i], "governance action payload mismatch");
+    }
+
+    private static void AssertProposalNotConsumed(byte[] consumedKey)
+    {
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+    }
+
+    private static bool StartsWith(byte[] value, byte[] prefix)
+    {
+        if (value.Length < prefix.Length) return false;
+        for (var i = 0; i < prefix.Length; i++)
+            if (value[i] != prefix[i]) return false;
+        return true;
+    }
+
+    /// <summary>
     /// Post-lock version of <see cref="UpdateChain"/> that routes through GovernanceController.
     /// </summary>
     public static void UpdateChainViaProposal(byte[] configBytes, ulong proposalId)
@@ -831,12 +965,35 @@ public class RollupHubContract : SmartContract
         OnChainStatusChanged(chainId, active);
     }
 
+    // ASCII bytes for the "neo4-rollup:*" action tags. Shared between the Build*Action
+    // helpers (what the council votes on) and ExecuteGovernanceProposal (what is executed),
+    // so the two can never drift apart.
+    private static readonly byte[] ActionTagRevertBatch = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'r', (byte)'o', (byte)'l', (byte)'l', (byte)'u', (byte)'p', (byte)':',
+        (byte)'r', (byte)'e', (byte)'v', (byte)'e', (byte)'r', (byte)'t', (byte)'B', (byte)'a', (byte)'t', (byte)'c', (byte)'h'
+    };
+
+    private static readonly byte[] ActionTagUpdateChain = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'r', (byte)'o', (byte)'l', (byte)'l', (byte)'u', (byte)'p', (byte)':',
+        (byte)'u', (byte)'p', (byte)'d', (byte)'a', (byte)'t', (byte)'e', (byte)'C', (byte)'h', (byte)'a', (byte)'i', (byte)'n'
+    };
+
+    private static readonly byte[] ActionTagSetChainActive = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'r', (byte)'o', (byte)'l', (byte)'l', (byte)'u', (byte)'p', (byte)':',
+        (byte)'s', (byte)'e', (byte)'t', (byte)'C', (byte)'h', (byte)'a', (byte)'i', (byte)'n', (byte)'A', (byte)'c', (byte)'t', (byte)'i', (byte)'v', (byte)'e'
+    };
+
     /// <summary>Canonical action encoding for RevertBatch governance proposal.</summary>
     [Safe]
     public static byte[] BuildRevertBatchAction(uint chainId, ulong batchNumber)
     {
-        // "neo4-rollup:revertBatch"
-        byte[] tag = new byte[] { 0x6e, 0x65, 0x6f, 0x34, 0x2d, 0x72, 0x6f, 0x6c, 0x6c, 0x75, 0x70, 0x3a, 0x72, 0x65, 0x76, 0x65, 0x72, 0x74, 0x42, 0x61, 0x74, 0x63, 0x68 };
+        var tag = ActionTagRevertBatch;
         var buf = new byte[tag.Length + 4 + 8];
         var pos = 0;
         for (var i = 0; i < tag.Length; i++) buf[pos++] = tag[i];
@@ -849,8 +1006,7 @@ public class RollupHubContract : SmartContract
     [Safe]
     public static byte[] BuildUpdateChainAction(byte[] configBytes)
     {
-        // "neo4-rollup:updateChain"
-        byte[] tag = new byte[] { 0x6e, 0x65, 0x6f, 0x34, 0x2d, 0x72, 0x6f, 0x6c, 0x6c, 0x75, 0x70, 0x3a, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x69, 0x6e };
+        var tag = ActionTagUpdateChain;
         var buf = new byte[tag.Length + configBytes.Length];
         var pos = 0;
         for (var i = 0; i < tag.Length; i++) buf[pos++] = tag[i];
@@ -862,8 +1018,7 @@ public class RollupHubContract : SmartContract
     [Safe]
     public static byte[] BuildSetChainActiveAction(uint chainId, bool active)
     {
-        // "neo4-rollup:setChainActive"
-        byte[] tag = new byte[] { 0x6e, 0x65, 0x6f, 0x34, 0x2d, 0x72, 0x6f, 0x6c, 0x6c, 0x75, 0x70, 0x3a, 0x73, 0x65, 0x74, 0x43, 0x68, 0x61, 0x69, 0x6e, 0x41, 0x63, 0x74, 0x69, 0x76, 0x65 };
+        var tag = ActionTagSetChainActive;
         var buf = new byte[tag.Length + 4 + 1];
         var pos = 0;
         for (var i = 0; i < tag.Length; i++) buf[pos++] = tag[i];
@@ -1497,6 +1652,13 @@ public class RollupHubContract : SmartContract
     private static byte[] BatchForcedCountKey(uint id, ulong num) => Append4And8(PrefixBatchForcedCount, id, num);
     private static byte[] ForcedTxKey(uint id, ulong nonce) => Append4And8(PrefixForcedTx, id, nonce);
     private static byte[] ForcedConsumedKey(uint id, ulong nonce) => Append4And8(PrefixForcedConsumed, id, nonce);
+    private static byte[] GovernanceConsumedKey(byte prefix, ulong proposalId)
+    {
+        var k = new byte[9];
+        k[0] = prefix;
+        WriteUInt64(k, 1, proposalId);
+        return k;
+    }
     private static byte[] ForcedReportedKey(uint id, ulong nonce) => Append4And8(PrefixForcedReported, id, nonce);
 
     private static byte[] Append4(byte pfx, uint val)

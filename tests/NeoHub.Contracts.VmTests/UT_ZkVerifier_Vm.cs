@@ -30,16 +30,14 @@ public class UT_ZkVerifier_Vm
     {
         var engine = new TestEngine(true);
         var owner = engine.Sender;
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Neo.L2.sln")))
-            root = root.Parent;
-        Assert.IsNotNull(root, "repository root");
-        var sc = Path.Combine(root!.FullName, "contracts", "NeoHub.ZkVerifier", "bin", "sc");
-        var nef = File.ReadAllBytes(Path.Combine(sc, "NeoHub.ZkVerifier.nef"))
-            .AsSerializable<Neo.SmartContract.NefFile>();
-        var manifest = Neo.SmartContract.Manifest.ContractManifest.Parse(
-            File.ReadAllText(Path.Combine(sc, "NeoHub.ZkVerifier.manifest.json")));
-        var verifier = engine.Deploy<NeoHubZkVerifier>(nef, manifest, owner);
+        // Load the CHECKED-IN compiled artifact (TestingArtifacts/NeoHubZkVerifier.artifacts.cs)
+        // instead of `contracts/NeoHub.ZkVerifier/bin/sc/`.
+        //
+        // `bin/` is excluded by .gitignore, so a fresh checkout never contains it and every
+        // test in this class failed with DirectoryNotFoundException — the ZK verification path
+        // had ZERO effective coverage in CI. The checked-in artifact is the same NEF the CI
+        // compiles, and a CI gate re-compiles and compares the SHA-256 to keep it honest.
+        var verifier = engine.Deploy<NeoHubZkVerifier>(NeoHubZkVerifier.Nef, NeoHubZkVerifier.Manifest, owner);
         return (engine, verifier, owner);
     }
 

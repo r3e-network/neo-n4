@@ -34,10 +34,11 @@ contracts/
 |-- NeoHub.SharedBridge/                        # Pillar 2: Asset escrow, token registry, cross-chain messaging
 |-- NeoHub.ZkVerifier/                          # Pillar 3: ZK validity verifier + SP1 Groth16/BN254 pairing math
 |-- NeoHub.Sp1Groth16Verifier/                  # Dedicated SP1 Groth16/BN254 verifier (real release parameters)
+|-- NeoHub.MultisigVerifier/                    # Committee-attested (multisig) proof verifier for ProofType.Multisig
 `-- NeoHub.GovernanceController/                # Pillar 4: Council multisig, timelock, emergency pause, sequencer staking
 ```
 
-There are 5 `NeoHub.*` projects in this directory: 5 production contracts. `neo-hub-deploy` emits the 5-step
+There are 6 `NeoHub.*` projects in this directory: 6 production contracts. `neo-hub-deploy` emits the 6-step
 production bundle.
 
 The L2 native contract set lives in Neo core under

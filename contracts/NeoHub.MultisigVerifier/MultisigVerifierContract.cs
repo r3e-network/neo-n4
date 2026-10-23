@@ -118,9 +118,13 @@ public class MultisigVerifierContract : SmartContract
     /// <remarks>
     /// Called by ZkVerifier for ProofType.Multisig commitments. Extracts the proof payload,
     /// decodes signatures, verifies each signature against the public input hash using
-    /// CryptoLib.VerifyWithECDsa, and checks that all signers are registered sequencers
+    /// CryptoLib.VerifyWithECDsa, and checks that signers are registered sequencers
     /// via GovernanceController.IsSequencerRegistered. Returns true only if the number of
     /// valid signatures meets the minimum quorum.
+    ///
+    /// Quorum counts DISTINCT registered signers. Repeating the same (public key, signature)
+    /// pair does not add a vote, so one committee member can never satisfy an M-of-N quorum
+    /// on its own.
     /// </remarks>
     [Safe]
     public static bool VerifyMultisigProof(byte[] commitmentBytes)
@@ -150,12 +154,24 @@ public class MultisigVerifierContract : SmartContract
         var validSignatures = 0;
         var pos = MultisigPayloadSignaturesOffset;
 
+        // Distinct signer keys that produced a valid signature. Quorum must count DISTINCT
+        // committee members, not proof entries: without this, a single registered sequencer
+        // could repeat its own (pubkey, signature) pair up to `signerCount` times and reach
+        // any quorum — turning an M-of-N committee gate into 1-of-N.
+        var seenSigners = new byte[MaxMultisigSigners][];
+
         for (var i = 0; i < signerCount; i++)
         {
             var pubKeyBytes = ReadBytes(payload, pos, MultisigPublicKeySize);
             pos += MultisigPublicKeySize;
             var signature = ReadBytes(payload, pos, MultisigSignatureSize);
             pos += MultisigSignatureSize;
+
+            // A repeated signer must not contribute a second vote, so skip it BEFORE the
+            // (gas-expensive) registry lookup and signature verification. Only signers that
+            // already produced a VALID signature are recorded, so a key whose first entry
+            // carried a bad signature can still vote with a later valid one — but only once.
+            if (ContainsSigner(seenSigners, validSignatures, pubKeyBytes)) continue;
 
             // Decode public key
             var pubKey = (ECPoint)pubKeyBytes;
@@ -174,11 +190,35 @@ public class MultisigVerifierContract : SmartContract
                 (ByteString)signature,
                 NamedCurveHash.secp256r1SHA256);
 
-            if (isValid) validSignatures++;
+            if (!isValid) continue;
+
+            // Record the signer so later duplicates of the same key cannot vote again.
+            seenSigners[validSignatures] = pubKeyBytes;
+            validSignatures++;
         }
 
         var minQuorum = GetMinQuorum();
         return validSignatures >= minQuorum;
+    }
+
+    /// <summary>
+    /// True when <paramref name="candidate"/> matches one of the first
+    /// <paramref name="count"/> entries of <paramref name="signers"/>.
+    /// </summary>
+    private static bool ContainsSigner(byte[][] signers, int count, byte[] candidate)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            var existing = signers[i];
+            if (existing == null) continue;
+            var same = true;
+            for (var j = 0; j < MultisigPublicKeySize; j++)
+            {
+                if (existing[j] != candidate[j]) { same = false; break; }
+            }
+            if (same) return true;
+        }
+        return false;
     }
 
     private static int ReadInt32(byte[] data, int offset) =>

@@ -247,6 +247,76 @@ public class UT_SharedBridge_Vm
     }
 
     [TestMethod]
+    public void DeployedBridge_ReproducesTheThirdImplementationLeafVector()
+    {
+        // THE cross-side anchor for the withdrawal leaf.
+        //
+        // Four implementations encode this leaf and, before this test, none of them had ever
+        // been compared across the boundary:
+        //   1. NeoHub.SharedBridge.ComputeWithdrawalLeafHash  (on-chain — exercised here)
+        //   2. Neo.L2.State.MessageHasher.EncodeWithdrawal    (off-chain .NET)
+        //   3. neo_execution_core::withdrawal_leaf_preimage   (Rust)
+        //   4. LeafBytes() below                              (hand-rolled)
+        //
+        // The 2026-10-21 audit found the leaf had ALREADY forked once (off-chain 98B Layout A
+        // vs on-chain 118B Layout C) and it survived for months because every implementation
+        // was validated only against itself. The vector comes from a third implementation in
+        // a language none of the four use, so agreeing with it is real evidence.
+        //
+        // The call MUST go through FinalizeWithdrawalWithProof: `VerifyWithdrawalLeafWithProof`
+        // only folds the Merkle path over a caller-supplied leaf HASH and never recomputes the
+        // leaf, so it cannot detect a layout fork. `ValidateWithdrawalLeafBinding` is what
+        // recomputes the hash from the withdrawal fields and compares.
+        var stack = Deploy();
+        var sb = stack.Bridge;
+
+        var chainId = CanonicalEncodingVectors.WithdrawalChainId;
+        var emitting = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalEmitting, 20));
+        var l2Sender = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalL2Sender, 20));
+        var l2Asset = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalL2Asset, 20));
+        var l1Asset = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalL1Asset, 20));
+        var l1Recipient = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalL1Recipient, 20));
+        var amount = new BigInteger(CanonicalEncodingVectors.WithdrawalAmount);
+        var nonce = CanonicalEncodingVectors.WithdrawalNonce;
+
+        var expectedLeafHash = new UInt256(CanonicalEncodingVectors.WithdrawalLeafHash());
+
+        // The vector's L1 asset is a different hash from the shared AssetHash fixture, so it
+        // needs its own NEP-17 mock or the payout's `transfer` call cannot resolve.
+        stack.Engine.FromHash<MockNep17>(l1Asset, m =>
+            m.Setup(c => c.Transfer(It.IsAny<UInt160?>(), It.IsAny<UInt160?>(),
+                It.IsAny<BigInteger?>(), It.IsAny<object?>())).Returns(true),
+            checkExistence: false);
+
+        // The payout path asserts the (l1Asset, chainId) ↔ l2Asset mapping, so register the
+        // pair the vector encodes before touching escrow.
+        sb.RegisterMapping(BuildMapping(l1Asset, chainId, l2Asset));
+
+        // Fund the escrow in the vector's L1 asset, then settle a single-leaf batch so the
+        // vector's leaf is the whole tree and the proof is empty.
+        sb.Deposit(l1Asset, amount, chainId, l1Recipient);
+        SettleWithdrawalBatch(stack, chainId, [expectedLeafHash.GetSpan().ToArray()]);
+
+        // If ComputeWithdrawalLeafHash drops/reorders/resizes any field (l1Asset, the nonce
+        // width, the amount length prefix), the recomputed leaf differs and this faults.
+        sb.FinalizeWithdrawalWithProof(
+            chainId, 1, expectedLeafHash, new List<object>(), 0,
+            emitting, l2Sender, l2Asset, nonce, l1Asset, l1Recipient, amount);
+
+        Assert.AreEqual(
+            (BigInteger)0,
+            sb.GetLockedBalance(chainId, l1Asset),
+            "the payout must debit exactly the escrow the vector's amount deposited");
+    }
+
+    private static byte[] Repeat(byte value, int count)
+    {
+        var bytes = new byte[count];
+        Array.Fill(bytes, value);
+        return bytes;
+    }
+
+    [TestMethod]
     public void Deposit_CreditsPerChainEscrowLedger()
     {
         var stack = Deploy();

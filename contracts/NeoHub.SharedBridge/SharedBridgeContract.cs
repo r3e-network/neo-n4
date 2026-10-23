@@ -43,6 +43,11 @@ public class SharedBridgeContract : SmartContract
     private const byte PrefixSettlementManager = 0xFD;
     private const byte PrefixTokenRegistry = 0xFE;
     private const byte KeyGovernanceLocked = 0xFB;
+
+    // Governance-relay replay protection: one execution per (action type, proposalId).
+    private const byte PrefixConsumedSetSettlementManager = 0xF1; // 0xF1 + proposalId(8B) -> 1
+    private const byte PrefixConsumedRegisterMapping = 0xF2;      // 0xF2 + proposalId(8B) -> 1
+    private const byte PrefixConsumedSetMappingActive = 0xF3;     // 0xF3 + proposalId(8B) -> 1
     private const byte KeyOwner = 0xFF;
 
     private const byte AssetTypeGas = 0;
@@ -169,6 +174,143 @@ public class SharedBridgeContract : SmartContract
         return raw == null ? UInt160.Zero : (UInt160)raw;
     }
 
+    /// <summary>
+    /// Governance-relay entry point: execute an approved, timelocked proposal relayed by the
+    /// GovernanceController.
+    /// </summary>
+    /// <remarks>
+    /// After <see cref="LockGovernance"/> the bridge's owner IS the GovernanceController, so
+    /// `Runtime.CheckWitness(GetOwner())` can only be satisfied by a call that the
+    /// GovernanceController itself makes (see
+    /// `ApplicationEngine.CheckWitnessInternal`: `if (hash.Equals(CallingScriptHash)) return true;`).
+    /// Without this entry point every administrative operation would be permanently
+    /// unreachable after the lock — the bridge would be stuck forever with no way to re-point
+    /// the settlement manager or re-register an asset mapping.
+    ///
+    /// The GovernanceController verifies that the proposal is approved, timelocked, not
+    /// vetoed, and that its payload equals <paramref name="action"/>. This method
+    /// re-derives the expected encoding from the action's own parameters and asserts
+    /// byte-equality, so the council's exact vote is what executes. The per-action consumed
+    /// flag makes each proposal executable exactly once.
+    /// </remarks>
+    public static void ExecuteGovernanceProposal(byte[] action, ulong proposalId)
+    {
+        ExecutionEngine.Assert(action != null, "action required");
+        // Bind to a non-null local: `ExecutionEngine.Assert` does not tell the compiler
+        // that `action` is non-null, so every later dereference would be a warning.
+        var act = action!;
+        ExecutionEngine.Assert(IsGovernanceLocked(), "governance not locked");
+        var gov = GetOwner();
+        ExecutionEngine.Assert(Runtime.CheckWitness(gov), "not authorized");
+
+        var isApproved = (bool)Contract.Call(gov, "isApprovedAndTimelocked", CallFlags.ReadOnly, proposalId);
+        ExecutionEngine.Assert(isApproved, "proposal not approved + timelocked");
+
+        if (StartsWith(act, ActionTagSetSettlementManager))
+        {
+            ExecutionEngine.Assert(act.Length == ActionTagSetSettlementManager.Length + 20,
+                "invalid setSettlementManager action size");
+            var manager = ReadUInt160(act, ActionTagSetSettlementManager.Length);
+            AssertActionEquals(act, BuildSetSettlementManagerAction(manager));
+            AssertProposalNotConsumed(GovernanceConsumedKey(PrefixConsumedSetSettlementManager, proposalId));
+            Storage.Put(GovernanceConsumedKey(PrefixConsumedSetSettlementManager, proposalId), new byte[] { 1 });
+            Storage.Put(new byte[] { PrefixSettlementManager }, manager);
+            OnSettlementManagerChanged(manager);
+            return;
+        }
+
+        if (StartsWith(act, ActionTagRegisterMapping))
+        {
+            var mappingBytes = act[ActionTagRegisterMapping.Length..];
+            ExecutionEngine.Assert(mappingBytes.Length == MappingSize, "mapping size mismatch");
+            AssertActionEquals(act, BuildRegisterMappingAction(mappingBytes));
+            AssertProposalNotConsumed(GovernanceConsumedKey(PrefixConsumedRegisterMapping, proposalId));
+            Storage.Put(GovernanceConsumedKey(PrefixConsumedRegisterMapping, proposalId), new byte[] { 1 });
+            RegisterMappingInternal(mappingBytes);
+            return;
+        }
+
+        if (StartsWith(act, ActionTagSetMappingActive))
+        {
+            ExecutionEngine.Assert(act.Length == ActionTagSetMappingActive.Length + 20 + 4 + 1,
+                "invalid setMappingActive action size");
+            var asset = ReadUInt160(act, ActionTagSetMappingActive.Length);
+            var chainId = ReadUInt32(act, ActionTagSetMappingActive.Length + 20);
+            var active = act[ActionTagSetMappingActive.Length + 24] != 0;
+            AssertActionEquals(act, BuildSetMappingActiveAction(asset, chainId, active));
+            AssertProposalNotConsumed(GovernanceConsumedKey(PrefixConsumedSetMappingActive, proposalId));
+            Storage.Put(GovernanceConsumedKey(PrefixConsumedSetMappingActive, proposalId), new byte[] { 1 });
+            SetMappingActiveInternal(asset, chainId, active);
+            return;
+        }
+
+        ExecutionEngine.Assert(false, "unknown governance action");
+    }
+
+    /// <summary>Canonical action encoding for a "set settlement manager" proposal.</summary>
+    [Safe]
+    public static byte[] BuildSetSettlementManagerAction(UInt160 manager)
+    {
+        var buf = new byte[ActionTagSetSettlementManager.Length + 20];
+        var pos = 0;
+        for (var i = 0; i < ActionTagSetSettlementManager.Length; i++) buf[pos++] = ActionTagSetSettlementManager[i];
+        WriteUInt160(buf, pos, manager); pos += 20;
+        return buf;
+    }
+
+    /// <summary>Canonical action encoding for a "register mapping" proposal.</summary>
+    [Safe]
+    public static byte[] BuildRegisterMappingAction(byte[] mappingBytes)
+    {
+        ExecutionEngine.Assert(mappingBytes != null, "mapping bytes required");
+        var buf = new byte[ActionTagRegisterMapping.Length + mappingBytes!.Length];
+        var pos = 0;
+        for (var i = 0; i < ActionTagRegisterMapping.Length; i++) buf[pos++] = ActionTagRegisterMapping[i];
+        for (var i = 0; i < mappingBytes.Length; i++) buf[pos++] = mappingBytes[i];
+        return buf;
+    }
+
+    /// <summary>Canonical action encoding for a "set mapping active" proposal.</summary>
+    [Safe]
+    public static byte[] BuildSetMappingActiveAction(UInt160 l1Asset, uint chainId, bool active)
+    {
+        var buf = new byte[ActionTagSetMappingActive.Length + 20 + 4 + 1];
+        var pos = 0;
+        for (var i = 0; i < ActionTagSetMappingActive.Length; i++) buf[pos++] = ActionTagSetMappingActive[i];
+        WriteUInt160(buf, pos, l1Asset); pos += 20;
+        WriteUInt32(buf, pos, chainId); pos += 4;
+        buf[pos] = active ? (byte)1 : (byte)0;
+        return buf;
+    }
+
+    private static void AssertActionEquals(byte[] action, byte[] expected)
+    {
+        ExecutionEngine.Assert(action.Length == expected.Length, "governance action length mismatch");
+        for (var i = 0; i < expected.Length; i++)
+            ExecutionEngine.Assert(action[i] == expected[i], "governance action payload mismatch");
+    }
+
+    private static void AssertProposalNotConsumed(byte[] consumedKey)
+    {
+        ExecutionEngine.Assert(Storage.Get(consumedKey) == null, "proposal already consumed");
+    }
+
+    private static bool StartsWith(byte[] value, byte[] prefix)
+    {
+        if (value.Length < prefix.Length) return false;
+        for (var i = 0; i < prefix.Length; i++)
+            if (value[i] != prefix[i]) return false;
+        return true;
+    }
+
+    private static byte[] GovernanceConsumedKey(byte prefix, ulong proposalId)
+    {
+        var k = new byte[9];
+        k[0] = prefix;
+        WriteUInt64(k, 1, proposalId);
+        return k;
+    }
+
     public static void SetSettlementManager(UInt160 settlementManager)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
@@ -197,6 +339,11 @@ public class SharedBridgeContract : SmartContract
 
     public static void SetEmergencyManager(UInt160 emergencyManager)
     {
+        // The emergency manager is deliberately NOT governance-locked: it is the escape
+        // hatch that lets an operator respond to a stuck or compromised sequencer. Routing
+        // it through a council proposal would mean the chain cannot be rescued while the
+        // council is unavailable — exactly the situation the emergency manager exists for.
+        // The call moves no funds and cannot alter an already-recorded withdrawal.
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
         Storage.Put(new byte[] { PrefixEmergencyManager }, emergencyManager);
         OnEmergencyManagerChanged(emergencyManager);
@@ -211,11 +358,44 @@ public class SharedBridgeContract : SmartContract
 
     #endregion
 
+    // ASCII bytes for the "neo4-bridge:*" action tags. Shared between the Build*Action
+    // helpers (what the council votes on) and ExecuteGovernanceProposal (what is executed),
+    // so the two can never drift apart.
+    private static readonly byte[] ActionTagSetSettlementManager = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'b', (byte)'r', (byte)'i', (byte)'d', (byte)'g', (byte)'e', (byte)':',
+        (byte)'s', (byte)'e', (byte)'t', (byte)'S', (byte)'e', (byte)'t', (byte)'t', (byte)'l', (byte)'e', (byte)'m', (byte)'e', (byte)'n', (byte)'t', (byte)'M', (byte)'a', (byte)'n', (byte)'a', (byte)'g', (byte)'e', (byte)'r'
+    };
+
+    private static readonly byte[] ActionTagRegisterMapping = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'b', (byte)'r', (byte)'i', (byte)'d', (byte)'g', (byte)'e', (byte)':',
+        (byte)'r', (byte)'e', (byte)'g', (byte)'i', (byte)'s', (byte)'t', (byte)'e', (byte)'r', (byte)'M', (byte)'a', (byte)'p', (byte)'p', (byte)'i', (byte)'n', (byte)'g'
+    };
+
+    private static readonly byte[] ActionTagSetMappingActive = new byte[]
+    {
+        (byte)'n', (byte)'e', (byte)'o', (byte)'4', (byte)'-',
+        (byte)'b', (byte)'r', (byte)'i', (byte)'d', (byte)'g', (byte)'e', (byte)':',
+        (byte)'s', (byte)'e', (byte)'t', (byte)'M', (byte)'a', (byte)'p', (byte)'p', (byte)'i', (byte)'n', (byte)'g', (byte)'A', (byte)'c', (byte)'t', (byte)'i', (byte)'v', (byte)'e'
+    };
+
+    [DisplayName("SettlementManagerChanged")]
+    public static event Action<UInt160> OnSettlementManagerChanged = default!;
+
     #region Asset Mapping (former TokenRegistry)
 
     public static void RegisterMapping(byte[] mappingBytes)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        RegisterMappingInternal(mappingBytes);
+    }
+
+    /// <summary>Shared implementation of <see cref="RegisterMapping"/> and the governance relay.</summary>
+    private static void RegisterMappingInternal(byte[] mappingBytes)
+    {
         ExecutionEngine.Assert(mappingBytes.Length == MappingSize, "mapping size mismatch");
 
         var l1Asset = ReadUInt160(mappingBytes, 0);
@@ -248,6 +428,12 @@ public class SharedBridgeContract : SmartContract
     public static void SetActive(UInt160 l1Asset, uint chainId, bool active)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(GetOwner()), "not authorized");
+        SetMappingActiveInternal(l1Asset, chainId, active);
+    }
+
+    /// <summary>Shared implementation of <see cref="SetActive"/> and the governance relay.</summary>
+    private static void SetMappingActiveInternal(UInt160 l1Asset, uint chainId, bool active)
+    {
         var key = MappingKey(l1Asset, chainId);
         var raw = Storage.Get(key);
         ExecutionEngine.Assert(raw != null, "mapping not found");
@@ -838,6 +1024,19 @@ public class SharedBridgeContract : SmartContract
     {
         var b = (byte[])val;
         for (var i = 0; i < 20; i++) dest[offset + i] = b[i];
+    }
+
+    private static void WriteUInt32(byte[] dest, int offset, uint val)
+    {
+        dest[offset] = (byte)val;
+        dest[offset + 1] = (byte)(val >> 8);
+        dest[offset + 2] = (byte)(val >> 16);
+        dest[offset + 3] = (byte)(val >> 24);
+    }
+
+    private static void WriteUInt64(byte[] dest, int offset, ulong val)
+    {
+        for (var i = 0; i < 8; i++) dest[offset + i] = (byte)(val >> (8 * i));
     }
 
     private static UInt160 ReadUInt160(byte[] data, int offset)

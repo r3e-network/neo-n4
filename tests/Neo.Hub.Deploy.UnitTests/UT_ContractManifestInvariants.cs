@@ -81,48 +81,49 @@ public class UT_ContractManifestInvariants
     // ─── ContractZkVerifier: contract-deployed proof route ───────────────────
 
     [TestMethod]
-    public void ContractZkVerifier_Exposes_ContractVerifierRoute_AndNoNativeAccelerator()
+    public void ZkVerifier_Exposes_ContractVerifierRoute_AndNoNativeAccelerator()
     {
-        var methods = LoadMethods("NeoHub.ContractZkVerifier");
+        // Retargeted from the pre-consolidation NeoHub.ContractZkVerifier: the 4-pillar
+        // consolidation folded the deployable-verifier route into NeoHub.ZkVerifier.
+        var methods = LoadMethods("NeoHub.ZkVerifier");
         if (methods is null) return;
 
         Assert.IsTrue(HasMethod(methods, "registerVerificationKey"),
-            "ContractZkVerifier must expose registerVerificationKey");
+            "ZkVerifier must expose registerVerificationKey");
         Assert.IsTrue(HasMethod(methods, "registerProofVerifier"),
-            "ContractZkVerifier must expose registerProofVerifier for deployable verifier contracts");
+            "ZkVerifier must expose registerProofVerifier for deployable verifier contracts");
         Assert.IsTrue(HasMethod(methods, "getProofVerifier"),
-            "ContractZkVerifier must expose getProofVerifier for operator/audit introspection");
+            "ZkVerifier must expose getProofVerifier for operator/audit introspection");
         Assert.IsTrue(HasMethod(methods, "setEnvelopeOnlyAllowed"),
-            "ContractZkVerifier must expose explicit devnet-only envelope mode");
+            "ZkVerifier must expose explicit devnet-only envelope mode");
         Assert.IsTrue(HasMethod(methods, "isEnvelopeOnlyAllowed"),
-            "ContractZkVerifier must expose isEnvelopeOnlyAllowed");
+            "ZkVerifier must expose isEnvelopeOnlyAllowed");
         Assert.IsTrue(HasMethod(methods, "disableEnvelopeOnlyPermanently"),
-            "ContractZkVerifier must expose disableEnvelopeOnlyPermanently — the one-way " +
+            "ZkVerifier must expose disableEnvelopeOnlyPermanently — the one-way " +
             "switch a rollup uses to make 'never accept an unverified batch' irreversible");
         Assert.IsTrue(HasMethod(methods, "isEnvelopeOnlyLocked"),
-            "ContractZkVerifier must expose isEnvelopeOnlyLocked (read-only audit of the lock)");
-        Assert.IsTrue(HasMethod(methods, "verify"),
-            "ContractZkVerifier must expose verify for VerifierRegistry dispatch");
+            "ZkVerifier must expose isEnvelopeOnlyLocked (read-only audit of the lock)");
+        Assert.IsTrue(HasMethod(methods, "verifyProof"),
+            "ZkVerifier must expose verifyProof for VerifierRegistry dispatch");
 
         Assert.IsFalse(HasMethod(methods, "setNativeAccelerator"),
-            "REGRESSION: ContractZkVerifier must not require an L1 native accelerator");
+            "REGRESSION: ZkVerifier must not require an L1 native accelerator");
         Assert.IsFalse(HasMethod(methods, "getNativeAccelerator"),
-            "REGRESSION: ContractZkVerifier must not expose native-accelerator state");
+            "REGRESSION: ZkVerifier must not expose native-accelerator state");
 
         // Critical: the envelope-only disable is one-way. There must be NO method
         // that unlocks or clears it — a regression adding one would let a future
         // (possibly compromised) owner re-enable "accept any proof with no crypto
-        // check" on a chain that had permanently locked the door. Mirrors the
-        // GovernanceController.SetImmutableFlag no-clear-side invariant below.
+        // check" on a chain that had permanently locked the door.
         Assert.IsFalse(HasMethod(methods, "unlockEnvelopeOnly"),
-            "REGRESSION: ContractZkVerifier must NOT expose unlockEnvelopeOnly — " +
+            "REGRESSION: ZkVerifier must NOT expose unlockEnvelopeOnly — " +
             "the permanent envelope-only disable is irreversible by design");
         Assert.IsFalse(HasMethod(methods, "clearEnvelopeOnlyLock"),
-            "REGRESSION: ContractZkVerifier must NOT expose clearEnvelopeOnlyLock");
+            "REGRESSION: ZkVerifier must NOT expose clearEnvelopeOnlyLock");
         Assert.IsFalse(HasMethod(methods, "removeEnvelopeOnlyLock"),
-            "REGRESSION: ContractZkVerifier must NOT expose removeEnvelopeOnlyLock");
+            "REGRESSION: ZkVerifier must NOT expose removeEnvelopeOnlyLock");
         Assert.IsFalse(HasMethod(methods, "enableEnvelopeOnlyPermanently"),
-            "REGRESSION: ContractZkVerifier must NOT expose enableEnvelopeOnlyPermanently");
+            "REGRESSION: ZkVerifier must NOT expose enableEnvelopeOnlyPermanently");
     }
 
     // ─── GovernanceController: SetImmutableFlag is permanent ──────────
@@ -151,59 +152,33 @@ public class UT_ContractManifestInvariants
             "REGRESSION: GovernanceController must NOT expose unsetImmutableFlag");
     }
 
-    // ─── MessageRouter: PublishGlobalRoot exists ──────────────────────
+    // ─── Global root publication: folded into RollupHub by the 4-pillar
+    // consolidation (the pre-consolidation MessageRouter owned it) ────
 
     [TestMethod]
-    public void MessageRouter_Exposes_PublishGlobalRoot_AndGlobalRootGetter()
+    public void RollupHub_Exposes_GatewayGlobalRootPublication_AndGetter()
     {
-        var methods = LoadMethods("NeoHub.MessageRouter");
+        var methods = LoadMethods("NeoHub.RollupHub");
         if (methods is null) return;
-        Assert.IsTrue(HasMethod(methods, "publishGlobalRoot"),
-            "MessageRouter must expose publishGlobalRoot — gateway-published " +
+        Assert.IsTrue(HasMethod(methods, "publishGatewayGlobalRoot"),
+            "RollupHub must expose publishGatewayGlobalRoot — gateway-published " +
             "aggregated message roots are the per-epoch L1 commitment that " +
             "Phase-5 cross-L2 inclusion proofs verify against");
         Assert.IsTrue(HasMethod(methods, "getGlobalRoot"),
-            "MessageRouter must expose getGlobalRoot for off-chain consumers");
+            "RollupHub must expose getGlobalRoot for off-chain consumers");
+        Assert.IsTrue(HasMethod(methods, "getGatewayFinalizedThrough"),
+            "RollupHub must expose the non-revertible per-chain Gateway watermark");
     }
 
     // ─── ExternalBridgeEscrow: Receive (inbound dispatch) ─────────────
 
-    [TestMethod]
-    public void ExternalBridgeEscrow_ExposesProductionPayoutAndGovernanceSurface()
-    {
-        var methods = LoadMethods("NeoHub.ExternalBridgeEscrow");
-        if (methods is null) return;
-        Assert.IsTrue(HasMethod(methods, "send"),
-            "ExternalBridgeEscrow must expose send (Neo → foreign outbound)");
-        Assert.IsTrue(HasMethod(methods, "receive"),
-            "ExternalBridgeEscrow must expose receive (foreign → Neo inbound)");
-        string[] payoutMethods =
-        [
-            "fundLiquidity",
-            "setAssetRoute",
-            "getRoutedNeoAsset",
-            "getRoutedForeignAsset",
-            "getPayoutAdapter",
-            "getPayoutAdapterUpdateCounter",
-            "setGovernanceController",
-            "lockGovernance",
-            "isGovernanceLocked",
-            "configureAssetRouteViaProposal",
-            "setRegistryViaProposal",
-            "buildConfigureAssetRouteAction",
-            "buildSetRegistryAction",
-        ];
-        foreach (var method in payoutMethods)
-        {
-            Assert.IsTrue(HasMethod(methods, method),
-                $"ExternalBridgeEscrow must expose production payout/governance method '{method}'");
-        }
-        // The NEP-17 hook MUST be present so unsolicited transfers can be
-        // rejected loudly (rather than silently accepted as Send records).
-        Assert.IsTrue(HasMethod(methods, "onNEP17Payment"),
-            "ExternalBridgeEscrow must expose onNEP17Payment so a fat-fingered " +
-            "direct transfer can be rejected at the bridge boundary");
-    }
+    // NOTE: the pre-consolidation ExternalBridgeEscrow / MpcCommitteeVerifier /
+    // ExternalBridgeStubVerifier manifest invariants were removed with the 4-pillar
+    // lean consolidation — those contracts are not part of the deployable suite yet.
+    // When the external-bridge stack lands, restore invariants here AND anchor its
+    // canonical encodings to tests/Shared/canonical_encoding_vectors.hex (see
+    // docs/audit/systematic-audit-2026-10-21.md A.11 — the watcher already signs the
+    // external-message layout; the on-chain consumer must match it byte for byte).
 
     [TestMethod]
     public void TokenIngressContracts_Expose_Nep17PaymentHooks()
@@ -235,121 +210,105 @@ public class UT_ContractManifestInvariants
             "SharedBridge must expose a paused-only emergency withdrawal path that pays assets");
     }
 
-    // ─── SettlementManager: status enum surface ───────────────────────
+    // ─── Settlement surface: folded into RollupHub by the consolidation ──
 
     [TestMethod]
-    public void SettlementManager_Exposes_VerifyWithdrawalLeafAt_And_Status()
+    public void RollupHub_Exposes_WithdrawalLeafVerification_And_Status()
     {
-        var methods = LoadMethods("NeoHub.SettlementManager");
+        var methods = LoadMethods("NeoHub.RollupHub");
         if (methods is null) return;
         Assert.IsTrue(HasMethod(methods, "verifyWithdrawalLeafAt"),
-            "SettlementManager must expose verifyWithdrawalLeafAt — " +
+            "RollupHub must expose verifyWithdrawalLeafAt — " +
             "SharedBridge calls this to gate withdrawal finalization on " +
             "the per-chain, per-batch Finalized state");
         Assert.IsTrue(HasMethod(methods, "verifyWithdrawalLeafWithProof"),
-            "SettlementManager must expose verifyWithdrawalLeafWithProof — " +
+            "RollupHub must expose verifyWithdrawalLeafWithProof — " +
             "the production withdrawal flow does inclusion-proof verification " +
             "against the canonical withdrawal root");
         Assert.IsTrue(HasMethod(methods, "getBatchStatus"),
-            "SettlementManager must expose getBatchStatus so off-chain " +
+            "RollupHub must expose getBatchStatus so off-chain " +
             "consumers can distinguish Pending / Challengeable / Finalized");
         Assert.IsTrue(HasMethod(methods, "publishGatewayGlobalRoot"),
-            "SettlementManager must atomically validate Gateway constituent finality before routing a root");
+            "RollupHub must atomically validate Gateway constituent finality before routing a root");
         Assert.IsTrue(HasMethod(methods, "getGatewayFinalizedThrough"),
-            "SettlementManager must expose the non-revertible per-chain Gateway watermark");
-        Assert.IsTrue(HasMethod(methods, "setMessageRouter") && HasMethod(methods, "getMessageRouter"),
-            "SettlementManager must expose auditable MessageRouter deployment wiring");
+            "RollupHub must expose the non-revertible per-chain Gateway watermark");
+        // The pre-consolidation setMessageRouter/getMessageRouter wiring became
+        // setSharedBridge/getSharedBridge: the global-root fan-out target.
+        Assert.IsTrue(HasMethod(methods, "setSharedBridge") && HasMethod(methods, "getSharedBridge"),
+            "RollupHub must expose auditable SharedBridge deployment wiring");
     }
 
-    // ─── EmergencyManager: escape hatch is replay-protected ───────────
+    // ─── Emergency surface: escape hatch on SharedBridge, pause on
+    // GovernanceController (the consolidation folded EmergencyManager) ──
 
     [TestMethod]
-    public void EmergencyManager_Exposes_EscapeHatch_Methods()
+    public void EmergencySurface_IsSplitBetweenSharedBridgeAndGovernance()
     {
-        var methods = LoadMethods("NeoHub.EmergencyManager");
-        if (methods is null) return;
-        Assert.IsTrue(HasMethod(methods, "escapeHatchExit"),
-            "EmergencyManager must expose escapeHatchExit (single-leaf fast path)");
-        Assert.IsTrue(HasMethod(methods, "escapeHatchExitWithProof"),
-            "EmergencyManager must expose escapeHatchExitWithProof (production " +
-            "Merkle-proof path — the standard withdrawal flow under pause)");
-        Assert.IsTrue(HasMethod(methods, "pause"),
-            "EmergencyManager must expose pause (council multisig only)");
-        Assert.IsTrue(HasMethod(methods, "resume"),
-            "EmergencyManager must expose resume (owner / governance only)");
-        Assert.IsTrue(HasMethod(methods, "isPaused"),
-            "EmergencyManager must expose isPaused (read-only)");
-    }
+        var bridge = LoadMethods("NeoHub.SharedBridge");
+        if (bridge is null) return;
+        Assert.IsTrue(HasMethod(bridge, "emergencyFinalizeWithdrawalWithProof"),
+            "SharedBridge must expose a paused-only emergency withdrawal path that pays assets");
+        Assert.IsTrue(HasMethod(bridge, "getEmergencyManager") && HasMethod(bridge, "setEmergencyManager"),
+            "SharedBridge must expose auditable emergency-manager wiring");
 
-    [TestMethod]
-    public void ChainRegistry_Exposes_AuthorizedPauserSurface()
-    {
-        var methods = LoadMethods("NeoHub.ChainRegistry");
-        if (methods is null) return;
-
-        Assert.IsTrue(HasMethod(methods, "registerPauser"),
-            "ChainRegistry must let governance authorize fault contracts to pause a censored L2");
-        Assert.IsTrue(HasMethod(methods, "revokePauser"),
-            "ChainRegistry must let governance revoke compromised chain pausers");
-        Assert.IsTrue(HasMethod(methods, "isPauser"),
-            "ChainRegistry must expose isPauser for deployment smoke checks");
-    }
-
-    // ─── MpcCommitteeVerifier: per-signer dedup live on the verifyInbound path ──
-
-    [TestMethod]
-    public void MpcCommitteeVerifier_Exposes_VerifyInboundMessage()
-    {
-        var methods = LoadMethods("NeoHub.MpcCommitteeVerifier");
-        if (methods is null) return;
-        Assert.IsTrue(HasMethod(methods, "verifyInboundMessage"),
-            "MpcCommitteeVerifier must expose verifyInboundMessage — the dispatch " +
-            "entry-point ExternalBridgeRegistry calls. Without it, the duplicate-" +
-            "signer dedup (load-bearing ECDSA malleability defense) is unreachable.");
-        Assert.IsFalse(HasMethod(methods, "consumeNonce"),
-            "MpcCommitteeVerifier must not expose public nonce consumption — replay state " +
-            "belongs to ExternalBridgeEscrow finalization so callers cannot pre-consume nonces");
-        Assert.IsTrue(HasMethod(methods, "registerCommittee"),
-            "MpcCommitteeVerifier must expose registerCommittee");
-        Assert.IsTrue(HasMethod(methods, "registerCommitteeWithMembers"),
-            "MpcCommitteeVerifier must expose registerCommitteeWithMembers — " +
-            "Phase-C equivocation slashing requires the per-signer bond-holder binding");
+        var governance = LoadMethods("NeoHub.GovernanceController");
+        if (governance is null) return;
+        Assert.IsTrue(HasMethod(governance, "pause"),
+            "GovernanceController must expose pause (council multisig only)");
+        Assert.IsTrue(HasMethod(governance, "unpause"),
+            "GovernanceController must expose unpause (owner / governance only)");
+        Assert.IsTrue(HasMethod(governance, "isPaused"),
+            "GovernanceController must expose isPaused (read-only)");
     }
 
     [TestMethod]
-    public void ExternalBridgeStubVerifier_IsNotProductionBridgeKind()
+    public void PauserSurface_IsGovernanceControlled()
     {
-        var methods = LoadMethods("NeoHub.ExternalBridgeStubVerifier");
-        if (methods is null) return;
+        // Retargeted from the pre-consolidation ChainRegistry registerPauser surface:
+        // chain pause authority now lives on GovernanceController (pauseChain per chain)
+        // and RollupHub relays per-chain pause/resume for censorship escalation.
+        var governance = LoadMethods("NeoHub.GovernanceController");
+        if (governance is null) return;
+        Assert.IsTrue(HasMethod(governance, "pauseChain"),
+            "GovernanceController must let governance pause a censored L2");
+        Assert.IsTrue(HasMethod(governance, "unpauseChain"),
+            "GovernanceController must let governance resume a paused L2");
+        Assert.IsTrue(HasMethod(governance, "isChainPaused"),
+            "GovernanceController must expose isChainPaused for deployment smoke checks");
 
-        Assert.IsTrue(HasMethod(methods, "bridgeKind"),
-            "ExternalBridgeStubVerifier must expose bridgeKind so registry kind matching rejects it as production");
+        var rollup = LoadMethods("NeoHub.RollupHub");
+        if (rollup is null) return;
+        Assert.IsTrue(HasMethod(rollup, "pauseChain") && HasMethod(rollup, "resumeChain"),
+            "RollupHub must relay per-chain pause/resume for censorship escalation");
+        Assert.IsTrue(HasMethod(rollup, "reportCensorship"),
+            "RollupHub must expose reportCensorship (post-deadline escalation)");
+        Assert.IsTrue(HasMethod(rollup, "isCensorshipReported"),
+            "RollupHub must make censorship reports at-most-once per queue entry");
     }
 
-    // ─── ForcedInclusion: censorship-resistance surface ───────────────
+    // NOTE: MpcCommitteeVerifier / ExternalBridgeStubVerifier invariants removed —
+    // see the note above the TokenIngress tests (external-bridge stack not landed).
+
+    // ─── Forced inclusion: folded into RollupHub by the consolidation ──
 
     [TestMethod]
-    public void ForcedInclusion_Exposes_EnqueueAndConsume()
+    public void RollupHub_Exposes_ForcedInclusionEnqueueAndConsume()
     {
-        var methods = LoadMethods("NeoHub.ForcedInclusion");
+        var methods = LoadMethods("NeoHub.RollupHub");
         if (methods is null) return;
         Assert.IsTrue(HasMethod(methods, "enqueueForcedTransaction"),
-            "ForcedInclusion must expose enqueueForcedTransaction (user-side queue entry)");
+            "RollupHub must expose enqueueForcedTransaction (user-side queue entry)");
         Assert.IsTrue(HasMethod(methods, "consume"),
-            "ForcedInclusion must verify finalized transaction inclusion before consumption");
+            "RollupHub must verify finalized transaction inclusion before consumption");
         Assert.IsFalse(HasMethod(methods, "markConsumed"),
-            "ForcedInclusion must not expose a witness-only arbitrary-nonce consumption bypass");
-        Assert.IsTrue(HasMethod(methods, "reportCensorship"),
-            "ForcedInclusion must expose reportCensorship (post-deadline escalation)");
-        Assert.IsTrue(HasMethod(methods, "isCensorshipReported"),
-            "ForcedInclusion must make censorship reports at-most-once per queue entry");
-        Assert.IsTrue(HasMethod(methods, "setSequencerBond"),
-            "ForcedInclusion must wire SequencerBond for separately authorized censorship slashing");
-        Assert.IsTrue(HasMethod(methods, "setChainRegistry"),
-            "ForcedInclusion must wire ChainRegistry so censorship reports pause finalization");
-        Assert.IsTrue(HasMethod(methods, "setCensorshipSlashAmount"),
-            "ForcedInclusion must expose the per-report slash policy");
-        Assert.IsTrue(HasMethod(methods, "isProductionReady"),
-            "ForcedInclusion must expose a fail-closed production configuration gate");
+            "RollupHub must not expose a witness-only arbitrary-nonce consumption bypass");
+        // The pre-consolidation setSequencerBond / setChainRegistry /
+        // setCensorshipSlashAmount / isProductionReady surface was absorbed by
+        // GovernanceController's sequencer bond registry (depositBond / getSequencerBond /
+        // slashSequencer / hasMinBond) and RollupHub's pauseChain escalation.
+        Assert.IsTrue(HasMethod(methods, "getNextForcedNonce"),
+            "RollupHub must expose getNextForcedNonce (FIFO queue introspection)");
+        Assert.IsTrue(HasMethod(methods, "getPendingForcedCount"),
+            "RollupHub must expose getPendingForcedCount (queue depth observability)");
     }
 }

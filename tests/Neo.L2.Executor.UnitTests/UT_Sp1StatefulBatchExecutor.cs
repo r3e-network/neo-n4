@@ -364,7 +364,8 @@ public sealed class UT_Sp1StatefulBatchExecutor
                 firstBlock: 100,
                 lastBlock: 100,
                 preStateRoot: initialRoot,
-                transactions: new[] { (ReadOnlyMemory<byte>)RetTransaction() },
+                transactions: new[] { (ReadOnlyMemory<byte>)RetTransaction(
+                    NeoVMGenesisBootstrap.DefaultBootstrapSettings.Network) },
                 l1Messages: Array.Empty<CrossChainMessage>(),
                 blockContext: new BatchBlockContext
                 {
@@ -663,8 +664,20 @@ public sealed class UT_Sp1StatefulBatchExecutor
         return new UInt256(bytes);
     }
 
-    private static byte[] RetTransaction()
+    private static byte[] RetTransaction(uint network)
     {
+        // The zkVM executor's V1 validity profile is fail-closed on witness shape: a
+        // contract-backed witness (empty verification script) aborts the whole batch.
+        // This transaction therefore carries a STANDARD single-sig witness — a real
+        // secp256r1 key, Neo's signature redeem script, and a real signature over the
+        // transaction's sign data — so the batch's witness authentication actually
+        // exercises the verified path.
+        var privateKey = new byte[32];
+        privateKey[31] = 0x07;
+        var point = Neo.Cryptography.ECC.ECCurve.Secp256r1.G * privateKey;
+        var verification = Neo.SmartContract.Contract.CreateSignatureRedeemScript(point);
+        var account = verification.ToScriptHash();
+
         var transaction = new Transaction
         {
             Version = 0,
@@ -675,7 +688,7 @@ public sealed class UT_Sp1StatefulBatchExecutor
             Script = new byte[] { (byte)OpCode.RET },
             Signers = new[]
             {
-                new Signer { Account = UInt160.Zero, Scopes = WitnessScope.None },
+                new Signer { Account = account, Scopes = WitnessScope.None },
             },
             Attributes = Array.Empty<TransactionAttribute>(),
             Witnesses = new[]
@@ -683,9 +696,27 @@ public sealed class UT_Sp1StatefulBatchExecutor
                 new Witness
                 {
                     InvocationScript = ReadOnlyMemory<byte>.Empty,
-                    VerificationScript = ReadOnlyMemory<byte>.Empty,
+                    VerificationScript = verification,
                 },
             },
+        };
+        // GetSignData = SHA256(network || tx hash); the executor verifies the signature
+        // as a secp256r1 prehash signature over exactly these bytes.
+        // GetSignData = network(LE) || txHash (natural digest order) — the exact 36 bytes
+        // the Rust witness verifier hashes: SHA256(network_le || tx_hash). Signing the raw
+        // sign data with SHA256 reproduces the executor's prehash message byte for byte.
+        var signData = transaction.GetSignData(network);
+        using var ecdsa = System.Security.Cryptography.ECDsa.Create(
+            new System.Security.Cryptography.ECParameters
+            {
+                Curve = System.Security.Cryptography.ECCurve.NamedCurves.nistP256,
+                D = privateKey,
+            });
+        var signature = ecdsa.SignData(signData, System.Security.Cryptography.HashAlgorithmName.SHA256);
+        transaction.Witnesses[0] = new Witness
+        {
+            InvocationScript = new byte[] { 0x40 }.Concat(signature).ToArray(),
+            VerificationScript = verification,
         };
         return transaction.ToArray();
     }

@@ -152,20 +152,20 @@ public class UT_L2BatchCommitment_Simplified
         foreach (var batchNumber in ulongBoundaries)
         foreach (var firstBlock in ulongBoundaries)
         foreach (var lastBlock in new[] { firstBlock, ulong.MaxValue }) // first <= last always
-        {
-            // Skip duplicate (firstBlock, lastBlock) combos: lastBlock == ulong.MaxValue
-            // already covers lastBlock == firstBlock when firstBlock is ulong.MaxValue.
-            if (firstBlock == ulong.MaxValue && lastBlock == ulong.MaxValue && batchNumber != ulongBoundaries[0])
-                continue;
+            {
+                // Skip duplicate (firstBlock, lastBlock) combos: lastBlock == ulong.MaxValue
+                // already covers lastBlock == firstBlock when firstBlock is ulong.MaxValue.
+                if (firstBlock == ulong.MaxValue && lastBlock == ulong.MaxValue && batchNumber != ulongBoundaries[0])
+                    continue;
 
-            var proof = MakeProof(1 + (caseIndex % 17), caseIndex);
-            var commitment = MakeCommitment(
-                chainId, batchNumber, firstBlock, lastBlock, ProofType.Zk, proof, rootSeed: 100 + caseIndex);
+                var proof = MakeProof(1 + (caseIndex % 17), caseIndex);
+                var commitment = MakeCommitment(
+                    chainId, batchNumber, firstBlock, lastBlock, ProofType.Zk, proof, rootSeed: 100 + caseIndex);
 
-            var decoded = BatchSerializer.Decode(BatchSerializer.Encode(commitment));
-            AssertAllFieldsPreserved(commitment, decoded, $"boundary case #{caseIndex}");
-            caseIndex++;
-        }
+                var decoded = BatchSerializer.Decode(BatchSerializer.Encode(commitment));
+                AssertAllFieldsPreserved(commitment, decoded, $"boundary case #{caseIndex}");
+                caseIndex++;
+            }
         caseIndex.Should().BeGreaterThan(0, "the boundary sweep must execute at least one case");
     }
 

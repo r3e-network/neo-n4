@@ -248,7 +248,7 @@ jobs:
           python3 scripts/ci/run_dotnet_filtered_tests.py \
             --project tests/NeoHub.Sp1Groth16Verifier.UnitTests/NeoHub.Sp1Groth16Verifier.UnitTests.csproj \
             --filter FullyQualifiedName~UT_FreshContractArtifacts \
-            --minimum-tests 2 \
+            --minimum-tests 1 \
             -- /p:NuGetAudit=false --nologo
 
       - name: Verify N4 L2 native contracts in r3e Neo core

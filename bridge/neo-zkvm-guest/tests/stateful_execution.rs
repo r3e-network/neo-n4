@@ -105,6 +105,41 @@ fn regen_stateful_fixture_in_fork_dialect() {
 }
 
 #[test]
+fn regen_native_output_fixture_in_fork_dialect() {
+    // Companion to regen_stateful_fixture_in_fork_dialect: the C# golden-binding test
+    // (UT_Sp1NativeExecutionOutputSerializer.RustGoldenFixture_...) pins the native
+    // output fixture against the stateful batch fixture byte for byte, so both must
+    // be regenerated from the same fork-dialect artifact. Run with
+    // NEO4_REGEN_FIXTURES=1.
+    if std::env::var_os("NEO4_REGEN_FIXTURES").is_none() {
+        return;
+    }
+    let artifact = fixture_artifact();
+    let payload_bytes = encode_execution_payload(&artifact.execution_payload).unwrap();
+    let state_witness_bytes = encode_state_witness(&artifact.state_witness).unwrap();
+    let transition = neo_zkvm_guest::compute_batch_transition(
+        &artifact.execution_payload,
+        &artifact.state_witness,
+    )
+    .unwrap();
+    let output = NativeExecutionOutputV1 {
+        request_payload_hash: hash256(&payload_bytes),
+        request_state_witness_hash: hash256(&state_witness_bytes),
+        execution_semantic_id: SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID,
+        execution_result: transition.batch.execution_result,
+        effects_bytes: transition.batch.effects_bytes,
+        post_state_witness_bytes: transition.post_state_witness_bytes,
+        public_input_hash: transition.batch.public_input_hash,
+    };
+    let encoded = encode_native_execution_output(&output).unwrap();
+    std::fs::write(
+        "tests/fixtures/native_execution_output_v1.hex",
+        hex::encode(&encoded),
+    )
+    .expect("write native output fixture");
+}
+
+#[test]
 fn golden_fixture_round_trips_and_executes_statefully() {
     let bytes = fixture_bytes();
     let artifact = fixture_artifact();

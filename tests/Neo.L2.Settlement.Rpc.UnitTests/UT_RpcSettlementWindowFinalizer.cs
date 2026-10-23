@@ -169,7 +169,7 @@ public class UT_RpcSettlementWindowFinalizer
         => new(rpc, challengeHash, sendInvocation);
 
     private static RpcTransactionReceipt HaltReceipt()
-        => new("HALT", UInt256.Parse("0x" + new string('f', 64)));
+        => new(UInt256.Parse("0x" + new string('f', 64)), "HALT", null, 0, 0);
 
     private static string IntegerResponse(long value)
         => "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"state\":\"HALT\",\"stack\":[{\"type\":\"Integer\",\"value\":\"" +

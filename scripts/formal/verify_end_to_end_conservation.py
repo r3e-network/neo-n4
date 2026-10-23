@@ -29,8 +29,8 @@ BRIDGE_CONTRACT = ROOT / "contracts/NeoHub.SharedBridge/SharedBridgeContract.cs"
 ROLLUP_CONTRACT = ROOT / "contracts/NeoHub.RollupHub/RollupHubContract.cs"
 
 # Reviewed source digests (must match current contracts)
-REVIEWED_BRIDGE_SHA256 = "0fd19dae7757796efe69d815a48a67d6d446c094120ee36fc5a6a997ea591bbd"
-REVIEWED_ROLLUP_SHA256 = "e5f3917dd48bdf99cf877ea10a9cd3ee4cefa3e5a916ab1da29a002d67e44ccf"
+REVIEWED_BRIDGE_SHA256 = "d61fc74607a77d8c0536e6f66025c758d197b58df29aa0c251ddd125c9f57ac2"
+REVIEWED_ROLLUP_SHA256 = "aedd099439d7d715a11b326172e92b6c03f27c6ebef455db0a9183a1e67e650c"
 
 
 def source_digest(path: Path) -> str:

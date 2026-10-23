@@ -2,7 +2,7 @@
   "schema": "neo-n4/preimage-injectivity-model/v1",
   "wholeSystemVerified": false,
   "scope": "structural injectivity of MessageHasher canonical preimages",
-  "solver": "4.15.3",
+  "solver": "5.3.1",
   "obligations": [
     {
       "name": "chainid_binds_preimage",
@@ -70,21 +70,21 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[plen = 4294967295,\n plen2 = 0,\n nonce2 = 0,\n nonce = 0,\n mtype2 = 0,\n mtype = 0,\n sender2 = 0,\n sender = 0,\n sc2 = 0,\n sc = 0,\n receiver2 = 0,\n receiver = 0,\n tc2 = 0,\n tc = 0]"
+      "witness": "[plen = 4294967295,\n plen2 = 0,\n sender2 = 0,\n sender = 0,\n receiver2 = 0,\n receiver = 0,\n sc2 = 0,\n sc = 0,\n mtype2 = 0,\n mtype = 0,\n nonce2 = 0,\n nonce = 0,\n tc2 = 0,\n tc = 0]"
     },
     {
       "name": "negative_control_without_nonce",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[nonce = 18446744073709551615,\n nonce2 = 0,\n tc2 = 0,\n tc = 0,\n mtype2 = 0,\n mtype = 0,\n sender2 = 0,\n sender = 0,\n receiver2 = 0,\n receiver = 0,\n sc2 = 0,\n sc = 0]"
+      "witness": "[nonce = 18446744073709551615,\n nonce2 = 0,\n sender2 = 0,\n sender = 0,\n receiver2 = 0,\n receiver = 0,\n mtype2 = 0,\n mtype = 0,\n sc2 = 0,\n sc = 0,\n tc2 = 0,\n tc = 0]"
     },
     {
       "name": "negative_control_without_chainid",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[sc = 4294967295,\n sc2 = 0,\n nonce2 = 0,\n nonce = 0,\n mtype2 = 0,\n mtype = 0,\n sender2 = 0,\n sender = 0,\n receiver2 = 0,\n receiver = 0,\n tc2 = 0,\n tc = 0]"
+      "witness": "[sc = 4294967295,\n sc2 = 0,\n sender2 = 0,\n sender = 0,\n receiver2 = 0,\n receiver = 0,\n mtype2 = 0,\n mtype = 0,\n nonce2 = 0,\n nonce = 0,\n tc2 = 0,\n tc = 0]"
     }
   ],
   "status": "passed",
@@ -97,8 +97,8 @@
     "no concurrent writers or reentrancy in the hashing path"
   ],
   "source": "D:\\Git\\neo-n4\\src\\Neo.L2.State\\MessageHasher.cs",
-  "scriptSha256": "dd7bbed687f632fb174cd8a80c095ae280bc686346a0f38cff2113feb7fe7849",
+  "scriptSha256": "9e85b6922ee5111ec5f4302af21368c14c2365bb1bae9f5db3cd35566797effc",
   "specSha256": "e296ce61e8fe4a64a81adf1b72be0f0ccafaf826c4b81b415eb5edf409d02816",
-  "sourceSha256": "fa5f4a04350ad076df4a89109c18dbffdf0e171af4b90383c97f553548e4da98",
+  "sourceSha256": "6d5f80b5195d7293800a1a23ffb0ae86b9e1eb874d39c19949fed974b1ef5fa4",
   "exitCode": 0
 }

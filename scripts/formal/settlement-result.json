@@ -2,7 +2,7 @@
   "schema": "neo-n4/settlement-model/v1",
   "wholeSystemVerified": false,
   "scope": "inductive safety of handwritten registered-chain settlement abstraction",
-  "solver": "4.15.3",
+  "solver": "5.3.1",
   "obligations": [
     {
       "name": "initial_domain_nonempty",
@@ -22,7 +22,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[genesis = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n index = 1,\n number = 1,\n verified = K(Int, False),\n pre = K(Int,\n         115792089237316195423570985008687907853269984665640564039457584007913129639935),\n post = K(Int, 0),\n proof_ok = True,\n root = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n da_fresh = True,\n operational = True,\n input_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n pending = False,\n height = 0]"
+      "witness": "[genesis = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n number = 1,\n verified = K(Int, False),\n index = 1,\n pre = K(Int,\n         115792089237316195423570985008687907853269984665640564039457584007913129639935),\n post = K(Int, 0),\n da_fresh = True,\n root = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n input_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n operational = True,\n height = 0,\n proof_ok = True,\n pending = False]"
     },
     {
       "name": "submit_preserves_invariant",
@@ -47,7 +47,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[index = 1,\n number = 1,\n verified = K(Int, False),\n genesis = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n pre = K(Int,\n         115792089237316195423570985008687907853269984665640564039457584007913129639935),\n post = K(Int, 0),\n root = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n pending_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n owner = True,\n operational = True,\n pending = True,\n height = 0,\n pending_verified = True,\n pending_number = 1]"
+      "witness": "[genesis = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n verified = K(Int, False),\n number = 1,\n index = 1,\n pre = K(Int,\n         115792089237316195423570985008687907853269984665640564039457584007913129639935),\n post = K(Int, 0),\n pending_verified = True,\n pending_number = 1,\n owner = True,\n height = 0,\n pending = True,\n root = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n operational = True,\n pending_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639935]"
     },
     {
       "name": "finalize_preserves_invariant",
@@ -72,7 +72,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[index = 0,\n verified = K(Int, False),\n genesis = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n number = 1,\n pre = K(Int, 0),\n post = K(Int, 0),\n proof_ok = True,\n root = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n da_fresh = True,\n operational = True,\n input_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n pending = False,\n height = 0]"
+      "witness": "[genesis = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n verified = K(Int, False),\n number = 1,\n index = 1,\n pre = K(Int,\n         115792089237316195423570985008687907853269984665640564039457584007913129639935),\n post = K(Int, 0),\n da_fresh = True,\n root = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n input_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n operational = True,\n height = 0,\n proof_ok = True,\n pending = False]"
     },
     {
       "name": "atomic_preserves_invariant",
@@ -97,7 +97,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[height = 0,\n pending = False,\n index = 1,\n verified = K(Int, False),\n genesis = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n pending_verified = False,\n pre = K(Int,\n         115792089237316195423570985008687907853269984665640564039457584007913129639935),\n post = K(Int, 0),\n pending_number = 1,\n pending_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n root = 115792089237316195423570985008687907853269984665640564039457584007913129639935]"
+      "witness": "[pending = False,\n verified = K(Int, False),\n genesis = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n height = 0,\n pending_verified = False,\n index = 1,\n pre = K(Int,\n         115792089237316195423570985008687907853269984665640564039457584007913129639935),\n post = K(Int, 0),\n pending_number = 1,\n pending_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639935,\n root = 115792089237316195423570985008687907853269984665640564039457584007913129639935]"
     },
     {
       "name": "fault_stutter_preserves_invariant",
@@ -122,21 +122,21 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[input_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639934,\n index = 1,\n genesis = 1,\n post = K(Int, 0),\n da_fresh = True,\n root = 1,\n number = 1,\n operational = True,\n pending = False,\n proof_ok = True,\n height = 0]"
+      "witness": "[genesis = 1,\n input_pre = 115792089237316195423570985008687907853269984665640564039457584007913129639934,\n index = 1,\n post = K(Int, 0),\n da_fresh = True,\n root = 1,\n operational = True,\n number = 1,\n height = 0,\n proof_ok = True,\n pending = False]"
     },
     {
       "name": "negative_control_missing_canonical_root_update",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[verified = K(Int, False),\n post = Store(Store(K(Int, 0),\n                    0,\n                    5444517870735015415413993718908425601024),\n              -25907,\n              3618502788666131106986593281521497120414687020801267626233049500247285301248),\n index = -25906,\n genesis = 3379722536327712998346051398801894848683711660032,\n pre = K(Int, 0),\n number = 1,\n input_post = 28269553036454149273332760011886696253239742350009903329945699220681916416,\n proof_ok = True,\n root = 3379722536327712998346051398801894848683711660032,\n da_fresh = True,\n operational = True,\n input_pre = 3379722536327712998346051398801894848683711660032,\n pending = False,\n height = 0]"
+      "witness": "[genesis = 3379722536327712998346041727395337931650314010624,\n verified = K(Int, False),\n post = Store(Store(K(Int, 0),\n                    -25907,\n                    3618502788666131106986593281521497120414687020801267626233049500247285301248),\n              0,\n              268435456),\n input_post = 28269553036454149273332760011886696253239742354961663487087220320278413312,\n number = 1,\n pre = K(Int, 0),\n index = -25906,\n da_fresh = True,\n root = 3379722536327712998346041727395337931650314010624,\n input_pre = 3379722536327712998346041727395337931650314010624,\n operational = True,\n height = 0,\n proof_ok = True,\n pending = False]"
     },
     {
       "name": "negative_control_unverified_finalization",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[index = 1,\n genesis = 1,\n root = 1,\n operational = True,\n input_pre = 1,\n pending = False,\n height = 0,\n proof_ok = True,\n number = 1,\n da_fresh = True]"
+      "witness": "[genesis = 1,\n index = 1,\n da_fresh = True,\n number = 1,\n height = 0,\n pending = False,\n proof_ok = True,\n root = 1,\n input_pre = 1,\n operational = True]"
     }
   ],
   "status": "passed",
@@ -149,8 +149,8 @@
     "no governance rollback, reconfiguration or concurrency transitions"
   ],
   "source": "D:\\Git\\neo-n4\\contracts\\NeoHub.RollupHub\\RollupHubContract.cs",
-  "scriptSha256": "19381faed13ca380e0f9b0ff7be47e74c5855e2700b94e183d0189e13a33449d",
+  "scriptSha256": "44796afa6b66cab9ebb23a7d6e849b4d94a15b505253d7e50ca84ff96308d35f",
   "specSha256": "e296ce61e8fe4a64a81adf1b72be0f0ccafaf826c4b81b415eb5edf409d02816",
-  "sourceSha256": "e5f3917dd48bdf99cf877ea10a9cd3ee4cefa3e5a916ab1da29a002d67e44ccf",
+  "sourceSha256": "aedd099439d7d715a11b326172e92b6c03f27c6ebef455db0a9183a1e67e650c",
   "exitCode": 0
 }

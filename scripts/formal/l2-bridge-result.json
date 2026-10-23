@@ -2,7 +2,7 @@
   "schema": "neo-n4/l2-bridge-model/v1",
   "wholeSystemVerified": false,
   "scope": "inductive safety of L2 bridge token-supply conservation (mint/burn)",
-  "solver": "4.15.3",
+  "solver": "5.3.1",
   "obligations": [
     {
       "name": "initial_invariant",
@@ -21,7 +21,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[amount = 1, supply = 0, burned = 0, minted = 0]"
+      "witness": "[burned = 0, amount = 1, supply = 0, minted = 0]"
     },
     {
       "name": "deposit_preserves_invariant",
@@ -46,7 +46,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[burned = 0, supply = 1, amount = 1, minted = 1]"
+      "witness": "[amount = 1, burned = 0, supply = 1, minted = 1]"
     },
     {
       "name": "withdraw_preserves_invariant",
@@ -71,35 +71,35 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[burned = 0, amount = 1, supply = 1, minted = 1]"
+      "witness": "[amount = 1, burned = 0, supply = 1, minted = 1]"
     },
     {
       "name": "negative_control_over_burn",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[burned = 0, supply = 0, amount = 1, minted = 0]"
+      "witness": "[amount = 1, burned = 0, supply = 0, minted = 0]"
     },
     {
       "name": "negative_control_mint_without_deposit",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[burned = 0, supply = 0, amount = 1, minted = 0]"
+      "witness": "[amount = 1, burned = 0, supply = 0, minted = 0]"
     },
     {
       "name": "negative_control_nonce_replay_double_mint",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[burned = 0, supply = 0, amount = 1, minted = 0]"
+      "witness": "[amount = 1, burned = 0, supply = 0, minted = 0]"
     },
     {
       "name": "negative_control_withdraw_unguarded",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[burned = 0, supply = 0, amount = 1, minted = 0]"
+      "witness": "[amount = 1, burned = 0, supply = 0, minted = 0]"
     }
   ],
   "status": "passed",
@@ -112,8 +112,8 @@
     "no in-place governance override or concurrency in the bridge ledger"
   ],
   "source": "D:\\Git\\neo-n4\\external\\neo\\src\\Neo\\SmartContract\\Native\\L2NativeContracts.cs",
-  "scriptSha256": "54a10281d8bdb79e41139ed6d04ed0510efabfc7391466ec9df7054dd58163c6",
+  "scriptSha256": "e4e0af21e1fa1aed97423208cbfb43acd173b0449118fb0b55b804aa6e8e4aac",
   "specSha256": "e296ce61e8fe4a64a81adf1b72be0f0ccafaf826c4b81b415eb5edf409d02816",
-  "sourceSha256": "526d03c6cfec375319a5f13e00532c10442e4cbe562a93a6a3303e7a8a6bd210",
+  "sourceSha256": "ddfc198710ec15342232b5b856e469fed90234a4b28fbc6cff61b3cfc97baa99",
   "exitCode": 0
 }

@@ -2,7 +2,7 @@
   "schema": "neo-n4/forced-inclusion-model/v1",
   "wholeSystemVerified": false,
   "scope": "inductive safety of the RollupHub forced-inclusion FIFO queue abstraction",
-  "solver": "4.15.3",
+  "solver": "5.3.1",
   "obligations": [
     {
       "name": "initial_invariant",
@@ -58,7 +58,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[tail = 0, count = 0, head = 0]"
+      "witness": "[count = 0, tail = 0, head = 0]"
     },
     {
       "name": "consume_preserves_invariant",
@@ -89,7 +89,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[tail = 0, count = 1, head = 0]"
+      "witness": "[count = 1, tail = 0, head = 0]"
     },
     {
       "name": "enqueue_tail_strictly_increases",
@@ -102,7 +102,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[tail = 0, count = 1, head = 0]"
+      "witness": "[count = 1, tail = 0, head = 0]"
     },
     {
       "name": "negative_control_tail_wrap",
@@ -129,8 +129,8 @@
     "each batch seals forcedInclusionCount into the public-input hash (replay-bound)"
   ],
   "source": "D:\\Git\\neo-n4\\contracts\\NeoHub.RollupHub\\RollupHubContract.cs",
-  "scriptSha256": "ba9d6083e768f5ce354ca2838f111f228ac070342283e0d34225945c83420d7f",
+  "scriptSha256": "961a925b47715d2089b75bb35f344f9f4e01d910553f3846d560d4a8291f8c47",
   "specSha256": "e296ce61e8fe4a64a81adf1b72be0f0ccafaf826c4b81b415eb5edf409d02816",
-  "sourceSha256": "e5f3917dd48bdf99cf877ea10a9cd3ee4cefa3e5a916ab1da29a002d67e44ccf",
+  "sourceSha256": "aedd099439d7d715a11b326172e92b6c03f27c6ebef455db0a9183a1e67e650c",
   "exitCode": 0
 }

@@ -2,7 +2,7 @@
   "schema": "neo-n4/governance-model/v1",
   "wholeSystemVerified": false,
   "scope": "inductive safety of the GovernanceController authorization gate",
-  "solver": "4.15.3",
+  "solver": "5.3.1",
   "obligations": [
     {
       "name": "initial_invariant",
@@ -27,7 +27,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[timelock = 0,\n approved = False,\n count = 0,\n threshold = 1,\n inc = 1]"
+      "witness": "[timelock = 0,\n count = 0,\n approved = False,\n threshold = 1,\n inc = 1]"
     },
     {
       "name": "approve_preserves_invariant",
@@ -101,7 +101,7 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[dt = 0,\n approved = False,\n count = 0,\n timelock = 0,\n threshold = 1]"
+      "witness": "[timelock = 0,\n dt = 0,\n approved = False,\n count = 0,\n threshold = 1]"
     },
     {
       "name": "advance_time_preserves_invariant",
@@ -144,28 +144,28 @@
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[timelock = 0,\n threshold = 1,\n now = 0,\n count = 0,\n approved = False,\n vetoed = False,\n epoch_match = True]"
+      "witness": "[threshold = 1,\n count = 0,\n now = 0,\n timelock = 0,\n epoch_match = True,\n approved = False,\n vetoed = False]"
     },
     {
       "name": "negative_control_gate_while_vetoed",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[timelock = 0,\n count = 1,\n now = 0,\n threshold = 1,\n approved = True,\n vetoed = True,\n epoch_match = True]"
+      "witness": "[count = 1,\n now = 0,\n timelock = 0,\n threshold = 1,\n epoch_match = True,\n approved = True,\n vetoed = True]"
     },
     {
       "name": "negative_control_gate_before_timelock",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[timelock = 0,\n now = -1,\n count = 1,\n threshold = 1,\n approved = True,\n vetoed = False,\n epoch_match = True]"
+      "witness": "[count = 1,\n timelock = 0,\n threshold = 1,\n now = -1,\n epoch_match = True,\n approved = True,\n vetoed = False]"
     },
     {
       "name": "negative_control_gate_stale_epoch",
       "expected": "sat",
       "actual": "sat",
       "passed": true,
-      "witness": "[now = 0,\n timelock = 0,\n count = 1,\n threshold = 1,\n approved = True,\n vetoed = False,\n epoch_match = False]"
+      "witness": "[count = 1,\n timelock = 0,\n now = 0,\n threshold = 1,\n epoch_match = False,\n approved = True,\n vetoed = False]"
     }
   ],
   "status": "passed",
@@ -178,8 +178,8 @@
     "no governance rollback, reconfiguration or concurrency transitions"
   ],
   "source": "D:\\Git\\neo-n4\\contracts\\NeoHub.GovernanceController\\GovernanceControllerContract.cs",
-  "scriptSha256": "5660ae7f36b477bcc3f0b9e0752f46dd592e07e2d4ff4aafba5bbec3dd5c3186",
+  "scriptSha256": "a32dd42efa4b334b8b9416136841895cc6599aaf55fefe502c7913c1a0a7ced7",
   "specSha256": "e296ce61e8fe4a64a81adf1b72be0f0ccafaf826c4b81b415eb5edf409d02816",
-  "sourceSha256": "d18bd4ea819a894f9308d6b676bfa5b950b527cef3086fb5ab71e2457a037e06",
+  "sourceSha256": "8448f82179046a21702a8745e29ea7ce707989ad6072cb7b0c61d209abb08427",
   "exitCode": 0
 }

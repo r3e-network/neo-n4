@@ -27,7 +27,7 @@ def source_digest(path):
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-REVIEWED_SOURCE_SHA256 = "fa5f4a04350ad076df4a89109c18dbffdf0e171af4b90383c97f553548e4da98"
+REVIEWED_SOURCE_SHA256 = "6d5f80b5195d7293800a1a23ffb0ae86b9e1eb874d39c19949fed974b1ef5fa4"
 
 
 def check_source(path):

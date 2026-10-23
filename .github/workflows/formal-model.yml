@@ -16,6 +16,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
+        with:
+          # verify_l2_bridge / verify_bridge_abi anchor against source files inside
+          # the external/neo submodule — without recursive checkout those models fail
+          # on missing files (this was the pre-existing red on every push since 2026-09-25).
+          submodules: recursive
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'

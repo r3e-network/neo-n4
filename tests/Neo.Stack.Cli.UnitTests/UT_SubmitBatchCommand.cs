@@ -389,7 +389,7 @@ internal sealed class RpcHandler : HttpMessageHandler
         var envelope = (JObject)JToken.Parse(body)!;
         var method = envelope["method"]!.AsString();
         Methods.Add(method);
-        
+
         // Extract script from invokescript call for verification
         if (method == "invokescript"
             && envelope["params"] is JArray invokeParams

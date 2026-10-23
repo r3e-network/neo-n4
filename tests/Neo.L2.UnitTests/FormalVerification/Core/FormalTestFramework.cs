@@ -53,7 +53,7 @@ public class SizeAttribute : TestMethodAttribute
     {
         if (minSize > maxSize)
             throw new ArgumentException("minSize cannot exceed maxSize");
-        
+
         MinSize = minSize;
         MaxSize = maxSize;
     }
@@ -92,21 +92,21 @@ public class RangeAttribute : TestMethodAttribute
 public static class FormalTestRandom
 {
     private static readonly Random SeedGenerator = new(42); // Fixed seed for reproducibility
-    
+
     private static readonly Dictionary<string, Random> CaseGenerators = new();
 
     /// <summary>Get a deterministic random generator for a specific test case.</summary>
     public static Random GetGeneratorForTestCase(string testCaseName, int caseIndex)
     {
         var key = $"{testCaseName}_{caseIndex}";
-        
+
         lock (CaseGenerators)
         {
             if (!CaseGenerators.ContainsKey(key))
             {
                 CaseGenerators[key] = new Random(SeedGenerator.Next());
             }
-            
+
             return CaseGenerators[key];
         }
     }
@@ -125,11 +125,11 @@ public static class FormalTestRandom
     {
         if (min > max)
             throw new ArgumentException("min cannot exceed max");
-        
+
         var range = max - min + 1;
         if (range <= 0)
             return max; // Avoid overflow
-        
+
         return min + (long)(rng.NextDouble() * range);
     }
 
@@ -160,7 +160,7 @@ public static class Shrinker
     public static IEnumerable<long> ShrinkInteger(long value)
     {
         yield return 0;
-        
+
         if (value > 0)
         {
             yield return value / 2;
@@ -179,7 +179,7 @@ public static class Shrinker
     public static IEnumerable<byte[]> ShrinkByteArray(byte[] original)
     {
         yield return Array.Empty<byte>();
-        
+
         for (int i = original.Length - 1; i >= 0; i--)
         {
             var trimmed = new byte[i];
@@ -192,7 +192,7 @@ public static class Shrinker
     public static IEnumerable<List<T>> ShrinkList<T>(List<T> list, IEqualityHelper<T> equalityHelper)
     {
         yield return new List<T>();
-        
+
         for (int i = list.Count - 1; i >= 0; i--)
         {
             var trimmed = list.Take(i).ToList();
@@ -218,9 +218,9 @@ public class DefaultEqualityHelper<T> : IEqualityHelper<T> where T : notnull
     {
         if (x is IEquatable<T> equatable && equatable.Equals(y))
             return true;
-        
-        return ReferenceEquals(x, y) || 
-               (x?.GetType() == y?.GetType() && 
+
+        return ReferenceEquals(x, y) ||
+               (x?.GetType() == y?.GetType() &&
                 StructuralComparisons.StructuralEqualityComparer.Equals(x, y));
     }
 }

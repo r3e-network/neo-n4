@@ -534,15 +534,15 @@ public class UT_BatchSerializer
     public void EncodePublicInputs_RandomInputs_ProducesValidWireFormat()
     {
         var rng = new Random(unchecked((int)0xDEADBEEFUL));
-        
+
         for (int i = 0; i < 100; i++)
         {
             var inputs = GenerateRandomPublicInputs(rng);
             var encoded = BatchSerializer.EncodePublicInputs(inputs);
             Assert.AreEqual(BatchSerializer.PublicInputsSize, encoded.Length, $"Wrong size at iteration {i}");
-            
+
             var decoded = BatchSerializer.DecodePublicInputs(encoded);
-            
+
             Assert.AreEqual(inputs.ChainId, decoded.ChainId, $"ChainId mismatch at iteration {i}");
             Assert.AreEqual(inputs.BatchNumber, decoded.BatchNumber, $"BatchNumber mismatch at iteration {i}");
             Assert.AreEqual(inputs.FirstBlock, decoded.FirstBlock, $"FirstBlock mismatch at iteration {i}");
@@ -583,7 +583,7 @@ public class UT_BatchSerializer
 
         var encoded = BatchSerializer.EncodePublicInputs(inputs);
         Assert.AreEqual(BatchSerializer.PublicInputsSize, encoded.Length);
-        
+
         var decoded = BatchSerializer.DecodePublicInputs(encoded);
         Assert.AreEqual(inputs.ChainId, decoded.ChainId);
         Assert.AreEqual(inputs.BatchNumber, decoded.BatchNumber);
@@ -613,7 +613,7 @@ public class UT_BatchSerializer
 
         var encoded = BatchSerializer.EncodePublicInputs(inputs);
         Assert.AreEqual(BatchSerializer.PublicInputsSize, encoded.Length);
-        
+
         var decoded = BatchSerializer.DecodePublicInputs(encoded);
         Assert.AreEqual(inputs.ChainId, decoded.ChainId);
         Assert.AreEqual(inputs.BatchNumber, decoded.BatchNumber);
@@ -623,16 +623,16 @@ public class UT_BatchSerializer
     public void EncodePublicInputs_DeterministicOutput_IdenticalEncoding()
     {
         var rng = new Random(unchecked((int)0xCAFEBABEUL));
-        
+
         for (int i = 0; i < 50; i++)
         {
             var a = GenerateRandomPublicInputs(rng);
             var b = GenerateRandomPublicInputs(rng);
-            
+
             // Use identical inputs twice
             var encoded1 = BatchSerializer.EncodePublicInputs(a);
             var encoded2 = BatchSerializer.EncodePublicInputs(a);
-            
+
             CollectionAssert.AreEqual(encoded1, encoded2, $"Non-deterministic encoding at iteration {i}");
         }
     }
@@ -641,13 +641,13 @@ public class UT_BatchSerializer
     public void Fuzz_PublicInputs_100Iterations_ComprehensivePropertyCheck()
     {
         var rng = new Random(unchecked((int)0x98765432UL));
-        
+
         for (int i = 0; i < 100; i++)
         {
             var original = GenerateRandomPublicInputs(rng);
             var encoded = BatchSerializer.EncodePublicInputs(original);
             var decoded = BatchSerializer.DecodePublicInputs(encoded);
-            
+
             // Verify all fields match after round-trip
             Assert.AreEqual(original.ChainId, decoded.ChainId, $"Iteration {i}: ChainId mismatch");
             Assert.AreEqual(original.BatchNumber, decoded.BatchNumber, $"Iteration {i}: BatchNumber mismatch");

@@ -84,7 +84,7 @@ public class UT_DepositPayload
 
         var encoded = payload.Encode();
         var decoded = DepositPayload.Decode(encoded);
-        
+
         Assert.AreEqual(huge, decoded.Amount);
     }
 
@@ -110,11 +110,11 @@ public class UT_DepositPayload
         var bytes = new byte[44];
         // L1 asset placeholder (20 bytes)
         for (int i = 0; i < 20; i++) bytes[i] = (byte)(i + 1);
-        // L2 recipient placeholder (20 bytes) 
+        // L2 recipient placeholder (20 bytes)
         for (int i = 0; i < 20; i++) bytes[20 + i] = (byte)(i + 21);
         // Write negative length (-1)
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(40, 4), -1);
-        
+
         Assert.ThrowsExactly<InvalidDataException>(() => DepositPayload.Decode(bytes));
     }
 
@@ -129,7 +129,7 @@ public class UT_DepositPayload
         for (int i = 0; i < 20; i++) bytes[20 + i] = (byte)(i + 21);
         // Write oversized length (65 > 64 max allowed)
         BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(40, 4), 65);
-        
+
         Assert.ThrowsExactly<InvalidDataException>(() => DepositPayload.Decode(bytes));
     }
 
@@ -146,23 +146,23 @@ public class UT_DepositPayload
         var encoded = payload.Encode();
         var extended = new byte[encoded.Length + 8];
         Array.Copy(encoded, extended, encoded.Length);
-        
+
         Assert.ThrowsExactly<InvalidDataException>(() => DepositPayload.Decode(extended));
     }
 
     // === PROPERTY-BASED FUZZ TESTS ===
-    
+
     [TestMethod]
     public void Encode_Decode_RandomInputs_ProducesValidWireFormat()
     {
         var rng = new Random(unchecked((int)0xDEADBEEF));
-        
+
         for (int i = 0; i < 100; i++)
         {
             var l1Asset = RandomUInt160(rng);
             var l2Recipient = RandomUInt160(rng);
             var amount = RandomBigInteger(rng);
-            
+
             var payload = new DepositPayload
             {
                 L1Asset = l1Asset,
@@ -183,20 +183,20 @@ public class UT_DepositPayload
     public void Encode_DeterministicOutput_IdenticalEncoding()
     {
         var rng = new Random(unchecked((int)0xCAFEBABE));
-        
+
         for (int i = 0; i < 100; i++)
         {
             var l1Asset = RandomUInt160(rng);
             var l2Recipient = RandomUInt160(rng);
             var amount = RandomBigInteger(rng);
-            
+
             var payload1 = new DepositPayload
             {
                 L1Asset = l1Asset,
                 L2Recipient = l2Recipient,
                 Amount = amount
             };
-            
+
             var payload2 = new DepositPayload
             {
                 L1Asset = l1Asset,
@@ -206,7 +206,7 @@ public class UT_DepositPayload
 
             var encoded1 = payload1.Encode();
             var encoded2 = payload2.Encode();
-            
+
             CollectionAssert.AreEqual(encoded1, encoded2, "Non-deterministic encoding detected");
         }
     }
@@ -223,7 +223,7 @@ public class UT_DepositPayload
 
         var encoded = payload.Encode();
         var decoded = DepositPayload.Decode(encoded);
-        
+
         Assert.AreEqual(0, decoded.Amount);
         Assert.IsTrue(encoded.Length >= 44); // At least addresses + length prefix
     }
@@ -240,7 +240,7 @@ public class UT_DepositPayload
 
         var encoded = payload.Encode();
         var decoded = DepositPayload.Decode(encoded);
-        
+
         Assert.AreEqual(1, decoded.Amount);
     }
 
@@ -248,7 +248,7 @@ public class UT_DepositPayload
     public void Boundary_Case_MaxUint160_Addresses_Works()
     {
         var maxAddr = UInt160.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
-        
+
         var payload = new DepositPayload
         {
             L1Asset = maxAddr,
@@ -258,7 +258,7 @@ public class UT_DepositPayload
 
         var encoded = payload.Encode();
         var decoded = DepositPayload.Decode(encoded);
-        
+
         Assert.AreEqual(maxAddr, decoded.L1Asset);
         Assert.AreEqual(maxAddr, decoded.L2Recipient);
     }
@@ -268,7 +268,7 @@ public class UT_DepositPayload
     {
         Assert.ThrowsExactly<ArgumentNullException>(
             () => new DepositPayload { L1Asset = null!, L2Recipient = UInt160.Zero, Amount = 0 }.Encode());
-        
+
         Assert.ThrowsExactly<ArgumentNullException>(
             () => new DepositPayload { L1Asset = UInt160.Zero, L2Recipient = null!, Amount = 0 }.Encode());
     }
@@ -277,23 +277,23 @@ public class UT_DepositPayload
     public void Fuzz_VaryingAmountSizes_AllSucceed()
     {
         var rng = new Random(0x12345678);
-        
+
         // Test various sizes of amounts: single byte, multi-byte, edge sizes
         int[] sizeBytes = { 1, 2, 4, 8, 16, 32, 64 };
-        
+
         foreach (var targetSize in sizeBytes)
         {
             for (int i = 0; i < 20; i++)
             {
                 var amountBytes = new byte[targetSize];
                 rng.NextBytes(amountBytes);
-                
+
                 // Ensure non-zero for realistic test
                 if (amountBytes.All(b => b == 0))
                     amountBytes[0] = 1;
-                
+
                 var amount = new BigInteger(amountBytes, isUnsigned: true, isBigEndian: false);
-                
+
                 var payload = new DepositPayload
                 {
                     L1Asset = RandomUInt160(rng),
@@ -303,8 +303,8 @@ public class UT_DepositPayload
 
                 var encoded = payload.Encode();
                 var decoded = DepositPayload.Decode(encoded);
-                
-                Assert.AreEqual(amount, decoded.Amount, 
+
+                Assert.AreEqual(amount, decoded.Amount,
                     $"Failed for amount size {targetSize} bytes, iteration {i}");
             }
         }
@@ -314,12 +314,12 @@ public class UT_DepositPayload
     public void Fuzz_SameAddressReuse_DoesNotCauseCorruption()
     {
         var rng = new Random(unchecked((int)0xAABBCCDD));
-        
+
         for (int i = 0; i < 100; i++)
         {
             // Reuse addresses across iterations
             var reusedAddr = UInt160.Parse("0x" + new string('1', 40));
-            
+
             var payload = new DepositPayload
             {
                 L1Asset = i % 2 == 0 ? reusedAddr : RandomUInt160(rng),
@@ -329,7 +329,7 @@ public class UT_DepositPayload
 
             var encoded = payload.Encode();
             var decoded = DepositPayload.Decode(encoded);
-            
+
             Assert.AreEqual(payload.L1Asset, decoded.L1Asset);
             Assert.AreEqual(payload.L2Recipient, decoded.L2Recipient);
         }
@@ -339,25 +339,25 @@ public class UT_DepositPayload
     public void Property_EncoderDecomposer_InverseProperty()
     {
         var rng = new Random(unchecked((int)0xFEDCBA98));
-        
+
         for (int i = 0; i < 100; i++)
         {
             var l1 = UInt160.Parse("0x" + GenerateRandomHex(rng, 40));
             var l2 = UInt160.Parse("0x" + GenerateRandomHex(rng, 40));
             // Use non-negative int for BigInteger construction
             var amount = new BigInteger(rng.Next());
-            
+
             var payload = new DepositPayload { L1Asset = l1, L2Recipient = l2, Amount = amount };
-            
+
             var encoded = payload.Encode();
-            
+
             // Verify encoder output structure per wire format spec
             Assert.AreEqual(44 + amount.ToByteArray(isUnsigned: true, isBigEndian: false).Length,
-                encoded.Length, 
+                encoded.Length,
                 $"Encoded length mismatch at iteration {i}");
-            
+
             var decoded = DepositPayload.Decode(encoded);
-            
+
             Assert.AreEqual(l1, decoded.L1Asset);
             Assert.AreEqual(l2, decoded.L2Recipient);
             Assert.AreEqual(amount, decoded.Amount);

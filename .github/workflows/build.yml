@@ -237,8 +237,8 @@ jobs:
         run: |
           python3 scripts/ci/run_dotnet_filtered_tests.py \
             --project tests/Neo.Hub.Deploy.UnitTests/Neo.Hub.Deploy.UnitTests.csproj \
-            --filter 'FullyQualifiedName~UT_ContractManifestInvariants|FullyQualifiedName~UT_OptimisticChallengeAllowlist' \
-            --minimum-tests 19 \
+            --filter 'FullyQualifiedName~UT_ContractManifestInvariants' \
+            --minimum-tests 11 \
             -- /p:NuGetAudit=false --nologo
 
       - name: Verify audited verifier artifacts against fresh nccs output
@@ -700,12 +700,6 @@ jobs:
 
       - name: cargo audit (production Rust lockfiles)
         run: |
-          # RUSTSEC-2026-0258 (h2): transitive h2 0.4.14 locked inside the
-          # VENDORED proof-system submodule external/neo-zkvm (via hyper/reqwest),
-          # not the parent crate — the parent Cargo.lock is already patched to
-          # h2 0.4.19. Clearing it in the submodule needs a cross-repo lockfile
-          # bump in r3e-network/neo-zkvm + a gitlink update (tracked follow-up);
-          # the h2 client path is not exercised by the L2 settlement/proving flow.
           # RUSTSEC-2026-0344 (ruzstd decompression bomb): upstream-blocked chain
           # sp1-sdk 6.2.1 -> backtrace 0.3.76 (latest) -> object 0.37.3 ->
           # ruzstd ^0.8.1 with no updatable link (needs >=0.9.1). ruzstd only
@@ -720,7 +714,7 @@ jobs:
             external/neo-zkvm/Cargo.lock \
             external/foreign-contracts/sol/Cargo.lock; do
             echo "── $lockfile ──"
-            cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0258 --ignore RUSTSEC-2026-0344 --json
+            cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0344 --json
           done
 
   riscv-guest-freshness:

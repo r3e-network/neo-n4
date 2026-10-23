@@ -223,20 +223,20 @@ public class UT_MerkleProofSerializer
     public void Encode_Decode_RandomProofs_ProducesValidWireFormat()
     {
         var rng = new Random(unchecked((int)3735928559));
-        
+
         for (int i = 0; i < 100; i++)
         {
             var proof = GenerateRandomMerkleProof(rng);
             var encoded = MerkleProofSerializer.Encode(proof);
-            
+
             var decoded = MerkleProofSerializer.Decode(encoded);
-            
+
             Assert.AreEqual(proof.Leaf, decoded.Leaf, $"Leaf mismatch at iteration {i}");
             Assert.AreEqual(proof.LeafIndex, decoded.LeafIndex, $"LeafIndex mismatch at iteration {i}");
             Assert.AreEqual(proof.PathBitmap, decoded.PathBitmap, $"PathBitmap mismatch at iteration {i}");
-            Assert.AreEqual(proof.Siblings.Count, decoded.Siblings.Count, 
+            Assert.AreEqual(proof.Siblings.Count, decoded.Siblings.Count,
                 $"Sibling count mismatch at iteration {i}");
-            
+
             for (int j = 0; j < proof.Siblings.Count; j++)
             {
                 Assert.AreEqual(
@@ -250,7 +250,7 @@ public class UT_MerkleProofSerializer
     public void Encode_Decode_VaryingDepth_AllValid()
     {
         var rng = new Random(unchecked((int)3405837918));
-        
+
         // Test various depths from 0 to MaxDepth
         for (int depth = 0; depth <= MerkleProofSerializer.MaxDepth; depth += Math.Max(1, depth / 2))
         {
@@ -268,7 +268,7 @@ public class UT_MerkleProofSerializer
                 {
                     var encoded = MerkleProofSerializer.Encode(proof);
                     var decoded = MerkleProofSerializer.Decode(encoded);
-                    
+
                     Assert.AreEqual(proof.Siblings.Count, decoded.Siblings.Count,
                         $"Failed for depth {depth} at iteration {i}");
                 }
@@ -296,7 +296,7 @@ public class UT_MerkleProofSerializer
 
         var encoded = MerkleProofSerializer.Encode(proof);
         Assert.AreEqual(MerkleProofSerializer.HeaderSize, encoded.Length);
-        
+
         var decoded = MerkleProofSerializer.Decode(encoded);
         Assert.AreEqual(0, decoded.Siblings.Count);
         Assert.AreEqual(proof.Leaf, decoded.Leaf);
@@ -306,7 +306,7 @@ public class UT_MerkleProofSerializer
     public void Encode_MaxDepth_WireFormatValid()
     {
         var rng = new Random(255412632);
-        
+
         var proof = new MerkleProof
         {
             Leaf = RandomUInt256(rng),
@@ -317,7 +317,7 @@ public class UT_MerkleProofSerializer
 
         var encoded = MerkleProofSerializer.Encode(proof);
         Assert.IsTrue(encoded.Length >= MerkleProofSerializer.HeaderSize);
-        
+
         var decoded = MerkleProofSerializer.Decode(encoded);
         Assert.AreEqual(proof.Siblings.Count, decoded.Siblings.Count);
     }
@@ -326,19 +326,19 @@ public class UT_MerkleProofSerializer
     public void Fuzz_MerkleProof_200Iterations_ComprehensiveCheck()
     {
         var rng = new Random(unchecked((int)2864434317));
-        
+
         for (int i = 0; i < 200; i++)
         {
             var leaf = RandomUInt256(rng);
             var leafIndex = rng.Next(0, int.MaxValue);
             var siblingCount = rng.Next(0, MerkleProofSerializer.MaxDepth + 2);
-            
+
             var siblings = new List<UInt256>();
             for (int j = 0; j < siblingCount; j++)
             {
                 siblings.Add(RandomUInt256(rng));
             }
-            
+
             var proof = new MerkleProof
             {
                 Leaf = leaf,
@@ -351,14 +351,14 @@ public class UT_MerkleProofSerializer
             {
                 var encoded = MerkleProofSerializer.Encode(proof);
                 var decoded = MerkleProofSerializer.Decode(encoded);
-                
+
                 Assert.AreEqual(leaf, decoded.Leaf, $"Iteration {i}: Leaf mismatch");
                 Assert.AreEqual(leafIndex, decoded.LeafIndex, $"Iteration {i}: LeafIndex mismatch");
                 Assert.AreEqual(siblingCount, decoded.Siblings.Count, $"Iteration {i}: Sibling count mismatch");
-                
+
                 for (int j = 0; j < siblings.Count; j++)
                 {
-                    Assert.AreEqual(siblings[j], decoded.Siblings[j], 
+                    Assert.AreEqual(siblings[j], decoded.Siblings[j],
                         $"Iteration {i}: Sibling[{j}] mismatch");
                 }
             }
@@ -379,7 +379,7 @@ public class UT_MerkleProofSerializer
     private static MerkleProof GenerateRandomMerkleProof(Random rng)
     {
         var depth = rng.Next(0, MerkleProofSerializer.MaxDepth + 2);
-        
+
         return new MerkleProof
         {
             Leaf = RandomUInt256(rng),

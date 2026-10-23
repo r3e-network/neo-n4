@@ -12,14 +12,14 @@ public class UT_AwsKmsTransactionSigner
     [TestMethod]
     public void Constructor_ThrowsArgumentNullException_WhenKeyIdIsNull()
     {
-        Assert.ThrowsExactly<ArgumentNullException>(() => 
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             new AwsKmsTransactionSigner(null!));
     }
 
     [TestMethod]
     public void Constructor_ThrowsArgumentException_WhenKeyIdIsEmpty()
     {
-        Assert.ThrowsExactly<ArgumentException>(() => 
+        Assert.ThrowsExactly<ArgumentException>(() =>
             new AwsKmsTransactionSigner(string.Empty));
     }
 
@@ -27,7 +27,7 @@ public class UT_AwsKmsTransactionSigner
     public async Task Account_IsComputedFromPublicKey()
     {
         var mockKms = new Mock<IAmazonKeyManagementService>();
-        
+
         // Mock GetPublicKey response with test key
         var publicKeyBytes = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
         mockKms.Setup(k => k.GetPublicKeyAsync(It.IsAny<GetPublicKeyRequest>(), It.IsAny<CancellationToken>()))
@@ -43,9 +43,9 @@ public class UT_AwsKmsTransactionSigner
             });
 
         using var signer = new AwsKmsTransactionSigner(mockKms.Object, "test-key-id");
-        
+
         Assert.AreNotEqual(UInt160.Zero, signer.Account);
-        
+
         var expectedAccount = Contract.CreateSignatureContract(publicKeyBytes.ToImmutableArray()).ScriptHash;
         Assert.AreEqual(expectedAccount, signer.Account);
     }
@@ -54,7 +54,7 @@ public class UT_AwsKmsTransactionSigner
     public void Scope_IsPreserved()
     {
         var mockKms = new Mock<IAmazonKeyManagementService>();
-        
+
         var publicKeyBytes = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
         mockKms.Setup(k => k.GetPublicKeyAsync(It.IsAny<GetPublicKeyRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GetPublicKeyResponse
@@ -65,7 +65,7 @@ public class UT_AwsKmsTransactionSigner
             });
 
         using var signer = new AwsKmsTransactionSigner(mockKms.Object, "test-key", WitnessScope.Global);
-        
+
         Assert.AreEqual(WitnessScope.Global, signer.Scope);
     }
 
@@ -73,7 +73,7 @@ public class UT_AwsKmsTransactionSigner
     public void CreatePlaceholderWitness_GeneratesCorrectStructure()
     {
         var mockKms = new Mock<IAmazonKeyManagementService>();
-        
+
         var publicKeyBytes = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
         mockKms.Setup(k => k.GetPublicKeyAsync(It.IsAny<GetPublicKeyRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GetPublicKeyResponse
@@ -84,11 +84,11 @@ public class UT_AwsKmsTransactionSigner
             });
 
         using var signer = new AwsKmsTransactionSigner(mockKms.Object, "test-key");
-        
+
         var placeholder = signer.CreatePlaceholderWitness();
-        
+
         Assert.IsNotNull(placeholder.VerificationScript);
-        Assert.AreEqual(publicKeyBytes.ToImmutableArray(), 
+        Assert.AreEqual(publicKeyBytes.ToImmutableArray(),
             ((ReadOnlyMemory<byte>)placeholder.VerificationScript!.Script).ToArray());
         Assert.IsNotNull(placeholder.InvocationScript);
         Assert.IsTrue(placeholder.InvocationScript.Length == 0);
@@ -99,7 +99,7 @@ public class UT_AwsKmsTransactionSigner
     {
         var mockKms = new Mock<IAmazonKeyManagementService>();
         mockKms.As<IDisposable>();
-        
+
         var publicKeyBytes = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
         mockKms.Setup(k => k.GetPublicKeyAsync(It.IsAny<GetPublicKeyRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GetPublicKeyResponse
@@ -110,7 +110,7 @@ public class UT_AwsKmsTransactionSigner
             });
 
         using var signer = new AwsKmsTransactionSigner(mockKms.Object, "test-key");
-        
+
         // Disposal should not throw
         Action act = () => signer.Dispose();
         act.Should().NotThrow();
@@ -120,10 +120,10 @@ public class UT_AwsKmsTransactionSigner
     public async Task SignAsync_SignsTransaction()
     {
         var mockKms = new Mock<IAmazonKeyManagementService>();
-        
+
         var publicKeyBytes = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
         var signatureBytes = Enumerable.Range(1, 65).Select(i => (byte)i).ToArray(); // 65 bytes ECDSA signature
-        
+
         mockKms.Setup(k => k.GetPublicKeyAsync(It.IsAny<GetPublicKeyRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GetPublicKeyResponse
             {
@@ -142,7 +142,7 @@ public class UT_AwsKmsTransactionSigner
             });
 
         using var signer = new AwsKmsTransactionSigner(mockKms.Object, "test-key");
-        
+
         var transaction = new Transaction
         {
             Nonce = 1,
@@ -153,9 +153,9 @@ public class UT_AwsKmsTransactionSigner
         };
 
         var witness = await signer.SignAsync(transaction, 853326581ul);
-        
+
         Assert.IsNotNull(witness.InvocationScript);
-        Assert.AreEqual(signatureBytes.ToImmutableArray(), 
+        Assert.AreEqual(signatureBytes.ToImmutableArray(),
             ((ReadOnlyMemory<byte>)witness.InvocationScript!).ToArray());
         Assert.IsNotNull(witness.VerificationScript);
     }
@@ -165,7 +165,7 @@ public class UT_AwsKmsTransactionSigner
     {
         var envVarName = $"NEO_N4_AWS_TEST_{Guid.NewGuid()}";
         Environment.SetEnvironmentVariable(envVarName, null);
-        
+
         try
         {
             // This test would require actual AWS credentials to fail gracefully
@@ -182,7 +182,7 @@ public class UT_AwsKmsTransactionSigner
     public void CacheSize_ReturnsZeroAfterCreation()
     {
         var mockKms = new Mock<IAmazonKeyManagementService>();
-        
+
         var publicKeyBytes = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
         mockKms.Setup(k => k.GetPublicKeyAsync(It.IsAny<GetPublicKeyRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GetPublicKeyResponse
@@ -193,7 +193,7 @@ public class UT_AwsKmsTransactionSigner
             });
 
         using var signer = new AwsKmsTransactionSigner(mockKms.Object, "test-key");
-        
+
         Assert.AreEqual(0, signer.CacheSize);
     }
 }

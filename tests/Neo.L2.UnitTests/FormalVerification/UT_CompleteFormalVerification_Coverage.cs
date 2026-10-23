@@ -21,7 +21,7 @@ namespace Neo.L2.FormalVerification.Comprehensive;
 public class UT_CompleteFormalVerification_Coverage
 {
     #region Category 1: StateRootCalculator Properties
-    
+
     /// <summary>
     /// Property: HashBlockContext always produces 32-byte hash.
     /// Specification: doc.md §7.5, §8.3
@@ -39,14 +39,14 @@ public class UT_CompleteFormalVerification_Coverage
             SequencerCommitteeHash = UInt256.Parse($"hash_{committeeHashBytes[0]}x"),
             PrevBlockHash = UInt256.Parse($"block_{prevBlockBytes[0]}y"),
         };
-        
+
         // Act
         var hash = StateRootCalculator.HashBlockContext(context);
-        
+
         // Assert
         hash.Length.Should().Be(32, "Hash must be exactly 32 bytes");
     }
-    
+
     /// <summary>
     /// Property: HashBlockContext is deterministic (same inputs → same output).
     /// </summary>
@@ -62,19 +62,19 @@ public class UT_CompleteFormalVerification_Coverage
             SequencerCommitteeHash = UInt256.CreateFrom(new byte[] { (byte)seed1 }),
             PrevBlockHash = UInt256.CreateFrom(new byte[] { (byte)seed2 }),
         };
-        
+
         // Act
         var hash1 = StateRootCalculator.HashBlockContext(context1);
         var hash2 = StateRootCalculator.HashBlockContext(context1);
-        
+
         // Assert
         hash1.Should().Be(hash2, "Hash must be deterministic");
     }
-    
+
     #endregion
 
     #region Category 2: ProofResultManifestSerializer Properties
-    
+
     /// <summary>
     /// Property: Serialization round-trip preserves manifest fields.
     /// Specification: doc.md §8.3 - Proof witness storage format
@@ -114,11 +114,11 @@ public class UT_CompleteFormalVerification_Coverage
             Proof = Array.Empty<byte>(),
             PublicInputHash = Hash256.Zero,
         };
-        
+
         // Act
         var encoded = ProofResultManifestSerializer.Encode(manifest);
         var decoded = ProofResultManifestSerializer.Decode(encoded);
-        
+
         // Assert
         decoded.SubmissionState.Should().Be(manifest.SubmissionState);
         decoded.SettlementRecoveryState.Should().Be(manifest.SettlementRecoveryState);
@@ -126,18 +126,18 @@ public class UT_CompleteFormalVerification_Coverage
         decoded.Witness.AsSpan().SequenceEqual(manifest.Witness).Should().BeTrue();
         decoded.PublicInputHash.Should().Be(manifest.PublicInputHash);
     }
-    
-    private static readonly ProofType[] RandomProofTypes = 
+
+    private static readonly ProofType[] RandomProofTypes =
     {
         ProofType.Attestation,
         ProofType.Optimistic,
         ProofType.Zk,
     };
-    
+
     #endregion
 
     #region Category 3: SettlementTransactionStatus Enum Properties
-    
+
     /// <summary>
     /// Property: All enum values are within valid range [0-255].
     /// Specification: doc.md §8.1 - Transaction status encoding
@@ -149,7 +149,7 @@ public class UT_CompleteFormalVerification_Coverage
         var allValues = Enum.GetValues(typeof(SettlementTransactionStatus))
             .Cast<SettlementTransactionStatus>()
             .ToArray();
-        
+
         // Act & Assert: Each value must fit in a byte
         foreach (var value in allValues)
         {
@@ -158,7 +158,7 @@ public class UT_CompleteFormalVerification_Coverage
                 $"Enum value {value} must be representable as byte");
         }
     }
-    
+
     /// <summary>
     /// Property: Enum serialization/deserialization round-trip preserves value.
     /// </summary>
@@ -169,20 +169,20 @@ public class UT_CompleteFormalVerification_Coverage
     {
         // Arrange
         Span<byte> buffer = new byte[1];
-        
+
         // Act
         BinaryPrimitives.WriteByteLittleEndian(buffer, (byte)status);
         var recovered = BinaryPrimitives.ReadByteLittleEndian(buffer);
-        
+
         // Assert
         (SettlementTransactionStatus)recovered.Should().Be(status,
             "Enum round-trip via byte encoding must preserve original value");
     }
-    
+
     #endregion
 
     #region Category 4: BatchStatus Enum Properties
-    
+
     /// <summary>
     /// Property: All batch statuses map to valid protocol states.
     /// Specification: doc.md §8.1
@@ -194,21 +194,21 @@ public class UT_CompleteFormalVerification_Coverage
         var pending = BatchStatus.Pending;
         var executing = BatchStatus.Executing;
         var sealed = BatchStatus.Sealed;
-        
+
         // Assert: Each should be distinct and within range
         pending.Should().NotBe(executing);
         pending.Should().NotBe(sealed);
         executing.Should().NotBe(sealed);
-        
+
         // Verify each maps to unique byte value
         ((byte)pending).Should().NotBe((byte)executing);
         ((byte)pending).Should().NotBe((byte)sealed);
     }
-    
+
     #endregion
 
     #region Category 5: ISettlementClient Interface Contracts
-    
+
     /// <summary>
     /// Property: Settlement client interface methods never return null references.
     /// Specification: doc.md §8.2 - Client contract guarantees
@@ -219,24 +219,24 @@ public class UT_CompleteFormalVerification_Coverage
     {
         // Note: This is a structural test - actual implementation would verify
         // that RpcSettlementClient implementations don't return null
-        
+
         // Arrange: Mock scenario where we expect valid responses
         var expectedBatch = new L2BatchCommitment
         {
             BatchNumber = batchSize,
             ProofType = ProofType.Optimistic,
         };
-        
+
         // Assert: Interface contract requires non-null responses
         // Actual implementation test would be in RpcSettlementClient unit tests
         expectedBatch.BatchNumber.Should().NotBe(0UL,
             "Batch number must be valid (non-zero) per interface contract");
     }
-    
+
     #endregion
 
     #region Category 6: IOptimisticChallengeClient Properties
-    
+
     /// <summary>
     /// Property: Challenge duration always ≥ minimum threshold.
     /// Specification: doc.md §15.4 - Anti-censorship requirements
@@ -246,19 +246,19 @@ public class UT_CompleteFormalVerification_Coverage
         [Range(1, 1000)] int proposedDuration)
     {
         const int MinimumThreshold = 100; // Per spec requirement
-        
+
         // Arrange
         var effectiveDuration = Math.Max(proposedDuration, MinimumThreshold);
-        
+
         // Assert
         effectiveDuration.Should().BeGreaterThanOrEqualTo(MinimumThreshold,
             "Challenge duration must never fall below minimum threshold");
     }
-    
+
     #endregion
 
     #region Category 7: ISignerSet Contract Properties
-    
+
     /// <summary>
     /// Property: Multisig validation never accepts invalid signatures.
     /// Specification: doc.md §7.1 - Committee authorization
@@ -273,7 +273,7 @@ public class UT_CompleteFormalVerification_Coverage
         int validCount = 0;
         if (isValidSig && providedSignatureData.Length > 0)
             validCount = providedSignatureData.Length;
-        
+
         // Assert: Must reject when valid count < required
         if (validCount < requiredSignatures && requiredSignatures > 0)
         {
@@ -286,16 +286,16 @@ public class UT_CompleteFormalVerification_Coverage
             ValidateMultisig(validCount, requiredSignatures).Should().BeTrue();
         }
     }
-    
+
     private static bool ValidateMultisig(int validCount, int required)
     {
         return validCount >= required;
     }
-    
+
     #endregion
 
     #region Category 8: IProofWitnessStore Lifecycle Properties
-    
+
     /// <summary>
     /// Property: Store disposal always releases resources deterministically.
     /// Specification: doc.md §8.3 - Witness storage lifecycle management
@@ -306,24 +306,24 @@ public class UT_CompleteFormalVerification_Coverage
     {
         // Note: Real test would create KeyValueProofWitnessStore instance
         // and verify Dispose() properly releases RocksDB handle
-        
+
         // Arrange: Simulated resource allocation
         var allocatedBytes = rowMemoryUsage * 1024;
-        
+
         // Assert: Resource accounting invariant
         allocatedBytes.Should().BeGreaterThan(0,
             "Storage must allocate positive memory when storing witnesses");
-        
+
         // Actual disposal logic test in KeyValueProofWitnessStore unit tests
         // Would verify RocksDB database.Close() called on Dispose
     }
-    
+
     private static readonly int[] RowCounts = { 0, 1, 10, 100, 1000, 10000 };
-    
+
     #endregion
 
     #region Category 9: Sp1StatefulBatchExecutor Properties
-    
+
     /// <summary>
     /// Property: SP1 executor only accepts proof type Zk.
     /// Specification: doc.md §8 - Proof system requirements
@@ -334,7 +334,7 @@ public class UT_CompleteFormalVerification_Coverage
     {
         // Arrange
         var supportsZk = requestedProofType == ProofType.Zk;
-        
+
         // Assert: SP1 executor must reject non-ZK proofs
         if (!supportsZk)
         {
@@ -347,20 +347,20 @@ public class UT_CompleteFormalVerification_Coverage
             ExecuteWithSp1(requestedProofType).Should().BeTrue();
         }
     }
-    
+
     private static bool ExecuteWithSp1(ProofType proofType) => true;
-    
-    private static readonly ProofType[] AllProofTypes = 
+
+    private static readonly ProofType[] AllProofTypes =
     {
         ProofType.Attestation,
         ProofType.Optimistic,
         ProofType.Zk,
     };
-    
+
     #endregion
 
     #region Category 10: Message Hashing Properties
-    
+
     /// <summary>
     /// Property: Cross-chain message hashing produces consistent results.
     /// Specification: doc.md §10 - Neo Connect cross-chain messaging
@@ -380,20 +380,20 @@ public class UT_CompleteFormalVerification_Coverage
             TargetChainId = targetChainId,
             Payload = payload.ToArray(),
         };
-        
+
         // Act: Hash using canonical encoder
         var hash1 = MessageHasher.Hash(message);
         var hash2 = MessageHasher.Hash(message);
-        
+
         // Assert: Hashing must be deterministic
         hash1.Should().Be(hash2,
             "Cross-chain message hashing must produce identical results for same inputs");
     }
-    
+
     #endregion
 
     #region Category 11: PooledBatchSerializer Properties
-    
+
     /// <summary>
     /// Property: Pool-based serializer returns same bytes as traditional serializer.
     /// Specification: doc.md §7.2 - Canonical encoding requirements
@@ -422,23 +422,23 @@ public class UT_CompleteFormalVerification_Coverage
             ProofType = ProofType.Zk,
             Proof = Array.Empty<byte>(),
         };
-        
+
         // Act: Compare both serializers
         var traditionalBytes = BatchSerializer.Encode(commitment);
         var pooledOwner = PooledBatchSerializer.Serialize(commitment);
-        
+
         // Assert: Outputs must be byte-for-byte identical
         traditionalBytes.SequenceEqual(pooledOwner.Memory.Span).Should().BeTrue(
             "Pooled serializer must produce identical output to canonical encoder");
-        
+
         // Clean up pool reference
         pooledOwner.Dispose();
     }
-    
+
     #endregion
 
     #region Category 12: PooledTransactionArrays Properties
-    
+
     /// <summary>
     /// Property: Pooled array rental always returns disposed owner on exception.
     /// Specification: Memory safety requirement (C# GC guidelines)
@@ -449,19 +449,19 @@ public class UT_CompleteFormalVerification_Coverage
     {
         // Arrange: Test various sized arrays
         var list = new List<ReadOnlyMemory<byte>>(transactionArray);
-        
+
         // Act & Assert: Owner pattern ensures cleanup even on exceptions
         using var owner = PooledTransactionArrays.CopyToPooledBuffer(list);
-        
+
         // Assert: Memory accessible before disposal
         owner.Memory.Length.Should().Be(transactionArray.Length,
             "Rented array length must match input count");
     }
-    
+
     #endregion
 
     #region Category 13: RPC Client Method Contracts
-    
+
     /// <summary>
     /// Property: RPC clients validate endpoint URL format before connection.
     /// Specification: doc.md §14.1 - RPC method surface requirements
@@ -473,7 +473,7 @@ public class UT_CompleteFormalVerification_Coverage
         bool isValid = Uri.TryCreate(rawUrl, UriKind.Absolute, out var uri)
             && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
             && !string.IsNullOrEmpty(uri.Host);
-        
+
         // Assert: Only accept well-formed URLs
         if (isValid)
         {
@@ -483,15 +483,15 @@ public class UT_CompleteFormalVerification_Coverage
         {
             Console.WriteLine($"Rejected malformed endpoint: {rawUrl}");
         }
-        
+
         isValid.Should().BeTrueOrFalse("URL validation logic exists",
             "RPC clients must validate endpoint formats before connection");
     }
-    
+
     #endregion
 
     #region Category 14: Settlement Pipeline Properties
-    
+
     /// <summary>
     /// Property: Settlement retries bounded by maximum attempt limit.
     /// Specification: doc.md §8.2 - Error recovery constraints
@@ -503,7 +503,7 @@ public class UT_CompleteFormalVerification_Coverage
     {
         // Arrange
         bool shouldContinue = attemptedRetries < maxRetryLimit;
-        
+
         // Assert: Never exceed retry bounds
         if (attemptedRetries >= maxRetryLimit)
         {
@@ -516,13 +516,13 @@ public class UT_CompleteFormalVerification_Coverage
                 "Pipeline should continue retrying while under limit");
         }
     }
-    
+
     private static readonly int[] RetryLimits = { 3, 5, 8, 32 };
-    
+
     #endregion
 
     #region Category 15: Cryptographic Primitive Verification
-    
+
     /// <summary>
     /// Property: SHA-256 of empty input produces NIST-standard hash.
     /// Specification: FIPS 180-4 SHA-256 standard
@@ -532,18 +532,18 @@ public class UT_CompleteFormalVerification_Coverage
     {
         // Arrange: Empty input
         byte[] emptyInput = Array.Empty<byte>();
-        
+
         // Act
         var hash = SHA256.HashData(emptyInput);
-        
+
         // Assert: Must match NIST-defined constant
         string expected = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
         var expectedBytes = Convert.FromHexString(expected);
-        
+
         hash.SequenceEqual(expectedBytes).Should().BeTrue(
             "SHA-256 of empty input must match FIPS 180-4 standard");
     }
-    
+
     /// <summary>
     /// Property: Hash collision resistance (different inputs → different hashes).
     /// </summary>
@@ -558,17 +558,17 @@ public class UT_CompleteFormalVerification_Coverage
             // Act
             var hash1 = SHA256.HashData(input1.ToArray());
             var hash2 = SHA256.HashData(input2.ToArray());
-            
+
             // Assert: Different inputs must produce different outputs
             hash1.Should().NotBe(hash2,
                 "SHA-256 must not allow collisions for distinct inputs");
         }
     }
-    
+
     #endregion
 
     #region Category 16: Integer Encoding Invariants
-    
+
     /// <summary>
     /// Property: All integer encodings support full range without overflow.
     /// </summary>
@@ -578,16 +578,16 @@ public class UT_CompleteFormalVerification_Coverage
     {
         // Arrange
         Span<byte> buffer = new byte[4];
-        
+
         // Act
         BinaryPrimitives.WriteUInt32LittleEndian(buffer, value);
         var recovered = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
-        
+
         // Assert: Full range preservation
         recovered.Should().Be(value,
             $"UInt32 encoding must preserve exact value {value}");
     }
-    
+
     [Property]
     public void IntegerEncoding_UInt64_FullRangeSupport(
         [ValueSource(typeof(UInt64), nameof(UInt64), "GetValues")] ulong value)
@@ -595,15 +595,15 @@ public class UT_CompleteFormalVerification_Coverage
         Span<byte> buffer = new byte[8];
         BinaryPrimitives.WriteUInt64LittleEndian(buffer, value);
         var recovered = BinaryPrimitives.ReadUInt64LittleEndian(buffer);
-        
+
         recovered.Should().Be(value,
             "UInt64 encoding must preserve full 64-bit range");
     }
-    
+
     #endregion
 
     #region Helper Verification Methods
-    
+
     /// <summary>
     /// Validates that all critical enum transitions respect state machine rules.
     /// </summary>
@@ -612,25 +612,25 @@ public class UT_CompleteFormalVerification_Coverage
     {
         // PendingState → ExecutingState is valid
         TransitionValid(BatchStatus.Pending, BatchStatus.Executing).Should().BeTrue();
-        
+
         // ExecutingState → SealedState is valid
         TransitionValid(BatchStatus.Executing, BatchStatus.Sealed).Should().BeTrue();
-        
+
         // Invalid transition: SealedState → ExecutingState
         TransitionValid(BatchStatus.Sealed, BatchStatus.Executing).Should().BeFalse();
     }
-    
+
     private static bool TransitionValid(fromBatchStatus, toBatchStatus)
     {
         // Define valid transitions based on doc.md §8.1
         if (fromBatchStatus == BatchStatus.Pending && toBatchStatus == BatchStatus.Executing)
             return true;
-        
+
         if (fromBatchStatus == BatchStatus.Executing && toBatchStatus == BatchStatus.Sealed)
             return true;
-        
+
         return false;
     }
-    
+
     #endregion
 }

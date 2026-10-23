@@ -62,7 +62,7 @@ public class Benchmarks_Pooling
             ProofType = ProofType.Zk,
             Proof = Array.Empty<byte>()
         });
-        
+
         // Prevent compiler from optimizing away the allocation
         GC.KeepAlive(serialized);
     }
@@ -80,10 +80,10 @@ public class Benchmarks_Pooling
     {
         using var owner = PooledBatchSerializer.Serialize(_sampleBatch);
         var span = owner.Memory.Span;
-        
+
         // Validate output is reasonable size (~100KB for 1K tx batch)
         Assert.IsTrue(span.Length > 0 && span.Length < 500_000);
-        
+
         // Prevent optimization
         GC.KeepAlive(owner);
     }
@@ -97,7 +97,7 @@ public class Benchmarks_Pooling
     {
         using var stream = new MemoryStream();
         PooledBatchSerializer.SerializeToStream(_sampleBatch, stream);
-        
+
         Assert.IsTrue(stream.Length > 0);
         GC.KeepAlive(stream);
     }
@@ -138,7 +138,7 @@ public class Benchmarks_Pooling
                 });
             }
         });
-        
+
         return GC.CollectionCount(0);
     }
 
@@ -157,7 +157,7 @@ public class Benchmarks_Pooling
                 using var _ = PooledBatchSerializer.Serialize(CreateSampleBatch(1, (ulong)i, 100, 10, 5));
             }
         });
-        
+
         return GC.CollectionCount(0);
     }
 
@@ -170,18 +170,18 @@ public class Benchmarks_Pooling
     public long PeakMemoryUsage_Comparison()
     {
         var maxMemory = 0L;
-        
+
         foreach (var iteration in Enumerable.Range(0, 50))
         {
             CollectAndMeasurePeakMemory(() =>
             {
                 using var _ = PooledBatchSerializer.Serialize(CreateSampleBatch(1, (ulong)iteration, 500, 25, 15));
             });
-            
+
             var currentMax = GC.GetTotalMemory(false) / 1024 / 1024;
             maxMemory = Math.Max(maxMemory, currentMax);
         }
-        
+
         return maxMemory; // MB
     }
 
@@ -195,18 +195,18 @@ public class Benchmarks_Pooling
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
-        
+
         var gen0Before = GC.CollectionCount(0);
-        
+
         // Run operation
         operation();
-        
+
         // Collect again after operation
         GC.Collect();
-        
+
         // Net Gen0 collections during operation
         var netCollections = GC.CollectionCount(0) - gen0Before;
-        
+
         // Store for comparison (benchmark framework handles this automatically)
         // Actual numbers reported via BenchmarkDotNet output
     }
@@ -214,12 +214,12 @@ public class Benchmarks_Pooling
     private static void CollectAndMeasurePeakMemory(Action operation)
     {
         var initialMemory = GC.GetTotalMemory(false);
-        
+
         operation();
-        
+
         var finalMemory = GC.GetTotalMemory(false);
         var delta = finalMemory - initialMemory;
-        
+
         // Delta tracked by BenchmarkDotNet
     }
 
@@ -228,11 +228,11 @@ public class Benchmarks_Pooling
         var transactions = Enumerable.Range(0, txCount)
             .Select(i => new ReadOnlyMemory<byte>(RandomBytes(100)))
             .ToList();
-            
+
         var l1Messages = Enumerable.Range(0, 10)
             .Select(i => new CrossChainMessage(UInt256.Zero, (uint)i, "test"))
             .ToList();
-            
+
         var withdrawals = withdrawalCount > 0 ? Enumerable.Range(0, withdrawalCount)
             .Select(i => new WithdrawalRequest(
                 assetIndex: (ushort)(i % ushort.MaxValue),
@@ -240,7 +240,7 @@ public class Benchmarks_Pooling
                 amount: ulong.MaxValue - i,
                 targetChainId: 2))
             .ToList() : null;
-            
+
         var l2ToL1Messages = messageCount > 0 ? Enumerable.Range(0, messageCount)
             .Select(i => new CrossChainMessage(
                 sender: GenerateRandomAddress(),
@@ -248,14 +248,14 @@ public class Benchmarks_Pooling
                 targetChainId: (uint)((i % 5) + 2),
                 payload: RandomBytes(100)))
             .ToList() : null;
-            
+
         var blockContext = new BatchBlockContext(
             timestamp: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             prevBlockHash: UInt256.Zero,
             proposer: GenerateRandomAddress(),
             validatorSet: Array.Empty<ByteString>(),
             forcedInclusionCount: 0);
-            
+
         return new SealedBatch(
             chainId: chainId,
             batchNumber: batchNumber,
@@ -300,16 +300,16 @@ internal sealed class PooledSerializationConfig : ManualConfig
     {
         // Add standard columns
         AddColumnSource(DefaultColumnSources.GetColumns());
-        
+
         // Memory statistics diagnostics
         AddDiagnoser(MemoryDiagnoser.Default);
-        
+
         // Garbage collection analysis
         Add(Diagnosers.Create<GCStatDiagnoser>(new[] { Column.GCGeneration0Count, Column.GCHeapSize }));
-        
+
         // Run settings
         Options = ConfigOptions.StopOnFirstFailure | ConfigOptions.JoinSummary;
-        
+
         // Execution parameters
         GarbageCollection收集 = true;
         WarmupCount = 3;

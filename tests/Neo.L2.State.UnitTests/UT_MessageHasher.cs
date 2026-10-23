@@ -497,13 +497,13 @@ public class UT_MessageHasher
     public void HashWithdrawal_RandomInputs_ProducesConsistentHash()
     {
         var rng = new Random(unchecked((int)0xDEADBEEF));
-        
+
         for (int i = 0; i < 100; i++)
         {
             var withdrawal = GenerateRandomWithdrawal(rng);
             var hash1 = MessageHasher.HashWithdrawal(withdrawal);
             var hash2 = MessageHasher.HashWithdrawal(withdrawal);
-            
+
             Assert.AreEqual(hash1, hash2, $"Non-deterministic hash at iteration {i}");
         }
     }
@@ -512,7 +512,7 @@ public class UT_MessageHasher
     public void HashWithdrawal_VaryingAmountSizes_AllValid()
     {
         var rng = new Random(unchecked((int)0xCAFEBABE));
-        
+
         // Test various amount sizes: 1 byte up to 64 bytes
         for (int byteLen = 1; byteLen <= 64; byteLen += Math.Max(1, byteLen / 4))
         {
@@ -521,9 +521,9 @@ public class UT_MessageHasher
                 var amountBytes = new byte[byteLen];
                 rng.NextBytes(amountBytes);
                 if (amountBytes.All(b => b == 0)) amountBytes[0] = 1;
-                
+
                 var amount = new BigInteger(amountBytes, isUnsigned: true, isBigEndian: false);
-                
+
                 var wd = new WithdrawalRequest
                 {
                     ChainId = (uint)rng.Next(1, int.MaxValue),
@@ -537,7 +537,7 @@ public class UT_MessageHasher
                 };
 
                 var hash = MessageHasher.HashWithdrawal(wd);
-                Assert.AreNotEqual(UInt256.Zero, hash, 
+                Assert.AreNotEqual(UInt256.Zero, hash,
                     $"Hash should not be zero for {byteLen}-byte amount at iteration {i}");
             }
         }
@@ -547,26 +547,26 @@ public class UT_MessageHasher
     public void EncodeMessage_RandomMessages_ProducesValidWireFormat()
     {
         var rng = new Random(unchecked((int)0x98765432));
-        
+
         for (int i = 0; i < 100; i++)
         {
             var message = GenerateRandomCrossChainMessage(rng);
             var encoded = MessageHasher.EncodeMessage(message);
-            
+
             // Verify encoded size matches expected layout
             var expectedSize = 4 + 4 + 8 + 20 + 20 + 1 + 4 + message.Payload.Length;
-            Assert.AreEqual(expectedSize, encoded.Length, 
+            Assert.AreEqual(expectedSize, encoded.Length,
                 $"Encoded size mismatch at iteration {i}");
-            
+
             var decoded = MessageHasher.DecodeMessage(encoded);
-            
+
             Assert.AreEqual(message.SourceChainId, decoded.SourceChainId, $"Iteration {i}");
             Assert.AreEqual(message.TargetChainId, decoded.TargetChainId, $"Iteration {i}");
             Assert.AreEqual(message.Nonce, decoded.Nonce, $"Iteration {i}");
             Assert.AreEqual(message.Sender, decoded.Sender, $"Iteration {i}");
             Assert.AreEqual(message.Receiver, decoded.Receiver, $"Iteration {i}");
             Assert.AreEqual(message.MessageType, decoded.MessageType, $"Iteration {i}");
-            CollectionAssert.AreEqual(message.Payload.ToArray(), decoded.Payload.ToArray(), 
+            CollectionAssert.AreEqual(message.Payload.ToArray(), decoded.Payload.ToArray(),
                 $"Payload mismatch at iteration {i}");
         }
     }
@@ -575,7 +575,7 @@ public class UT_MessageHasher
     public void DecodeMessage_RandomEncodings_RejectsInvalidInputs()
     {
         var rng = new Random(unchecked((int)0xAABBCCDD));
-        
+
         for (int i = 0; i < 100; i++)
         {
             var badInput = CreateMalformedMessage(rng);
@@ -626,7 +626,7 @@ public class UT_MessageHasher
     {
         // Create various types of malformed messages
         var variant = rng.Next(0, 5);
-        
+
         switch (variant)
         {
             case 0:
@@ -675,7 +675,7 @@ public class UT_MessageHasher
                     Payload = Array.Empty<byte>(),
                     MessageHash = UInt256.Zero
                 });
-                BinaryPrimitives.WriteInt32LittleEndian(header2.AsSpan(57, 4), 
+                BinaryPrimitives.WriteInt32LittleEndian(header2.AsSpan(57, 4),
                     MessageHasher.MaxMessagePayloadBytes + 1);
                 return header2;
             case 4:

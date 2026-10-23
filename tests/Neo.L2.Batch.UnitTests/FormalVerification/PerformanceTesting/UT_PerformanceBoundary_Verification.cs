@@ -26,23 +26,23 @@ public class UT_PerformanceBoundary_Verification
     public void Boundary_P01_MinimumBatchSize_OneTransaction()
     {
         var batch = CreateMinimalBatch(1);
-        
+
         batch.FirstBlock.Should().Be(batch.LastBlock, "Minimum batch must have same first/last block");
         batch.BatchNumber.Should().BeGreaterThanOrEqualTo(1UL, "Minimum batch must have valid batch number");
-        
+
         // Use actual serialization to measure size
         var serialized = BatchSerializer.Encode(batch);
         serialized.Length.Should().BeGreaterThan(0, "Single transaction batch must have non-zero size");
-        
+
         // Verify round-trip serialization preserves data
         var decoded = BatchSerializer.Decode(serialized);
         RoundTripCompare(batch, decoded).Should().BeTrue();
-        
+
         // Performance check: Serialization should be very fast for minimal batch
         var sw = Stopwatch.StartNew();
         _ = BatchSerializer.Encode(batch);
         sw.Stop();
-        sw.Elapsed.TotalMilliseconds.Should().BeLessThan(1, 
+        sw.Elapsed.TotalMilliseconds.Should().BeLessThan(1,
             $"Minimal batch serialization must complete in < 1ms");
     }
 
@@ -54,23 +54,23 @@ public class UT_PerformanceBoundary_Verification
     public void Boundary_P02_MaximumBatchSize_Efficient()
     {
         const int MAX_BATCH_SIZE = 1000; // Configurable max batch size
-        
+
         var batch = CreateCommitmentFixture(MAX_BATCH_SIZE);
         var serialized = BatchSerializer.Encode(batch);
-        
+
         // Validate size stays within reasonable bounds (< 5MB for 1000 tx)
         serialized.Length.Should().BeLessThan(5 * 1024 * 1024,
             $"Maximum batch size ({serialized.Length / 1024}KB) should stay under 5MB");
-        
+
         // Verify performance remains acceptable at max size
         var sw = Stopwatch.StartNew();
         var encoded = BatchSerializer.Encode(batch);
         var decoded = BatchSerializer.Decode(encoded);
         sw.Stop();
-        
+
         sw.Elapsed.TotalMilliseconds.Should().BeLessThan(500,
             $"Maximum batch encoding/decoding must complete in < 500ms");
-        
+
         RoundTripCompare(batch, decoded).Should().BeTrue();
     }
 
@@ -84,10 +84,10 @@ public class UT_PerformanceBoundary_Verification
         var batch = CreateCommitmentFixture(0);
         batch.FirstBlock.Should().Be(1000UL);
         batch.LastBlock.Should().Be(1000UL); // No blocks if no transactions
-        
+
         var serialized = BatchSerializer.Encode(batch);
         serialized.Length.Should().BeGreaterThan(0, "Empty batch still has commitment header");
-        
+
         // Verify round-trip works correctly
         var decoded = BatchSerializer.Decode(serialized);
         decoded.FirstBlock.Should().Be(batch.FirstBlock);
@@ -121,38 +121,38 @@ public class UT_PerformanceBoundary_Verification
     {
         const int BATCHES_PER_SCALE = 100;
         const int ITERATIONS = 10;
-        
+
         var measurements = new List<(int Scale, double MemoryMB)>();
-        
+
         GC.Collect(); // Start with clean slate
         var baselineMemory = GC.GetTotalMemory(forceFullCollection: true);
-        
+
         for (var scale = 1; scale <= ITERATIONS; scale++)
         {
             var batchSize = scale * 10; // 10, 20, 30... batches
             var totalMemoryBefore = GC.GetTotalMemory(false);
-            
+
             for (var i = 0; i < BATCHES_PER_SCALE; i++)
             {
                 var batch = CreateCommitmentFixture(batchSize);
                 _ = BatchSerializer.Encode(batch);
             }
-            
+
             var totalMemoryAfter = GC.GetTotalMemory(false);
             var usedMB = (totalMemoryAfter - totalMemoryBefore) / (1024.0 * 1024.0);
-            
+
             measurements.Add((batchSize, usedMB));
-            
+
             // Validate memory efficiency (< 2KB per transaction average)
             var avgPerTx = usedMB * 1024.0 / (BATCHES_PER_SCALE * batchSize);
             avgPerTx.Should().BeLessThan(2048,
                 $"Memory per transaction ({avgPerTx:F2} bytes) should stay under 2KB");
         }
-        
+
         GC.Collect();
         var finalMemory = GC.GetTotalMemory(forceFullCollection: true);
         var totalGrowthMB = (finalMemory - baselineMemory) / (1024.0 * 1024.0);
-        
+
         // Allow generous headroom for garbage collector
         totalGrowthMB.Should().BeLessThan(100,
             $"Total memory growth ({totalGrowthMB:F2}MB) should stay under 100MB after all tests");
@@ -171,11 +171,11 @@ public class UT_PerformanceBoundary_Verification
     {
         const ulong MAX_GAS_PER_BATCH = 15000000000UL; // 15 billion gas (typical mainnet value)
         const ulong GAS_PER_TX = 100000000UL; // 100 million gas per tx
-        
+
         var numTxs = (int)(MAX_GAS_PER_BATCH / GAS_PER_TX);
-        
+
         var batch = CreateCommitmentFixture(numTxs);
-        
+
         // In production, batch would track total gas consumed
         // For now, we validate batch number calculation accuracy
         var calculatedGas = (ulong)numTxs * GAS_PER_TX;
@@ -191,15 +191,15 @@ public class UT_PerformanceBoundary_Verification
     public void Boundary_P07_GasPrecision_AccurateAtBoundaries()
     {
         var testCases = new[] { 1, 7, 13, 37, 99, 127, 255, 256, 1024 };
-        
+
         foreach (var txCount in testCases)
         {
             var batch = CreateCommitmentFixture(txCount);
-            
+
             // Verify batch number tracks transaction count accurately
             batch.BatchNumber.Should().Be((ulong)txCount,
                 $"Batch number tracks transaction count accurately for {txCount} transactions");
-            
+
             // Small batch: serialization must be instant
             var sw = Stopwatch.StartNew();
             _ = BatchSerializer.Encode(batch);
@@ -218,9 +218,9 @@ public class UT_PerformanceBoundary_Verification
     {
         const int STRESS_ITERATIONS = 100;
         const int LARGE_BATCH_SIZE = 1000;
-        
+
         var highLoadBatch = CreateCommitmentFixture(LARGE_BATCH_SIZE);
-        
+
         // Validate batch processing completes within reasonable time
         var sw = Stopwatch.StartNew();
         for (var i = 0; i < STRESS_ITERATIONS; i++)
@@ -230,10 +230,10 @@ public class UT_PerformanceBoundary_Verification
             RoundTripCompare(highLoadBatch, decoded).Should().BeTrue();
         }
         sw.Stop();
-        
-        sw.ElapsedMilliseconds.Should().BeLessThan(5000, 
+
+        sw.ElapsedMilliseconds.Should().BeLessThan(5000,
             $"{STRESS_ITERATIONS} iterations of large batch encoding/decoding must complete in < 5 seconds");
-        
+
         var avgTimePerIteration = sw.Elapsed.TotalMilliseconds / STRESS_ITERATIONS;
         Console.WriteLine($"Average time per iteration: {avgTimePerIteration:F2}ms");
     }
@@ -247,21 +247,21 @@ public class UT_PerformanceBoundary_Verification
     {
         const ulong ORIGINAL_GAS = 100000000UL; // 100M gas per tx
         const double REFUND_RATIO = 0.60; // 60% refund on abort
-        
+
         var testCases = new[] { 1, 10, 100, 500, 1000 };
-        
+
         foreach (var txCount in testCases)
         {
             var batch = CreateCommitmentFixture(txCount);
-            
+
             var totalAllocated = (ulong)txCount * ORIGINAL_GAS;
             var expectedRefund = (ulong)(totalAllocated * REFUND_RATIO);
             var usedGas = totalAllocated - expectedRefund;
-            
+
             // Verify refund keeps us within original allocation
             (usedGas + expectedRefund).Should().Be(totalAllocated,
                 $"Refunded transactions must exactly equal original allocation ({totalAllocated / 1e6:F2}M gas)");
-            
+
             // Validate refund doesn't exceed original
             expectedRefund.Should().BeLessThanOrEqualTo(totalAllocated,
                 "Refund amount must never exceed original Gas allocation");
@@ -281,21 +281,21 @@ public class UT_PerformanceBoundary_Verification
     {
         const int ITERATIONS = 1000;
         const int BATCH_SIZE = 100;
-        
+
         long beforePooledAllocs = GC.GetTotalMemory(false) / (1024 * 1024);
-        
+
         for (var i = 0; i < ITERATIONS; i++)
         {
             var batch = CreateCommitmentFixture(BATCH_SIZE);
             _ = BatchSerializer.Encode(batch); // Force serialization
         }
-        
+
         long afterPooledAllocs = GC.GetTotalMemory(false) / (1024 * 1024);
-        
+
         var memoryIncrease = afterPooledAllocs - beforePooledAllocs;
         memoryIncrease.Should().BeLessThan(100,
             $"Serialization reuse should limit memory increase to < 100MB across {ITERATIONS} iterations");
-        
+
         Console.WriteLine($"Memory increase over {ITERATIONS} iterations: {memoryIncrease}MB");
     }
 
@@ -308,31 +308,31 @@ public class UT_PerformanceBoundary_Verification
     {
         const int BENCHMARK_ROUNDS = 10;
         const int BATCHES_PER_ROUND = 500;
-        
+
         var gen2Collections = new List<int>();
-        
+
         for (var round = 0; round < BENCHMARK_ROUNDS; round++)
         {
             GC.Collect(); // Ensure clean slate
             var beforeGen2 = GC.CollectionCount(2); // Gen 2 collections
-            
+
             for (var i = 0; i < BATCHES_PER_ROUND; i++)
             {
                 var batch = CreateCommitmentFixture(50);
                 _ = BatchSerializer.Encode(batch);
             }
-            
+
             GC.Collect(); // Trigger collection
             var afterGen2 = GC.CollectionCount(2);
-            
+
             gen2Collections.Add(afterGen2 - beforeGen2);
         }
-        
+
         // Validate Gen2 collections remain bounded (< 5 per round)
         var avgGen2 = gen2Collections.Average();
         avgGen2.Should().BeLessThan(5,
             $"Gen2 collections must remain low (< 5/round, observed {avgGen2:F2}) to indicate efficient memory management");
-        
+
         Console.WriteLine($"Avg Gen2 collections per round: {avgGen2:F2}, Max: {gen2Collections.Max()}");
     }
 
@@ -346,38 +346,38 @@ public class UT_PerformanceBoundary_Verification
         const int WARMUP_ITERS = 100;
         const int SAMPLE_ITERS = 500;
         const int BATCH_SIZE = 50;
-        
+
         // Warmup phase
         for (var i = 0; i < WARMUP_ITERS; i++)
         {
             var batch = CreateCommitmentFixture(BATCH_SIZE);
             _ = BatchSerializer.Encode(batch);
         }
-        
+
         GC.Collect();
         var baselineMemory = GC.GetTotalMemory(forceFullCollection: true);
-        
+
         // Measurement phase
         for (var i = 0; i < SAMPLE_ITERS; i++)
         {
             var batch = CreateCommitmentFixture(BATCH_SIZE);
             _ = BatchSerializer.Encode(batch);
-            
+
             // Periodic collection to prevent unbounded growth
             if ((i % 100) == 0)
             {
                 GC.Collect();
             }
         }
-        
+
         var finalMemory = GC.GetTotalMemory(forceFullCollection: true);
         var memoryGrowth = finalMemory - baselineMemory;
         var growthMB = memoryGrowth / (1024.0 * 1024.0);
-        
+
         // Allow generous headroom for legitimate memory needs
         growthMB.Should().BeLessThan(50,
             $"Memory growth ({growthMB:F2}MB) indicates potential leak (> 50MB allowed)");
-        
+
         Console.WriteLine($"Memory growth over {SAMPLE_ITERS} iterations: {growthMB:F2}MB");
     }
 
@@ -395,32 +395,32 @@ public class UT_PerformanceBoundary_Verification
         const int MESSAGES_PER_SECOND = 1000;
         const int TEST_DURATION_MS = 2000;
         const int MESSAGE_SIZE_BYTES = 1024; // 1KB messages target
-        
+
         var serializerTimes = new List<double>();
-        
+
         for (var i = 0; i < MESSAGES_PER_SECOND; i++)
         {
             var batch = CreateCommitmentFixture(10);
             var data = BatchSerializer.Encode(batch);
-            
+
             // Pad to expected network message size if needed
             if (data.Length < MESSAGE_SIZE_BYTES)
             {
                 var padding = new byte[MESSAGE_SIZE_BYTES - data.Length];
                 data = Append(data, padding);
             }
-            
+
             var sw = Stopwatch.StartNew();
             _ = data; // Force materialization
             sw.Stop();
-            
+
             serializerTimes.Add(sw.Elapsed.TotalMilliseconds);
         }
-        
+
         var totalTimeMs = serializerTimes.Sum();
         totalTimeMs.Should().BeLessThan(TEST_DURATION_MS,
             $"{MESSAGES_PER_SECOND} messages must serialize within {TEST_DURATION_MS}ms");
-        
+
         var avgTime = serializerTimes.Average();
         Console.WriteLine($"Average serialization time: {avgTime:F4}ms per message");
         Console.WriteLine($"Throughput: {(1000.0 / avgTime):F2} messages/second");
@@ -496,7 +496,7 @@ public class UT_PerformanceBoundary_Verification
     #endregion
 
     #region Helper Methods
-    
+
     private static L2BatchCommitment CreateMinimalBatch(int seed)
     {
         return CreateCommitmentFixture(seed);
@@ -508,7 +508,7 @@ public class UT_PerformanceBoundary_Verification
         var rng = new Random(count);
         var preStateBytes = new byte[32];
         rng.NextBytes(preStateBytes);
-        
+
         return new L2BatchCommitment
         {
             ChainId = 1,

@@ -1,7 +1,7 @@
 {
   "name": "@neo-n4/sdk",
   "version": "0.1.0",
-  "description": "Typed TypeScript SDK for the Neo Elastic Network L2 RPC surface (doc.md §14.1).",
+  "description": "Typed TypeScript SDK for the Neo Elastic Network L2 RPC surface (doc.md \u00a714.1).",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,7 +25,7 @@
   },
   "devDependencies": {
     "typescript": "^5.4.0",
-    "vite": "8.0.16",
-    "vitest": "^4.1.6"
+    "vite": "8.3.5",
+    "vitest": "^4.1.12"
   }
 }

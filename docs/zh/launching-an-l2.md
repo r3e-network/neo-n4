@@ -230,9 +230,9 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 
 ## 模板
 
-`neo-stack create-chain --template <name>` 在四个起步点中选一个。每个写入不同的
-`chain.config.json`(按 `doc.md` §6 + §16.2 设置 chainMode + daMode + proofType +
-安全标签):
+`neo-stack create-chain --template <name>` 在十一个起步点中选一个:四个通用基础模板,
+外加七条官方弹性链。每个写入不同的 `chain.config.json`(按 `doc.md` §6 + §16.2 设置
+chainMode + daMode + proofType + 安全标签):
 
 | 模板         | chainMode        | daMode    | proofType  | SecurityLevel | Exit             |
 |--------------|------------------|-----------|------------|---------------|------------------|
@@ -240,6 +240,13 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 | `zk-rollup`  | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
 | `validium`   | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
 | `sidechain`  | SidechainMode    | NeoFS     | Multisig   | Sidechain     | Permissionless   |
+| `dex`        | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `gaming`     | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `defi`       | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `social`     | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `nft`        | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `payment`    | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `enterprise` | SidechainMode    | NeoFS     | Multisig   | Sidechain     | OperatorAssisted |
 
 每个模板所发射的 `securityLevel` ⇄ `proofType` 配对不是风格选择:
 `SettlementManager.IsProofTypeCompatible`(NeoHub §3.2)会拒绝任何不在接受集合内的
@@ -276,7 +283,7 @@ fraudVerifier)` 提交,把实际密码学校验委派给由 `fraudVerifier` 参�
 已接受的挑战会在终局化之前删除窗口,所以驱动不可能终局化一条被欺诈回滚的批量。
 
 这里记录两种面向生产的部署 profile：bundle 内置的受限 v4，以及运维者提供的
-自定义 executable v4；这不等同于已经通过独立审计或真实部署。默认 `neo-hub-deploy plan` 的 24 步生产 bundle 排除 v1/v2
+自定义 executable v4；这不等同于已经通过独立审计或真实部署。默认 `neo-hub-deploy plan` 的 6 步生产 bundle 排除 v1/v2
 结构性审计 verifier，并用 `[SettlementManager, replayDomain]` 初始化受限执行 verifier；
 live deploy 因而必须显式传入 `--fraud-replay-domain`:
 
@@ -330,7 +337,7 @@ v4 与精确注册的 executable profile，即使 owner/governance 提供 witnes
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 运维者常定制的 5 个扩展点
+### 运维者常定制的 6 个扩展点
 
 - **`ITransactionExecutor`** —— 默认:`ReferenceTransactionExecutor`。
   替换以加领域特定 opcode;`neo-stack scaffold-executor` 输出起步,
@@ -667,13 +674,14 @@ L1:      SettlementManager.SubmitBatch(commitmentBytes, l1MessageHash, blockCont
 
 ## 上 L1:部署 NeoHub
 
-`register-chain` 起作用之前，24 个生产 NeoHub 合约必须部署到目标 L1。仅审计用的
-`GovernanceFraudVerifier` 和仅测试用的 `ExternalBridgeStubVerifier` 都不包含在默认 deploy bundle 中。`neo-hub-deploy`
+`register-chain` 起作用之前，6 个生产 NeoHub 合约必须部署到目标 L1。默认 deploy bundle 只包含
+这 6 个生产合约。`neo-hub-deploy`
 工具输出一个 deploy bundle,把每个合约、它的依赖、拓扑排序后解析的哈希都列出:
 
 ```bash
-# 1. 脚手架一个起步 plan（24 个生产 NeoHub 部署步骤按依赖序，
-#    包含 ContractZkVerifier、Sp1Groth16Verifier 与 executable-v4 fraud verifier)。
+# 1. 脚手架一个起步 plan（6 个生产 NeoHub 部署步骤按依赖序，
+#    包含 Sp1Groth16Verifier、ZkVerifier、MultisigVerifier、GovernanceController、
+#    RollupHub 与 SharedBridge）。
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 
@@ -745,7 +753,7 @@ timelock 的精确 `RevertBatchViaProposal(chainId,batchNumber,proposalId)` acti
 > `ContractManagement.Deploy` 之后才存在。把钱包返回的四个真实哈希与签名 genesis root
 > 一并传入下面 `register-chain` 的 5 个必填 flag —— **不要**用 bundle 中的 stub 哈希。
 
-所有 24 步部署 + post-deploy 接线完成后，把**真实链上**合约哈希（由你的钱包从
+所有 6 步部署 + post-deploy 接线完成后，把**真实链上**合约哈希（由你的钱包从
 每次 `ContractManagement.Deploy` 调用返回）和签名 genesis root 传入 `register-chain`
 的 5 个 flag:
 

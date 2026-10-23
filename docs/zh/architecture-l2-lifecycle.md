@@ -53,7 +53,7 @@ Neo Elastic Network 由**4 层**组件 + 把它们连起来的链下基础设施
 
 ### 第 1 层:NeoHub(L1)
 
-L1 锚。**24 个生产合约 + 1 个仅审计用结构验证器 + 1 个仅测试 stub** 按关注点分组:
+L1 锚。**6 个生产合约**（4 个精简架构支柱 + `Sp1Groth16Verifier` 与 `MultisigVerifier`）按关注点分组:
 
 <p align="center">
   <img src="../figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 解剖:合约按 Settlement、Bridge、Messaging、Security、Governance、External Bridge 6 个关注点分组" width="900">
@@ -148,14 +148,21 @@ DA / 证明 / RPC / gateway / metrics)。
 
 ### 模板
 
-`neo-stack list-templates` 出货 4 个起步点:
+`neo-stack list-templates` 出货 11 个起步点:四个通用基础模板,外加七条官方弹性链:
 
-| 模板          | securityLevel | daMode    | exitModel       | gatewayEnabled |
-|---------------|---------------|-----------|-----------------|----------------|
-| `rollup`      | 2             | L1        | Optimistic      | true           |
-| `zk-rollup`   | 3             | L1        | ZkValidity      | true           |
-| `validium`    | 2             | DAC       | Optimistic      | true           |
-| `sidechain`   | 1             | InMemory  | Permissionless  | false          |
+| 模板          | chainMode        | daMode    | proofType  | SecurityLevel | Exit             |
+|---------------|------------------|-----------|------------|---------------|------------------|
+| `rollup`      | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `zk-rollup`   | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `validium`    | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `sidechain`   | SidechainMode    | NeoFS     | Multisig   | Sidechain     | Permissionless   |
+| `dex`         | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `gaming`      | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `defi`        | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `social`      | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `nft`         | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `payment`     | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `enterprise`  | SidechainMode    | NeoFS     | Multisig   | Sidechain     | OperatorAssisted |
 
 ---
 
@@ -344,7 +351,7 @@ flock 的并发实例检测、`min_confirmations` reorg buffer 与 `--preflight`
 NeoHub 自身(每个网络一次性):
 
 ```bash
-# 生成 24 步有序 bundle:
+# 生成 6 步有序 bundle:
 dotnet run --project tools/Neo.Hub.Deploy -- plan
 
 # 校验 bundle 不变量:

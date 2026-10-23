@@ -60,9 +60,9 @@ fractional withdrawals such as non-whole L1 NEO exits.
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 5 contract projects
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 6 contract projects
   grouped into six concerns: *Settlement*
-  (RollupHub · ZkVerifier · Sp1Groth16Verifier), *Bridge*
+  (RollupHub · ZkVerifier · Sp1Groth16Verifier · MultisigVerifier), *Bridge*
   (SharedBridge · GovernanceController), and Security Controls including SequencerBond, ForcedInclusion, OptimisticChallenge within RollupHub. Owns assets, settlement,
   message routing, and governance.
 - **Neo Gateway (Phase 5, optional)** — aggregates many L2s' proofs into one settlement
@@ -94,8 +94,8 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   [`docs/persistence.md`](./persistence.md).
 - **Node plugins (8)** — `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`.
-- **Smart contracts (5 NeoHub + 10 L2 native)** — 5 NeoHub L1 contract projects
-  (`GovernanceController`, `RollupHub`, `SharedBridge`, `Sp1Groth16Verifier`, `ZkVerifier`) type-check via `Neo.SmartContract.Framework`.
+- **Smart contracts (6 NeoHub + 10 L2 native)** — 6 NeoHub L1 contract projects
+  (`GovernanceController`, `MultisigVerifier`, `RollupHub`, `SharedBridge`, `Sp1Groth16Verifier`, `ZkVerifier`) type-check via `Neo.SmartContract.Framework`.
   The 10 L2 system contracts are Neo core native contracts in
   `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`.
 - **CLI tools (7)** — `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`,
@@ -120,7 +120,7 @@ For the master Chinese spec, see [`doc.md`](../doc.md).
   `external/neo-zkvm` (SP1 prover crates and legacy Neo VM compatibility guest) ·
   `external/neo-vm-rs` (stateful Rust NeoVM runtime shared by native execution and SP1). None
   are released on NuGet/crates.io for the versions tracked here.
-- **Tests (38 .NET test projects + cross-language gates)** — the current solution inventory is discovered dynamically, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`testing-approach.md`](./testing-approach.md).
+- **Tests (39 .NET test projects + cross-language gates)** — the current solution inventory is discovered dynamically, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`testing-approach.md`](./testing-approach.md).
 
 ```
 neo4/
@@ -138,7 +138,7 @@ neo4/
 │   ├── Neo.L2.Telemetry/                   # IL2Metrics + PrometheusExporter
 │   └── Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}/
 ├── contracts/
-│   ├── NeoHub.* (5)                      # L1 suite: 5 production contracts
+│   ├── NeoHub.* (6)                      # L1 suite: 6 production contracts
 ├── external/neo/                            # r3e Neo fork with N4 L2 native contracts
 ├── tools/
 │   ├── Neo.Stack.Cli/                      # neo-stack CLI (12 subcommands)

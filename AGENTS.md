@@ -56,7 +56,8 @@ but does NOT need to extend in place.
 
 **Before writing a new component, search this repo's existing libs first** (the per-component
 table in `IMPLEMENTATION_STATUS.md` has 16 core off-chain libs + 2 RPC adapter libs + 8 plugins +
-4 NeoHub projects (4 production: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`) + 10 Neo core native L2 contracts; many
+6 NeoHub projects (4 Pillars — `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController` —
+plus the dedicated `Sp1Groth16Verifier` and `MultisigVerifier`) + 10 Neo core native L2 contracts; many
 features that look missing are already there).
 
 ## Mapping `doc.md` to code (current state)

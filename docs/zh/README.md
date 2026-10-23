@@ -111,9 +111,9 @@ NeoVM 栈转换、NeoVM2/RISC-V 周期、zkVM 算术化、证明验证、聚合�
 
 架构分三层:
 
-- **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。24 个可部署合约分到 6 个关注点:
+- **L1(Neo N3 / Neo 4 上的 NeoHub)** —— 规范锚。6 个可部署合约分到 6 个关注点:
   *Settlement*、*Bridge*、*Messaging*、*Security*、*Governance*、*External Bridge*。
-  持有资产、负责结算、消息路由与治理。`ContractZkVerifier` 仍是可部署 NeoHub 合约,
+  持有资产、负责结算、消息路由与治理。`ZkVerifier` 仍是可部署 NeoHub 合约,
   但会把proof-system 验证工作交给 L1 可部署验证器合约。
 - **Neo Gateway(Phase 5,可选)** —— 把多条 L2 的证明聚合为 L1 上的单次结算
   提交。`BinaryTreeAggregator` 在 log-N 轮内归约；`MultisigRoundProver` 与
@@ -142,8 +142,8 @@ NeoVM 栈转换、NeoVM2/RISC-V 周期、zkVM 算术化、证明验证、聚合�
   [`persistence.md`](./persistence.md)。
 - **节点插件(8)** —— `Neo.Plugins.L2{Batch, Bridge, DA, Gateway,
   Metrics, Prover, Rpc, Settlement}`。
-- **智能合约（26 个 NeoHub + 10 个 L2 原生）** —— 26 个 NeoHub L1 合约项目（24 个生产合约 + 1 个仅审计用 `GovernanceFraudVerifier` + 1 个测试 stub，包含 `ContractZkVerifier`、immutable `Sp1Groth16Verifier` 与 `L2PayoutAdapter`）+ 10 个 L2 原生合约（均经
-  `Neo.SmartContract.Framework` 类型检查)。
+- **智能合约（6 个 NeoHub + 10 个 L2 原生）** —— 6 个 NeoHub L1 合约项目（`GovernanceController`、`MultisigVerifier`、`RollupHub`、`SharedBridge`、immutable `Sp1Groth16Verifier` 与 `ZkVerifier`，全部为生产合约）+ 10 个 L2 原生合约（均经
+  `Neo.SmartContract.Framework` 类型检查）。
 - **CLI 工具(7)** —— `neo-stack`、`neo-l2-devnet`、`neo-hub-deploy`、
   `neo-l2-explore`、`neo-bridge`、`neo-l2-faucet`、`neo-external-bridge`。
 - **应用 SDK 源码实现(4)** —— `src/Neo.L2.Sdk/`(.NET)· `sdk/typescript/`
@@ -159,7 +159,7 @@ NeoVM 栈转换、NeoVM2/RISC-V 周期、zkVM 算术化、证明验证、聚合�
   `bridge/neo-zkvm-gateway-{host,guest}/`(Gateway 递归 SP1 证明生产者/程序)。
 - **Submodule(5)** —— `external/neo`(`r3e-network/neo` fork，L2 分支 `r3e/neo-n4-core`；同一 fork 内的 L1 core 分支为 `r3e/neo-n3-core`)、`external/neo-devpack-dotnet`、
   `external/neo-riscv-vm`、`external/neo-zkvm`、`external/neo-vm-rs`。
-- **测试(38 个 .NET 测试工程 + 跨语言门禁)** —— solution 动态发现当前用例，加 TypeScript、Rust SDK/core/watchers/zkVM、Python SDK、Node 体验层、vendored `neo-zkvm` / `neo-riscv-vm`、Solidity、Solana 和 SP1 发布证明门禁。
+- **测试(39 个 .NET 测试工程 + 跨语言门禁)** —— solution 动态发现当前用例，加 TypeScript、Rust SDK/core/watchers/zkVM、Python SDK、Node 体验层、vendored `neo-zkvm` / `neo-riscv-vm`、Solidity、Solana 和 SP1 发布证明门禁。
 
 ---
 

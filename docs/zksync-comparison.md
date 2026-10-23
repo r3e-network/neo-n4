@@ -262,7 +262,7 @@ makes them moot or provides native equivalents:
   nonces.
 - **Diamond proxy + facet pattern** (`DiamondProxy.sol`, `Admin.sol`, `Executor.sol`,
   `Getters.sol`, `Mailbox.sol`) — exists to work around Ethereum's 24KB contract
-  size limit. NeoVM2/RISC-V has no 24KB bound; the per-concern split across NeoHub's 24
+  size limit. NeoVM2/RISC-V has no 24KB bound; the per-concern split across NeoHub's 6
   production contracts is equivalent in effect.
 - **`CTMDeploymentTracker` + `ChainAssetHandler`** — ZKsync needs these to support
   *competing* chain types and asset routers run by third parties. neo4 has one

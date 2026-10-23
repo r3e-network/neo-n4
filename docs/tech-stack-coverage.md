@@ -33,7 +33,7 @@ any other project's source.
 - **Fraud verifier (advisory structural v1/v2 reference)** ✅ — `contracts/NeoHub.GovernanceFraudVerifier/` (excluded from production challenge routing)
 - **Fraud verifier (advisory structural v3 + committed-root-bound restricted executable v4)** 🟡 — `contracts/NeoHub.RestrictedExecutionFraudVerifier/` (state-changing only for exact registered single-tx Counter v4; general NeoVM ❌)
 
-**5 NeoHub contract projects** (all production — 4-pillar lean architecture: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`, `Sp1Groth16Verifier`; see `docs/audit/neohub-lean-consolidation.md`). All type-check via `Neo.SmartContract.Framework`; CI
+**6 NeoHub contract projects** (all production — 4-pillar lean architecture: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`, plus the dedicated `Sp1Groth16Verifier` and `MultisigVerifier`; see `docs/audit/neohub-lean-consolidation.md`). All type-check via `Neo.SmartContract.Framework`; CI
 builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 
 - **L2 batch info (chainId, batch number, L1 height)** ✅ — Neo core native `L2BatchInfoContract`.
@@ -85,7 +85,7 @@ builds each with `nccs` and verifies the `.nef` + `.manifest.json` artifacts.
 - **Phase-5 proof aggregation** 🟡 — `src/Neo.Plugins.L2Gateway/` and `bridge/neo-zkvm-gateway-{guest,host}` — `BinaryTreeAggregator`, Secp256r1/Merkle rounds, canonical binding, durable outbox, crash-safe proof recovery, and a fail-closed SP1 6.2.1 recursive terminal proof ship. The RPC path targets `SettlementManager.PublishGatewayGlobalRoot`, whose bounded streaming verifier binds exact finalized constituents and atomically forwards to `MessageRouter`. Independent audit and executed real-proof deployment evidence remain required; opaque round proof bytes still cannot substitute for the terminal validity proof.
 
 **16 core off-chain libraries + 2 RPC adapter libraries + 8 plugins.** Their
-`tests/Neo.*.UnitTests/` mirrors contribute to the solution's current 38 .NET
+`tests/Neo.*.UnitTests/` mirrors contribute to the solution's current 39 .NET
 test projects. Cross-language Rust, TypeScript, Python, Solidity, and ignored
 real-proof release gates are discovered and reported by CI rather than pinned
 to brittle prose counts.
@@ -201,7 +201,7 @@ program using Solana's ed25519 sigverify precompile, source-only
 pending operator `anchor build`), and an operator CLI
 (`tools/Neo.External.Bridge.Cli/` for genkey + committee-blob +
 deploy-bundle). `Neo.Hub.Deploy` scaffolds the full bridge stack
-alongside NeoHub: 24 production deploy steps + post-deploy actions/hints. Phase C's
+alongside NeoHub: 6 production deploy steps + post-deploy actions/hints. Phase C's
 `MpcCommitteeFraudVerifier` makes slashing of equivocating committee
 members permissionless (anyone can submit cryptographic proof of two
 byte-distinct messages signed for the same `(chainId, nonce)` and

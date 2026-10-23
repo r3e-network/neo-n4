@@ -130,7 +130,7 @@ the rules in §5:
 
 **Findings:**
 
-✅ **All 4 NeoHub projects are production L1 contracts** — each satisfies at least one of rules 1, 2, or 3.
+✅ **All 6 NeoHub projects are production L1 contracts** — each satisfies at least one of rules 1, 2, or 3.
 
 ✅ **All 10 L2 native contracts are correctly placed in L2 Neo core** — each is
 per-chain state with no cross-L2 read requirement and is registered from

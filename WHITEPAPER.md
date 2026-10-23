@@ -72,7 +72,7 @@ proof regime moves up the trust ladder one phase at a time without rewriting eit
 ## 2. System overview
 
 <p align="center">
-  <img src="docs/figures/architecture.svg" alt="Neo Elastic Network — three-tier architecture: L1 NeoHub anchor (top-level view: 15 core contracts grouped into Settlement, Bridge, Messaging, Security, Governance — fraud verifiers and Phase B/C external-bridge stack live in NeoHub too but are detailed in the neohub-anatomy figure), optional Phase 5 Neo Gateway aggregator, and N elastic L2 chains" width="900">
+  <img src="docs/figures/architecture.svg" alt="Neo Elastic Network — three-tier architecture: L1 NeoHub anchor (top-level view: the 6 core contracts grouped into Settlement, Bridge, Messaging, Security, Governance — the fraud verifiers live in NeoHub too but are detailed in the neohub-anatomy figure), optional Phase 5 Neo Gateway aggregator, and N elastic L2 chains" width="900">
 </p>
 
 Three layers, each with one job:
@@ -91,11 +91,12 @@ routing, and governance must be unified.**
 ## 3. L1 contract suite — NeoHub
 
 NeoHub is the L1 contract suite shared by every L2. Conceptually it combines ZKsync's
-BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 26 contract projects
-contain 24 production contracts, one advisory structural fraud verifier, and one test-only external-bridge stub:
+BridgeHub, SharedBridge, VerifierRegistry, and MessageRouter into one suite. The 6 contract projects
+are 6 production contracts — the 4 Lean-Architecture Pillars plus a dedicated Groth16 verifier and a
+multisig verifier:
 
 <p align="center">
-  <img src="docs/figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy grouped by settlement, bridge, messaging, security, governance, and external-bridge concerns. The production settlement path includes ContractZkVerifier and immutable Sp1Groth16Verifier; ExternalBridgeStubVerifier remains test-only." width="900">
+  <img src="docs/figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy grouped by settlement, bridge, messaging, security, governance, and external-bridge concerns. The production settlement path includes the ZkVerifier router plus the immutable Sp1Groth16Verifier and MultisigVerifier." width="900">
 </p>
 
 - **`ChainRegistry`** — Register / configure / pause L2 chains. Each entry:
@@ -159,8 +160,8 @@ contain 24 production contracts, one advisory structural fraud verifier, and one
   existing-key Counter Increment transaction. It is trustless inside that
   declared profile; multi-transaction and general NeoVM fraud proofs fail closed.
 
-All 5 contract projects type-check against `Neo.SmartContract.Framework`. The
-`Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved 5-step
+All 6 contract projects type-check against `Neo.SmartContract.Framework`. The
+`Neo.Hub.Deploy` tool emits a topologically-sorted, dependency-resolved 6-step
 production deploy bundle; each contract is deployable (no advisory/test stubs in the current
 consolidated portfolio).
 
@@ -618,7 +619,7 @@ the L2 plugin set are stable across phases; the *verifier* changes.
 | Aspect                  | Neo Elastic Network              | ZKsync Elastic Chain    | OP Stack                      | Arbitrum Orbit                  |
 | ----------------------- | -------------------------------- | ----------------------- | ----------------------------- | ------------------------------- |
 | Execution kernel        | Neo 4 (NeoVM2 / RISC-V for L2; NeoVM only for legacy compatibility) | EraVM (zkEVM) | EVM (op-geth) | EVM (Nitro) |
-| L1 settlement contracts | NeoHub (24 production + advisory structural verifier + test stub) | BridgeHub + SharedBridge + V.R. | OptimismPortal etc.    | RollupCore + Inbox              |
+| L1 settlement contracts | NeoHub (6 production contracts) | BridgeHub + SharedBridge + V.R. | OptimismPortal etc.    | RollupCore + Inbox              |
 | Sequencer               | dBFT 2.0 committee (M-of-N)      | Centralized (with FCFS) | Centralized (decentralizing)  | Centralized (decentralizing)    |
 | Proof regimes           | Multisig → Optimistic → ZK       | ZK (production)         | Optimistic (Cannon)           | Optimistic (BOLD challenge game) |
 | Native interop          | L1↔L2 + L2↔L2 + bundles          | Native L2-L2 via Gateway | Superchain interop (early)   | Cross-chain Inbox messaging     |
@@ -644,7 +645,7 @@ pipeline. The two systems therefore do not have a 1:1 proof-system implementatio
 | Term                       | Meaning                                                                                       |
 | -------------------------- | --------------------------------------------------------------------------------------------- |
 | **L2 chain**               | A rollup / sidechain / validium running Neo 4 core + the L2 plugin set, registered in NeoHub. |
-| **NeoHub**                 | The 24-production-contract L1 suite shared by every L2, plus one test-only external bridge stub. |
+| **NeoHub**                 | The 6-production-contract L1 suite shared by every L2. |
 | **Neo Gateway**            | Optional Phase-5 proof-aggregation + global-message-root layer.                               |
 | **Neo Connect**            | The cross-chain messaging system (L1↔L2, L2↔L2, bundles).                                     |
 | **L2BatchCommitment**      | The per-batch on-chain object: roots, public-input hash, proof type, proof bytes.             |

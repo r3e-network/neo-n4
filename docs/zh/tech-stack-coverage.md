@@ -29,7 +29,7 @@
 - **ZK verifier router** ✅ — `contracts/NeoHub.ContractZkVerifier/` 校验 `ProofType.Zk`
   envelope / VK id,并把proof-system 验证工作交给 L1 可部署验证器合约。
 
-**26 个 NeoHub 合约项目。** 24 个生产合约 + 1 个仅审计用结构验证器 + 1 个测试 stub 全部经 `Neo.SmartContract.Framework` 通过类型检查；CI 用
+**6 个 NeoHub 合约项目。** 全部是生产合约（4 个精简架构支柱 + `Sp1Groth16Verifier` + `MultisigVerifier`）并经 `Neo.SmartContract.Framework` 通过类型检查；CI 用
 `nccs` 编译每一个并校验 `.nef` + `.manifest.json` 工件。
 
 - **L2 批次信息(chainId、批次号、L1 高度)** ✅ — `external/neo/src/Neo/SmartContract/Native/L2NativeContracts.cs`
@@ -80,7 +80,7 @@
 - **Phase-5 证明聚合** 🟡 — `src/Neo.Plugins.L2Gateway/` 与 `bridge/neo-zkvm-gateway-{guest,host}` —— `BinaryTreeAggregator`、Secp256r1/Merkle round、规范 binding、持久 outbox、崩溃安全证明恢复与 fail-closed SP1 6.2.1 递归终端证明已交付。RPC 固定调用 `SettlementManager.PublishGatewayGlobalRoot`，其有界 streaming verifier 绑定精确 finalized constituents 并原子转发到 `MessageRouter`。独立审计与真实递归证明部署证据仍是门禁，opaque round proof bytes 仍不能替代最终有效性证明。
 
 **16 个核心链下库 + 2 个 RPC adapter 库 + 8 个插件。** 它们的
-`tests/Neo.*.UnitTests/` 镜像计入当前 38 个 .NET 测试工程。Rust、TypeScript、
+`tests/Neo.*.UnitTests/` 镜像计入当前 39 个 .NET 测试工程。Rust、TypeScript、
 Python、Solidity 与 ignored 真实证明门禁均由 CI 动态发现和报告，不在说明文字中
 钉死易漂移的用例数。
 
@@ -181,7 +181,7 @@ Solana chain-ids 0xE0000020..2F,演练曲线无关的 `Signer` trait,链上派�
 `external/foreign-contracts/sol/` —— Anchor 程序,使用 Solana 的 ed25519
 sigverify precompile,源码就绪等待运维者 `anchor build`),以及一个运维 CLI
 (`tools/Neo.External.Bridge.Cli/`,提供 genkey + committee-blob + deploy-bundle)。
-`Neo.Hub.Deploy` 把整个桥栈与 NeoHub 一起脚手架化：24 个生产部署步骤 +
+`Neo.Hub.Deploy` 把整个桥栈与 NeoHub 一起脚手架化：6 个生产部署步骤 +
 post-deploy 提示。Phase C 的 `MpcCommitteeFraudVerifier` 让等价委员会成员的罚没
 变成无许可(任何人都可提交对同一 `(chainId, nonce)` 签了两条字节不同消息的
 密码学证明,然后把保证金当作奖励领走),由 `UT_MpcFraudProof_RealCrypto.cs`

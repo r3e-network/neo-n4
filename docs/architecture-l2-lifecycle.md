@@ -59,7 +59,7 @@ off-chain infrastructure that connects them:
 
 ### Tier 1: NeoHub (L1)
 
-The L1 anchor. **5 production contracts — 4-pillar lean architecture: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`, plus the stateless `Sp1Groth16Verifier`** (see `docs/audit/neohub-lean-consolidation.md` for the consolidation from the original 26 micro-contracts):
+The L1 anchor. **6 production contracts — 4-pillar lean architecture: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`, plus the stateless `Sp1Groth16Verifier` and `MultisigVerifier`** (see `docs/audit/neohub-lean-consolidation.md` for the consolidation from the original 26 micro-contracts):
 
 <p align="center">
   <img src="figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 anatomy: contracts grouped into Settlement, Bridge, Messaging, Security, Governance, and External Bridge concerns" width="900">
@@ -167,14 +167,22 @@ Encoded as a 91-byte canonical wire format via `L2ChainConfigSerializer`
 
 ### Templates
 
-`neo-stack list-templates` ships 4 starting points:
+`neo-stack list-templates` ships 11 starting points — four general-purpose base templates
+plus the seven official elastic chains:
 
-| Template      | securityLevel | daMode    | exitModel       | gatewayEnabled |
-|---------------|---------------|-----------|-----------------|----------------|
-| `rollup`      | 2             | L1        | Optimistic      | true           |
-| `zk-rollup`   | 3             | L1        | ZkValidity      | true           |
-| `validium`    | 2             | DAC       | Optimistic      | true           |
-| `sidechain`   | 1             | InMemory  | Permissionless  | false          |
+| Template     | chainMode        | daMode    | proofType  | SecurityLevel | Exit             |
+|--------------|------------------|-----------|------------|---------------|------------------|
+| `rollup`     | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `zk-rollup`  | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `validium`   | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `sidechain`  | SidechainMode    | NeoFS     | Multisig   | Sidechain     | Permissionless   |
+| `dex`        | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `gaming`     | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `defi`       | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `social`     | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `nft`        | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `payment`    | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `enterprise` | SidechainMode    | NeoFS     | Multisig   | Sidechain     | OperatorAssisted |
 
 ---
 
@@ -381,7 +389,7 @@ Which `neo-stack` subcommand touches which component:
 For NeoHub itself (one-time, per-network):
 
 ```bash
-# Generate the 24-step ordered production bundle:
+# Generate the 6-step ordered production bundle:
 dotnet run --project tools/Neo.Hub.Deploy -- plan
 
 # Verify the bundle's invariants:

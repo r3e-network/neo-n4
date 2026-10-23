@@ -24,9 +24,9 @@ implemented as a contract or plugin:
 
 Current status:
 
-- Exactly 4 `contracts/NeoHub.*` projects exist in `neo-n4`: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`.
-- All 4 are production contracts deployed via the canonical `neo-hub-deploy` plan.
-- The 4-Pillar architecture replaces the historical 26 micro-contracts with zero-hop direct storage access, single-step atomic settlement (`SubmitAndFinalizeBatch`), and unified ZK proof routing with Groth16/BN254 verification.
+- Exactly 6 `contracts/NeoHub.*` projects exist in `neo-n4`: `RollupHub`, `SharedBridge`, `ZkVerifier`, `GovernanceController`, `Sp1Groth16Verifier`, `MultisigVerifier`.
+- All 6 are production contracts deployed via the canonical `neo-hub-deploy` plan.
+- The 4-Pillar architecture replaces the historical 26 micro-contracts with zero-hop direct storage access, single-step atomic settlement (`SubmitAndFinalizeBatch`), and unified ZK proof routing with Groth16/BN254 verification. The two dedicated verifiers sit beside the Pillars: `Sp1Groth16Verifier` verifies the SP1 Groth16 proof and `MultisigVerifier` verifies committee-attested multisig proofs.
 - `ZkVerifier` serves as the deployable verifier router that consolidates all ZK proof verification paths.
 - L1 integration is through deployed contracts, node plugins, SDKs, CLIs,
   watchers, relayers, and operator services before considering any L1 core hook.

@@ -10,7 +10,7 @@ working code without having a reviewed live deployment or being production-ready
 | Phase | Goal | Design / spec | Code shape | Integrated path | Cryptographically enforced | Current-revision deployment evidence | Production-ready |
 | ----- | ---- | :-----------: | :--------: | :-------------: | :------------------------: | :----------------------------------: | :--------------: |
 | 0 | Sidechain PoC | ✅ | ✅ | ✅ local devnet | N/A | ❌ no exact-revision public deployment | ❌ |
-| 1 | NeoHub v0 + Shared Bridge | ✅ | ✅ 5 contract projects (4-pillar lean architecture: RollupHub, SharedBridge, ZkVerifier, GovernanceController + stateless Sp1Groth16Verifier) | ✅ planner + runtime composition | 🟡 security profile dependent | ❌ no exact-revision reviewed deployment | ❌ |
+| 1 | NeoHub v0 + Shared Bridge | ✅ | ✅ 6 contract projects (4-pillar lean architecture: RollupHub, SharedBridge, ZkVerifier, GovernanceController + the stateless Sp1Groth16Verifier and MultisigVerifier) | ✅ planner + runtime composition | 🟡 security profile dependent | ❌ no exact-revision reviewed deployment | ❌ |
 | 2 | Batch Settlement | ✅ | ✅ | ✅ local end-to-end path | 🟡 multisig / optimistic / ZK profile dependent | ❌ no exact-revision reviewed deployment | ❌ |
 | 3 | Optimistic Challenge Window | ✅ | 🟡 restricted executable v4 | 🟡 one committed Counter transition | 🟡 exact registered v4 only; general NeoVM fails closed | ❌ no exact-revision reviewed deployment | ❌ |
 | 4 | NeoVM2 / RISC-V ZK Validity Proof | ✅ | ✅ PolkaVM profile + exact-semantic SP1 profile | ✅ native C#→Rust + terminal proof in local/CI gates | ✅ `Sp1StatefulNeoVmV1` native/guest parity, pinned Groth16 verifier, binding, and tamper rejection; PolkaVM validity requires a matching prover | ❌ reviewed NEF/VK deployment evidence absent | ❌ |
@@ -35,10 +35,11 @@ These components have production-shaped implementations and focused local covera
 This label is not a mainnet-readiness claim; live deployment evidence, external audits,
 and every open release gate still apply:
 
-- **All 4 NeoHub L1 contract projects** type-check via
+- **All 6 NeoHub L1 contract projects** type-check via
   `Neo.SmartContract.Framework`; CI compiles each with `nccs` and verifies
-  the `.nef` + `.manifest.json` artifacts. The 4-contract production bundle
-  implements the 4-Pillar Lean Architecture (`NeoHub.RollupHub`, `NeoHub.SharedBridge`, `NeoHub.ZkVerifier`, `NeoHub.GovernanceController`).
+  the `.nef` + `.manifest.json` artifacts. The 6-contract production bundle
+  implements the 4-Pillar Lean Architecture (`NeoHub.RollupHub`, `NeoHub.SharedBridge`, `NeoHub.ZkVerifier`, `NeoHub.GovernanceController`)
+  plus the dedicated `NeoHub.Sp1Groth16Verifier` and `NeoHub.MultisigVerifier`.
   NeoHub is intentionally shipped as deployed contracts plus plugin/service integration, not as L1 Neo core native
   contracts. The lean architecture roadmap ([`docs/audit/neohub-lean-consolidation.md`](docs/audit/neohub-lean-consolidation.md))
   consolidates micro-contracts into 4 pillars (RollupHub, SharedBridge, ZkVerifier, GovernanceController),
@@ -96,7 +97,7 @@ and every open release gate still apply:
   public-input hash / no-zero-proof / DA availability / batch range).
 - **CLI tooling** — `neo-stack` plan-printers + `validate` subcommand;
   `neo-hub-deploy` declarative L1 deploy planner (now scaffolds the
-  external-bridge stack alongside NeoHub: 24 steps + explicit verifier,
+  external-bridge stack alongside NeoHub: 6 steps + explicit verifier,
   payout-route, liquidity, governance-lock, and DA post-deploy wiring
   hints); `neo-external-bridge` operator CLI for bridge committee
   setup + dual-side deploy planning.
@@ -162,7 +163,7 @@ not a general NeoVM claim:
 | Item | What's still missing | Where |
 |------|---------------------|-------|
 | General NeoVM / multi-transaction fraud proofs | The current batch header has no committed transaction count or intermediate execution-trace root, so v4 deliberately accepts only `txIndex=0`, `txCount=1`, interval `[0,1]`, and semantic id `Hash256("neo4-executor:counter-increment-existing-key:v1")`. Arbitrary NeoVM opcodes, other custom executors, key insertion/deletion, and multi-tx bisection fail closed. A general protocol needs committed tx-count/trace anchors plus complete single-step NeoVM semantics. | Restricted v4 ✅; general NeoVM ❌ |
-| Default deployment automation | The 24-step production planner excludes advisory `GovernanceFraudVerifier`, deploys the immutable domain-bound `L2PayoutAdapter`, deploys `RestrictedExecutionFraudVerifier` with `[SettlementManager, replayDomain]`, requires explicit non-zero relay/domain inputs, registers only the exact chain/semantic/domain v4 profile, and smoke-checks verifier configuration plus profile state. Legacy empty verifier deployments are not registered and remain fail closed. | ✅ Production planner + legacy fail-closed compatibility |
+| Default deployment automation | The 6-step production planner deploys the consolidated NeoHub portfolio (`Sp1Groth16Verifier`, `ZkVerifier`, `MultisigVerifier`, `GovernanceController`, `RollupHub`, `SharedBridge`) in dependency order, requires explicit non-zero relay/domain inputs, and smoke-checks verifier configuration plus profile state. Legacy empty verifier deployments are not registered and remain fail closed. | ✅ Production planner + legacy fail-closed compatibility |
 
 ### Reference / scaffolding — operator must replace
 
@@ -294,13 +295,15 @@ deployments for the documented process/signing seams.
 | `Neo.Plugins.L2Gateway`      | `BinaryTreeAggregator` with pluggable `IRoundProver` (default `PassThroughRoundProver`); `PassThroughAggregator` for flat aggregation; emits `l2.gateway.aggregations/batches_aggregated/aggregation_rounds/aggregation_latency_ms`; **`RetryingGatewayProofProver`** provides the proving retry seam — `TimeoutException` → idempotent resubmit with exponential backoff, fail-closed (`InvalidDataException`/`ArgumentException`) errors never retried |
 | `Neo.Plugins.L2Metrics`      | **Composition root**: hosts the shared `IL2Metrics` sink + `MetricsHttpServer`; other plugins call `metricsPlugin.Metrics` and pass to their `WithMetrics()` setters; configurable bind address + port + readiness predicate |
 
-### Smart contracts - 4 NeoHub projects + 10 Neo core native L2 contracts
+### Smart contracts - 6 NeoHub projects + 10 Neo core native L2 contracts
 
-**NeoHub L1 suite (4 core Pillar projects / 4 production):**
+**NeoHub L1 suite (4 core Pillar projects + 2 dedicated verifiers / 6 production):**
 - **`NeoHub.RollupHub`** (Pillar 1): Unified chain registry, batch settlement, and DA verification.
 - **`NeoHub.SharedBridge`** (Pillar 2): Canonical asset escrow, token registry, and cross-chain message router.
 - **`NeoHub.ZkVerifier`** (Pillar 3): Unified ZK validity router and SP1 Groth16/BN254 pairing verifier.
 - **`NeoHub.GovernanceController`** (Pillar 4): Council multisig, timelock, emergency pause, and sequencer bond staking/slashing.
+- **`NeoHub.Sp1Groth16Verifier`**: Dedicated immutable SP1 Groth16/BN254 proof verifier.
+- **`NeoHub.MultisigVerifier`**: Committee-attested (multisig) proof verifier registered for `ProofType.Multisig`.
 
 
 **L2 native (10):**
@@ -328,7 +331,7 @@ Remaining work is not an exhaustive two-item checklist. `RollupHubContract.Enque
 
 ### Tests
 
-**The solution currently contains 38 .NET test projects, plus cross-language
+**The solution currently contains 39 .NET test projects, plus cross-language
 gates for the shared four-language SDK conformance suite, Rust core/watchers/zkVM, Node, Solidity,
 Solana, vendored VM workspaces, and SP1 release proofs. The 2026-09-09 serial full-solution run
 discovered 3,110 tests: 3,105 passed, 0 failed, and 5 production-environment tests were explicitly
@@ -366,7 +369,7 @@ real secp256k1 signatures.
 | `Neo.L2.Telemetry.UnitTests`         | 103   | counter/histogram/gauge accumulation, tag canonicalization, Prometheus exporter (counter/gauge/summary, labels, name sanitization, frozen-snapshot), request handler routing, TCP server round-trip + multi-request, catalog completeness vs MetricNames + Prometheus integration, **`/healthz` + `/readyz` (with predicate)** |
 | `Neo.L2.Persistence.UnitTests`       | 70    | **`InMemoryKeyValueStore` + `RocksDbKeyValueStore` parity plus atomic artifact/proof-manifest persistence, content-hash binding, ordered recovery enumeration, durable retry/poison/reset checkpoints, versioned submission state and replacement CAS, forced nonce tracking/finalization, reopen durability** |
 | `Neo.L2.Executor.RiscV.UnitTests`    | 31    | stateful ABI constants/ownership/fee boundaries; storage read-through Put/Delete/Find and rollback; ordered full-state notifications; transaction/block context and `CheckWitness`; unsupported-syscall/OOG/collector fail-closed paths; ApplicationEngine receipt parity; real native PolkaVM RET, storage callback, and unsupported-syscall tests |
-| `Neo.Hub.Deploy.UnitTests`           | 110   | topology/cycle/plan validation; full 24-step production scaffold with concrete immutable L2 payout adapter; exact SP1 bootstrap-and-lock order; immutable remote NEF/manifest matching; explicit L2, relay, and v4 replay domains; advisory v1/v2/v3 exclusion, malformed optimistic-plan rejection, and atomic exact executable-v4 registration; resumable completion checks and production smoke postconditions; signer/RPC/report failure paths; critical English/Chinese settlement-spec anchor parity. |
+| `Neo.Hub.Deploy.UnitTests`           | 110   | topology/cycle/plan validation; full 6-step production scaffold covering the consolidated NeoHub portfolio; exact SP1 bootstrap-and-lock order; immutable remote NEF/manifest matching; explicit L2, relay, and v4 replay domains; advisory v1/v2/v3 exclusion, malformed optimistic-plan rejection, and atomic exact executable-v4 registration; resumable completion checks and production smoke postconditions; signer/RPC/report failure paths; critical English/Chinese settlement-spec anchor parity. |
 | `Neo.L2.IntegrationTests`            | 31    | Phase 0 MVP + Phase 1 cross-component + Phase 2 full-stack + Phase 3 optimistic-challenge + all-phases stitch + e2e telemetry pipeline + **L2MetricsPlugin composition root (every instrumented component → one sink → HTTP scrape) + e2e RocksDB persistence (KeyedStateStore + InMemoryL2RpcStore + InMemorySequencerCommitteeProvider all rehydrate from one shared data dir on reopen) + e2e audit pipeline (all 6 checks pass on healthy chain + DA-dropped scenario specifically catches via `DAAvailabilityCheck` + broken-batch-range failure-detection metric counts) + **e2e custom-executor full-stack (Sample.CounterChainExecutor + KeyedStateStoreAdapter + ReferenceBatchExecutor + KeyedStateRootOracle + AttestationProver/Verifier all wire cleanly: 3-batch run with mixed Increment/Withdraw/Message txs → all 4 batch roots non-zero, state-root advances per batch + uniqueness pin across 4 distinct roots, multisig verifier accepts custom-executor commitments, BatchSerializer encode/decode round-trip is identity, final state has 6 expected counter entries; failed-tx batch → effects don't pollute withdrawal/message roots, gas accounting still correct, state from successful txs intact)** **Restricted-v4 integration pins `BatchSerializer → canonical payload → executable verifier` for both honest and fraudulent committed transitions.** |
 | `Neo.Stack.Cli.UnitTests`            | 175   | Full command surface plus real operator-process launch plans, Neo.CLI/prover bundle validation, child exit-code propagation, shell-metacharacter isolation, SIGTERM and transaction-confirmation cancellation, forwarded-argument boundary parsing, separate batcher data, immutable genesis-root registration, genesis/rotated committee verification, committee sync dry-run, NEP-6 password/decryption/derived-public-key validation with malformed, mismatched, or unsupported wallet rejection, wallet/DBFT auto-start, storage, network, config, external signer-command request binding, explicit WIF exclusion, empty/mismatched fee-witness rejection, and the complete quick path |
 | `Neo.External.Bridge.Cli.UnitTests`  | 16    | external-bridge key generation, committee-blob validation, duplicate and malformed key rejection, deploy-bundle topology, and safe private-key file handling |

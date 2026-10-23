@@ -20,9 +20,9 @@ L1 native-contract 集合；生产目标是“可部署合约 + 可选节点插�
 
 当前状态：
 
-- `neo-n4` 中精准维护 4 大高内聚核心合约项目：`RollupHub`、`SharedBridge`、`ZkVerifier`、`GovernanceController`。
-- 4 大合约全部为生产合约，由标准 `neo-hub-deploy` 计划一键编排部署。
-- 4 支柱架构彻底取代历史上的 26 个微合约，实现零跳步（0-hop）原生存储访问、ZK 批次单步原子结算（`SubmitAndFinalizeBatch`），其中 `ZkVerifier`（前身整合了 ContractZkVerifier）作为核心可部署验证器路由，提供统一的 SP1 Groth16 / BN254 密码学验证。
+- `neo-n4` 中精准维护 6 大高内聚核心合约项目：`RollupHub`、`SharedBridge`、`ZkVerifier`、`GovernanceController`、`Sp1Groth16Verifier`、`MultisigVerifier`。
+- 6 大合约全部为生产合约，由标准 `neo-hub-deploy` 计划一键编排部署。
+- 4 支柱架构彻底取代历史上的 26 个微合约，实现零跳步（0-hop）原生存储访问、ZK 批次单步原子结算（`SubmitAndFinalizeBatch`），其中 `ZkVerifier`（前身整合了 ContractZkVerifier）作为核心可部署验证器路由，提供统一的 SP1 Groth16 / BN254 密码学验证。两个专用验证器与支柱并列：`Sp1Groth16Verifier` 验证 SP1 Groth16 证明，`MultisigVerifier` 验证委员会多签证明。
 - `ZkVerifier` 是部署的验证器路由，整合所有 ZK 证明验证路径。
 - L1 集成优先通过可部署合约、节点插件、SDK、CLI、watcher、relayer 和运维服务完成，
   只有无法通过这些方式完成时才考虑 L1 core hook。

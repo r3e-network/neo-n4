@@ -68,7 +68,7 @@ L1 合约和 L2 插件集 *在架构层面已经定型*;证明体系按一阶段
 ## 2. 系统概览
 
 <p align="center">
-  <img src="figures/architecture.svg" alt="Neo Elastic Network —— 三层架构:L1 NeoHub 锚(26 个项目中的 24 个生产合约按 Settlement、Bridge、Messaging、Security、Governance 分组;ContractZkVerifier 把 ZK 证明路由到可部署验证器合约)、可选的 Phase 5 Neo Gateway 聚合器、N 条弹性 L2 链" width="900">
+  <img src="figures/architecture.svg" alt="Neo Elastic Network —— 三层架构:L1 NeoHub 锚(6 个生产合约按 Settlement、Bridge、Messaging、Security、Governance 分组;ZkVerifier 把 ZK 证明路由到可部署验证器合约)、可选的 Phase 5 Neo Gateway 聚合器、N 条弹性 L2 链" width="900">
 </p>
 
 三层,每层只干一件事:
@@ -86,11 +86,11 @@ L1 合约和 L2 插件集 *在架构层面已经定型*;证明体系按一阶段
 ## 3. L1 合约套件 —— NeoHub
 
 NeoHub 是每条 L2 共享的 L1 合约套件。概念上,它把 ZKsync 的 BridgeHub、
-SharedBridge、VerifierRegistry、MessageRouter 合并成一个套件。共 26 个项目：
-24 个生产合约、1 个仅审计用结构验证器和 1 个仅测试 stub。
+SharedBridge、VerifierRegistry、MessageRouter 合并成一个套件。共 6 个项目：
+4 个精简架构支柱 + 1 个专用 Groth16 验证器 + 1 个多签验证器,全部为生产合约。
 
 <p align="center">
-  <img src="figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 解剖：26 个项目（24 个生产合约 + 1 个仅审计用结构验证器 + 1 个测试 stub）按关注点分组 —— Settlement（SettlementManager + VerifierRegistry + ContractZkVerifier + immutable Sp1Groth16Verifier）、Bridge、Messaging、Security、Governance 与 Phase B/C External Bridge。ExternalBridgeStubVerifier 仅测试用" width="900">
+  <img src="figures/architecture/neohub-anatomy.svg" alt="NeoHub L1 解剖：6 个生产合约按关注点分组 —— Settlement（RollupHub + ZkVerifier + immutable Sp1Groth16Verifier + MultisigVerifier）、Bridge、Messaging、Security、Governance 与 Phase B/C External Bridge。" width="900">
 </p>
 
 - **`ChainRegistry`** —— 注册 / 配置 / 暂停 L2 链。每条记录:
@@ -131,9 +131,9 @@ SharedBridge、VerifierRegistry、MessageRouter 合并成一个套件。共 26 �
   链上执行精确注册的单笔、已有 key 的 Counter Increment 语义。通用 NeoVM、
   多交易与其它 custom executor 语义 fail closed。
 
-26 个 NeoHub 项目（24 个生产合约 + 1 个仅审计用结构验证器 + 1 个测试 stub）都对
+6 个 NeoHub 项目全部对
 `Neo.SmartContract.Framework` 类型检查通过。`Neo.Hub.Deploy` 工具发出
-拓扑排序 + 依赖解析过的 24 步生产部署 bundle。
+拓扑排序 + 依赖解析过的 6 步生产部署 bundle。
 
 NeoHub 背后的原则是**所有 L2 共用一份 L1 信任根**。新加一条 L2 不部署新桥
 也不部署新 verifier;它只在 `ChainRegistry` 注册,并继承既有合约。
@@ -542,7 +542,7 @@ exitModel(Permissionless / Delayed / OperatorAssisted)。用户经
 | 维度                  | Neo Elastic Network              | ZKsync Elastic Chain    | OP Stack                      | Arbitrum Orbit                  |
 | --------------------- | -------------------------------- | ----------------------- | ----------------------------- | ------------------------------- |
 | 执行内核              | Neo 4(NeoVM2 / RISC-V 作为 L2; NeoVM 仅作兼容路径) | EraVM(zkEVM) | EVM(op-geth) | EVM(Nitro) |
-| L1 结算合约           | NeoHub（24 个生产合约 + 1 个仅审计用结构验证器 + 1 个测试 stub） | BridgeHub + SharedBridge + V.R. | OptimismPortal 等             | RollupCore + Inbox              |
+| L1 结算合约           | NeoHub（6 个生产合约） | BridgeHub + SharedBridge + V.R. | OptimismPortal 等             | RollupCore + Inbox              |
 | 排序器                | dBFT 2.0 委员会(M-of-N)         | 中心化(带 FCFS)         | 中心化(去中心化中)            | 中心化(去中心化中)              |
 | 证明体系              | 多签 → 乐观 → ZK                  | ZK(生产)                | 乐观(Cannon)                  | 乐观(BOLD 挑战游戏)             |
 | 原生互通              | L1↔L2 + L2↔L2 + bundle           | 经 Gateway 的原生 L2-L2 | Superchain interop(早期)     | 跨链 Inbox 消息                 |
@@ -562,7 +562,7 @@ blob DA 更便宜)。
 | 术语                       | 含义                                                                                          |
 | -------------------------- | --------------------------------------------------------------------------------------------- |
 | **L2 链**                  | 一条 rollup / sidechain / validium,跑 Neo 4 core + L2 插件集,在 NeoHub 中注册。                |
-| **NeoHub**                 | 每条 L2 共享的 26 项目 L1 套件：24 个生产合约、1 个仅审计用 verifier、1 个测试 stub。           |
+| **NeoHub**                 | 每条 L2 共享的 6 个生产合约 L1 套件。           |
 | **Neo Gateway**            | 可选的 Phase-5 证明聚合 + 全局消息根 层。                                                      |
 | **Neo Connect**            | 跨链消息系统(L1↔L2、L2↔L2、bundle)。                                                       |
 | **L2BatchCommitment**      | 按批次的链上对象:各根、public-input hash、proof type、proof 字节。                            |

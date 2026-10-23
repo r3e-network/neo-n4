@@ -554,7 +554,8 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --executor counter
 
 ## Templates
 
-`neo-stack create-chain --template <name>` picks one of four starting points.
+`neo-stack create-chain --template <name>` picks one of eleven starting points:
+four general-purpose base templates plus the seven official elastic chains.
 Each writes a different `chain.config.json` (chainMode + daMode + proofType +
 security label set per `doc.md` §6 + §16.2):
 
@@ -564,6 +565,13 @@ security label set per `doc.md` §6 + §16.2):
 | `zk-rollup`  | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
 | `validium`   | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
 | `sidechain`  | SidechainMode    | NeoFS     | Multisig   | Sidechain     | Permissionless   |
+| `dex`        | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `gaming`     | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `defi`       | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `social`     | L2RollupMode     | NeoFS     | Zk         | Optimistic    | Delayed          |
+| `nft`        | L2ValidiumMode   | NeoFS     | Zk         | Validium      | Delayed          |
+| `payment`    | L2RollupMode     | L1        | Zk         | Validity      | Permissionless   |
+| `enterprise` | SidechainMode    | NeoFS     | Multisig   | Sidechain     | OperatorAssisted |
 
 The `securityLevel` ⇄ `proofType` pairing each template emits is not a style
 choice: `SettlementManager.IsProofTypeCompatible` (NeoHub §3.2) rejects any pair
@@ -610,7 +618,7 @@ reconciliation pass after the on-chain deadline passes. An accepted challenge de
 the window before finalize, so the driver cannot finalize a fraud-reverted batch.
 
 Two production-target deployment profiles are documented: the bundled restricted-v4
-profile and an operator-supplied custom executable-v4 profile. The default 24-step production bundle
+profile and an operator-supplied custom executable-v4 profile. The default 6-step production bundle
 excludes the structural v1/v2 advisory contract and configures the restricted verifier with
 `[SettlementManager, replayDomain]`; live deployment therefore requires an
 explicit `--fraud-replay-domain`:
@@ -676,7 +684,7 @@ classes at the same call sites.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Five extension points operators commonly customize
+### Six extension points operators commonly customize
 
 - **`ITransactionExecutor`** — Default: `ReferenceTransactionExecutor`.
   Swap for domain-specific opcodes; `neo-stack scaffold-executor`
@@ -1045,14 +1053,15 @@ be whatever the operator needs.
 
 ## Going to L1: deploying NeoHub
 
-Before `register-chain` works, the 5 production NeoHub contracts must be
+Before `register-chain` works, the 6 production NeoHub contracts must be
 deployed on the target L1. The `neo-hub-deploy` tool emits a deploy
 bundle that names each contract, its dependencies, and the resolved hashes
 after a topological sort:
 
 ```bash
-# 1. Scaffold a starter plan (5 production NeoHub deploy steps in dependency
-#    order: RollupHub, SharedBridge, ZkVerifier, Sp1Groth16Verifier, GovernanceController).
+# 1. Scaffold a starter plan (6 production NeoHub deploy steps in dependency
+#    order: Sp1Groth16Verifier, ZkVerifier, MultisigVerifier, GovernanceController,
+#    RollupHub, SharedBridge).
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold \
     --output ./my-l2/deploy-plan.json
 

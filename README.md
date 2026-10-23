@@ -5,7 +5,7 @@
 > **A multi-L2 network on Neo 4 core, with a shared bridge, proof aggregation, and native cross-chain messaging.**
 
 > [!NOTE]
-> **🚀 Live on Testnet!** Neo N4 is deployed to Neo N3 Testnet. All 5 core contracts are operational with 100% test coverage.
+> **🚀 Live on Testnet!** Neo N4 is deployed to Neo N3 Testnet. All 5 deployed core contracts are operational.
 > See [TESTNET_DEPLOYMENT_RESULT.md](./docs/archive/status-reports-2026/TESTNET_DEPLOYMENT_RESULT.md) for addresses and validation results.
 
 > [!TIP]
@@ -330,7 +330,7 @@ For deeper diagrams, see:
 
 The architecture is three tiers:
 
-- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 5 contract projects grouped
+- **L1 (NeoHub on Neo N3 / Neo 4)** — canonical anchor. 6 contract projects grouped
   into four concerns: *Settlement* (RollupHub · ZkVerifier), *Bridge*
   (SharedBridge · Sp1Groth16Verifier), *Security* (SequencerBond · ForcedInclusion · OptimisticChallenge, all within RollupHub), and *Governance*
   (GovernanceController). Owns assets,
@@ -362,7 +362,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | RPC adapter libraries | **2** | `Neo.L2.Gateway.Rpc` · `Neo.L2.Settlement.Rpc` |
 | Persistence backends | **2**  | `InMemoryKeyValueStore` (tests) · `RocksDbKeyValueStore` (production default) — see [`docs/persistence.md`](./docs/persistence.md) |
 | Node plugins      | **8**     | `Neo.Plugins.L2{Batch,Bridge,DA,Gateway,Metrics,Prover,Rpc,Settlement}`  |
-| Smart contracts   | **5 projects + 10 L2 native** | 5 NeoHub L1 contract projects: RollupHub, SharedBridge, ZkVerifier, Sp1Groth16Verifier, GovernanceController (production/deployable). 10 L2 system contracts are Neo core native contracts in the r3e `external/neo` fork. |
+| Smart contracts   | **6 projects + 10 L2 native** | 6 NeoHub L1 contract projects: RollupHub, SharedBridge, ZkVerifier, Sp1Groth16Verifier, MultisigVerifier, GovernanceController (production/deployable). 10 L2 system contracts are Neo core native contracts in the r3e `external/neo` fork. |
 | CLI tools         | **7**     | `neo-stack`, `neo-l2-devnet`, `neo-hub-deploy`, `neo-l2-explore`, `neo-bridge`, `neo-l2-faucet`, `neo-external-bridge` |
 | App SDK sources   | **4**     | `src/Neo.L2.Sdk/` (.NET) · `sdk/typescript/` (`@neo-n4/sdk`) · `sdk/rust/` (`neo-n4-sdk`) · `sdk/python/` (`neo-n4-sdk`) — all 10 RPC methods, same wire shape, same 4-class error taxonomy; no package-release evidence is claimed |
 | Static web experiences | **4** | `sdk/web-explorer/index.html` (operator explorer) · `docs/experience-hub/index.html` (architecture tour) · `docs/interactive-runtime/index.html` (runtime theater) · `docs/interactive-math/index.html` (proof math lab) |
@@ -370,7 +370,7 @@ For the master Chinese spec, see [`doc.md`](./doc.md).
 | Rust prover/core  | **5**     | `bridge/neo-execution-core/` (shared canonical execution semantics) · `bridge/neo-zkvm-guest/` (SP1 RISC-V program plus host-native `neo-zkvm-executor` over the same runtime) · `bridge/neo-zkvm-host/` (batch SP1 proof producer) · `bridge/neo-zkvm-gateway-{host,guest}/` (recursive Gateway SP1 proof producer/program) |
 | Foreign-chain integrations | **6** | Watchers (3): `watchers/neo-bridge-watcher-eth/` serves the EVM family through one chain-id-driven daemon and includes shutdown, health/info/metrics, confirmation-buffer, and single-instance controls; `.../-tron/` re-exports it with Tron chain IDs; `.../-sol/` supplies ed25519 signing and Solana chain IDs. Default and live-RPC suites are source-discovered. Foreign-side routers (3): `external/foreign-contracts/eth/` deploys unchanged across supported EVM chains and has **44 Foundry tests**; `.../tron/` documents the TVM deployment; `.../sol/` contains the source-only Anchor program. Canonical family banks and onboarding are documented in [`docs/external-bridge-evm-chains.md`](./docs/external-bridge-evm-chains.md); independent audit and current-revision deployment evidence remain required. |
 | Submodules        | **5**     | `external/neo` (`r3e-network/neo` fork, L2 branch `r3e/neo-n4-core`; L1 core branch is `r3e/neo-n3-core` in the same fork) · `external/neo-devpack-dotnet` · `external/neo-riscv-vm` · `external/neo-zkvm` · `external/neo-vm-rs`. None are represented as package releases for the exact revisions tracked here. |
-| Tests             | **38 .NET test projects + cross-language gates** | The solution discovers the current .NET inventory dynamically, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`docs/testing-approach.md`](./docs/testing-approach.md). |
+| Tests             | **39 .NET test projects + cross-language gates** | The solution discovers the current .NET inventory dynamically, plus TypeScript, Rust SDK/core/watchers/zkVM, Python SDK, Node experience, vendored `neo-zkvm` / `neo-riscv-vm`, Solidity, Solana, and SP1 release-proof gates documented in [`docs/testing-approach.md`](./docs/testing-approach.md). |
 
 ```
 neo4/
@@ -495,7 +495,7 @@ dotnet run --project tools/Neo.L2.Devnet -- 5 --data-dir /tmp/neo-l2-devnet
 
 # --- L1 deploy (when ready) ---
 
-# Generate a NeoHub deploy bundle (5 production contracts, declarative, dependency-resolved)
+# Generate a NeoHub deploy bundle (6 production contracts, declarative, dependency-resolved)
 dotnet run --project tools/Neo.Hub.Deploy -- scaffold --output deploy-plan.json
 dotnet run --project tools/Neo.Hub.Deploy -- plan     --plan deploy-plan.json --output bundle.json
 

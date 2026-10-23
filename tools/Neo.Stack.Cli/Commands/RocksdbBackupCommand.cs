@@ -26,57 +26,57 @@ internal static class RocksdbBackupCommand
         var nodeDataDir = ArgUtil.Get(args, "--node-data-dir", "");
         var backupDir = ArgUtil.Get(args, "--backup-dir", "./backups");
         var retentionDaysArg = ArgUtil.Get(args, "--retention-days", "30");
-        
+
         if (!uint.TryParse(retentionDaysArg, out var retentionDays))
         {
             Console.Error.WriteLine($"--retention-days must be a non-negative integer, got '{retentionDaysArg}'");
             return 1;
         }
         var retentionDaysInt = (int)Math.Min(retentionDays, int.MaxValue);
-        
+
         if (string.IsNullOrWhiteSpace(nodeDataDir) || string.IsNullOrWhiteSpace(backupDir))
         {
             Console.Error.WriteLine("Usage: neo-stack rocksdb-backup --node-data-dir <path> --backup-dir <path> [--retention-days <N>]");
             return 1;
         }
-        
+
         if (!Directory.Exists(nodeDataDir))
         {
             Console.Error.WriteLine($"Error: Data directory does not exist: {nodeDataDir}");
             return 1;
         }
-        
+
         var rocksDbPath = Path.Combine(nodeDataDir, "rocksdb");
         if (!Directory.Exists(rocksDbPath))
         {
             Console.Error.WriteLine($"Error: RocksDB directory not found at {rocksDbPath}");
             return 1;
         }
-        
+
         var tempSnapshotDir = Path.Combine(Path.GetTempPath(), $"rocksdb-snapshot-{Guid.NewGuid()}");
         try
         {
             Directory.CreateDirectory(backupDir);
             Directory.CreateDirectory(tempSnapshotDir);
-            
+
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
             var archiveName = $"backup-{timestamp}.zip";
             var archivePath = Path.Combine(backupDir, archiveName);
-            
+
             Console.WriteLine("Creating RocksDB backup...");
             Console.WriteLine($"  source: {rocksDbPath}");
             Console.WriteLine($"  destination: {archivePath}");
-            
+
             // Create snapshot using RocksDbKeyValueStore
             using var store = new RocksDbKeyValueStore(rocksDbPath);
-            
+
             // Step 1: Copy files manually (since RocksDbSharp doesn't expose checkpoint)
             Console.WriteLine("  creating snapshot copy...");
             foreach (var file in Directory.GetFiles(rocksDbPath))
             {
                 var fileName = Path.GetFileName(file);
-                if (!fileName.StartsWith("CURRENT") && 
-                    !fileName.StartsWith("LOCK") && 
+                if (!fileName.StartsWith("CURRENT") &&
+                    !fileName.StartsWith("LOCK") &&
                     !fileName.StartsWith("LOG") &&
                     !fileName.StartsWith("MANIFEST"))
                 {
@@ -84,7 +84,7 @@ internal static class RocksdbBackupCommand
                     File.Copy(file, destFile, overwrite: true);
                 }
             }
-            
+
             // Also copy manifest files
             var manifestFiles = Directory.GetFiles(rocksDbPath, "CURRENT*")
                 .Concat(Directory.GetFiles(rocksDbPath, "MANIFEST*"))
@@ -93,19 +93,19 @@ internal static class RocksdbBackupCommand
             {
                 File.Copy(file, Path.Combine(tempSnapshotDir, Path.GetFileName(file)), overwrite: true);
             }
-            
+
             // Step 2: Trigger minor compaction
             Console.WriteLine("  triggering compaction...");
             store.CompactRangeAsync().GetAwaiter().GetResult();
-            
+
             // Step 3: Verify consistency
             Console.WriteLine("  verifying integrity...");
             store.VerifyConsistencyAsync().GetAwaiter().GetResult();
-            
+
             // Step 4: Compress to zip
             Console.WriteLine("  compressing archive...");
             ZipFile.CreateFromDirectory(tempSnapshotDir, archivePath, CompressionLevel.Optimal, false);
-            
+
             // Create manifest
             var manifest = new BackupManifest
             {
@@ -115,15 +115,15 @@ internal static class RocksdbBackupCommand
             };
             var manifestJson = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(Path.Combine(backupDir, "manifest.json"), manifestJson);
-            
+
             var size = new FileInfo(archivePath).Length / 1024.0;
-            
+
             Console.WriteLine($"✓ Backup completed successfully");
             Console.WriteLine($"  archive: {archivePath} ({size:F2} KB)");
             Console.WriteLine($"  retention: {retentionDaysInt} days");
             Console.WriteLine();
             Console.WriteLine($"Restore with: neo-stack rocksdb-restore --snapshot-file {archivePath} --target-dir <path>");
-            
+
             return 0;
         }
         catch (Exception ex)

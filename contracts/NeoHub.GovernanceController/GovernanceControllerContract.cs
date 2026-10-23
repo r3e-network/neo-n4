@@ -1288,29 +1288,29 @@ public class GovernanceControllerContract : SmartContract
     public static bool WithdrawBond(uint chainId, UInt160 sequencer, BigInteger amount)
     {
         ExecutionEngine.Assert(Runtime.CheckWitness(sequencer) || Runtime.CheckWitness(GetOwner()), "not authorized");
-        
+
         var key = SequencerBondKey(chainId, sequencer);
         var cur = Storage.Get(key);
         ExecutionEngine.Assert(cur != null, "no bond recorded");
         var curBal = (BigInteger)cur!;
         ExecutionEngine.Assert(curBal >= amount, "insufficient bond balance");
-        
+
         // Enforce minimum bond after withdrawal (if set)
         var minBond = GetMinBond();
         ExecutionEngine.Assert(curBal - amount >= minBond, "withdrawal would drop below minimum bond");
-        
+
         // Verify actual GAS escrow on contract side before transfer
         var contractBalance = GAS.BalanceOf(Runtime.ExecutingScriptHash);
         ExecutionEngine.Assert(contractBalance >= amount, "contract lacks GAS escrow");
-        
+
         // Perform actual GAS transfer back to sequencer
         ExecutionEngine.Assert(GAS.Transfer(Runtime.ExecutingScriptHash, sequencer, amount, null),
             "GAS transfer failed");
-        
+
         // Adjust local counter only AFTER successful transfer
         Storage.Put(key, curBal - amount);
         OnBondWithdrawn(chainId, sequencer, amount);
-        
+
         return true;
     }
 
@@ -1327,15 +1327,15 @@ public class GovernanceControllerContract : SmartContract
         ExecutionEngine.Assert(cur != null, "no bond recorded");
         var curBal = (BigInteger)cur!;
         ExecutionEngine.Assert(curBal >= amount, "slash exceeds balance");
-        
+
         // Verify GAS escrow before slashing
         var contractBalance = GAS.BalanceOf(Runtime.ExecutingScriptHash);
         ExecutionEngine.Assert(contractBalance >= amount, "contract lacks GAS escrow");
-        
+
         // Transfer slashed GAS to recipient
         ExecutionEngine.Assert(GAS.Transfer(Runtime.ExecutingScriptHash, recipient, amount, null),
             "GAS transfer failed");
-        
+
         // Adjust counter after successful transfer
         Storage.Put(key, curBal - amount);
         OnBondSlashed(chainId, sequencer, amount, recipient);

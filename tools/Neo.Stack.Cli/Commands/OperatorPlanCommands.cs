@@ -310,7 +310,7 @@ internal static class RegisterChainCommand
         try
         {
             using var rpc = new JsonRpcClient(rpcEndpoint.AbsoluteUri);
-            
+
             // Check isActive
             var activeItem = await RpcContractReader.InvokeReadAsync(
                 rpc,

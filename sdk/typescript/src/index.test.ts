@@ -257,3 +257,161 @@ describe("L2RpcClient", () => {
     });
   });
 });
+
+/**
+ * Regression tests for the audit findings that made the SDK return WRONG DATA rather
+ * than fail loudly.
+ */
+describe("L2RpcClient — numeric precision and enum safety", () => {
+  const ENDPOINT = "http://node.example:30332";
+  const CHAIN_ID = 1099;
+
+  function stubFetch(handler: (method: string, params: unknown[]) => unknown): typeof fetch {
+    return async (input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(init!.body as string) as { method: string; params: unknown[]; id: number };
+      const result = handler(body.method, body.params);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ jsonrpc: "2.0", id: body.id, result }),
+        text: async () => "",
+      } as unknown as Response;
+    };
+  }
+
+  it("rejects a JS number u64 argument instead of silently truncating it", async () => {
+    // 2^53 + 1 cannot be represented exactly as a JS number. Passing it as a `number`
+    // used to reach the wire as 9007199254740992 — a DIFFERENT batch number — and
+    // `getStateRootAt` has no response cross-check, so the caller silently received the
+    // state root of the wrong batch.
+    let sentParams: unknown[] = [];
+    const client = new L2RpcClient({
+      endpoint: ENDPOINT,
+      chainId: CHAIN_ID,
+      fetch: stubFetch((_method, params) => {
+        sentParams = params;
+        return "0x" + "a".repeat(64);
+      }),
+    });
+
+    await expect(
+      client.getStateRootAt(9007199254740993 as unknown as bigint),
+    ).rejects.toThrow(L2RpcProtocolError);
+    // The request must never have been sent with the truncated value.
+    expect(sentParams).toHaveLength(0);
+  });
+
+  it("rejects a JS number for every u64 parameter", async () => {
+    const client = new L2RpcClient({
+      endpoint: ENDPOINT,
+      chainId: CHAIN_ID,
+      fetch: stubFetch(() => ({})),
+    });
+    await expect(client.getBatch(42 as unknown as bigint)).rejects.toThrow(L2RpcProtocolError);
+    await expect(client.getBatchStatus(42 as unknown as bigint)).rejects.toThrow(L2RpcProtocolError);
+    await expect(client.getDepositStatus(1, 42 as unknown as bigint)).rejects.toThrow(
+      L2RpcProtocolError,
+    );
+  });
+
+  it("accepts a bigint u64 argument", async () => {
+    const client = new L2RpcClient({
+      endpoint: ENDPOINT,
+      chainId: CHAIN_ID,
+      fetch: stubFetch((_method, params) => ({
+        chainId: CHAIN_ID,
+        batchNumber: params[1],
+        status: 3,
+        statusName: "Finalized",
+      })),
+    });
+    const status = await client.getBatchStatus(42n);
+    expect(status.batchNumber).toBe(42n);
+  });
+
+  it("rejects an out-of-range enum byte", async () => {
+    const client = new L2RpcClient({
+      endpoint: ENDPOINT,
+      chainId: CHAIN_ID,
+      fetch: stubFetch(() => ({
+        chainId: CHAIN_ID,
+        securityLevel: 200,
+        daMode: 201,
+        gatewayEnabled: true,
+        sequencer: 202,
+        exit: 203,
+      })),
+    });
+    await expect(client.getSecurityLabel()).rejects.toThrow(L2RpcProtocolError);
+  });
+
+  it("rejects an out-of-range batch status byte", async () => {
+    const client = new L2RpcClient({
+      endpoint: ENDPOINT,
+      chainId: CHAIN_ID,
+      fetch: stubFetch(() => ({ chainId: CHAIN_ID, status: 99, statusName: "bogus" })),
+    });
+    await expect(client.getBatchStatus(1n)).rejects.toThrow(L2RpcProtocolError);
+  });
+
+  it("exposes the server error `data` field", async () => {
+    const client = new L2RpcClient({
+      endpoint: ENDPOINT,
+      chainId: CHAIN_ID,
+      fetch: async (_input, init) => {
+        const body = JSON.parse(init!.body as string) as { id: number };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            jsonrpc: "2.0",
+            id: body.id,
+            error: { code: -32602, message: "Invalid params", data: "chainId 9999 differs from local 1001" },
+          }),
+          text: async () => "",
+        } as unknown as Response;
+      },
+    });
+    await expect(client.getLatestStateRoot()).rejects.toMatchObject({
+      code: -32602,
+      data: "chainId 9999 differs from local 1001",
+    });
+  });
+
+  it("preserves a non-object server error payload", async () => {
+    const client = new L2RpcClient({
+      endpoint: ENDPOINT,
+      chainId: CHAIN_ID,
+      fetch: async (_input, init) => {
+        const body = JSON.parse(init!.body as string) as { id: number };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ jsonrpc: "2.0", id: body.id, error: "upstream exploded" }),
+          text: async () => "",
+        } as unknown as Response;
+      },
+    });
+    await expect(client.getLatestStateRoot()).rejects.toThrow(/upstream exploded/);
+  });
+
+  it("times out while the response BODY is still pending", async () => {
+    // The timeout must cover the body read, not just the response headers. A server that
+    // sends headers and then stalls used to hang the caller forever.
+    const client = new L2RpcClient({
+      endpoint: ENDPOINT,
+      chainId: CHAIN_ID,
+      timeoutMs: 120,
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = init!.signal as AbortSignal;
+          signal.addEventListener("abort", () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          });
+        }),
+    });
+    await expect(client.getLatestStateRoot()).rejects.toThrow(L2RpcTransportError);
+  });
+});

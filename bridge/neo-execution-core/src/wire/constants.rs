@@ -23,6 +23,13 @@ pub(crate) const MAX_DA_EVIDENCE_BYTES: usize = 16 * 1024 * 1024;
 pub(crate) const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
 pub(crate) const MAX_PAYLOAD_TRANSACTION_BYTES: usize = 16 * 1024 * 1024;
 pub(crate) const MAX_PAYLOAD_ITEMS: usize = 1_000_000;
+/// Ceiling on the aggregate GAS of a single batch.
+///
+/// Every transaction carries its own per-transaction gas limit, so the batch total is
+/// otherwise unbounded: with `MAX_PAYLOAD_ITEMS` transactions the aggregate could demand
+/// an unbounded amount of proving time. The batch fold rejects any batch whose total
+/// exceeds this value.
+pub(crate) const MAX_BATCH_GAS: u64 = 1_000_000_000_000;
 pub(crate) const MAX_FORCED_INCLUSION_SIBLINGS: usize = 64;
 pub(crate) const MAX_STATE_ENTRIES: usize = 65_536;
 pub(crate) const MAX_STATE_KEY_BYTES: usize = 4096;

@@ -14,13 +14,14 @@ use crate::{
     types::{
         BatchEffects, BatchExecutionResult, BatchResult, CanonicalReceiptV1, ComputedBatch,
         ComputedBatchTransition, ExecutionError, ExecutionPayload, ParsedTransaction,
-        ProofWitnessArtifact, PublicInputs, StateEntry, StateWitness, StorageDelta,
-        StorageOperation, TransactionEffects, UInt160, VmOutcome,
+        ProofType, ProofWitnessArtifact, PublicInputs, StateEntry, StateWitness, StorageDelta,
+        StorageOperation, TransactionEffects, UInt160, UInt256, VmOutcome,
     },
     wire::{
         encode_batch_effects, encode_execution_payload, encode_state_witness,
         parse_proof_witness_artifact,
     },
+    wire::constants::MAX_BATCH_GAS,
 };
 
 struct ComputedBatchState {
@@ -74,12 +75,93 @@ where
     })
 }
 
+/// Validate the batch's forced-inclusion proofs.
+///
+/// Mirrors the reference C# producer (`Neo.L2.Batch.SealedBatch`): a forced-inclusion proof
+/// must name the batch's LEADING transaction, must carry that transaction's canonical hash,
+/// and must be a canonical Merkle proof for the batch's transaction tree. The nonces must be
+/// unique within the batch.
+///
+/// Without this the batch could declare `forced_inclusion_count = N` without actually
+/// including the forced transactions. The chain advances the forced queue head by N purely
+/// on that count, so the forced transactions would be permanently skipped — a censorship
+/// attack that the SP1 proof itself would happily certify.
+fn validate_forced_inclusions(
+    payload: &ExecutionPayload,
+    transactions: &[ParsedTransaction],
+) -> Result<(), ExecutionError> {
+    let proofs = &payload.forced_inclusions;
+    if proofs.is_empty() {
+        return Ok(());
+    }
+    if proofs.len() > transactions.len() {
+        return Err(ExecutionError::Invalid(
+            "forced-inclusion count exceeds the batch transaction count",
+        ));
+    }
+    let transaction_hashes: Vec<UInt256> = transactions.iter().map(|tx| tx.hash).collect();
+    let mut nonces = BTreeSet::new();
+    for (index, proof) in proofs.iter().enumerate() {
+        if proof.leaf_index as usize != index {
+            return Err(ExecutionError::Invalid(
+                "forced-inclusion transactions must occupy the leading transaction positions",
+            ));
+        }
+        if !nonces.insert(proof.nonce) {
+            return Err(ExecutionError::Invalid(
+                "forced-inclusion nonces must be unique within a batch",
+            ));
+        }
+        if proof.tx_hash != transaction_hashes[index] {
+            return Err(ExecutionError::Invalid(
+                "forced-inclusion tx hash does not match the encoded transaction",
+            ));
+        }
+        // Recompute the canonical sibling path for this leaf and require the proof to match
+        // it exactly. A tampered or non-canonical path cannot verify against the root.
+        let canonical = canonical_siblings(&transaction_hashes, index);
+        if canonical != proof.siblings {
+            return Err(ExecutionError::Invalid(
+                "forced-inclusion proof is not canonical for the batch transaction root",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Compute the canonical Merkle sibling path for `index` over `leaves`.
+///
+/// The tree duplicates the last node when a level has an odd number of leaves — the same
+/// convention the C# `Neo.L2.State.MerkleTree` uses.
+fn canonical_siblings(leaves: &[UInt256], index: usize) -> Vec<UInt256> {
+    let mut level: Vec<UInt256> = leaves.to_vec();
+    let mut position = index;
+    let mut siblings = Vec::new();
+    while level.len() > 1 {
+        let parent = position / 2;
+        let sibling_index = if position % 2 == 0 { position + 1 } else { position - 1 };
+        let sibling = level.get(sibling_index).copied().unwrap_or(level[position]);
+        siblings.push(sibling);
+        let mut parents = Vec::with_capacity(level.len().div_ceil(2));
+        for pair in level.chunks(2) {
+            let left = pair[0];
+            let right = pair.get(1).copied().unwrap_or(left);
+            let mut bytes = [0u8; 64];
+            bytes[..32].copy_from_slice(&left);
+            bytes[32..].copy_from_slice(&right);
+            parents.push(hash256(&bytes));
+        }
+        level = parents;
+        position = parent;
+    }
+    siblings
+}
+
 fn compute_batch_state_with<F>(
     payload: &ExecutionPayload,
     witness: &StateWitness,
     mut execute_transaction: F,
-) -> Result<ComputedBatchState, ExecutionError>
-where
+) -> Result<ComputedBatchState, ExecutionError>where
     F: FnMut(
         &ExecutionPayload,
         &StateWitness,
@@ -104,6 +186,16 @@ where
     for transaction in &transactions {
         verify_transaction_witnesses(transaction, payload.block_context.network)?;
     }
+    // Forced-inclusion proofs must actually prove inclusion of the batch's LEADING
+    // transactions. Without this check the batch could claim `forced_inclusion_count = N`
+    // while containing none of the forced transactions — the chain advances the forced
+    // queue head by N purely on the count, so the forced transactions are permanently
+    // skipped (a censorship attack) and the proof itself is not verifiable.
+    //
+    // The C# producer (`SealedBatch`) enforces the same rules, so a batch produced by the
+    // reference implementation passes; a non-conforming producer is rejected here rather
+    // than being believed.
+    validate_forced_inclusions(payload, &transactions)?;
     let mut nonce_keys = BTreeSet::<(UInt160, u32)>::new();
     let mut transaction_hashes = Vec::with_capacity(transactions.len());
     let mut receipt_hashes = Vec::with_capacity(transactions.len());
@@ -130,6 +222,14 @@ where
         total_gas = total_gas
             .checked_add(outcome.gas_consumed)
             .ok_or(ExecutionError::Invalid("batch gas overflow"))?;
+        // Aggregate batch-GAS ceiling. Each transaction has its own per-transaction limit,
+        // so without an aggregate ceiling a batch could carry up to `MAX_PAYLOAD_ITEMS`
+        // transactions and demand an unbounded amount of proving time. Rejecting here
+        // means both the guest and the host refuse the batch — the limit is part of the
+        // execution semantics, not a local policy.
+        if u64::try_from(total_gas).unwrap_or(u64::MAX) > MAX_BATCH_GAS {
+            return Err(ExecutionError::Invalid("batch total gas exceeds limit"));
+        }
 
         let (deltas, events) = if outcome.success {
             apply_deltas(&mut state, &outcome.storage_deltas)?;
@@ -244,7 +344,7 @@ where
         &ParsedTransaction,
     ) -> Result<VmOutcome, ExecutionError>,
 {
-    if artifact.proof_type != 3
+    if artifact.proof_type != ProofType::Zk as u8
         || artifact.proof_system != 1
         || !artifact.execution_witness_authenticated
         || artifact.execution_semantic_id != crate::SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID

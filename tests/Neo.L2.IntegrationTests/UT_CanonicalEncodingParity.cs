@@ -323,6 +323,52 @@ public class UT_CanonicalEncodingParity
             Bytes("commitment"));
         AssertBytesEqual("export.public_inputs", CanonicalEncodingVectors.PublicInputs(),
             Bytes("public_inputs"));
+        // The withdrawal leaf: the one encoding the 2026-10-21 audit found had ALREADY
+        // forked (off-chain 98B vs on-chain 118B). Four implementations must agree on it.
+        AssertBytesEqual("export.withdrawal_leaf_preimage",
+            CanonicalEncodingVectors.WithdrawalLeafPreimage(),
+            Bytes("withdrawal_leaf_preimage"));
+        AssertBytesEqual("export.withdrawal_leaf_hash",
+            CanonicalEncodingVectors.WithdrawalLeafHash(),
+            Bytes("withdrawal_leaf_hash"));
+        // The chain config RollupHub.registerChain parses. The Rust lane rebuilds it from named
+        // fields, so a field-order or boolean-width drift shows up as a byte difference.
+        AssertBytesEqual("export.chain_config",
+            CanonicalEncodingVectors.ChainConfig(),
+            Bytes("chain_config"));
+        // The external-bridge inbound message: the bytes a watcher SIGNS. Three encoders
+        // existed with no cross-side anchor (Rust watcher, ExternalMessageHasher, and a
+        // hand-rolled copy in UT_External_RealCrypto).
+        AssertBytesEqual("export.xmsg_canonical",
+            CanonicalEncodingVectors.XMsgCanonical(),
+            Bytes("xmsg_canonical"));
+        AssertBytesEqual("export.xmsg_payload",
+            CanonicalEncodingVectors.XMsgPayload(),
+            Bytes("xmsg_payload"));
+        AssertBytesEqual("export.xmsg_hash",
+            CanonicalEncodingVectors.XMsgHash(),
+            Bytes("xmsg_hash"));
+        // Gateway frontier: same three leaves folded two ways (duplicate vs promote odd).
+        AssertBytesEqual("export.gateway_leaf_0",
+            CanonicalEncodingVectors.GatewayLeaf0(), Bytes("gateway_leaf_0"));
+        AssertBytesEqual("export.gateway_leaf_1",
+            CanonicalEncodingVectors.GatewayLeaf1(), Bytes("gateway_leaf_1"));
+        AssertBytesEqual("export.gateway_leaf_2",
+            CanonicalEncodingVectors.GatewayLeaf2(), Bytes("gateway_leaf_2"));
+        AssertBytesEqual("export.gateway_root_duplicate_odd",
+            CanonicalEncodingVectors.GatewayRootDuplicateOdd(),
+            Bytes("gateway_root_duplicate_odd"));
+        AssertBytesEqual("export.gateway_root_promote_odd",
+            CanonicalEncodingVectors.GatewayRootPromoteOdd(),
+            Bytes("gateway_root_promote_odd"));
+        Assert.AreEqual((long)CanonicalEncodingVectors.GatewayLeafCount,
+            Number("gateway_leaf_count"), "export.gateway_leaf_count");
+        // The non-zero forced-inclusion vector: the count is the field the 2026-10-21 audit
+        // found diverging, and a vector whose count is zero cannot catch a divergence in the
+        // count's encoding.
+        AssertBytesEqual("export.public_inputs_with_forced",
+            CanonicalEncodingVectors.PublicInputsWithForcedInclusions(),
+            Bytes("public_inputs_with_forced"));
         AssertBytesEqual("export.withdrawal_root", CanonicalEncodingVectors.WithdrawalRoot(),
             Bytes("withdrawal_root"));
         AssertBytesEqual("export.withdrawal_proof", CanonicalEncodingVectors.WithdrawalProofFraming(),
@@ -359,6 +405,22 @@ public class UT_CanonicalEncodingParity
         Assert.AreEqual((long)CanonicalEncodingVectors.FirstBlock, Number("first_block"), "export.first_block");
         Assert.AreEqual((long)CanonicalEncodingVectors.LastBlock, Number("last_block"), "export.last_block");
         Assert.AreEqual((long)CanonicalEncodingVectors.ProofType, Number("proof_type"), "export.proof_type");
+        Assert.AreEqual((long)CanonicalEncodingVectors.WithdrawalChainId,
+            Number("withdrawal_chain_id"), "export.withdrawal_chain_id");
+        Assert.AreEqual((long)CanonicalEncodingVectors.WithdrawalNonce,
+            Number("withdrawal_nonce"), "export.withdrawal_nonce");
+        Assert.AreEqual((long)CanonicalEncodingVectors.WithdrawalAmount,
+            Number("withdrawal_amount"), "export.withdrawal_amount");
+        Assert.AreEqual((long)CanonicalEncodingVectors.XMsgExternalChainId,
+            Number("xmsg_external_chain_id"), "export.xmsg_external_chain_id");
+        Assert.AreEqual((long)CanonicalEncodingVectors.XMsgNeoChainId,
+            Number("xmsg_neo_chain_id"), "export.xmsg_neo_chain_id");
+        Assert.AreEqual((long)CanonicalEncodingVectors.XMsgNonce,
+            Number("xmsg_nonce"), "export.xmsg_nonce");
+        Assert.AreEqual((long)CanonicalEncodingVectors.XMsgDeadline,
+            Number("xmsg_deadline"), "export.xmsg_deadline");
+        Assert.AreEqual(2L, Number("xmsg_direction"), "export.xmsg_direction");
+        Assert.AreEqual(0L, Number("xmsg_message_type"), "export.xmsg_message_type");
         Assert.AreEqual((long)CanonicalEncodingVectors.WithdrawalProofLeafIndex,
             Number("withdrawal_proof_leaf_index"), "export.withdrawal_proof_leaf_index");
 
@@ -411,5 +473,103 @@ public class UT_CanonicalEncodingParity
             CollectionAssert.DoesNotContain(fills, leafFill,
                 "a withdrawal leaf reuses a commitment root fill");
         }
+    }
+
+    [TestMethod]
+    public void OffChainWithdrawalEncoder_ProducesTheSharedLeafVector()
+    {
+        // FOUR implementations encode this leaf and only three had ever been compared:
+        //   1. NeoHub.SharedBridge.ComputeWithdrawalLeafHash   (on-chain, authoritative)
+        //   2. Neo.L2.State.MessageHasher.EncodeWithdrawal     (off-chain .NET)  ← this test
+        //   3. neo_execution_core::native::withdrawal_leaf_preimage (Rust)       ← the Rust lane
+        //   4. the hand-rolled builder in UT_SharedBridge_Vm                     ← reads the export
+        //
+        // The audit found this leaf had ALREADY forked once (98B vs 118B) and it survived
+        // because each implementation was validated only against itself. This pins the
+        // off-chain encoder to the shared third-implementation vector.
+        var request = new WithdrawalRequest
+        {
+            ChainId = CanonicalEncodingVectors.WithdrawalChainId,
+            EmittingContract = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalEmitting, 20)),
+            L2Sender = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalL2Sender, 20)),
+            L2Asset = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalL2Asset, 20)),
+            L1Asset = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalL1Asset, 20)),
+            L1Recipient = new UInt160(Repeat(CanonicalEncodingVectors.FillWithdrawalL1Recipient, 20)),
+            Amount = CanonicalEncodingVectors.WithdrawalAmount,
+            Nonce = CanonicalEncodingVectors.WithdrawalNonce,
+        };
+
+        var preimage = Neo.L2.State.MessageHasher.EncodeWithdrawal(request);
+        AssertBytesEqual(
+            "MessageHasher.EncodeWithdrawal vs shared vector",
+            CanonicalEncodingVectors.WithdrawalLeafPreimage(),
+            preimage);
+
+        var leaf = Neo.L2.State.MessageHasher.HashWithdrawal(request);
+        Assert.AreEqual(
+            Convert.ToHexString(CanonicalEncodingVectors.WithdrawalLeafHash()),
+            Convert.ToHexString(leaf.GetSpan()),
+            "MessageHasher.HashWithdrawal must be the double-SHA256 of the shared vector");
+
+        // Round-trip: the decoder must recover the request from the same bytes.
+        var decoded = Neo.L2.State.MessageHasher.DecodeWithdrawal(preimage);
+        Assert.AreEqual(request.L1Asset, decoded.L1Asset, "l1Asset must survive the round-trip");
+        Assert.AreEqual(request.Amount, decoded.Amount);
+        Assert.AreEqual(request.Nonce, decoded.Nonce);
+    }
+
+    [TestMethod]
+    public void ExternalMessageEncoder_ProducesTheSharedVector()
+    {
+        // THREE encoders exist for the external-bridge canonical message and none had ever
+        // been compared across sides before this vector:
+        //   1. neo-bridge-watcher-eth canonical_message_bytes  (Rust — the SIGNING side)
+        //   2. Neo.L2.Messaging.ExternalMessageHasher          (consumer/deployment side) ← this test
+        //   3. UT_External_RealCrypto.CanonicalMessageBytes    (hand-rolled test copy)
+        // The vector comes from a fourth implementation (Python) that neither side uses.
+        var message = new ExternalCrossChainMessage
+        {
+            ExternalChainId = CanonicalEncodingVectors.XMsgExternalChainId,
+            NeoChainId = CanonicalEncodingVectors.XMsgNeoChainId,
+            Nonce = CanonicalEncodingVectors.XMsgNonce,
+            Direction = ExternalBridgeDirection.ForeignToNeo,
+            Sender = new UInt160(Repeat(0xE1, 20)),
+            Recipient = new UInt160(Repeat(0xC2, 20)),
+            DeadlineUnixSeconds = CanonicalEncodingVectors.XMsgDeadline,
+            SourceTxRef = new UInt256(Repeat(0xD3, 32)),
+            MessageType = ExternalMessageType.AssetTransfer,
+            Payload = CanonicalEncodingVectors.XMsgPayload(),
+            MessageHash = UInt256.Zero,
+        };
+
+        var canonical = Neo.L2.Messaging.ExternalMessageHasher.EncodeCanonical(message);
+        AssertBytesEqual(
+            "ExternalMessageHasher.EncodeCanonical vs shared vector",
+            CanonicalEncodingVectors.XMsgCanonical(),
+            canonical);
+
+        // And the recorded hash really is the double-SHA256 of the canonical bytes.
+        Assert.AreEqual(
+            Convert.ToHexString(CanonicalEncodingVectors.XMsgHash()),
+            Convert.ToHexString(Hash256(canonical)),
+            "the vector's message hash must be the double-SHA256 of its canonical bytes");
+
+        // Round-trip: the decoder must recover the same message from the vector bytes.
+        var decoded = Neo.L2.Messaging.ExternalMessageHasher.DecodeCanonical(canonical);
+        Assert.AreEqual(message.ExternalChainId, decoded.ExternalChainId);
+        Assert.AreEqual(message.NeoChainId, decoded.NeoChainId);
+        Assert.AreEqual(message.Nonce, decoded.Nonce);
+        Assert.AreEqual(message.Direction, decoded.Direction);
+        Assert.AreEqual(message.DeadlineUnixSeconds, decoded.DeadlineUnixSeconds);
+        Assert.AreEqual(message.MessageType, decoded.MessageType);
+        CollectionAssert.AreEqual(message.Payload.ToArray(), decoded.Payload.ToArray(),
+            "the payload must survive the round-trip");
+    }
+
+    private static byte[] Repeat(byte value, int count)
+    {
+        var bytes = new byte[count];
+        Array.Fill(bytes, value);
+        return bytes;
     }
 }

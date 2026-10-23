@@ -43,6 +43,25 @@ public interface IL2RpcStore
     /// <summary>Per-batch state root (pre or post). Returns <see cref="UInt256.Zero"/> if not known.</summary>
     UInt256 GetStateRootAtBatch(ulong batchNumber);
 
+    /// <summary>
+    /// Try to look up the per-batch state root.
+    /// </summary>
+    /// <remarks>
+    /// Distinguishes "this batch does not exist" from "this batch exists and its state root
+    /// is the zero hash". The zero root is a legal value (a genesis batch), so a caller that
+    /// only sees <see cref="UInt256.Zero"/> cannot tell the two apart — and a zero root
+    /// returned for an unknown batch would silently satisfy an inclusion check.
+    ///
+    /// The default implementation derives the answer from
+    /// <see cref="GetStateRootAtBatch"/>, which cannot distinguish the two cases; stores
+    /// that can should override it.
+    /// </remarks>
+    bool TryGetStateRootAtBatch(ulong batchNumber, out UInt256 stateRoot)
+    {
+        stateRoot = GetStateRootAtBatch(batchNumber);
+        return true;
+    }
+
     /// <summary>Inclusion-proof bytes for a withdrawal leaf. <c>null</c> if not yet finalized.</summary>
     ReadOnlyMemory<byte>? GetWithdrawalProof(UInt256 withdrawalLeafHash);
 

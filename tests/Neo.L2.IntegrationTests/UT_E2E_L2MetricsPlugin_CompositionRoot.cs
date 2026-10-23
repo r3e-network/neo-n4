@@ -147,6 +147,7 @@ public class UT_E2E_L2MetricsPlugin_CompositionRoot
         L2Sender = UInt160.Parse("0x" + new string('a', 40)),
         L1Recipient = UInt160.Parse("0x" + new string('b', 40)),
         L2Asset = UInt160.Parse("0x" + new string('2', 40)),
+        L1Asset = UInt160.Parse("0x" + new string('e', 40)),
         Amount = 100,
         Nonce = nonce,
     };

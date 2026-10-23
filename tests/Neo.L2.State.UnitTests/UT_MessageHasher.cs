@@ -20,6 +20,8 @@ public class UT_MessageHasher
     private static UInt160 B() => UInt160.Parse("0x" + new string('b', 40));
     private static UInt160 C() => UInt160.Parse("0x" + new string('c', 40));
     private static UInt160 D() => UInt160.Parse("0x" + new string('d', 40));
+    private static UInt160 E() => UInt160.Parse("0x" + new string('e', 40));
+    private static UInt160 F() => UInt160.Parse("0x" + new string('f', 40));
 
     private static CrossChainMessage Msg(UInt160? sender = null, UInt160? receiver = null) => new()
     {
@@ -35,13 +37,15 @@ public class UT_MessageHasher
 
     private static WithdrawalRequest Wd(
         UInt160? emitting = null, UInt160? l2sender = null,
-        UInt160? l1recipient = null, UInt160? l2asset = null) => new()
+        UInt160? l1recipient = null, UInt160? l2asset = null,
+        UInt160? l1asset = null) => new()
         {
             ChainId = 1U,
             EmittingContract = emitting!,
             L2Sender = l2sender!,
             L1Recipient = l1recipient!,
             L2Asset = l2asset!,
+            L1Asset = l1asset!,
             Amount = 1000,
             Nonce = 1,
         };
@@ -151,12 +155,16 @@ public class UT_MessageHasher
     [TestMethod]
     public void HashWithdrawal_CanonicalBufferLayout_MatchesDocumented()
     {
-        // Pins the canonical hash-input layout claimed in MessageHasher.cs:66-76:
+        // Pins the canonical hash-input layout claimed in MessageHasher.cs — which MUST
+        // match the on-chain NeoHub.SharedBridge.ComputeWithdrawalLeafHash:
         //   [4B chainId LE]
-        //   [20B emittingContract][20B l2Sender][20B l1Recipient][20B l2Asset]
-        //   [4B amountLen][amountLen B unsigned-LE-amount][8B nonce]
+        //   [20B emittingContract][20B l2Sender][20B l2Asset]
+        //   [8B withdrawalNonce LE]
+        //   [20B l1Asset][20B l1Recipient]
+        //   [4B amountLen][amountLen B unsigned-LE-amount]
         //   → Hash256
-        // The L1 SharedBridge verifies withdrawal-leaf inclusion against this hash.
+        // The L1 SharedBridge verifies withdrawal-leaf inclusion against this hash, so a
+        // divergence here makes every L2→L1 withdrawal fail on-chain.
         // The leading chainId is a domain-separator so an inclusion proof from one
         // L2's withdrawal root can't replay against another L2.
         var amount = new BigInteger(0x1122334455667788UL);
@@ -168,22 +176,24 @@ public class UT_MessageHasher
             L2Sender = B(),
             L1Recipient = C(),
             L2Asset = D(),
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = amount,
             Nonce = 0xCAFEBABEDEADBEEFUL,
         };
 
-        var size = 4 + 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
+        var size = 4 + 20 + 20 + 20 + 8 + 20 + 20 + 4 + amountBytes.Length;
         var buf = new byte[size];
         var span = buf.AsSpan();
         var pos = 0;
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(pos, 4), wd.ChainId); pos += 4;
         wd.EmittingContract.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
         wd.L2Sender.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
-        wd.L1Recipient.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
         wd.L2Asset.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), wd.Nonce); pos += 8;
+        wd.L1Asset.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        wd.L1Recipient.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
         BinaryPrimitives.WriteInt32LittleEndian(span.Slice(pos, 4), amountBytes.Length); pos += 4;
         amountBytes.AsSpan().CopyTo(span.Slice(pos, amountBytes.Length)); pos += amountBytes.Length;
-        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), wd.Nonce);
 
         var expected = new UInt256(Crypto.Hash256(buf));
         Assert.AreEqual(expected, MessageHasher.HashWithdrawal(wd));
@@ -240,6 +250,7 @@ public class UT_MessageHasher
             L2Sender = B(),
             L1Recipient = C(),
             L2Asset = D(),
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = 1_000_000UL,
             Nonce = 7,
         };
@@ -266,6 +277,7 @@ public class UT_MessageHasher
             L2Sender = B(),
             L1Recipient = C(),
             L2Asset = D(),
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = 1_000_000UL,
             Nonce = 42,
         };
@@ -286,6 +298,7 @@ public class UT_MessageHasher
             L2Sender = B(),
             L1Recipient = C(),
             L2Asset = D(),
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = huge,
             Nonce = 1,
         };
@@ -306,6 +319,7 @@ public class UT_MessageHasher
             L2Sender = B(),
             L1Recipient = C(),
             L2Asset = D(),
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = atMax,
             Nonce = 1,
         };
@@ -319,22 +333,69 @@ public class UT_MessageHasher
         // Frozen cross-implementation reference. The off-chain MessageHasher.HashWithdrawal
         // must produce the same leaf hash as the on-chain
         // NeoHub.SharedBridge.ComputeWithdrawalLeafHash, which a unit test cannot invoke
-        // (it is private NeoVM contract code). CanonicalBufferLayout pins the off-chain
-        // encoder against a buffer assembled from the *documented* layout — but that mirror
-        // buffer lives in this test file, so a refactor touching both the encoder and the
-        // mirror in lockstep would stay green. This literal was computed OUT OF BAND (not by
-        // the C# encoder) for the canonical input below; it breaks on any drift in either,
-        // and is the value a contract reviewer re-derives against ComputeWithdrawalLeafHash.
+        // (it is private NeoVM contract code). The vector below was computed OUT OF BAND from
+        // the on-chain byte layout — it breaks on any drift in either implementation, and it
+        // is the value a contract reviewer re-derives against ComputeWithdrawalLeafHash.
         //
         // Canonical input — symmetric UInt160 bytes so GetSpan() byte-order is irrelevant:
-        //   chainId=1, emitting=0xAA*20, l2Sender=0xBB*20, l1Recipient=0xCC*20,
-        //   l2Asset=0xDD*20, amount=1000 (0xE803 unsigned-LE), nonce=1
-        //   buf = 01000000 | AA*20 | BB*20 | CC*20 | DD*20 | 02000000 | E803 | 0100000000000000
+        //   chainId=1, emitting=0xAA*20, l2Sender=0xBB*20, l2Asset=0xDD*20,
+        //   nonce=1, l1Asset=0xEE*20, l1Recipient=0xCC*20, amount=1000 (0xE803 unsigned-LE)
+        //   buf = 01000000 | AA*20 | BB*20 | DD*20 | 0100000000000000 | EE*20 | CC*20
+        //         | 02000000 | E803                                  (118 bytes)
         //   leaf = Sha256(Sha256(buf))
-        var wd = Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D());
-        var golden = UInt256.Parse("0xe16deec3f35f8c64d2f2f11ed10a498374855a499da9eea4ad33bbb134c4ad76");
+        var wd = Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D(), l1asset: E());
+        var golden = UInt256.Parse("0x2b7f067192cf69c875ba3f0be1e1997d747347331a3da6065bc7544d32e1ef1e");
         Assert.AreEqual(golden, MessageHasher.HashWithdrawal(wd),
             "withdrawal-leaf hash drifted from the frozen on-chain parity vector");
+    }
+
+    [TestMethod]
+    public void HashWithdrawal_MatchesOnChainLayout_ByteForByte()
+    {
+        // The strongest form of the cross-implementation check: assemble the preimage by
+        // hand using the ON-CHAIN byte order (NeoHub.SharedBridge.ComputeWithdrawalLeafHash)
+        // and assert the off-chain encoder produces exactly those bytes.
+        //
+        // This replaces the previous "mirror buffer inside the test file" approach. A mirror
+        // that lives next to the encoder can be edited in lockstep with it and stay green —
+        // that is exactly how the chain-side / chain-offside layout divergence survived.
+        // Here the expected bytes are written out field by field from the documented
+        // on-chain layout, so any reordering or omission on either side fails.
+        var wd = Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D(), l1asset: E());
+
+        var expected = new List<byte>();
+        expected.AddRange(new byte[] { 0x01, 0x00, 0x00, 0x00 });            // chainId LE
+        expected.AddRange(A().GetSpan());                                   // emittingContract
+        expected.AddRange(B().GetSpan());                                   // l2Sender
+        expected.AddRange(D().GetSpan());                                   // l2Asset
+        expected.AddRange(new byte[] { 0x01, 0, 0, 0, 0, 0, 0, 0 });        // nonce LE
+        expected.AddRange(E().GetSpan());                                   // l1Asset
+        expected.AddRange(C().GetSpan());                                   // l1Recipient
+        expected.AddRange(new byte[] { 0x02, 0x00, 0x00, 0x00 });          // amountLen LE
+        expected.AddRange(new byte[] { 0xE8, 0x03 });                       // amount 1000 LE
+
+        var actual = MessageHasher.EncodeWithdrawal(wd);
+        CollectionAssert.AreEqual(expected.ToArray(), actual,
+            "off-chain withdrawal preimage no longer matches the on-chain layout");
+
+        // And the hash of those bytes must equal the frozen parity vector.
+        Assert.AreEqual(
+            UInt256.Parse("0x2b7f067192cf69c875ba3f0be1e1997d747347331a3da6065bc7544d32e1ef1e"),
+            MessageHasher.HashWithdrawal(wd));
+    }
+
+    [TestMethod]
+    public void HashWithdrawal_BindsL1Asset_IntoTheLeafHash()
+    {
+        // The l1Asset binding is a security property, not cosmetics: without it the same
+        // withdrawal expressed in two different L1 payout assets would produce an identical
+        // leaf hash, so an inclusion proof could be replayed against a different asset.
+        var baseWd = Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D(), l1asset: E());
+        var otherL1Asset = baseWd with { L1Asset = F() };
+        Assert.AreNotEqual(
+            MessageHasher.HashWithdrawal(baseWd),
+            MessageHasher.HashWithdrawal(otherL1Asset),
+            "the L1 payout asset must be bound into the withdrawal leaf hash");
     }
 
     [TestMethod]
@@ -389,7 +450,7 @@ public class UT_MessageHasher
     [TestMethod]
     public void DecodeWithdrawal_RoundTripsCanonicalPreimage()
     {
-        var original = Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D()) with
+        var original = Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D(), l1asset: E()) with
         {
             ChainId = uint.MaxValue,
             Amount = BigInteger.One << 504,
@@ -405,22 +466,28 @@ public class UT_MessageHasher
     [TestMethod]
     public void DecodeWithdrawal_RejectsTruncatedAndInvalidLengths()
     {
+        // The canonical preimage has 116 fixed bytes before the amount:
+        //   4 (chainId) + 20 + 20 + 20 (emitting/l2Sender/l2Asset) + 8 (nonce)
+        //   + 20 + 20 (l1Asset/l1Recipient) + 4 (amountLen) = 116
+        // A buffer shorter than that must be rejected before any field is read.
+        const int fixedSize = 4 + 20 + 20 + 20 + 8 + 20 + 20 + 4;
+        const int amountLenOffset = 4 + 20 + 20 + 20 + 8 + 20 + 20;
         Assert.ThrowsExactly<InvalidDataException>(
-            () => MessageHasher.DecodeWithdrawal(new byte[95]));
+            () => MessageHasher.DecodeWithdrawal(new byte[fixedSize - 1]));
 
         var encoded = MessageHasher.EncodeWithdrawal(
-            Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D()));
-        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(84, 4), -1);
+            Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D(), l1asset: E()));
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(amountLenOffset, 4), -1);
         Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeWithdrawal(encoded));
 
         encoded = MessageHasher.EncodeWithdrawal(
-            Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D()));
-        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(84, 4), 65);
+            Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D(), l1asset: E()));
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(amountLenOffset, 4), 65);
         Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeWithdrawal(encoded));
 
         encoded = MessageHasher.EncodeWithdrawal(
-            Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D()));
-        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(84, 4), 1);
+            Wd(emitting: A(), l2sender: B(), l1recipient: C(), l2asset: D(), l1asset: E()));
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(amountLenOffset, 4), 1);
         Assert.ThrowsExactly<InvalidDataException>(() => MessageHasher.DecodeWithdrawal(encoded));
     }
 
@@ -464,6 +531,7 @@ public class UT_MessageHasher
                     L2Sender = RandomUInt160(rng),
                     L1Recipient = RandomUInt160(rng),
                     L2Asset = RandomUInt160(rng),
+                    L1Asset = UInt160.Parse("0x" + new string('e', 40)),
                     Amount = amount,
                     Nonce = (ulong)rng.Next(0, int.MaxValue)
                 };
@@ -548,6 +616,7 @@ public class UT_MessageHasher
             L2Sender = RandomUInt160(rng),
             L1Recipient = RandomUInt160(rng),
             L2Asset = RandomUInt160(rng),
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = amount,
             Nonce = (ulong)rng.Next(1, int.MaxValue)
         };

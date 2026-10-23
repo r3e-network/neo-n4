@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 use crate::{
     hashing::{hash_block_context, hash_l1_messages, hash256},
     types::{
-        BatchExecutionResult, ExecutionError, ExecutionPayload, ProofWitnessArtifact, PublicInputs,
-        UInt256,
+        BatchExecutionResult, ExecutionError, ExecutionPayload, ProofType, ProofWitnessArtifact,
+        PublicInputs, UInt256,
     },
 };
 
@@ -46,7 +46,7 @@ pub fn parse_proof_witness_artifact(bytes: &[u8]) -> Result<ProofWitnessArtifact
     }
     let execution_witness_authenticated = flags & 1 != 0;
     let proof_type = reader.read_u8()?;
-    if proof_type != 3 {
+    if proof_type != ProofType::Zk as u8 {
         return Err(ExecutionError::Invalid("proof type"));
     }
     let proof_system = reader.read_u8()?;
@@ -164,7 +164,7 @@ pub fn encode_proof_witness_artifact(
     let payload_bytes = encode_execution_payload(&artifact.execution_payload)?;
     let state_witness_bytes = encode_state_witness(&artifact.state_witness)?;
     let effects_bytes = encode_batch_effects(&artifact.effects)?;
-    if artifact.proof_type != 3
+    if artifact.proof_type != ProofType::Zk as u8
         || artifact.proof_system == 0
         || artifact.proof_system > 4
         || !artifact.execution_witness_authenticated

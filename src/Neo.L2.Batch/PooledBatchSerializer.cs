@@ -26,9 +26,6 @@ public static class PooledBatchSerializer
     /// <summary>Maximum buffer size to rent from pool (16MB ceiling).</summary>
     private const int MaxRentSize = 1 << 24;
 
-    /// <summary>Critical proof length limit matching NeoHub constraints (1 MiB).</summary>
-    private const int ProofMaxBytes = 1 * 1024 * 1024;
-
     /// <summary>
     /// Serializes an <see cref="L2BatchCommitment"/> to a pooled buffer with automatic recycling.
     /// </summary>
@@ -39,8 +36,14 @@ public static class PooledBatchSerializer
     /// <exception cref="ArgumentException">Thrown if proof exceeds maximum allowed size.</exception>
     public static byte[] Serialize(L2BatchCommitment commitment, int? poolSize = null)
     {
-        ArgumentNullException.ThrowIfNull(commitment);
-        
+        // Reuse the canonical encoder's validation. This serializer used to implement the
+        // commitment layout a SECOND time with NO validation at all — no null guards, no
+        // 1 MiB proof cap, no proof-type range check — so the pooled path could produce
+        // bytes the canonical path would have rejected. Two encoders of the same logical
+        // object with different validation strength is exactly the shape of bug that
+        // survives review; there is now one source of truth.
+        BatchSerializer.Validate(commitment);
+
         // Calculate required size
         var bufferSize = poolSize ?? EstimateSerializedSize(commitment);
         bufferSize = Math.Min(bufferSize, MaxRentSize);

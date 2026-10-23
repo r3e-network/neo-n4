@@ -162,6 +162,9 @@ public class UT_InvocationBuilder
         L2Sender = L2SenderHash,
         L1Recipient = RecipientHash,
         L2Asset = L2AssetHash,
+        // The L1 payout asset is bound into the leaf hash, so it MUST be the same value
+        // the builder receives as `asset` (AssetHash).
+        L1Asset = AssetHash,
         Amount = amount,
         Nonce = WithdrawalNonce,
     });

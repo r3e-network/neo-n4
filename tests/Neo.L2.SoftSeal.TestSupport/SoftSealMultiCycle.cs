@@ -330,6 +330,7 @@ public static class SoftSealMultiCycle
     {
         Assert.IsTrue(n >= 2);
         var softL2Asset = UInt160.Parse("0x" + new string('2', 40));
+        var softL1Asset = UInt160.Parse("0x" + new string('3', 40));
         var softSender = Account((byte)(0xB0 + (n & 0x0F)));
         var wdLeaf = host.StageWithdrawal(new WithdrawalRequest
         {
@@ -338,6 +339,7 @@ public static class SoftSealMultiCycle
             L2Sender = softSender,
             L1Recipient = softSender,
             L2Asset = softL2Asset,
+            L1Asset = softL1Asset,
             Amount = new BigInteger(100),
             Nonce = (ulong)n,
         });

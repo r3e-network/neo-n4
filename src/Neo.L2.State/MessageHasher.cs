@@ -92,11 +92,17 @@ public static class MessageHasher
     /// <summary>Compute the leaf hash for a <see cref="WithdrawalRequest"/>.</summary>
     /// <remarks>
     /// Wire format MUST match <c>NeoHub.SharedBridge.ComputeWithdrawalLeafHash</c>:
-    /// <c>4B chainId LE | 20B emittingContract | 20B l2Sender | 20B l1Recipient |
-    /// 20B l2Asset | 4B amountLen LE | N amountBytes LE | 8B nonce LE</c>, then
-    /// Hash256 (double-SHA256). The chainId domain-separator is load-bearing
-    /// against cross-L2 inclusion-proof replay — see
+    /// <c>4B chainId LE | 20B emittingContract | 20B l2Sender | 20B l2Asset |
+    /// 8B withdrawalNonce LE | 20B l1Asset | 20B l1Recipient | 4B amountLen LE |
+    /// N amountBytes LE</c>, then Hash256 (double-SHA256). The chainId domain-separator is
+    /// load-bearing against cross-L2 inclusion-proof replay — see
     /// <see cref="WithdrawalRequest.ChainId"/>.
+    ///
+    /// The chain-side layout is authoritative: it is the layout the L1 contract recomputes
+    /// when it validates an inclusion proof, so any divergence makes every L2→L1 withdrawal
+    /// fail on-chain. The <c>l1Asset</c> field is part of that layout and binds the leaf to
+    /// the L1 payout asset, preventing one inclusion proof from being replayed against a
+    /// different L1 asset.
     /// </remarks>
     public static UInt256 HashWithdrawal(WithdrawalRequest withdrawal)
         => new(Crypto.Hash256(EncodeWithdrawal(withdrawal)));
@@ -114,11 +120,12 @@ public static class MessageHasher
         ArgumentNullException.ThrowIfNull(withdrawal.L2Sender);
         ArgumentNullException.ThrowIfNull(withdrawal.L1Recipient);
         ArgumentNullException.ThrowIfNull(withdrawal.L2Asset);
+        ArgumentNullException.ThrowIfNull(withdrawal.L1Asset);
         var amountBytes = withdrawal.Amount.ToByteArray(isUnsigned: true, isBigEndian: false);
         if (amountBytes.Length > 64)
             throw new ArgumentException("Withdrawal amount exceeds 64 bytes", nameof(withdrawal));
 
-        var size = 4 + 20 + 20 + 20 + 20 + 4 + amountBytes.Length + 8;
+        var size = 4 + 20 + 20 + 20 + 8 + 20 + 20 + 4 + amountBytes.Length;
         var buffer = new byte[size];
         var span = buffer.AsSpan();
 
@@ -126,11 +133,12 @@ public static class MessageHasher
         BinaryPrimitives.WriteUInt32LittleEndian(span.Slice(pos, 4), withdrawal.ChainId); pos += 4;
         withdrawal.EmittingContract.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
         withdrawal.L2Sender.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
-        withdrawal.L1Recipient.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
         withdrawal.L2Asset.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), withdrawal.Nonce); pos += 8;
+        withdrawal.L1Asset.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
+        withdrawal.L1Recipient.GetSpan().CopyTo(span.Slice(pos, 20)); pos += 20;
         BinaryPrimitives.WriteInt32LittleEndian(span.Slice(pos, 4), amountBytes.Length); pos += 4;
         amountBytes.AsSpan().CopyTo(span.Slice(pos, amountBytes.Length)); pos += amountBytes.Length;
-        BinaryPrimitives.WriteUInt64LittleEndian(span.Slice(pos, 8), withdrawal.Nonce); pos += 8;
 
         if (pos != size) throw new InvalidOperationException("HashWithdrawal internal length mismatch");
 
@@ -140,22 +148,23 @@ public static class MessageHasher
     /// <summary>Decode a canonical withdrawal-hash preimage.</summary>
     public static WithdrawalRequest DecodeWithdrawal(ReadOnlySpan<byte> bytes)
     {
-        const int fixedSize = 4 + 20 + 20 + 20 + 20 + 4 + 8;
+        const int fixedSize = 4 + 20 + 20 + 20 + 8 + 20 + 20 + 4;
         if (bytes.Length < fixedSize)
             throw new InvalidDataException("withdrawal buffer is truncated");
         var position = 0;
         var chainId = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(position, 4)); position += 4;
         var emittingContract = new UInt160(bytes.Slice(position, 20)); position += 20;
         var l2Sender = new UInt160(bytes.Slice(position, 20)); position += 20;
-        var l1Recipient = new UInt160(bytes.Slice(position, 20)); position += 20;
         var l2Asset = new UInt160(bytes.Slice(position, 20)); position += 20;
+        var nonce = BinaryPrimitives.ReadUInt64LittleEndian(bytes.Slice(position, 8)); position += 8;
+        var l1Asset = new UInt160(bytes.Slice(position, 20)); position += 20;
+        var l1Recipient = new UInt160(bytes.Slice(position, 20)); position += 20;
         var amountLength = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(position, 4)); position += 4;
-        if (amountLength < 0 || amountLength > 64 || position + amountLength + 8 != bytes.Length)
+        if (amountLength < 0 || amountLength > 64 || position + amountLength != bytes.Length)
             throw new InvalidDataException($"invalid withdrawal amount length {amountLength}");
         var amount = new BigInteger(
             bytes.Slice(position, amountLength), isUnsigned: true, isBigEndian: false);
         position += amountLength;
-        var nonce = BinaryPrimitives.ReadUInt64LittleEndian(bytes.Slice(position, 8));
         return new WithdrawalRequest
         {
             ChainId = chainId,
@@ -163,6 +172,7 @@ public static class MessageHasher
             L2Sender = l2Sender,
             L1Recipient = l1Recipient,
             L2Asset = l2Asset,
+            L1Asset = l1Asset,
             Amount = amount,
             Nonce = nonce,
         };

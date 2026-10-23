@@ -236,6 +236,7 @@ public class UT_Models
             L2Sender = UInt160.Zero,
             L1Recipient = UInt160.Zero,
             L2Asset = UInt160.Zero,
+            L1Asset = UInt160.Zero,
             Amount = BigInteger.Parse("123456789012345678901234567890"),
             Nonce = 42,
         };

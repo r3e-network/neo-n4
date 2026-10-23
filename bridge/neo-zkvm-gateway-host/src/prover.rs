@@ -299,7 +299,10 @@ fn load_child_proof(
     }
     let mut supplement = [0u8; PUBLIC_INPUT_SUPPLEMENT_BYTES];
     supplement[..32].copy_from_slice(&sidecar.l1_message_hash);
-    supplement[32..].copy_from_slice(&sidecar.block_context_hash);
+    supplement[32..64].copy_from_slice(&sidecar.block_context_hash);
+    // `forced_inclusion_count` is the trailing field of the canonical 352-byte public-input
+    // preimage. The 321-byte commitment cannot carry it, so it travels in the supplement.
+    supplement[64..68].copy_from_slice(&sidecar.forced_inclusion_count.to_le_bytes());
     Ok(LoadedChildProof {
         proof,
         public_input_supplement: supplement,
@@ -366,6 +369,7 @@ mod tests {
             &[0x51; 32],
             &[0x61; 32],
             &[0x71; 32],
+            5,
             &proof_bytes,
         )
         .unwrap();
@@ -374,7 +378,8 @@ mod tests {
         std::fs::write(&path, sidecar).unwrap();
         let loaded = load_child_proof(&path, 7, 42, &[0x51; 32]).unwrap();
         assert_eq!(loaded.public_input_supplement[..32], [0x61; 32]);
-        assert_eq!(loaded.public_input_supplement[32..], [0x71; 32]);
+        assert_eq!(loaded.public_input_supplement[32..64], [0x71; 32]);
+        assert_eq!(loaded.public_input_supplement[64..68], 5u32.to_le_bytes());
         assert!(matches!(loaded.proof.proof, SP1Proof::Core(_)));
     }
 

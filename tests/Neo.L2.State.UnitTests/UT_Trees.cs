@@ -12,6 +12,7 @@ public class UT_Trees
         L2Sender = UInt160.Parse("0x" + new string('b', 40)),
         L1Recipient = UInt160.Parse("0x" + new string('c', 40)),
         L2Asset = UInt160.Parse("0x" + new string('d', 40)),
+        L1Asset = UInt160.Parse("0x" + new string('e', 40)),
         Amount = new BigInteger(1_000_000) * (long)(nonce + 1),
         Nonce = nonce,
     };

@@ -278,14 +278,16 @@ public static class CanonicalNativeEffectsAdapter
             if (executionEvent.ScriptHash == NativeContract.L2Bridge.Hash
                 && executionEvent.EventName == "WithdrawalEmitted")
             {
-                var reader = CanonicalNativeEventReader.Create(executionEvent.State.Span, 5);
+                var reader = CanonicalNativeEventReader.Create(executionEvent.State.Span, 6);
                 var sender = reader.ReadHash160("withdrawal sender");
                 var recipient = reader.ReadHash160("withdrawal recipient");
                 var asset = reader.ReadHash160("withdrawal asset");
+                var l1Asset = reader.ReadHash160("withdrawal l1 asset");
                 var amount = reader.ReadPositiveInteger("withdrawal amount");
                 var nonce = reader.ReadUInt64("withdrawal nonce");
                 reader.EnsureEnd();
-                if (sender == UInt160.Zero || recipient == UInt160.Zero || asset == UInt160.Zero || nonce == 0)
+                if (sender == UInt160.Zero || recipient == UInt160.Zero || asset == UInt160.Zero
+                    || l1Asset == UInt160.Zero || nonce == 0)
                     throw new InvalidDataException("Invalid WithdrawalEmitted event");
                 if (amount.ToByteArray(isUnsigned: true, isBigEndian: false).Length > 64)
                     throw new InvalidDataException("Withdrawal amount exceeds 64 bytes");
@@ -298,6 +300,7 @@ public static class CanonicalNativeEffectsAdapter
                     L2Sender = sender,
                     L1Recipient = recipient,
                     L2Asset = asset,
+                    L1Asset = l1Asset,
                     Amount = amount,
                     Nonce = nonce,
                 });

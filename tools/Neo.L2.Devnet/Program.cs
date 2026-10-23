@@ -319,6 +319,7 @@ internal static class Program
                 L2Sender = Alice,
                 L1Recipient = Bob,
                 L2Asset = GasL2,
+                L1Asset = GasL1,
                 Amount = withdrawalAmount,
                 Nonce = (ulong)batchNum,
             };

@@ -389,12 +389,23 @@ pub struct BatchResult {
     pub public_input_hash: UInt256,
 }
 
+/// Proof-type discriminator for a batch commitment.
+///
+/// The values MUST match the on-chain contract exactly — `NeoHub.RollupHub`'s
+/// `ProofTypeMultisig = 1` / `ProofTypeZk = 3` and the C# `Neo.L2.Abstractions.ProofType`
+/// (`None = 0, Multisig = 1, Optimistic = 2, Zk = 3`).
+///
+/// This enum used to declare `Attestation = 0, Optimistic = 1, Zk = 2`, which collided
+/// with the chain's `Multisig = 1` and `Optimistic = 2`. The mismatch was invisible
+/// because the production path hard-codes the expected value elsewhere, but any external
+/// consumer of this public API would have encoded the wrong byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ProofType {
-    Attestation = 0,
-    Optimistic = 1,
-    Zk = 2,
+    None = 0,
+    Multisig = 1,
+    Optimistic = 2,
+    Zk = 3,
 }
 
 impl TryFrom<u8> for ProofType {
@@ -402,9 +413,10 @@ impl TryFrom<u8> for ProofType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(Self::Attestation),
-            1 => Ok(Self::Optimistic),
-            2 => Ok(Self::Zk),
+            0 => Ok(Self::None),
+            1 => Ok(Self::Multisig),
+            2 => Ok(Self::Optimistic),
+            3 => Ok(Self::Zk),
             _ => Err(ExecutionError::Invalid("proof type")),
         }
     }

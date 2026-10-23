@@ -42,6 +42,7 @@ fn proves_and_host_verifies_real_recursive_gateway_groth16() {
         &child.public_input_hash,
         &child.l1_message_hash,
         &child.block_context_hash,
+        child.forced_inclusion_count,
         &child.proof_bytes,
     )
     .unwrap();

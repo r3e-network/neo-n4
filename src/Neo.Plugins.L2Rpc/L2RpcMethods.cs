@@ -61,7 +61,14 @@ public sealed class L2RpcMethods
         if (@params.Count >= 2 && @params[1] is not null)
         {
             var batchNumber = ReadULong(@params, 1);
-            return (JToken?)new JString(_store.GetStateRootAtBatch(batchNumber).ToString());
+            // An UNKNOWN batch must be distinguishable from "this batch exists and its
+            // state root is the zero hash". The zero root is a legal value (a genesis
+            // batch), so returning it for a batch that does not exist would let an
+            // inclusion check silently pass. `null` matches how `getl2batch` reports an
+            // unknown batch.
+            if (!_store.TryGetStateRootAtBatch(batchNumber, out var stateRoot))
+                return JToken.Null;
+            return (JToken?)new JString(stateRoot.ToString());
         }
         return (JToken?)new JString(_store.GetLatestStateRoot().ToString());
     });

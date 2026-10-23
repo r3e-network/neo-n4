@@ -94,7 +94,7 @@ public class UT_CanonicalNativeExecutionAdapter
         foreach (var withdrawal in canonical.Withdrawals) withdrawals.Add(withdrawal);
         foreach (var message in canonical.Messages) outbox.Add(message);
 
-        AssertHash(withdrawals.Root, "737a25af11ca940d4e9004a43bd0129f3000df624a9d845752439d819ddae593");
+        AssertHash(withdrawals.Root, "4bf2dbdfa915af0439664969fbed5f58d947de38f911c08bbf4b7b3aab141ecd");
         AssertHash(outbox.L2ToL1Root, "00f3a7ccaf825db24ea4a674fd9be0af0a5f7cda0f8ebd28d9ca345b4ef1e8af");
         AssertHash(outbox.L2ToL2Root, "d6aa57f677872096fa2ce57c58d652f0e632179fa3a2fe5d2b6fb1c957c10881");
 
@@ -151,6 +151,7 @@ public class UT_CanonicalNativeExecutionAdapter
                 new ByteString(Enumerable.Repeat((byte)0x44, UInt160.Length).ToArray()),
                 new ByteString(Enumerable.Repeat((byte)0x77, UInt160.Length).ToArray()),
                 new ByteString(Enumerable.Repeat((byte)0x88, UInt160.Length).ToArray()),
+                new ByteString(Enumerable.Repeat((byte)0x99, UInt160.Length).ToArray()),
                 new Integer(amount),
                 new Integer(1),
             ]));

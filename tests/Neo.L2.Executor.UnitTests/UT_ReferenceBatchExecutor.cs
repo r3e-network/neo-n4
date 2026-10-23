@@ -268,6 +268,7 @@ public class UT_ReferenceBatchExecutor
             L2Sender = UInt160.Parse("0x" + new string('a', 40)),
             L1Recipient = UInt160.Parse("0x" + new string('b', 40)),
             L2Asset = UInt160.Parse("0x" + new string('c', 40)),
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = new BigInteger(1000),
             Nonce = 1,
         };

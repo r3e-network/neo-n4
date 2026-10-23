@@ -65,7 +65,12 @@ public sealed class PassThroughAggregator : IGatewayAggregator
             var result = new AggregatedCommitment
             {
                 Constituents = ordered,
-                GlobalMessageRoot = MerkleTree.ComputeRoot(l2L2Roots),
+                // Use the canonical ODD-LEAF-PROMOTING fold. `MerkleTree.ComputeRoot`
+                // uses the DUPLICATE rule, which disagrees with the on-chain binding and
+                // the SP1 gateway guest whenever the constituent count is odd — the
+                // binding the guest recomputes would not match and the round would be
+                // rejected. One convention, one helper.
+                GlobalMessageRoot = Sp1RecursiveRoundProver.ComputeGlobalMessageRootFromRoots(l2L2Roots),
                 ConstituentCommitmentsRoot =
                     GatewayProofBindingSerializer.ComputeConstituentCommitmentsRoot(ordered),
                 AggregatedProof = ConcatenateProofs(ordered),

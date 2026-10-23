@@ -131,6 +131,188 @@ internal static class CanonicalEncodingVectors
         "00000000"); //                          348  forcedInclusionCount = 0
 
     /// <summary>
+    /// A SECOND public-input vector, identical to <see cref="PublicInputs"/> except that the
+    /// trailing <c>forcedInclusionCount</c> is NON-ZERO.
+    /// </summary>
+    /// <remarks>
+    /// The forced-inclusion count is the field the 2026-10-21 audit found diverging between
+    /// the Gateway guest (which rebuilt a 348-byte preimage) and the authoritative
+    /// implementation. A single vector whose count is zero cannot catch a divergence in the
+    /// count's encoding, because a buggy implementation that always writes zero reproduces
+    /// it exactly. This vector pins the non-zero case.
+    /// </remarks>
+    public static byte[] PublicInputsWithForcedInclusions() => FromHex(
+        "e9030000" + //   0  chainId           = 1001
+        "0100000000000000" + //   4  batchNumber       = 1
+        "0200000000000000" + //  12  firstBlock        = 2
+        "0300000000000000" + //  20  lastBlock         = 3
+        "1010101010101010101010101010101010101010101010101010101010101010" + //  28  preStateRoot
+        "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1" + //  60  postStateRoot
+        "0303030303030303030303030303030303030303030303030303030303030303" + //  92  txRoot
+        "0404040404040404040404040404040404040404040404040404040404040404" + // 124  receiptRoot
+        WithdrawalRootHex + //                     156  withdrawalRoot  (Merkle root of WithdrawalLeaves)
+        "0606060606060606060606060606060606060606060606060606060606060606" + // 188  l2ToL1MessageRoot
+        "0707070707070707070707070707070707070707070707070707070707070707" + // 220  l2ToL2MessageRoot
+        "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1" + // 252  l1MessageHash
+        "0909090909090909090909090909090909090909090909090909090909090909" + // 284  daCommitment
+        "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2" + // 316  blockContextHash
+        "03000000"); //                          348  forcedInclusionCount = 3
+
+    // ─────────────────────── withdrawal leaf preimage ───────────────────────
+
+    /// <summary>The chain id of the withdrawal-leaf vector.</summary>
+    public const uint WithdrawalChainId = 1001;
+
+    /// <summary>The nonce of the withdrawal-leaf vector.</summary>
+    public const ulong WithdrawalNonce = 7;
+
+    /// <summary>The amount of the withdrawal-leaf vector (100_000_000 = 0x05F5E100, 4 LE bytes).</summary>
+    public const ulong WithdrawalAmount = 100_000_000;
+
+    /// <summary>Fill byte of the vector's emitting contract.</summary>
+    public const byte FillWithdrawalEmitting = 0xE0;
+    /// <summary>Fill byte of the vector's L2 sender.</summary>
+    public const byte FillWithdrawalL2Sender = 0xD1;
+    /// <summary>Fill byte of the vector's L2 asset.</summary>
+    public const byte FillWithdrawalL2Asset = 0xA2;
+    /// <summary>Fill byte of the vector's L1 payout asset.</summary>
+    public const byte FillWithdrawalL1Asset = 0xB3;
+    /// <summary>Fill byte of the vector's L1 recipient.</summary>
+    public const byte FillWithdrawalL1Recipient = 0xC4;
+
+    /// <summary>
+    /// The canonical 120-byte withdrawal-leaf preimage:
+    /// <c>4B chainId LE | 20B emittingContract | 20B l2Sender | 20B l2Asset |
+    /// 8B nonce LE | 20B l1Asset | 20B l1Recipient | 4B amountLen LE | amountLen amount LE</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the single anchor for FOUR implementations that must agree byte for byte:
+    /// <c>NeoHub.SharedBridge.ComputeWithdrawalLeafHash</c> (on-chain, authoritative),
+    /// <c>Neo.L2.State.MessageHasher.EncodeWithdrawal</c> (off-chain .NET),
+    /// <c>neo_execution_core::native::withdrawal_leaf_preimage</c> (Rust), and the
+    /// hand-rolled builder inside <c>UT_SharedBridge_Vm</c>.
+    /// </para>
+    /// <para>
+    /// The 2026-10-21 audit found this leaf had ALREADY forked once (an off-chain 98-byte
+    /// Layout A against the on-chain 118-byte Layout C), and it survived precisely because
+    /// every implementation was validated only against itself. The <c>l1Asset</c> field is
+    /// the thing that forked: without it, an inclusion proof computed off-chain cannot be
+    /// reproduced on-chain, so every L2→L1 withdrawal fails.
+    /// </para>
+    /// </remarks>
+    public static byte[] WithdrawalLeafPreimage() => FromHex(
+        "E9030000" + //                             0  chainId            = 1001
+        "E0E0E0E0E0E0E0E0E0E0E0E0E0E0E0E0E0E0E0E0" + //   4  emittingContract
+        "D1D1D1D1D1D1D1D1D1D1D1D1D1D1D1D1D1D1D1D1" + //  24  l2Sender
+        "A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2A2" + //  44  l2Asset
+        "0700000000000000" + //                    64  nonce              = 7
+        "B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3B3" + //  72  l1Asset (the field that forked)
+        "C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4C4" + //  92  l1Recipient
+        "04000000" + //                           112  amountLen          = 4
+        "00E1F505"); //                           116  amount             = 100_000_000 LE
+
+    /// <summary>The double-SHA256 of <see cref="WithdrawalLeafPreimage"/> — the leaf the Merkle tree folds.</summary>
+    public static byte[] WithdrawalLeafHash() => FromHex(
+        "89515BE8F6C3778F72286AE693A4EEBEDE5FB486EBB9B53E8A3B15580CA2CF24");
+
+    // ───────────────── gateway aggregation frontier ─────────────────
+
+    /// <summary>Number of leaves in the gateway-frontier vector — odd, because the
+    /// duplicate-vs-promote asymmetry only manifests for odd counts ≥ 3.</summary>
+    public const int GatewayLeafCount = 3;
+
+    /// <summary>First leaf of the gateway-frontier vector.</summary>
+    public static byte[] GatewayLeaf0() => FromHex(
+        "4923403319669C9E09C7B6F96380EE34ACA0D9753E6968FFA725B5461835F28A");
+
+    /// <summary>Second leaf of the gateway-frontier vector.</summary>
+    public static byte[] GatewayLeaf1() => FromHex(
+        "B5B8F3211E72D2F6EE59B2B1BE874FA6E5516D9924691576A08E5A62801C05DC");
+
+    /// <summary>Third leaf of the gateway-frontier vector.</summary>
+    public static byte[] GatewayLeaf2() => FromHex(
+        "0086C3246F64A788845CA56077637EABBC1A435248401ADCDA6825301206389F");
+
+    /// <summary>
+    /// Root of <see cref="GatewayLeaf0"/>..<see cref="GatewayLeaf2"/> under the
+    /// duplicate-odd fold — the constituent-commitments root the RollupHub frontier rebuilds.
+    /// </summary>
+    /// <remarks>
+    /// The contract folds the SAME leaves two ways: commitments with Bitcoin-style odd-node
+    /// duplication, global message roots with odd-node promotion. The Rust gateway guest
+    /// computes both (<c>merkle_root_duplicate_odd</c> / <c>merkle_root_promote_odd</c>).
+    /// The asymmetry is invisible to a single-constituent test — both folds return the leaf.
+    /// </remarks>
+    public static byte[] GatewayRootDuplicateOdd() => FromHex(
+        "8681FC16056731A5D0FC1FFB9F3ED925E98C8CBACBD312A2220FC0A9FA75A56A");
+
+    /// <summary>Root of the gateway-frontier leaves under the promote-odd fold — the global
+    /// message root.</summary>
+    public static byte[] GatewayRootPromoteOdd() => FromHex(
+        "BA4816C0456AB6E752C842EF529D76F838F119EB715EE257997D094797120964");
+
+    // ───────────────── external-bridge inbound message ─────────────────
+
+    /// <summary>External chain id of the external-message vector (Sepolia namespace).</summary>
+    public const uint XMsgExternalChainId = 0xE000_0002;
+
+    /// <summary>Neo chain id of the external-message vector.</summary>
+    public const uint XMsgNeoChainId = 1001;
+
+    /// <summary>Nonce of the external-message vector.</summary>
+    public const ulong XMsgNonce = 42;
+
+    /// <summary>Deadline (unix seconds) of the external-message vector: 2026-01-01T00:00:00Z.</summary>
+    public const ulong XMsgDeadline = 1_767_225_600;
+
+    /// <summary>
+    /// The 128 canonical bytes an external-bridge watcher SIGNS:
+    /// 102-byte fixed prefix + the 26-byte asset-transfer payload
+    /// (<c>20B foreignAsset ‖ 4B amountLen ‖ amount LE</c>).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// THREE encoders produce this layout — the Rust watcher's <c>canonical_message_bytes</c>
+    /// (the signing side), this repository's <c>ExternalMessageHasher.EncodeCanonical</c>
+    /// (the consumer/deployment side), and a hand-rolled copy in
+    /// <c>UT_External_RealCrypto.CanonicalMessageBytes</c>. Before this vector existed they were
+    /// each validated only against themselves or against a pasted copy in the other language —
+    /// the exact pattern that let the withdrawal-leaf fork survive for months.
+    /// </para>
+    /// <para>
+    /// The bytes were produced by a throwaway fourth implementation (Python) in a language
+    /// none of the three use. The consuming on-chain contract (<c>NeoHub.ExternalBridgeEscrow</c>)
+    /// is not yet landed, so <c>Neo.L2.Messaging.ExternalMessageHasher</c> is the authoritative consumer
+    /// reference until it is.
+    /// </para>
+    /// </remarks>
+    public static byte[] XMsgCanonical() => FromHex(
+        "020000e0" + //   0  externalChainId  = 0xE0000002
+        "e9030000" + //   4  neoChainId       = 1001
+        "2a00000000000000" + //  12  nonce            = 42
+        "02" + //         20  direction        = ForeignToNeo
+        "E1E1E1E1E1E1E1E1E1E1E1E1E1E1E1E1E1E1E1E1" + //  21  sender (20B)
+        "C2C2C2C2C2C2C2C2C2C2C2C2C2C2C2C2C2C2C2C2" + //  41  recipient (20B)
+        "00b9556900000000" + //  61  deadline         = 1767225600
+        "D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3D3" + //  69  sourceTxRef (32B)
+        "00" + //         97  messageType      = AssetTransfer
+        "1a000000" + //   98  payloadLen       = 26
+        "B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4" + // 102  foreignAsset (20B)
+        "02000000" + //  122  amountLen        = 2
+        "e803"); //      126  amount           = 1000 (0x3E8 LE)
+
+    /// <summary>The 26-byte asset-transfer payload carried inside <see cref="XMsgCanonical"/>.</summary>
+    public static byte[] XMsgPayload() => FromHex(
+        "B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4B4" +
+        "02000000" +
+        "e803");
+
+    /// <summary>The double-SHA256 of <see cref="XMsgCanonical"/>.</summary>
+    public static byte[] XMsgHash() => FromHex(
+        "80C6957979C94D7B1D44103A5964D31F659BDA45F1230D5B68F2A39BB58B4C16");
+
+    /// <summary>
     /// The 91 bytes <c>L2ChainConfigSerializer.Encode</c> emits for the config
     /// <c>NeoHub.ChainRegistry.registerChain</c> consumes: chain <see cref="ChainId"/> (the contract
     /// asserts the embedded id equals its argument), four 20-byte hash fills, then

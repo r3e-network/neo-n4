@@ -56,6 +56,34 @@ public sealed class Sp1RecursiveRoundProver : IRoundProver
             ArgumentNullException.ThrowIfNull(constituent.L2ToL2MessageRoot);
             current[index] = constituent.L2ToL2MessageRoot;
         }
+        return ComputeGlobalMessageRootFromRoots(current);
+    }
+
+    /// <summary>
+    /// Fold message roots with the canonical ODD-LEAF-PROMOTING rule.
+    /// </summary>
+    /// <remarks>
+    /// When a level has an odd number of nodes, the last node is PROMOTED to the parent
+    /// level unchanged (not hashed against a copy of itself).
+    ///
+    /// This is the rule the on-chain binding and the SP1 gateway guest use. The generic
+    /// <c>Neo.L2.State.MerkleTree.ComputeRoot</c> uses the DUPLICATE rule (the last node
+    /// is hashed against a copy of itself), so the two disagree whenever the number of
+    /// constituents is odd. Every aggregator must use this method — a mixed convention
+    /// produces a binding that the guest rejects, which shows up as "odd-numbered rounds
+    /// fail while even-numbered rounds succeed".
+    /// </remarks>
+    public static UInt256 ComputeGlobalMessageRootFromRoots(IReadOnlyList<UInt256> messageRoots)
+    {
+        ArgumentNullException.ThrowIfNull(messageRoots);
+        if (messageRoots.Count == 0)
+            throw new ArgumentException("at least one message root is required", nameof(messageRoots));
+        var current = new UInt256[messageRoots.Count];
+        for (var index = 0; index < messageRoots.Count; index++)
+        {
+            current[index] = messageRoots[index]
+                ?? throw new ArgumentException($"messageRoots[{index}] is null", nameof(messageRoots));
+        }
         while (current.Length > 1)
         {
             var next = new UInt256[(current.Length + 1) / 2];

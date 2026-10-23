@@ -56,8 +56,8 @@ public class UT_PlanCommand
         var json = File.ReadAllText(bundlePath);
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         var invocations = doc.RootElement.GetProperty("invocations");
-        Assert.AreEqual(5, invocations.GetArrayLength(),
-            "default scaffold -> 5 resolved invocations in the bundle");
+        Assert.AreEqual(6, invocations.GetArrayLength(),
+            "default scaffold -> 6 resolved invocations in the bundle");
 
         foreach (var invocation in invocations.EnumerateArray())
         {

@@ -36,10 +36,16 @@ pub const NEO_ZKVM_SP1_VERSION: &str = pinned::SP1_VERSION;
 
 mod proof_result;
 mod recursive_child_result;
+mod resource_guardrails;
 mod zk_execution_result;
 
 pub use proof_result::ProofResult;
 pub use recursive_child_result::RecursiveChildProofResult;
+pub use resource_guardrails::{
+    BATCH_GAS_LIMIT_ENV, DEFAULT_BATCH_GAS_LIMIT, DEFAULT_MEMORY_LIMIT_BYTES,
+    MEMORY_LIMIT_ENV, apply_memory_limit, batch_gas_limit, enforce_batch_gas_limit,
+    memory_limit_bytes,
+};
 pub use zk_execution_result::ZkExecutionResult;
 
 /// Embedded guest ELF — wired by build.rs from `cargo prove build`.
@@ -199,6 +205,7 @@ pub fn prove_compressed(request_bytes: &[u8]) -> Result<RecursiveChildProofResul
         public_input_hash,
         l1_message_hash: artifact.public_inputs.l1_message_hash,
         block_context_hash: artifact.public_inputs.block_context_hash,
+        forced_inclusion_count: artifact.public_inputs.forced_inclusion_count,
         proof_bytes,
     })
 }
@@ -212,14 +219,26 @@ pub fn prove_compressed(request_bytes: &[u8]) -> Result<RecursiveChildProofResul
 #[cfg(unix)]
 pub fn verify(
     proof_bytes: &[u8],
-    vk_bytes: &[u8],
+    vk_bytes: &[u8; 32],
     expected_public_input_hash: &[u8; 32],
 ) -> Result<(), String> {
-    let vk: [u8; 32] = vk_bytes
-        .try_into()
-        .map_err(|_| format!("program vkey must be 32 bytes, got {}", vk_bytes.len()))?;
+    // The verifying key MUST be the pinned guest VK.
+    //
+    // SP1's Groth16 verifier takes the vkey hash as one of the public values, so verifying
+    // against an arbitrary vkey proves nothing about the canonical guest program. The
+    // on-chain `Sp1Groth16VerifierContract` enforces exactly this equality, and the C# client
+    // (`Sp1BatchProofProver`) does too — but this host-side helper is what the prover
+    // daemon's recovery path uses to decide "this proof is good", so accepting an
+    // arbitrary VK here would let a proof for the WRONG program be marked as succeeded.
+    if vk_bytes != &NEO_ZKVM_GUEST_VK_BYTES32 {
+        return Err(format!(
+            "program vkey is not the pinned guest VK (expected 0x{}, got 0x{})",
+            hex::encode(NEO_ZKVM_GUEST_VK_BYTES32),
+            hex::encode(vk_bytes)
+        ));
+    }
     let public_values = committed_public_values(expected_public_input_hash);
-    verify_groth16_artifact(proof_bytes, &vk, &public_values)
+    verify_groth16_artifact(proof_bytes, vk_bytes, &public_values)
 }
 
 #[cfg(unix)]

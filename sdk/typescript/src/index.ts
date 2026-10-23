@@ -21,12 +21,28 @@ export enum DAMode {
   NeoFS = 1,
   External = 2,
   DAC = 3,
+  /**
+   * Local filesystem DA — a development-only mode.
+   *
+   * The C# `DAMode.Local` value is `byte.MaxValue` (255), which is OUTSIDE the range of the
+   * four production modes above. It must be represented here explicitly, otherwise a node
+   * running in local-DA mode would return 255 and the SDK would hand the caller a bare
+   * number that no enum member describes.
+   */
+  Local = 255,
 }
 
 export enum SequencerModel {
   Centralized = 0,
   DbftCommittee = 1,
-  PoSRotation = 2,
+  /**
+   * Permissionless decentralized sequencer set — anyone may propose ordering.
+   *
+   * Named to match the authoritative C# `SequencerModel.Decentralized`. The previous
+   * "PoSRotation" name described a DIFFERENT model (proof-of-stake rotation), so the SDK
+   * was advertising a sequencer model the chain does not actually run.
+   */
+  Decentralized = 2,
 }
 
 export enum ExitModel {
@@ -119,7 +135,19 @@ export class L2RpcProtocolError extends L2RpcError {}
 
 /** Server returned a JSON-RPC error response. Carries the int code. */
 export class L2RpcServerError extends L2RpcError {
-  constructor(method: string, public readonly code: number, message: string) {
+  /**
+   * @param data The server's `data` field, when present.
+   *
+   * Neo's `RpcError.ToJson()` carries the actionable detail (e.g. the parameter-validation
+   * message) in `data`. Exposing it lets callers branch on the real cause instead of
+   * parsing the combined message string.
+   */
+  constructor(
+    method: string,
+    public readonly code: number,
+    message: string,
+    public readonly data?: string,
+  ) {
     super(method, `server error ${code}: ${message}`);
   }
 }
@@ -185,7 +213,7 @@ export class L2RpcClient {
       throw new L2RpcProtocolError("getl2batch", "expected object response");
     this.assertChainId(result as object, "getl2batch");
     const batch = parseBatchView(result as Record<string, unknown>, "getl2batch");
-    if (batch.batchNumber !== batchNumber)
+    if (batch.batchNumber.toString() !== batchNumber.toString())
       throw new L2RpcProtocolError(
         "getl2batch",
         `response batchNumber ${batch.batchNumber} does not match request ${batchNumber}`,
@@ -203,10 +231,10 @@ export class L2RpcClient {
     const response: BatchStatusResponse = {
       chainId: requireU32Value(r.chainId, "getl2batchstatus", "chainId"),
       batchNumber: parseU64Wire(r.batchNumber, "getl2batchstatus", "batchNumber"),
-      status: requireU8Value(r.status, "getl2batchstatus", "status") as BatchStatus,
+      status: requireEnumValue(r.status, "getl2batchstatus", "status", ALLOWED_BATCH_STATUSES) as BatchStatus,
       statusName: String(r.statusName ?? ""),
     };
-    if (response.batchNumber !== batchNumber)
+    if (response.batchNumber.toString() !== batchNumber.toString())
       throw new L2RpcProtocolError(
         "getl2batchstatus",
         `response batchNumber ${response.batchNumber} does not match request ${batchNumber}`,
@@ -222,9 +250,15 @@ export class L2RpcClient {
     return result;
   }
 
-  /** getl2stateroot at a specific batch height. */
-  async getStateRootAt(batchNumber: bigint): Promise<string> {
+  /**
+   * getl2stateroot at a specific batch height.
+   *
+   * Returns `null` when the batch is unknown to the node. The zero hash is a legal state
+   * root (a genesis batch), so "unknown" must stay distinguishable from "root is zero".
+   */
+  async getStateRootAt(batchNumber: bigint): Promise<string | null> {
     const result = await this.call("getl2stateroot", [this.chainId, u64Wire(batchNumber, "batchNumber")]);
+    if (result === null) return null;
     if (typeof result !== "string")
       throw new L2RpcProtocolError("getl2stateroot", "expected string");
     return result;
@@ -269,7 +303,7 @@ export class L2RpcClient {
         ? null
         : parseU64Wire(r.includedInBatch, "getl1depositstatus", "includedInBatch"),
     };
-    if (response.nonce !== nonce)
+    if (response.nonce.toString() !== nonce.toString())
       throw new L2RpcProtocolError(
         "getl1depositstatus",
         `response nonce ${response.nonce} does not match request ${nonce}`,
@@ -304,7 +338,7 @@ export class L2RpcClient {
     const r = result as Record<string, unknown>;
     return {
       chainId: requireU32Value(r.chainId, "getsecuritylevel", "chainId"),
-      level: requireU8Value(r.level, "getsecuritylevel", "level") as SecurityLevel,
+      level: requireEnumValue(r.level, "getsecuritylevel", "level", ALLOWED_SECURITY_LEVELS) as SecurityLevel,
     };
   }
 
@@ -317,11 +351,11 @@ export class L2RpcClient {
     const r = result as Record<string, unknown>;
     return {
       chainId: requireU32Value(r.chainId, "getsecuritylabel", "chainId"),
-      securityLevel: requireU8Value(r.securityLevel, "getsecuritylabel", "securityLevel") as SecurityLevel,
-      daMode: requireU8Value(r.daMode, "getsecuritylabel", "daMode") as DAMode,
+      securityLevel: requireEnumValue(r.securityLevel, "getsecuritylabel", "securityLevel", ALLOWED_SECURITY_LEVELS) as SecurityLevel,
+      daMode: requireEnumValue(r.daMode, "getsecuritylabel", "daMode", ALLOWED_DA_MODES) as DAMode,
       gatewayEnabled: requireBoolean(r.gatewayEnabled, "getsecuritylabel", "gatewayEnabled"),
-      sequencer: requireU8Value(r.sequencer, "getsecuritylabel", "sequencer") as SequencerModel,
-      exit: requireU8Value(r.exit, "getsecuritylabel", "exit") as ExitModel,
+      sequencer: requireEnumValue(r.sequencer, "getsecuritylabel", "sequencer", ALLOWED_SEQUENCER_MODELS) as SequencerModel,
+      exit: requireEnumValue(r.exit, "getsecuritylabel", "exit", ALLOWED_EXIT_MODELS) as ExitModel,
     };
   }
 
@@ -339,15 +373,37 @@ export class L2RpcClient {
     const controller = new AbortController();
     const timeoutHandle = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    let response: Response;
+    let parsed: unknown;
     try {
-      response = await this.fetchImpl(this.endpoint.toString(), {
+      const response = await this.fetchImpl(this.endpoint.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body,
         signal: controller.signal,
       });
+
+      if (!response.ok) {
+        const text = await response.text();
+        const snippet = text.length <= 200 ? text : text.slice(0, 200);
+        throw new L2RpcTransportError(method, `http ${response.status}: ${snippet}`);
+      }
+
+      // The body read MUST stay inside the timeout window. Clearing the timer as soon as
+      // the response HEADERS arrive left the body read unbounded: a server that sends
+      // headers and then stalls (or never finishes the body) could hang the caller
+      // forever, and the documented `timeoutMs` would silently not apply. The timer is
+      // therefore cleared only after the body has been consumed.
+      try {
+        parsed = await response.json();
+      } catch (e) {
+        const err = e as Error;
+        if (err.name === "AbortError") {
+          throw new L2RpcTransportError(method, `timeout after ${this.timeoutMs}ms`);
+        }
+        throw new L2RpcProtocolError(method, `parse error: ${err.message}`);
+      }
     } catch (e) {
+      if (e instanceof L2RpcTransportError || e instanceof L2RpcProtocolError) throw e;
       const err = e as Error;
       if (err.name === "AbortError") {
         throw new L2RpcTransportError(method, `timeout after ${this.timeoutMs}ms`);
@@ -355,19 +411,6 @@ export class L2RpcClient {
       throw new L2RpcTransportError(method, `fetch failed: ${err.message}`);
     } finally {
       clearTimeout(timeoutHandle);
-    }
-
-    if (!response.ok) {
-      const text = await response.text();
-      const snippet = text.length <= 200 ? text : text.slice(0, 200);
-      throw new L2RpcTransportError(method, `http ${response.status}: ${snippet}`);
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = await response.json();
-    } catch (e) {
-      throw new L2RpcProtocolError(method, `parse error: ${(e as Error).message}`);
     }
 
     if (typeof parsed !== "object" || parsed === null) {
@@ -381,10 +424,19 @@ export class L2RpcClient {
       throw new L2RpcProtocolError(method, `response id ${String(env.id)} does not match request id ${id}`);
     }
     if (env.error !== undefined && env.error !== null) {
+      // A non-object `error` payload (some proxies relay it as a plain string) must not be
+      // flattened into a generic "rpc error" — that erases the server's actual message.
+      if (typeof env.error !== "object") {
+        throw new L2RpcServerError(method, -32603, String(env.error));
+      }
       const err = env.error as Record<string, unknown>;
       const code = typeof err.code === "number" ? err.code : -32603;
       const msg = typeof err.message === "string" ? err.message : "rpc error";
-      throw new L2RpcServerError(method, code, msg);
+      // Neo's `RpcError.ToJson()` emits a `data` field carrying the error detail (for
+      // instance the parameter-validation message). Dropping it loses the only actionable
+      // part of the failure.
+      const data = typeof err.data === "string" ? err.data : undefined;
+      throw new L2RpcServerError(method, code, data ? `${msg} - ${data}` : msg, data);
     }
     if (!Object.prototype.hasOwnProperty.call(env, "result"))
       throw new L2RpcProtocolError(method, "response is missing result");
@@ -409,7 +461,7 @@ function parseBatchView(r: Record<string, unknown>, method: string): L2BatchView
     l2ToL2MessageRoot: requireString(r.l2ToL2MessageRoot, method, "l2ToL2MessageRoot"),
     daCommitment: requireString(r.daCommitment, method, "daCommitment"),
     publicInputHash: requireString(r.publicInputHash, method, "publicInputHash"),
-    proofType: requireU8Value(r.proofType, method, "proofType") as ProofType,
+    proofType: requireEnumValue(r.proofType, method, "proofType", ALLOWED_PROOF_TYPES) as ProofType,
     proof: requireHexString(r.proof, method, "proof"),
     encoded: requireHexString(r.encoded, method, "encoded"),
   };
@@ -440,6 +492,37 @@ function requireBoolean(value: unknown, method: string, field: string): boolean 
     throw new L2RpcProtocolError(method, `field ${field} must be a boolean`);
   return value;
 }
+
+/**
+ * Validate that a byte is a member of the given enum.
+ *
+ * The `.NET` reference SDK range-checks every enum dimension it decodes; the TypeScript SDK
+ * used a bare `as` cast, which is a COMPILE-TIME-only assertion. A server that returned an
+ * out-of-range byte would therefore produce a value that the SDK's own type declaration
+ * claims is valid but no enum member describes — and the caller's `switch` would silently
+ * fall through to `default`.
+ */
+function requireEnumValue<T extends number>(
+  value: unknown,
+  method: string,
+  field: string,
+  allowed: readonly T[],
+): T {
+  const byte = requireU8Value(value, method, field);
+  if (!allowed.includes(byte as T))
+    throw new L2RpcProtocolError(
+      method,
+      `field ${field} must be one of [${allowed.join(", ")}], got ${byte}`,
+    );
+  return byte as T;
+}
+
+const ALLOWED_SECURITY_LEVELS = [0, 1, 2, 3, 4] as const;
+const ALLOWED_DA_MODES = [0, 1, 2, 3, 255] as const;
+const ALLOWED_SEQUENCER_MODELS = [0, 1, 2] as const;
+const ALLOWED_EXIT_MODELS = [0, 1, 2] as const;
+const ALLOWED_BATCH_STATUSES = [0, 1, 2, 3, 4] as const;
+const ALLOWED_PROOF_TYPES = [0, 1, 2, 3] as const;
 
 function requireString(value: unknown, method: string, field: string): string {
   if (typeof value !== "string")
@@ -472,7 +555,22 @@ function requireU32(value: number, name: string, allowZero: boolean): number {
   return value;
 }
 
-function u64Wire(value: bigint, name: string): string {
+/**
+ * Encode a u64 argument for the wire.
+ *
+ * The runtime type check is load-bearing, not defensive noise: `bigint` is a TypeScript-only
+ * annotation, and plain-JS consumers (the package's `main` entry is `dist/index.js`) can
+ * pass a `number`. A `number` above 2^53 has already lost precision by the time it arrives,
+ * and `value.toString()` would emit the truncated double — silently asking the server for
+ * the wrong batch. The `bigint < 0n` / `bigint > MAX` comparisons do NOT catch this, because
+ * JS defines mixed number/BigInt relational comparisons as well-defined rather than throwing.
+ */
+function u64Wire(value: unknown, name: string): string {
+  if (typeof value !== "bigint")
+    throw new L2RpcProtocolError(
+      "<arg>",
+      `${name} must be a bigint (a JS number above 2^53 loses precision; use BigInt)`,
+    );
   if (value < 0n || value > 0xffff_ffff_ffff_ffffn)
     throw new L2RpcProtocolError("<arg>", `${name} must be a u64`);
   return value.toString();

@@ -61,6 +61,14 @@ public interface IL2KeyValueStore : IDisposable
     /// Yielded byte arrays are defensive copies — callers may freely mutate them
     /// without corrupting the store. Same iter-167 / iter-176 pattern as
     /// <c>KeyedStateStore.EnumerateSorted</c>.
+    ///
+    /// <b>Ordering contract</b>: "key order" means UNSIGNED lexicographic byte order —
+    /// the same order as <c>Neo.L2.Abstractions.LexicographicByteArrayComparer</c> and
+    /// RocksDB's default bytewise comparator. A backend that used a SIGNED comparison
+    /// would enumerate the same entries in a different order and silently produce a
+    /// different state root for identical state. Consumers that compute a Merkle root over
+    /// the enumeration (<c>KeyedStateStore.ComputeRoot</c>) sort explicitly, so they are
+    /// immune; but any other consumer of this ordering must be able to rely on it.
     /// </remarks>
     IEnumerable<(byte[] Key, byte[] Value)> EnumeratePrefix(ReadOnlySpan<byte> prefix);
 

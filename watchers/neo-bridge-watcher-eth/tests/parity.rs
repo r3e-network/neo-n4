@@ -142,3 +142,95 @@ fn eth_proof_bytes_layout_matches_solidity() {
     assert_eq!(eth_bytes[68], 2);
     assert_eq!(eth_bytes[133], 28);
 }
+
+// ───────────────── shared cross-language fixture anchor ─────────────────
+//
+// The in-module vectors above are pasted into both language's tests (Rust here, C# in
+// UT_External_RealCrypto) — the pattern works only while nobody edits one copy, and the
+// audit found exactly that class of drift surviving for months elsewhere (withdrawal
+// leaf). This block reads the SHARED third-implementation fixture that neither language
+// produces at test time, so this crate's encoder is checked against bytes produced by
+// neither itself nor its C# mirror.
+
+const SHARED_FIXTURE: &str = include_str!("../../../tests/Shared/canonical_encoding_vectors.hex");
+
+fn fixture_field(key: &str) -> String {
+    for line in SHARED_FIXTURE.lines() {
+        let line = line.trim();
+        if let Some((k, v)) = line.split_once('=') {
+            if k.trim() == key {
+                return v.trim().to_string();
+            }
+        }
+    }
+    panic!("shared fixture has no field {key}");
+}
+
+fn fixture_bytes(key: &str) -> Vec<u8> {
+    let hex = fixture_field(key);
+    assert_eq!(hex.len() % 2, 0, "field {key} has odd hex length");
+    (0..hex.len() / 2)
+        .map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).expect("valid hex"))
+        .collect()
+}
+
+fn fixture_u64(key: &str) -> u64 {
+    fixture_field(key).parse().expect("decimal u64")
+}
+
+fn fixture_u32(key: &str) -> u32 {
+    fixture_field(key).parse().expect("decimal u32")
+}
+
+fn fixture_hash(key: &str) -> [u8; 32] {
+    fixture_bytes(key).try_into().expect("32 bytes")
+}
+
+#[test]
+fn canonical_bytes_match_the_shared_third_implementation_vector() {
+    // THREE encoders exist for this layout: this crate's `canonical_message_bytes`
+    // (the bytes watchers SIGN), C# `ExternalMessageHasher.EncodeCanonical` (the
+    // deployment/consumer side), and a hand-rolled copy inside
+    // `UT_External_RealCrypto.CanonicalMessageBytes`. Before this test they had never
+    // been compared against anything outside themselves. The vector comes from a fourth
+    // implementation (Python) in a language none of the three use.
+    let expected = fixture_bytes("xmsg_canonical");
+    assert_eq!(expected.len(), 128, "the vector is a 102B prefix + 26B payload");
+
+    // Rebuild the payload first: 20B foreignAsset + 4B amountLen + amount LE.
+    let payload_vec = fixture_bytes("xmsg_payload");
+    assert_eq!(payload_vec.len(), 26);
+    let foreign_asset: [u8; 20] = payload_vec[..20].try_into().expect("20 bytes");
+    let amount: &[u8] = &payload_vec[24..];
+    assert_eq!(&payload_vec[20..24], &u32::try_from(amount.len()).unwrap().to_le_bytes());
+    let payload = encode_asset_transfer_payload(foreign_asset, amount).unwrap();
+    assert_eq!(payload, payload_vec, "the asset-transfer payload encoding drifted");
+
+    let msg = ExternalCrossChainMessage {
+        external_chain_id: fixture_u32("xmsg_external_chain_id"),
+        neo_chain_id: fixture_u32("xmsg_neo_chain_id"),
+        nonce: fixture_u64("xmsg_nonce"),
+        direction: ExternalBridgeDirection::ForeignToNeo, // xmsg_direction = 2
+        sender: [0xE1; 20],
+        recipient: [0xC2; 20],
+        deadline_unix_seconds: fixture_u64("xmsg_deadline"),
+        source_tx_ref: [0xD3; 32],
+        message_type: ExternalMessageType::AssetTransfer, // xmsg_message_type = 0
+        payload,
+    };
+
+    let bytes = canonical_message_bytes(&msg).unwrap();
+    assert_eq!(
+        hex::encode(&bytes),
+        hex::encode(&expected),
+        "canonical_message_bytes does not reproduce the shared vector — the namespace, \
+         direction byte, deadline width, or payload length prefix has drifted"
+    );
+
+    let hash = message_hash(&msg).unwrap();
+    assert_eq!(
+        hash,
+        fixture_hash("xmsg_hash"),
+        "message_hash is not the double-SHA256 of the shared vector"
+    );
+}

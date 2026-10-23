@@ -128,6 +128,9 @@ public class UT_E2E_L1RpcPollers_FullStack
 
         var l2EmittingContract = UInt160.Parse("0x" + new string('5', 40));
         var l2Asset = UInt160.Parse("0x" + new string('8', 40));
+        // The L1 payout asset is bound into the withdrawal leaf hash, so the SAME value
+        // must be used here and as the `asset` argument of the finalize invocation below.
+        var l1Asset = UInt160.Parse("0x" + new string('8', 40));
         const ulong withdrawalNonce = 1;
         const long withdrawalAmount = 1000;
         var withdrawalLeaf = MessageHasher.HashWithdrawal(new WithdrawalRequest
@@ -139,6 +142,7 @@ public class UT_E2E_L1RpcPollers_FullStack
             L2Sender = l2Receiver,
             L1Recipient = l1Sender,
             L2Asset = l2Asset,
+            L1Asset = l1Asset,
             Amount = withdrawalAmount,
             Nonce = withdrawalNonce,
         });
@@ -170,7 +174,7 @@ public class UT_E2E_L1RpcPollers_FullStack
             l2Sender: l2Receiver,
             l2Asset: l2Asset,
             withdrawalNonce: withdrawalNonce,
-            asset: UInt160.Parse("0x" + new string('8', 40)),
+            asset: l1Asset,
             recipient: l1Sender,
             amount: withdrawalAmount);
         Assert.IsTrue(script.Length > 0);

@@ -202,12 +202,17 @@ public class UT_DeployPlanner
     public void Scaffold_DefaultIncludesOnlyProductionNeoHubContracts()
     {
         var plan = ScaffoldPlan.Default();
-        Assert.AreEqual(5, plan.Steps.Count);
+        // 6 steps: the 4 NeoHub pillars + the 2 proof-verifier contracts
+        // (Sp1Groth16Verifier, MultisigVerifier). `MultisigVerifier` used to be missing
+        // from the plan, so the multisig proof route was never served by the bundle.
+        Assert.AreEqual(6, plan.Steps.Count);
         var names = plan.Steps.Select(s => s.Name).ToHashSet();
         Assert.IsTrue(names.Contains("ZkVerifier"));
         Assert.IsTrue(names.Contains("GovernanceController"));
         Assert.IsTrue(names.Contains("RollupHub"));
         Assert.IsTrue(names.Contains("SharedBridge"));
+        Assert.IsTrue(names.Contains("Sp1Groth16Verifier"));
+        Assert.IsTrue(names.Contains("MultisigVerifier"));
 
         foreach (var step in plan.Steps)
         {
@@ -422,7 +427,17 @@ public class UT_DeployPlanner
         // 4 SettlementManager dependency hints + 3 MessageRouter Gateway trust-root hints +
         // 2 registry/settlement freezes +
         // 1 MessageRouter filter hint = 44.
-        Assert.AreEqual(6, actions.Count);
+        // 6 base hints + 3 multisig-route hints.
+        //
+        // The multisig hints are what make the COMMITTEE-ATTESTATION route work at all:
+        // without `SetGovernanceController` the verifier cannot check the sequencer
+        // registry, and without `RegisterMultisigVerifier` the ZkVerifier has no route to
+        // it (the reserved proof-system byte 0 can never be registered), so every
+        // multisig commitment would verify as `false`. The `SetMinQuorum` hint exists
+        // because the verifier deploys with DefaultMinQuorum = 1 — without an explicit
+        // raise, a single registered sequencer's signature finalizes batches and the
+        // committee gate silently degrades to 1-of-N.
+        Assert.AreEqual(9, actions.Count);
 
         StringAssert.Contains(actions[0], "RollupHub.SetGovernanceController(GovernanceController)");
         StringAssert.Contains(actions[1], "SharedBridge.SetSettlementManager(RollupHub)");
@@ -430,6 +445,9 @@ public class UT_DeployPlanner
         StringAssert.Contains(actions[3], "ZkVerifier.RegisterProofVerifier(ProofSystem.Sp1=1, Sp1Groth16Verifier, allowed=true)");
         StringAssert.Contains(actions[4], "ZkVerifier.RegisterVerificationKey(ProofSystem.Sp1=1, <SP1_PROGRAM_VK_FROM_RELEASE_MANIFEST>, allowed=true)");
         StringAssert.Contains(actions[5], "ZkVerifier.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)");
+        StringAssert.Contains(actions[6], "MultisigVerifier.SetGovernanceController(GovernanceController)");
+        StringAssert.Contains(actions[7], "MultisigVerifier.SetMinQuorum(<COMMITTEE_MULTISIG_QUORUM>)");
+        StringAssert.Contains(actions[8], "ZkVerifier.RegisterMultisigVerifier(MultisigVerifier, allowed=true)");
     }
 
     [TestMethod]

@@ -233,6 +233,7 @@ public class UT_L2BridgePlugin
             L2Sender = UInt160.Parse("0x" + new string('a', 40)),
             L1Recipient = UInt160.Parse("0x" + new string('b', 40)),
             L2Asset = l2Asset,
+            L1Asset = l1Asset,
             Amount = new System.Numerics.BigInteger(1000),
             Nonce = 1,
         };

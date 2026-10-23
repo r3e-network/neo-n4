@@ -11,6 +11,9 @@ pub struct RecursiveChildProofResult {
     pub l1_message_hash: [u8; 32],
     /// Canonical block-context hash absent from `L2BatchCommitment`.
     pub block_context_hash: [u8; 32],
+    /// `forced_inclusion_count` absent from `L2BatchCommitment` — the trailing field of the
+    /// canonical 352-byte public-input preimage.
+    pub forced_inclusion_count: u32,
     /// Canonical bincode encoding of `SP1ProofWithPublicValues::Compressed`.
     pub proof_bytes: Vec<u8>,
 }

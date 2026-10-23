@@ -52,6 +52,20 @@ public sealed record WithdrawalRequest
     public required UInt160 L2Asset { get; init; }
 
     /// <summary>
+    /// L1-side asset hash that the withdrawal is paid out in.
+    /// </summary>
+    /// <remarks>
+    /// Bound into the withdrawal leaf-hash preimage by
+    /// <c>NeoHub.SharedBridge.ComputeWithdrawalLeafHash</c>. Without this binding the leaf
+    /// hash would be identical for the same withdrawal expressed in two different L1 assets,
+    /// so an inclusion proof could be replayed against a different payout asset. The L1
+    /// contract resolves the pair itself — it asserts
+    /// <c>GetL2Asset(l1Asset, chainId) == l2Asset</c> — so the chain-offside value must
+    /// agree with the registered mapping.
+    /// </remarks>
+    public required UInt160 L1Asset { get; init; }
+
+    /// <summary>
     /// Canonical L1 payout amount in the L1 asset's smallest unit. For assets whose
     /// L2 decimals differ from L1, the L2 native bridge converts the burned L2 amount
     /// before emitting the withdrawal record.

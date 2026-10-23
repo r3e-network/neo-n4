@@ -93,6 +93,10 @@ public class UT_Mvp_Phase0_Sidechain
             L2Sender = Alice,
             L1Recipient = Bob,
             L2Asset = GasL2,
+            // The L1 payout asset is bound into the withdrawal leaf hash. It MUST match the
+            // l1Asset carried by the synthetic WithdrawalEmitted event below, otherwise
+            // the executor's withdrawal root and the processor's withdrawal root diverge.
+            L1Asset = GasL1,
             Amount = new BigInteger(500_000),
             Nonce = 1,
         };
@@ -124,6 +128,7 @@ public class UT_Mvp_Phase0_Sidechain
                         new ByteString(Alice.GetSpan().ToArray()),
                         new ByteString(Bob.GetSpan().ToArray()),
                         new ByteString(GasL2.GetSpan().ToArray()),
+                        new ByteString(GasL1.GetSpan().ToArray()),
                         new Integer(withdrawal.Amount),
                         new Integer(withdrawal.Nonce),
                     ])),

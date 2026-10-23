@@ -77,13 +77,33 @@ public sealed class KeyedStateStore : IDisposable
     /// </summary>
     public UInt256 ComputeRoot()
     {
-        // Materialize entries in lex-key order (IL2KeyValueStore guarantees this).
+        // Sort EXPLICITLY by unsigned byte order rather than relying on the backing
+        // store's enumeration order.
+        //
+        // `IL2KeyValueStore.EnumeratePrefix` currently happens to return keys in
+        // lexicographic order for every shipped backend, but that was an IMPLICIT contract:
+        // a new backend using a signed comparison would silently produce a different root
+        // for the same state — a consensus-level divergence that only shows up as "the batch
+        // will not settle". Sorting here makes the root independent of the backend.
         var entries = _backing.EnumeratePrefix(ReadOnlySpan<byte>.Empty).ToList();
         if (entries.Count == 0) return UInt256.Zero;
+        entries.Sort(static (left, right) => CompareBytes(left.Key, right.Key));
         var leaves = new UInt256[entries.Count];
         for (var i = 0; i < entries.Count; i++)
             leaves[i] = HashEntry(entries[i].Key, entries[i].Value);
         return Neo.L2.State.MerkleTree.ComputeRoot(leaves);
+    }
+
+    /// <summary>Compare two byte ranges as UNSIGNED lexicographic sequences.</summary>
+    private static int CompareBytes(byte[] left, byte[] right)
+    {
+        var shared = Math.Min(left.Length, right.Length);
+        for (var i = 0; i < shared; i++)
+        {
+            var diff = left[i].CompareTo(right[i]);
+            if (diff != 0) return diff;
+        }
+        return left.Length.CompareTo(right.Length);
     }
 
     /// <summary>Canonical leaf hash for a (key, value) pair.</summary>

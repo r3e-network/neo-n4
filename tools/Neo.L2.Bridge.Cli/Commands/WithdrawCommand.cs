@@ -40,6 +40,7 @@ internal static class WithdrawCommand
             L2Sender = l2Sender,
             L1Recipient = recipient,
             L2Asset = l2Asset,
+            L1Asset = asset,
             Amount = amount.Value,
             Nonce = withdrawalNonce.Value,
         });

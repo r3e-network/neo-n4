@@ -341,6 +341,7 @@ public sealed class UT_OptimisticLocalHostComposition
                 L2Sender = sender,
                 L1Recipient = sender,
                 L2Asset = l2Asset,
+                L1Asset = UInt160.Parse("0x" + new string('e', 40)),
                 Amount = new BigInteger(50),
                 Nonce = 1,
             });
@@ -1021,6 +1022,7 @@ public sealed class UT_OptimisticLocalHostComposition
                 L2Sender = softSender,
                 L1Recipient = softSender,
                 L2Asset = softL2Asset,
+                L1Asset = UInt160.Parse("0x" + new string('e', 40)),
                 Amount = new BigInteger(50),
                 Nonce = 1,
             });

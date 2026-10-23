@@ -69,7 +69,26 @@ public static class StateRootCalculator
     /// <summary>
     /// Compute the canonical hash that gets put into <see cref="L2BatchCommitment.PublicInputHash"/>.
     /// </summary>
-    public static UInt256 HashPublicInputs(PublicInputs inputs)
+    /// <summary>
+    /// Encode the canonical 352-byte public-input preimage.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the byte string the SP1 guest signs and the on-chain commitment carries.
+    /// It is exposed separately from <see cref="HashPublicInputs"/> so that a cross-language
+    /// parity test can compare the BYTES — not just the hash. Comparing only the hash
+    /// still leaves a class of divergence invisible: a layout change that alters the
+    /// preimage but happens to keep the same digest is astronomically unlikely, but a
+    /// test that recomputes the preimage from a second implementation is exactly the
+    /// "mirror as oracle" pattern the 2026-10-21 audit flagged.
+    /// </para>
+    /// <para>
+    /// Layout (352 bytes, little-endian):
+    /// <c>chainId(4) ‖ batchNumber(8) ‖ firstBlock(8) ‖ lastBlock(8)
+    /// ‖ 10×32 roots ‖ forcedInclusionCount(4)</c>
+    /// </para>
+    /// </remarks>
+    public static byte[] EncodePublicInputs(PublicInputs inputs)
     {
         ArgumentNullException.ThrowIfNull(inputs);
         // Defense-in-depth: all 10 root fields are UInt256 (reference type) — null in
@@ -85,12 +104,12 @@ public static class StateRootCalculator
         ArgumentNullException.ThrowIfNull(inputs.DACommitment);
         ArgumentNullException.ThrowIfNull(inputs.BlockContextHash);
         // Use the canonical encoding from BatchSerializer-equivalent layout (352 bytes).
-        Span<byte> buffer = stackalloc byte[4 + 8 + 8 + 8 + 10 * 32 + 4];
+        var buffer = new byte[4 + 8 + 8 + 8 + 10 * 32 + 4];
         var pos = 0;
-        BinaryPrimitives.WriteUInt32LittleEndian(buffer.Slice(pos, 4), inputs.ChainId); pos += 4;
-        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(pos, 8), inputs.BatchNumber); pos += 8;
-        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(pos, 8), inputs.FirstBlock); pos += 8;
-        BinaryPrimitives.WriteUInt64LittleEndian(buffer.Slice(pos, 8), inputs.LastBlock); pos += 8;
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer.AsSpan(pos, 4), inputs.ChainId); pos += 4;
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.AsSpan(pos, 8), inputs.BatchNumber); pos += 8;
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.AsSpan(pos, 8), inputs.FirstBlock); pos += 8;
+        BinaryPrimitives.WriteUInt64LittleEndian(buffer.AsSpan(pos, 8), inputs.LastBlock); pos += 8;
 
         WriteRoot(buffer, ref pos, inputs.PreStateRoot);
         WriteRoot(buffer, ref pos, inputs.PostStateRoot);
@@ -102,10 +121,14 @@ public static class StateRootCalculator
         WriteRoot(buffer, ref pos, inputs.L1MessageHash);
         WriteRoot(buffer, ref pos, inputs.DACommitment);
         WriteRoot(buffer, ref pos, inputs.BlockContextHash);
-        BinaryPrimitives.WriteUInt32LittleEndian(buffer.Slice(pos, 4), inputs.ForcedInclusionCount); pos += 4;
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer.AsSpan(pos, 4), inputs.ForcedInclusionCount); pos += 4;
 
-        return new UInt256(Crypto.Hash256(buffer));
+        return buffer;
     }
+
+    /// <summary>Hash of the canonical 352-byte public-input preimage.</summary>
+    public static UInt256 HashPublicInputs(PublicInputs inputs) =>
+        new(Crypto.Hash256(EncodePublicInputs(inputs)));
 
     private static void WriteRoot(Span<byte> buffer, ref int pos, UInt256 root)
     {

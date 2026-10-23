@@ -88,8 +88,18 @@ public static class BatchSerializer
         10 * 32 +        // 10× UInt256 roots/hashes
         4;               // ForcedInclusionCount
 
-    /// <summary>Encode <paramref name="commitment"/> to its canonical byte form.</summary>
-    public static byte[] Encode(L2BatchCommitment commitment)
+    /// <summary>
+    /// Validate a commitment before encoding it.
+    /// </summary>
+    /// <remarks>
+    /// Shared by every encoder that produces the canonical commitment bytes. The pooled
+    /// encoder (<c>PooledBatchSerializer</c>) used to re-implement the layout with NO
+    /// validation at all — no null guards, no 1 MiB proof cap, no proof-type range check —
+    /// so two encoders of the same logical object had different validation strength. This
+    /// method is the single source of truth; <see cref="Encode"/> and the pooled encoder
+    /// both call it.
+    /// </remarks>
+    public static void Validate(L2BatchCommitment commitment)
     {
         ArgumentNullException.ThrowIfNull(commitment);
         // Defense-in-depth: all 9 root fields are UInt256 (reference type) — null in
@@ -113,6 +123,12 @@ public static class BatchSerializer
             throw new ArgumentException(
                 $"ProofType {(byte)commitment.ProofType} not in defined range [0..{(byte)ProofType.Zk}]",
                 nameof(commitment));
+    }
+
+    /// <summary>Encode <paramref name="commitment"/> to its canonical byte form.</summary>
+    public static byte[] Encode(L2BatchCommitment commitment)
+    {
+        Validate(commitment);
 
         // checked: a Proof.Length near int.MaxValue (caught later by ProofMaxBytes, but
         // not here at allocation time) wraps. Surface as OverflowException at the sum

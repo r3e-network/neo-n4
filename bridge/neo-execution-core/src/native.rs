@@ -354,6 +354,7 @@ pub fn native_initiate_withdrawal_v1(
             CanonicalStackValue::ByteString(context.caller.to_vec()),
             CanonicalStackValue::ByteString(l1_recipient.to_vec()),
             CanonicalStackValue::ByteString(l2_asset.to_vec()),
+            CanonicalStackValue::ByteString(mapping.0.to_vec()),
             stack_unsigned(l1_amount),
             stack_unsigned(BigUint::from(nonce)),
         ]),
@@ -397,12 +398,12 @@ pub fn derive_outbound_roots_v1(
         }
         for event in &transaction.events {
             if event.script_hash == bridge && event.name == "WithdrawalEmitted" {
-                let (sender, recipient, asset, amount, nonce) = parse_withdrawal_event(event)?;
+                let (sender, recipient, asset, l1_asset, amount, nonce) = parse_withdrawal_event(event)?;
                 if !withdrawal_nonces.insert((sender, nonce)) {
                     return Err(ExecutionError::Invalid("duplicate withdrawal event nonce"));
                 }
                 withdrawals.push(withdrawal_hash(
-                    chain_id, &bridge, &sender, &recipient, &asset, &amount, nonce,
+                    chain_id, &bridge, &sender, &recipient, &asset, &l1_asset, &amount, nonce,
                 ));
             } else if event.script_hash == messenger && event.name == "MessageEmitted" {
                 let message = parse_message_event(chain_id, event)?;
@@ -825,22 +826,28 @@ impl<'a> NeoBinaryReader<'a> {
 
 fn parse_withdrawal_event(
     event: &ExecutionEvent,
-) -> Result<(UInt160, UInt160, UInt160, BigUint, u64), ExecutionError> {
-    let values = event_array(event, 5, "WithdrawalEmitted event")?;
+) -> Result<(UInt160, UInt160, UInt160, UInt160, BigUint, u64), ExecutionError> {
+    let values = event_array(event, 6, "WithdrawalEmitted event")?;
     let sender = stack_hash160(&values[0], "withdrawal sender")?;
     let recipient = stack_hash160(&values[1], "withdrawal recipient")?;
     let asset = stack_hash160(&values[2], "withdrawal asset")?;
-    let amount = stack_positive(&values[3], "withdrawal amount")?;
+    let l1_asset = stack_hash160(&values[3], "withdrawal l1 asset")?;
+    let amount = stack_positive(&values[4], "withdrawal amount")?;
     if amount.to_bytes_le().len() > 64 {
         return Err(ExecutionError::Oversized("withdrawal amount"));
     }
-    let nonce = stack_unsigned_integer(&values[4], "withdrawal nonce")?
+    let nonce = stack_unsigned_integer(&values[5], "withdrawal nonce")?
         .to_u64()
         .ok_or(ExecutionError::Invalid("withdrawal nonce"))?;
-    if sender == [0u8; 20] || recipient == [0u8; 20] || asset == [0u8; 20] || nonce == 0 {
+    if sender == [0u8; 20]
+        || recipient == [0u8; 20]
+        || asset == [0u8; 20]
+        || l1_asset == [0u8; 20]
+        || nonce == 0
+    {
         return Err(ExecutionError::Invalid("WithdrawalEmitted event"));
     }
-    Ok((sender, recipient, asset, amount, nonce))
+    Ok((sender, recipient, asset, l1_asset, amount, nonce))
 }
 
 fn parse_message_event(chain_id: u32, event: &ExecutionEvent) -> Result<L1Message, ExecutionError> {
@@ -932,26 +939,65 @@ fn stack_unsigned_integer(
     value.to_biguint().ok_or(ExecutionError::Invalid(field))
 }
 
+/// Canonical withdrawal-leaf preimage:
+/// `4B chainId LE | 20B emittingContract | 20B l2Sender | 20B l2Asset | 8B nonce LE |
+/// 20B l1Asset | 20B l1Recipient | 4B amountLen LE | amountLen amount LE`.
+///
+/// This is the byte string FOUR implementations must agree on:
+/// `NeoHub.SharedBridge.ComputeWithdrawalLeafHash` (on-chain, authoritative),
+/// `Neo.L2.State.MessageHasher.EncodeWithdrawal` (off-chain .NET), this function, and the
+/// hand-rolled builder in `UT_SharedBridge_Vm`. It is `pub` so
+/// `tests/canonical_encoding_parity.rs` can pin it against the shared .NET-exported
+/// vector — the 2026-10-21 audit found this leaf had already forked once precisely
+/// because no cross-implementation check existed.
+///
+/// Mind the argument order: it is NOT the wire order. `recipient` precedes `asset` in the
+/// signature but `asset` is written first. The shared vector is what pins correctness.
+#[must_use]
+pub fn withdrawal_leaf_preimage(
+    chain_id: u32,
+    emitting_contract: &UInt160,
+    sender: &UInt160,
+    recipient: &UInt160,
+    asset: &UInt160,
+    l1_asset: &UInt160,
+    amount: &BigUint,
+    nonce: u64,
+) -> Vec<u8> {
+    let amount = amount.to_bytes_le();
+    let mut bytes = Vec::with_capacity(116 + amount.len());
+    bytes.extend_from_slice(&chain_id.to_le_bytes());
+    bytes.extend_from_slice(emitting_contract);
+    bytes.extend_from_slice(sender);
+    bytes.extend_from_slice(asset);
+    bytes.extend_from_slice(&nonce.to_le_bytes());
+    bytes.extend_from_slice(l1_asset);
+    bytes.extend_from_slice(recipient);
+    bytes.extend_from_slice(&(amount.len() as u32).to_le_bytes());
+    bytes.extend_from_slice(&amount);
+    bytes
+}
+
 fn withdrawal_hash(
     chain_id: u32,
     emitting_contract: &UInt160,
     sender: &UInt160,
     recipient: &UInt160,
     asset: &UInt160,
+    l1_asset: &UInt160,
     amount: &BigUint,
     nonce: u64,
 ) -> UInt256 {
-    let amount = amount.to_bytes_le();
-    let mut bytes = Vec::with_capacity(96 + amount.len());
-    bytes.extend_from_slice(&chain_id.to_le_bytes());
-    bytes.extend_from_slice(emitting_contract);
-    bytes.extend_from_slice(sender);
-    bytes.extend_from_slice(recipient);
-    bytes.extend_from_slice(asset);
-    bytes.extend_from_slice(&(amount.len() as u32).to_le_bytes());
-    bytes.extend_from_slice(&amount);
-    bytes.extend_from_slice(&nonce.to_le_bytes());
-    hash256(&bytes)
+    hash256(&withdrawal_leaf_preimage(
+        chain_id,
+        emitting_contract,
+        sender,
+        recipient,
+        asset,
+        l1_asset,
+        amount,
+        nonce,
+    ))
 }
 
 fn message_hash(message: &L1Message) -> UInt256 {
@@ -1222,7 +1268,7 @@ mod tests {
         let roots = derive_outbound_roots_v1(CHAIN_ID, &effects).unwrap();
         assert_eq!(
             roots.0,
-            hex32("737a25af11ca940d4e9004a43bd0129f3000df624a9d845752439d819ddae593")
+            hex32("4bf2dbdfa915af0439664969fbed5f58d947de38f911c08bbf4b7b3aab141ecd")
         );
         assert_eq!(
             roots.1,
@@ -1238,7 +1284,8 @@ mod tests {
         else {
             unreachable!()
         };
-        values[3] = stack_unsigned(BigUint::from(124u8));
+        // Index 4 is the amount (index 3 is the l1 asset, which must stay a ByteString).
+        values[4] = stack_unsigned(BigUint::from(124u8));
         assert_ne!(
             derive_outbound_roots_v1(CHAIN_ID, &tampered).unwrap().0,
             roots.0
@@ -1364,6 +1411,7 @@ mod tests {
                 CanonicalStackValue::ByteString(vec![0x44; 20]),
                 CanonicalStackValue::ByteString(vec![0x77; 20]),
                 CanonicalStackValue::ByteString(vec![0x88; 20]),
+                CanonicalStackValue::ByteString(vec![0x99; 20]),
                 stack_unsigned(BigUint::from(123u8)),
                 stack_unsigned(BigUint::one()),
             ]),

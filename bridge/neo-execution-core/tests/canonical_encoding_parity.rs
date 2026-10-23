@@ -13,7 +13,7 @@
 
 use std::collections::BTreeMap;
 
-use neo_execution_core::{UInt256, hash_public_inputs, hash256, merkle_root};
+use neo_execution_core::{UInt160, UInt256, hash_public_inputs, hash256, merkle_root};
 
 const FIXTURE: &str = include_str!("../../../tests/Shared/canonical_encoding_vectors.hex");
 
@@ -54,6 +54,103 @@ fn hash_public_inputs_assembles_the_bytes_the_dotnet_encoder_writes() {
 }
 
 #[test]
+fn hash_public_inputs_with_forced_binds_the_forced_inclusion_count() {
+    // The 14-parameter `hash_public_inputs` is a thin wrapper over
+    // `hash_public_inputs_with_forced(..., 0)`, so the parity test above only pins the
+    // ZERO case. The forced-inclusion count is the field the 2026-10-21 audit found
+    // diverging between the Gateway guest and the authoritative implementation (the guest
+    // rebuilt a 348-byte preimage), and it is what makes the domain a fixed 352 bytes —
+    // so the NON-ZERO case needs its own cross-language check.
+    //
+    // The bytes come verbatim from the shared .NET-exported fixture, so this asserts the
+    // Rust encoder against the .NET encoder rather than against a Rust-side mirror.
+    let fields = fields();
+    let dotnet = field_bytes(&fields, "public_inputs_with_forced");
+    assert_eq!(
+        dotnet.len(),
+        352,
+        "the .NET public-inputs vector is not 352 bytes"
+    );
+
+    // The vector's trailing u32 LE is the forced-inclusion count.
+    let forced = u32::from_le_bytes(dotnet[348..352].try_into().expect("4 bytes"));
+    assert_eq!(
+        forced, 3,
+        "the exported non-zero vector must carry a non-zero forced-inclusion count"
+    );
+
+    let with_forced = neo_execution_core::hash_public_inputs_with_forced(
+        field_u32(&fields, "chain_id"),
+        field_u64(&fields, "batch_number"),
+        field_u64(&fields, "first_block"),
+        field_u64(&fields, "last_block"),
+        &root(&fields, "pre_state_root"),
+        &root(&fields, "post_state_root"),
+        &root(&fields, "tx_root"),
+        &root(&fields, "receipt_root"),
+        &root(&fields, "withdrawal_root"),
+        &root(&fields, "l2_to_l1_message_root"),
+        &root(&fields, "l2_to_l2_message_root"),
+        &root(&fields, "l1_message_hash"),
+        &root(&fields, "da_commitment"),
+        &root(&fields, "block_context_hash"),
+        forced,
+    );
+
+    assert_eq!(
+        with_forced,
+        hash256(&dotnet),
+        "hash_public_inputs_with_forced does not reproduce the .NET-encoded preimage for a \
+         non-zero forced-inclusion count"
+    );
+}
+
+#[test]
+fn hash_public_inputs_with_forced_changes_the_digest_when_the_count_changes() {
+    // The count must be INSIDE the signed preimage: a batch that consumed a different
+    // number of forced inclusions must not produce the same public-input hash.
+    let fields = fields();
+    let base = neo_execution_core::hash_public_inputs_with_forced(
+        field_u32(&fields, "chain_id"),
+        field_u64(&fields, "batch_number"),
+        field_u64(&fields, "first_block"),
+        field_u64(&fields, "last_block"),
+        &root(&fields, "pre_state_root"),
+        &root(&fields, "post_state_root"),
+        &root(&fields, "tx_root"),
+        &root(&fields, "receipt_root"),
+        &root(&fields, "withdrawal_root"),
+        &root(&fields, "l2_to_l1_message_root"),
+        &root(&fields, "l2_to_l2_message_root"),
+        &root(&fields, "l1_message_hash"),
+        &root(&fields, "da_commitment"),
+        &root(&fields, "block_context_hash"),
+        0,
+    );
+    let bumped = neo_execution_core::hash_public_inputs_with_forced(
+        field_u32(&fields, "chain_id"),
+        field_u64(&fields, "batch_number"),
+        field_u64(&fields, "first_block"),
+        field_u64(&fields, "last_block"),
+        &root(&fields, "pre_state_root"),
+        &root(&fields, "post_state_root"),
+        &root(&fields, "tx_root"),
+        &root(&fields, "receipt_root"),
+        &root(&fields, "withdrawal_root"),
+        &root(&fields, "l2_to_l1_message_root"),
+        &root(&fields, "l2_to_l2_message_root"),
+        &root(&fields, "l1_message_hash"),
+        &root(&fields, "da_commitment"),
+        &root(&fields, "block_context_hash"),
+        1,
+    );
+    assert_ne!(
+        base, bumped,
+        "the forced-inclusion count is not bound into the public-input hash"
+    );
+}
+
+#[test]
 fn merkle_root_folds_the_withdrawal_leaves_the_dotnet_tree_folds() {
     let fields = fields();
     let count = usize::try_from(field_u64(&fields, "withdrawal_leaf_count"))
@@ -68,6 +165,104 @@ fn merkle_root_folds_the_withdrawal_leaves_the_dotnet_tree_folds() {
         "merkle_root and Neo.L2.State.MerkleTree disagree on the withdrawal fold \
          (leaf ordering, odd-leaf duplication, or the join order)"
     );
+}
+
+#[test]
+fn withdrawal_leaf_preimage_matches_the_dotnet_export() {
+    // Four implementations encode this leaf:
+    //   1. NeoHub.SharedBridge.ComputeWithdrawalLeafHash   (on-chain, authoritative)
+    //   2. Neo.L2.State.MessageHasher.EncodeWithdrawal     (off-chain .NET)
+    //   3. neo_execution_core::native::withdrawal_leaf_preimage  ← this test
+    //   4. the hand-rolled builder in UT_SharedBridge_Vm
+    //
+    // The 2026-10-21 audit found this leaf had ALREADY forked once (off-chain 98B Layout A
+    // against the on-chain 118B Layout C) and it survived because every implementation was
+    // validated only against itself. Until now (3) and (4) had no cross-implementation
+    // check at all.
+    let fields = fields();
+    let dotnet = field_bytes(&fields, "withdrawal_leaf_preimage");
+    assert_eq!(
+        dotnet.len(),
+        120,
+        "the .NET withdrawal-leaf vector is not 120 bytes (116-byte header + 4-byte amount)"
+    );
+    assert_eq!(
+        u32::from_le_bytes(dotnet[112..116].try_into().expect("4 bytes")),
+        4,
+        "the vector's amountLen must be 4 (100_000_000 fits in 4 LE bytes)"
+    );
+
+    // Read the 20-byte fields straight out of the vector, so the test cannot invent a
+    // value the vector does not carry.
+    let field20 = |offset: usize| -> UInt160 {
+        dotnet[offset..offset + 20].try_into().expect("20 bytes")
+    };
+    let amount = {
+        let bytes = &dotnet[116..];
+        assert_eq!(bytes.len(), 4);
+        num_bigint::BigUint::from_bytes_le(bytes)
+    };
+
+    let rust = neo_execution_core::withdrawal_leaf_preimage(
+        field_u32(&fields, "withdrawal_chain_id"),
+        &field20(4),   // emittingContract
+        &field20(24),  // l2Sender
+        &field20(92),  // l1Recipient
+        &field20(44),  // l2Asset
+        &field20(72),  // l1Asset
+        &amount,
+        u64::try_from(field_u64(&fields, "withdrawal_nonce")).expect("nonce"),
+    );
+
+    assert_eq!(
+        rust, dotnet,
+        "withdrawal_leaf_preimage does not reproduce the .NET-encoded preimage — the \
+         l1Asset position, the nonce width, or the amount length prefix has drifted"
+    );
+    assert_eq!(
+        hash256(&rust),
+        root(&fields, "withdrawal_leaf_hash"),
+        "the withdrawal leaf hash is not the double-SHA256 of the preimage"
+    );
+}
+
+#[test]
+fn chain_config_encoding_matches_the_dotnet_export() {
+    // `RollupHub.registerChain` parses these 91 bytes. Rust both encodes and parses them, and
+    // its own round-trip test cannot detect a layout change that both directions share — so
+    // this pins the bytes against the .NET-exported vector instead.
+    let fields = fields();
+    let dotnet = field_bytes(&fields, "chain_config");
+    assert_eq!(dotnet.len(), 91, "the .NET chain-config vector is not 91 bytes");
+
+    let field20 = |offset: usize| -> UInt160 {
+        dotnet[offset..offset + 20].try_into().expect("20 bytes")
+    };
+    let config = neo_execution_core::L2ChainConfig {
+        chain_id: u32::from_le_bytes(dotnet[0..4].try_into().expect("4 bytes")),
+        operator_manager: field20(4),
+        verifier: field20(24),
+        bridge_adapter: field20(44),
+        message_adapter: field20(64),
+        security_level: dotnet[84],
+        da_mode: dotnet[85],
+        gateway_enabled: dotnet[86] != 0,
+        permissionless_exit: dotnet[87] != 0,
+        sequencer_model: dotnet[88],
+        exit_model: dotnet[89],
+        active: dotnet[90] != 0,
+    };
+
+    assert_eq!(
+        neo_execution_core::encode_chain_config(&config).to_vec(),
+        dotnet,
+        "encode_chain_config does not reproduce the .NET-encoded chain config — a field \
+         order, address slot, or boolean position has drifted"
+    );
+
+    // Parse must accept the same bytes and yield the same values.
+    let parsed = neo_execution_core::parse_chain_config(&dotnet).expect("parse chain config");
+    assert_eq!(parsed, config, "parse_chain_config disagrees with the vector");
 }
 
 #[test]

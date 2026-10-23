@@ -296,6 +296,7 @@ public class UT_BridgeInvariants_PropertyBased
             L2Sender = sender,
             L1Recipient = sender,
             L2Asset = asset.L2Asset,
+            L1Asset = asset.L1Asset,
             Amount = amount,
             Nonce = nonce,
         };

@@ -231,6 +231,7 @@ public sealed class SealedBatch
                 L2Sender = new UInt160(withdrawal.L2Sender.GetSpan()),
                 L1Recipient = new UInt160(withdrawal.L1Recipient.GetSpan()),
                 L2Asset = new UInt160(withdrawal.L2Asset.GetSpan()),
+                L1Asset = new UInt160(withdrawal.L1Asset.GetSpan()),
             };
         }
         return Array.AsReadOnly(withdrawalCopies);

@@ -26,7 +26,37 @@ pub struct DaemonConfig {
     pub queue_directory: PathBuf,
     pub child_proof_directory: PathBuf,
     pub poll_interval: Duration,
+    /// Maximum number of queued requests the daemon will accept before it stops
+    /// picking up new work.
+    ///
+    /// The Gateway daemon has no admission control by default: it walks every manifest in
+    /// the queue directory and processes each one, so a producer that keeps enqueueing can
+    /// grow the resident set without bound (each request can pull in up to
+    /// `MAX_CHILD_SIDECAR_BYTES` per sidecar). The `prove-batch` daemon already has an
+    /// equivalent `--max-queue-tasks` / `--max-queue-bytes` guard; this brings the Gateway
+    /// daemon to parity.
+    pub max_queue_tasks: usize,
+    /// Maximum total size of the queued request payloads.
+    pub max_queue_bytes: u64,
 }
+
+impl Default for DaemonConfig {
+    fn default() -> Self {
+        Self {
+            queue_directory: PathBuf::new(),
+            child_proof_directory: PathBuf::new(),
+            poll_interval: Duration::from_secs(1),
+            max_queue_tasks: DEFAULT_MAX_QUEUE_TASKS,
+            max_queue_bytes: DEFAULT_MAX_QUEUE_BYTES,
+        }
+    }
+}
+
+/// Default ceiling on the number of queued Gateway requests.
+pub const DEFAULT_MAX_QUEUE_TASKS: usize = 64;
+
+/// Default ceiling on the total size of the queued Gateway request payloads (16 GiB).
+pub const DEFAULT_MAX_QUEUE_BYTES: u64 = 16 * 1024 * 1024 * 1024;
 
 pub fn run_daemon(config: &DaemonConfig) -> Result<(), GatewayError> {
     validate_directory(&config.queue_directory, "queue directory")?;
@@ -67,8 +97,35 @@ pub fn process_ready_requests(config: &DaemonConfig) -> Result<usize, GatewayErr
     }
     manifests.sort();
 
+    // Admission control: refuse to start new work once the queue exceeds its configured
+    // ceiling. Without this the daemon would process an unbounded number of requests,
+    // each of which can pull several hundred megabytes of child sidecars into memory.
+    if manifests.len() > config.max_queue_tasks {
+        warn!(
+            queued = manifests.len(),
+            limit = config.max_queue_tasks,
+            "Gateway queue is over its task ceiling; deferring new requests"
+        );
+        manifests.truncate(config.max_queue_tasks);
+    }
+
     let mut processed = 0;
+    let mut admitted_bytes: u64 = 0;
     for manifest_path in manifests {
+        // Keep the aggregate admitted payload size under the ceiling.
+        let manifest_size = std::fs::metadata(&manifest_path)
+            .map(|meta| meta.len())
+            .unwrap_or(0);
+        if admitted_bytes.saturating_add(manifest_size) > config.max_queue_bytes {
+            warn!(
+                queued_bytes = admitted_bytes,
+                limit = config.max_queue_bytes,
+                "Gateway queue is over its byte ceiling; deferring new requests"
+            );
+            break;
+        }
+        admitted_bytes = admitted_bytes.saturating_add(manifest_size);
+
         match process_manifest(config, &manifest_path) {
             Ok(true) => processed += 1,
             Ok(false) => {}

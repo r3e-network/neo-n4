@@ -101,6 +101,7 @@ public class UT_E2E_SystemInvariants
             L2Sender = userA,
             L1Recipient = MakeAddress(11),
             L2Asset = l2Gas,
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = withdrawAmount,
             Nonce = 1,
         };

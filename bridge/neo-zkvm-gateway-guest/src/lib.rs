@@ -15,9 +15,18 @@ pub const MAX_CONSTITUENTS: usize = 4096;
 pub const MAX_REQUEST_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BATCH_PROOF_BYTES: usize = 1024 * 1024;
 pub const MAX_CHILD_SIDECAR_BYTES: usize = 512 * 1024 * 1024;
-pub const PUBLIC_INPUT_SUPPLEMENT_BYTES: usize = 64;
-pub const CHILD_SIDECAR_HEADER_BYTES: usize = 8 + 4 + 8 + 32 + 32 + 32 + 4;
-pub const CHILD_SIDECAR_MAGIC: &[u8; 8] = b"NEO4GCS1";
+/// Size of the canonical public-input preimage: 4 + 8 + 8 + 8 + 10×32 + 4.
+///
+/// The trailing 4 bytes are `forced_inclusion_count`. This is the authoritative domain
+/// size — it must match `neo_execution_core::hashing::hash_public_inputs_with_forced`.
+pub const PUBLIC_INPUTS_BYTES: usize = 4 + 8 + 8 + 8 + 10 * 32 + 4;
+
+/// Per-batch public-input fields that the 321-byte commitment cannot carry.
+///
+/// Layout: `l1MessageHash(32) ‖ blockContextHash(32) ‖ forcedInclusionCount(4 LE)`.
+pub const PUBLIC_INPUT_SUPPLEMENT_BYTES: usize = 32 + 32 + 4;
+pub const CHILD_SIDECAR_HEADER_BYTES: usize = 8 + 4 + 8 + 32 + 32 + 32 + 4 + 4;
+pub const CHILD_SIDECAR_MAGIC: &[u8; 8] = b"NEO4GCS2";
 pub const CHILD_SIDECAR_SUFFIX: &str = ".sp1-recursive-child.bin";
 pub const SP1_PROOF_SYSTEM: u8 = 1;
 pub const RECURSIVE_BACKEND_ID: u8 = 0xc2;
@@ -94,6 +103,11 @@ pub struct RecursiveChildSidecar {
     pub public_input_hash: [u8; 32],
     pub l1_message_hash: [u8; 32],
     pub block_context_hash: [u8; 32],
+    /// `forced_inclusion_count` (u32 LE) — the trailing field of the canonical 352-byte
+    /// public-input preimage. The Gateway guest rebuilds that preimage to re-derive the
+    /// public-input hash, so the count MUST travel with the sidecar: without it the
+    /// reconstruction is one field short and every real batch is rejected.
+    pub forced_inclusion_count: u32,
     pub proof_bytes: Vec<u8>,
 }
 
@@ -208,7 +222,12 @@ pub fn validate_public_input_supplements(
         if supplement.len() != PUBLIC_INPUT_SUPPLEMENT_BYTES {
             return Err(GatewayError::InvalidPublicInputSupplement);
         }
-        let mut public_inputs = [0u8; 348];
+        // The canonical public-input preimage is a FIXED 352-byte domain
+        // (4 + 8 + 8 + 8 + 10×32 + 4), whose trailing 4 bytes are
+        // `forced_inclusion_count`. Rebuilding it with a 348-byte buffer silently drops
+        // that field, so the re-derived hash could never equal the batch's
+        // public_input_hash and every real batch was rejected.
+        let mut public_inputs = [0u8; PUBLIC_INPUTS_BYTES];
         public_inputs[..4].copy_from_slice(&batch.chain_id.to_le_bytes());
         public_inputs[4..12].copy_from_slice(&batch.batch_number.to_le_bytes());
         public_inputs[12..20].copy_from_slice(&batch.canonical_bytes[12..20]);
@@ -216,7 +235,13 @@ pub fn validate_public_input_supplements(
         public_inputs[28..252].copy_from_slice(&batch.canonical_bytes[28..252]);
         public_inputs[252..284].copy_from_slice(&supplement[..32]);
         public_inputs[284..316].copy_from_slice(&batch.canonical_bytes[252..284]);
-        public_inputs[316..348].copy_from_slice(&supplement[32..]);
+        public_inputs[316..348].copy_from_slice(&supplement[32..64]);
+        // `forced_inclusion_count` (348..352) travels in the supplement — the 321-byte
+        // commitment has no room for it, and the supplement is exactly the channel for
+        // public-input fields the commitment cannot carry. Its value is pinned
+        // cryptographically: the rebuilt preimage must hash to the commitment's
+        // `public_input_hash`, so a wrong count cannot be substituted silently.
+        public_inputs[348..352].copy_from_slice(&supplement[64..68]);
         if hash256(&public_inputs) != batch.public_input_hash {
             return Err(GatewayError::PublicInputHashMismatch);
         }
@@ -242,6 +267,7 @@ pub fn encode_child_sidecar(
     public_input_hash: &[u8; 32],
     l1_message_hash: &[u8; 32],
     block_context_hash: &[u8; 32],
+    forced_inclusion_count: u32,
     proof_bytes: &[u8],
 ) -> Result<Vec<u8>, GatewayError> {
     if proof_bytes.is_empty()
@@ -258,6 +284,7 @@ pub fn encode_child_sidecar(
     encoded.extend_from_slice(public_input_hash);
     encoded.extend_from_slice(l1_message_hash);
     encoded.extend_from_slice(block_context_hash);
+    encoded.extend_from_slice(&forced_inclusion_count.to_le_bytes());
     encoded.extend_from_slice(&proof_len.to_le_bytes());
     encoded.extend_from_slice(proof_bytes);
     Ok(encoded)
@@ -280,6 +307,7 @@ pub fn parse_child_sidecar(input: &[u8]) -> Result<RecursiveChildSidecar, Gatewa
         public_input_hash: input[20..52].try_into().unwrap(),
         l1_message_hash: input[52..84].try_into().unwrap(),
         block_context_hash: input[84..116].try_into().unwrap(),
+        forced_inclusion_count: read_u32(input, 116)?,
         proof_bytes: input[CHILD_SIDECAR_HEADER_BYTES..].to_vec(),
     })
 }
@@ -587,6 +615,69 @@ mod tests {
         );
     }
 
+    // ───────── shared cross-language fixture anchor ─────────
+    //
+    // The contract (NeoHub.RollupHub.PublishGatewayGlobalRoot) folds the SAME constituent
+    // leaves two ways: commitments with odd-node DUPLICATION, global message roots with
+    // odd-node PROMOTION. This crate implements both folds. The shared fixture comes from
+    // a third implementation (Python) in a language neither side uses, so agreeing with it
+    // is real evidence — and three leaves is the smallest odd count where the two folds
+    // diverge, so the vector pins the asymmetry itself.
+    const GATEWAY_FIXTURE: &str = include_str!("../../../tests/Shared/canonical_encoding_vectors.hex");
+
+    fn gateway_fixture_field(key: &str) -> &'static str {
+        for line in GATEWAY_FIXTURE.lines() {
+            let line = line.trim();
+            if let Some((k, v)) = line.split_once('=') {
+                if k.trim() == key {
+                    return v.trim();
+                }
+            }
+        }
+        panic!("gateway fixture has no field {key}");
+    }
+
+    fn gateway_fixture_leaf(key: &str) -> [u8; 32] {
+        let hex = gateway_fixture_field(key);
+        let mut leaf = [0u8; 32];
+        for i in 0..32 {
+            leaf[i] = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).expect("valid hex");
+        }
+        leaf
+    }
+
+    #[test]
+    fn gateway_frontier_folds_match_the_shared_third_implementation_vector() {
+        let leaves = [
+            gateway_fixture_leaf("gateway_leaf_0"),
+            gateway_fixture_leaf("gateway_leaf_1"),
+            gateway_fixture_leaf("gateway_leaf_2"),
+        ];
+
+        let duplicate_root = merkle_root_duplicate_odd(&leaves);
+        assert_eq!(
+            hex::encode(duplicate_root),
+            gateway_fixture_field("gateway_root_duplicate_odd"),
+            "merkle_root_duplicate_odd does not reproduce the shared vector - the contract's \
+             constituent-commitments fold has drifted from this crate"
+        );
+
+        let promote_root = merkle_root_promote_odd(&leaves);
+        assert_eq!(
+            hex::encode(promote_root),
+            gateway_fixture_field("gateway_root_promote_odd"),
+            "merkle_root_promote_odd does not reproduce the shared vector - the contract's \
+             global-message-root fold has drifted from this crate"
+        );
+
+        // Control: with three leaves the two folds MUST differ. If they ever compare equal,
+        // this vector has stopped pinning the asymmetry.
+        assert_ne!(
+            duplicate_root, promote_root,
+            "the duplicate-odd and promote-odd folds must diverge for three leaves"
+        );
+    }
+
     #[test]
     fn rejects_constituent_and_message_root_tamper() {
         let valid = request(&[
@@ -638,8 +729,10 @@ mod tests {
     fn supplements_bind_every_commitment_public_input_field() {
         let mut encoded = commitment(1, 7, 0x41, 0x00);
         let mut supplement = vec![0x91; PUBLIC_INPUT_SUPPLEMENT_BYTES];
-        supplement[32..].fill(0xa1);
-        let mut public_inputs = [0u8; 348];
+        supplement[32..64].fill(0xa1);
+        // `forced_inclusion_count` — the trailing field of the 352-byte preimage.
+        supplement[64..68].copy_from_slice(&7u32.to_le_bytes());
+        let mut public_inputs = [0u8; PUBLIC_INPUTS_BYTES];
         public_inputs[..4].copy_from_slice(&1u32.to_le_bytes());
         public_inputs[4..12].copy_from_slice(&7u64.to_le_bytes());
         public_inputs[12..20].copy_from_slice(&encoded[12..20]);
@@ -647,33 +740,95 @@ mod tests {
         public_inputs[28..252].copy_from_slice(&encoded[28..252]);
         public_inputs[252..284].copy_from_slice(&supplement[..32]);
         public_inputs[284..316].copy_from_slice(&encoded[252..284]);
-        public_inputs[316..].copy_from_slice(&supplement[32..]);
+        public_inputs[316..348].copy_from_slice(&supplement[32..64]);
+        public_inputs[348..352].copy_from_slice(&supplement[64..68]);
         encoded[284..316].copy_from_slice(&hash256(&public_inputs));
 
         let parsed = parse_request(&request(&[encoded.clone()])).unwrap();
         validate_public_input_supplements(&parsed, &[supplement.clone()]).unwrap();
 
-        let mut tampered_supplement = supplement;
+        let mut tampered_supplement = supplement.clone();
         tampered_supplement[0] ^= 1;
         assert_eq!(
             validate_public_input_supplements(&parsed, &[tampered_supplement]),
             Err(GatewayError::PublicInputHashMismatch)
         );
 
+        // A wrong `forced_inclusion_count` must be rejected too — otherwise the field would
+        // not really be bound into the preimage.
+        let mut wrong_count = supplement.clone();
+        wrong_count[64..68].copy_from_slice(&8u32.to_le_bytes());
+        assert_eq!(
+            validate_public_input_supplements(&parsed, &[wrong_count]),
+            Err(GatewayError::PublicInputHashMismatch)
+        );
+
         encoded[220] ^= 1;
         let tampered_commitment = parse_request(&request(&[encoded])).unwrap();
         let mut correct_supplement = vec![0x91; PUBLIC_INPUT_SUPPLEMENT_BYTES];
-        correct_supplement[32..].fill(0xa1);
+        correct_supplement[32..64].fill(0xa1);
+        correct_supplement[64..68].copy_from_slice(&7u32.to_le_bytes());
         assert_eq!(
             validate_public_input_supplements(&tampered_commitment, &[correct_supplement]),
             Err(GatewayError::PublicInputHashMismatch)
         );
     }
 
+    /// Cross-crate regression test: the Gateway guest's public-input reconstruction MUST
+    /// agree with the authoritative `neo_execution_core::hashing::hash_public_inputs_with_forced`.
+    ///
+    /// The pre-fix defect was invisible to the guest's own unit tests because they rebuilt
+    /// the preimage with the SAME (wrong) 348-byte layout and compared against it — an
+    /// implementation validating itself. This test uses the authoritative implementation as
+    /// the oracle instead, so a layout divergence on either side is caught.
+    #[test]
+    fn public_input_reconstruction_matches_authoritative_execution_core() {
+        use neo_execution_core::hashing::hash_public_inputs_with_forced;
+
+        let chain_id = 4242u32;
+        let batch_number = 99u64;
+        let forced_inclusion_count = 5u32;
+
+        let mut encoded = commitment(chain_id, batch_number, 0x41, 0x00);
+        let mut supplement = vec![0x91; PUBLIC_INPUT_SUPPLEMENT_BYTES];
+        supplement[32..64].fill(0xa1);
+        supplement[64..68].copy_from_slice(&forced_inclusion_count.to_le_bytes());
+
+        // Build the commitment's public-input hash with the AUTHORITATIVE implementation.
+        let authoritative = hash_public_inputs_with_forced(
+            chain_id,
+            batch_number,
+            u64::from_le_bytes(encoded[12..20].try_into().unwrap()),
+            u64::from_le_bytes(encoded[20..28].try_into().unwrap()),
+            &bytes32(&encoded[28..60]),
+            &bytes32(&encoded[60..92]),
+            &bytes32(&encoded[92..124]),
+            &bytes32(&encoded[124..156]),
+            &bytes32(&encoded[156..188]),
+            &bytes32(&encoded[188..220]),
+            &bytes32(&encoded[220..252]),
+            &bytes32(&supplement[..32]),
+            &bytes32(&encoded[252..284]),
+            &bytes32(&supplement[32..64]),
+            forced_inclusion_count,
+        );
+        encoded[284..316].copy_from_slice(&authoritative);
+
+        let parsed = parse_request(&request(&[encoded])).unwrap();
+        // The guest must ACCEPT the authoritative hash — before the fix it rejected it
+        // because it rebuilt a 348-byte preimage.
+        validate_public_input_supplements(&parsed, &[supplement])
+            .expect("gateway guest must accept the authoritative public-input hash");
+    }
+
+    fn bytes32(slice: &[u8]) -> [u8; 32] {
+        slice.try_into().unwrap()
+    }
+
     #[test]
     fn child_sidecar_round_trip_is_strict_and_tuple_bound() {
         let encoded =
-            encode_child_sidecar(7, 42, &[0x51; 32], &[0x61; 32], &[0x71; 32], &[1, 2, 3, 4])
+            encode_child_sidecar(7, 42, &[0x51; 32], &[0x61; 32], &[0x71; 32], 5, &[1, 2, 3, 4])
                 .unwrap();
         let decoded = parse_child_sidecar(&encoded).unwrap();
         assert_eq!(decoded.chain_id, 7);
@@ -681,6 +836,7 @@ mod tests {
         assert_eq!(decoded.public_input_hash, [0x51; 32]);
         assert_eq!(decoded.l1_message_hash, [0x61; 32]);
         assert_eq!(decoded.block_context_hash, [0x71; 32]);
+        assert_eq!(decoded.forced_inclusion_count, 5);
         assert_eq!(decoded.proof_bytes, [1, 2, 3, 4]);
         assert_eq!(
             canonical_child_sidecar_filename(7, 42, &[0xab; 32]),

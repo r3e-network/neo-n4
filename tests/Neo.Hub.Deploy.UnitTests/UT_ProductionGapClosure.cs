@@ -231,9 +231,13 @@ public class UT_ProductionGapClosure
             .Select(s => s.Name)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        Assert.AreEqual(5, neoHubContracts.Length,
+        // 6 contracts: the 4 NeoHub pillars (RollupHub, SharedBridge, ZkVerifier,
+        // GovernanceController) plus the two proof-verifier contracts (Sp1Groth16Verifier,
+        // MultisigVerifier). `MultisigVerifier` used to be missing from BOTH the contracts
+        // directory and the deploy plan, so the multisig proof route was never served.
+        Assert.AreEqual(6, neoHubContracts.Length,
             "contracts/NeoHub.* must contain the consolidated production and verifier contracts.");
-        Assert.AreEqual(5, productionSteps.Length,
+        Assert.AreEqual(6, productionSteps.Length,
             "The default NeoHub deploy plan must emit every consolidated production and verifier contract.");
         CollectionAssert.AreEqual(neoHubContracts, productionSteps,
             "The production deploy bundle must match every consolidated NeoHub contract.");
@@ -581,6 +585,10 @@ public class UT_ProductionGapClosure
             .EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
             .Where(path => IsMarkdown(path) && !IsSkippedPath(root, path) && !IsChinesePath(root, path))
             .Select(path => Relative(root, path))
+            // Archived directories hold frozen historical snapshots. They are records of
+            // what was true at a point in time, not maintained documents, so the
+            // translation gate does not apply to them.
+            .Where(relative => !relative.StartsWith("docs/archive/", StringComparison.Ordinal))
             .Where(relative => !historicalReports.Contains(relative, StringComparer.Ordinal))
             .Select(relative => new { English = relative, Chinese = ExpectedChineseMarkdown(relative) })
             .Where(pair => !pair.Chinese.Any(candidate => File.Exists(Path.Combine(root, candidate))))

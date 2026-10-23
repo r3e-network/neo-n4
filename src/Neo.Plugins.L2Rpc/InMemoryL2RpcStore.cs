@@ -164,6 +164,18 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore, IDisposable
     public void AddBatch(L2BatchCommitment commitment, BatchStatus status)
     {
         ArgumentNullException.ThrowIfNull(commitment);
+        // Reject a batch that belongs to a different chain.
+        //
+        // `getl2batch` echoes the STORED batch's chainId, while `getl2batchstatus` echoes the
+        // REQUEST's chainId. If a batch from another chain could be stored, the two methods
+        // would disagree about this node's identity, and the SDK's chainId cross-check
+        // would fire with a confusing "server returned chainId X, expected Y" — making the
+        // operator believe they pointed at the wrong endpoint when the real fault is a
+        // cross-chain write.
+        if (commitment.ChainId != ChainId)
+            throw new ArgumentException(
+                $"batch chainId {commitment.ChainId} does not match this node's chainId {ChainId}",
+                nameof(commitment));
         _batches[commitment.BatchNumber] = commitment;
         _statuses[commitment.BatchNumber] = status;
         _stateRoots[commitment.BatchNumber] = commitment.PostStateRoot;
@@ -262,6 +274,18 @@ public sealed class InMemoryL2RpcStore : IL2RpcStore, IDisposable
     /// <inheritdoc />
     public UInt256 GetStateRootAtBatch(ulong batchNumber) =>
         _stateRoots.TryGetValue(batchNumber, out var r) ? r : UInt256.Zero;
+
+    /// <inheritdoc />
+    public bool TryGetStateRootAtBatch(ulong batchNumber, out UInt256 stateRoot)
+    {
+        if (_stateRoots.TryGetValue(batchNumber, out var root))
+        {
+            stateRoot = root;
+            return true;
+        }
+        stateRoot = UInt256.Zero;
+        return false;
+    }
 
     /// <inheritdoc />
     public ReadOnlyMemory<byte>? GetWithdrawalProof(UInt256 leafHash)

@@ -164,6 +164,7 @@ public sealed class CounterChainExecutor : ITransactionExecutor
             L2Sender = recipient,
             L1Recipient = recipient,
             L2Asset = token,
+            L1Asset = token,
             Amount = new System.Numerics.BigInteger(amount),
             Nonce = nonce,
         };

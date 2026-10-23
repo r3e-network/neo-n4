@@ -297,6 +297,7 @@ public class UT_Bridge
             L2Sender = Sender,
             L1Recipient = Recipient,
             L2Asset = GasL2,
+            L1Asset = GasL1,
             Amount = new BigInteger(100),
             Nonce = nonce,
         };
@@ -323,6 +324,7 @@ public class UT_Bridge
             L2Sender = null!,  // ← null
             L1Recipient = Recipient,
             L2Asset = GasL2,
+            L1Asset = GasL1,
             Amount = new BigInteger(100),
             Nonce = 1,
         };
@@ -340,6 +342,7 @@ public class UT_Bridge
             L2Sender = Sender,
             L1Recipient = null!,  // ← null
             L2Asset = GasL2,
+            L1Asset = GasL1,
             Amount = new BigInteger(100),
             Nonce = 1,
         };
@@ -365,6 +368,7 @@ public class UT_Bridge
             L2Sender = Sender,
             L1Recipient = Recipient,
             L2Asset = GasL2,
+            L1Asset = GasL1,
             Amount = new BigInteger(100),
             Nonce = 1,
         };
@@ -386,6 +390,7 @@ public class UT_Bridge
             L2Sender = Sender,
             L1Recipient = Recipient,
             L2Asset = null!,
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = new BigInteger(100),
             Nonce = 1,
         };
@@ -636,6 +641,7 @@ public class UT_Bridge
             L2Sender = Sender,
             L1Recipient = Recipient,
             L2Asset = GasL2,
+            L1Asset = GasL1,
             Amount = new BigInteger(100),
             Nonce = nonce,
         };
@@ -672,6 +678,7 @@ public class UT_Bridge
             L2Sender = Sender,
             L1Recipient = Recipient,
             L2Asset = GasL2,
+            L1Asset = GasL1,
             Amount = new BigInteger(100),
             Nonce = 1,
         };

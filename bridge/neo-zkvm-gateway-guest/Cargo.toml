@@ -26,3 +26,8 @@ sp1-zkvm = { version = "=6.2.1", features = ["verify"] }
 
 [dev-dependencies]
 hex = "0.4"
+# Dev-only: the cross-crate test uses the AUTHORITATIVE `neo-execution-core`
+# public-input hash as its oracle. It is deliberately NOT a normal dependency —
+# the guest program itself must stay free of it so the RISC-V ELF keeps the
+# byte layout the pinned digest covers.
+neo-execution-core = { path = "../neo-execution-core" }

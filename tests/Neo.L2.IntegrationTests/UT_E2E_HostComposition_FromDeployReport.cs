@@ -3270,6 +3270,7 @@ public sealed class UT_E2E_HostComposition_FromDeployReport
             L2Sender = sender,
             L1Recipient = sender,
             L2Asset = l2Asset,
+            L1Asset = UInt160.Parse("0x" + new string('e', 40)),
             Amount = new BigInteger(50),
             Nonce = 1,
         });

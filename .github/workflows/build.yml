@@ -35,6 +35,16 @@ jobs:
           # we track here, so the submodule init is required for the build.
           submodules: recursive
 
+      # Cross-language canonical-encoding gate. The 2026-10-21 audit found two
+      # cross-language layout divergences (the withdrawal leaf hash and the Gateway
+      # guest's public-input preimage) that survived because each side's own tests
+      # used a mirror of its own implementation as the oracle. This gate asserts the
+      # INVARIANTS with values written out literally, so it catches that class of
+      # defect on every PR — the real SP1 proof lanes are schedule/dispatch only and
+      # never guard an ordinary pull request.
+      - name: Cross-language canonical-encoding gate
+        run: python3 scripts/ci/verify_cross_language_encoding.py
+
       - name: CI gate helper self-tests
         run: |
           python3 -m unittest discover --start-directory scripts/ci/tests --verbose
@@ -305,25 +315,12 @@ jobs:
             --minimum-tests 10 \
             -- /p:NuGetAudit=false --nologo --no-build
 
-      # neo-execution-core: the hashing + encoding core every SP1 crate compiles in, and the
-      # cross-language canonical encoding parity vectors (tests/Shared/canonical_encoding_vectors.hex,
-      # shared with tests/Neo.L2.IntegrationTests/UT_CanonicalEncodingParity.cs). No pull-request lane
-      # ran this crate's tests before: `cargo test` inside bridge/neo-zkvm-guest tests only that
-      # package, and `cargo test --workspace` lives in the dispatch/schedule-only
-      # sp1-release-gates job.
-      - name: cargo test (neo-execution-core)
-        run: cargo test --locked -p neo-execution-core
-
-      # neo-zkvm-guest: the Rust crate that compiles to RISC-V ELF inside SP1's
-      # zkVM. Host-side compilation + tests pin the deterministic execution
-      # contract (parse, Merkle root, hash256). The actual digest-pinned Docker
-      # `cargo prove build --docker --locked` that produces the RISC-V ELF requires SP1 + Docker
-      # at deploy time per bridge/neo-zkvm-guest/README.md.
-      - name: cargo build + test (neo-zkvm-guest, host mode)
-        working-directory: bridge/neo-zkvm-guest
-        run: |
-          cargo build --locked
-          cargo test --locked
+      # neo-execution-core and the neo-zkvm-guest host-mode suite moved to the
+      # dedicated `sp1-pr-gate` job, which owns the whole SP1 encoding surface
+      # (authoritative core + Gateway guest cross-crate oracle + batch guest
+      # execution contract). Running them here as well would only duplicate
+      # CI minutes; the aggregate `sp1-host` gate requires `sp1-pr-gate`, so
+      # a regression in either still blocks the merge.
 
       - name: Verify production C# to native SP1 execution boundary
         run: |
@@ -392,6 +389,97 @@ jobs:
 
       - name: cargo clippy (neo-bridge-watcher-tron + neo-bridge-watcher-sol)
         run: cargo clippy --release --locked --all-targets -p neo-bridge-watcher-tron -p neo-bridge-watcher-sol -- -D warnings
+
+  # ── SP1 pull-request gate ────────────────────────────────────────────────────
+  #
+  # The real-proof lanes below (`sp1-release-gates`) need the pinned SP1
+  # toolchain, Docker and 120 minutes, so they only run on schedule/dispatch.
+  # That left the SP1 stack's *encoding* contract — the part that decides what
+  # bytes a proof commits to — with no pull-request coverage at all: a public-input
+  # layout fork was found by the 2026-10-21 audit only because a human read the
+  # guest, and the regression guard for it (`cargo test --workspace`) lived in the
+  # schedule-only lane. A fork could therefore land on master and stay there
+  # until the next nightly.
+  #
+  # This job is the pull-request half of the SP1 stack. It runs the tests that
+  # pin the CANONICAL ENCODING and the DETERMINISTIC EXECUTION contract on a
+  # plain GitHub runner:
+  #
+  #   * `neo-execution-core` — the hashing/encoding core every SP1 crate compiles
+  #     in. Its `canonical_encoding_parity` test asserts the public-input
+  #     preimage against `tests/Shared/canonical_encoding_vectors.hex`, the SAME
+  #     fixture `tests/Neo.L2.IntegrationTests/UT_CanonicalEncodingParity.cs`
+  #     asserts the .NET encoder against — so a reordering on either side fails
+  #     on both, and neither test restates the other's expected digest.
+  #   * `neo-zkvm-gateway-guest` — the recursive Gateway guest, whose
+  #     `public_input_reconstruction_matches_authoritative_execution_core` test
+  #     rebuilds the 352-byte public-input preimage and compares it against
+  #     `neo_execution_core::hashing::hash_public_inputs_with_forced`. The guest
+  #     is an independent re-implementation of that layout, so a fork between the
+  #     two is invisible to either side's own tests; only the cross-crate
+  #     comparison catches it. This is the guard for the P0-2 class.
+  #
+  # WHAT THIS GATE CANNOT CATCH — the real-proof lanes still own all of it:
+  #   * whether a real Groth16 proof verifies, and whether the proof's public
+  #     inputs match the batch (needs a real proof: `sp1-release-gates`,
+  #     lane `host-real-proof`);
+  #   * whether the recursive Gateway proof aggregates the child proofs and
+  #     verifies against the pinned Gateway VK (lane
+  #     `gateway-recursive-proof`);
+  #   * whether the RISC-V guest ELF is byte-identical to the pinned digest —
+  #     that needs `cargo prove build --docker`, which needs Docker and the SP1
+  #     toolchain, so the guest is only built by the schedule-only lane. This
+  #     job compiles the guests' SOURCES for the host target and runs their
+  #     unit tests, which pins the same encoding logic the ELF would contain;
+  #   * anything requiring the `sp1-jit`/prover stack, which is Linux-only and
+  #     unavailable in this job's environment by design.
+  #
+  # In short: this gate catches ENCODING FORKS (the class that silently changes
+  # what a proof would commit to); `sp1-release-gates` catches PROOF FAILURES
+  # (the class that needs a proof to exist).
+  sp1-pr-gate:
+    name: SP1 encoding gate (no proof)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RUSTUP_TOOLCHAIN: 1.88.0
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v7
+        with:
+          # `bridge/neo-zkvm-guest` depends on the vendored `external/neo-vm-rs`
+          # submodule, and cargo resolves the whole workspace before it selects
+          # a package — so the manifest must be present even though this job
+          # never compiles the guest's RISC-V ELF.
+          submodules: recursive
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.88.0
+
+      # The authoritative encoding core: public-input preimage, commitment
+      # layout, Merkle folds, witness verification, forced-inclusion validation.
+      # `canonical_encoding_parity` is the cross-language half — it compares
+      # against the .NET-shared fixture, not against a Rust-side mirror.
+      - name: cargo test (neo-execution-core)
+        run: cargo test --locked -p neo-execution-core
+
+      # The recursive Gateway guest: canonical request parsing, sidecar
+      # encoding, and the cross-crate public-input reconstruction check against
+      # `neo_execution_core` as the oracle.
+      - name: cargo test (neo-zkvm-gateway-guest)
+        run: cargo test --locked -p neo-zkvm-gateway-guest
+
+      # The batch guest's deterministic execution contract (parse, Merkle root,
+      # hash256, stateful batch execution) compiled for the HOST target. This is
+      # the guest's SOURCE, not the digest-pinned RISC-V ELF — the ELF build is
+      # the schedule-only lane's job. It runs here so a change to the guest's
+      # encoding logic cannot land unnoticed between two nightlies.
+      - name: cargo build + test (neo-zkvm-guest, host mode)
+        working-directory: bridge/neo-zkvm-guest
+        run: |
+          cargo build --locked
+          cargo test --locked
 
   # The SP1 release gate is split across independent runners so workspace
   # compilation, batch proving, and recursive proving have separate resource
@@ -559,7 +647,7 @@ jobs:
 
   sp1-host:
     name: SP1 compatibility and manual release proof gate
-    needs: [test, contracts, bridge, sp1-release-gates]
+    needs: [test, contracts, bridge, sp1-pr-gate, sp1-release-gates]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -570,15 +658,21 @@ jobs:
           DOTNET_RESULT: ${{ needs.test.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           BRIDGE_RESULT: ${{ needs.bridge.result }}
+          SP1_PR_GATE_RESULT: ${{ needs.sp1-pr-gate.result }}
           SP1_RELEASE_GATES_RESULT: ${{ needs.sp1-release-gates.result }}
         run: |
           echo "dotnet: $DOTNET_RESULT"
           echo "contracts: $CONTRACTS_RESULT"
           echo "Rust bridge: $BRIDGE_RESULT"
+          echo "SP1 PR gate: $SP1_PR_GATE_RESULT"
           echo "SP1 release gates: $SP1_RELEASE_GATES_RESULT"
           test "$DOTNET_RESULT" = success
           test "$CONTRACTS_RESULT" = success
           test "$BRIDGE_RESULT" = success
+          # The proof-free SP1 encoding gate runs on every event, so it is
+          # required unconditionally — including on the nightly, where it
+          # backstops the schedule-only real-proof lanes.
+          test "$SP1_PR_GATE_RESULT" = success
           if [[ "$EVENT_NAME" == workflow_dispatch || "$EVENT_NAME" == schedule ]]; then
             test "$SP1_RELEASE_GATES_RESULT" = success
           else

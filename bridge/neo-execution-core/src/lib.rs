@@ -3,7 +3,15 @@
 extern crate alloc;
 
 mod batch;
-mod hashing;
+/// Canonical hashing primitives (transaction ids, state roots, Merkle roots, the
+/// 352-byte public-input preimage).
+///
+/// Public so the SP1 Gateway guest can use the AUTHORITATIVE implementation as
+/// the oracle in its cross-crate test: a guest that validated its own public-input
+/// reconstruction against a mirror of itself could never notice a layout
+/// divergence — that mirror trap is exactly the defect class the 2026-10-21
+/// audit found in the 348-vs-352 byte preimage.
+pub mod hashing;
 mod manifest;
 mod native;
 mod transaction;
@@ -28,7 +36,7 @@ pub use native::{
     NativeCallContextV1, NativeTransitionV1, apply_l1_inbox_v1, bridged_nep17_hash,
     contract_management_key, derive_outbound_roots_v1, governance_hash, l2_bridge_hash,
     l2_message_hash, native_contract_hash, native_emit_message_v1, native_initiate_withdrawal_v1,
-    token_management_hash,
+    token_management_hash, withdrawal_leaf_preimage,
 };
 pub use transaction::parse_transaction;
 pub use types::*;

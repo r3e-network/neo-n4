@@ -15,17 +15,27 @@ namespace Neo.Stack.Cli.UnitTests;
 public class UT_ListTemplatesCommand
 {
     [TestMethod]
-    public void Catalog_HasExactlyFourTemplates_InOrder()
+    public void Catalog_HasFourBaseTemplatesPlusSevenOfficialChains_InOrder()
     {
-        // Template count + ordering is API: doc.md §6 lists exactly 4 chain modes,
-        // and the default `rollup` MUST be first (so `Resolve` falls back to it on
-        // unknown names + so the table prints with the safe default at the top).
+        // Template count + ordering is API. The catalog holds 4 general-purpose BASE
+        // templates (doc.md §6 chain modes) followed by the 7 official elastic chains
+        // (dex, gaming, defi, social, nft, payment, enterprise).
+        //
+        // The default `rollup` MUST be first (so `Resolve` falls back to it on unknown
+        // names + so the table prints with the safe default at the top).
         var names = TemplateCatalog.All;
-        Assert.AreEqual(4, names.Length, "must have exactly 4 templates");
+        Assert.AreEqual(11, names.Length, "must have 4 base + 7 official templates");
         Assert.AreEqual("rollup", names[0].Name, "rollup must be first (default)");
         Assert.AreEqual("zk-rollup", names[1].Name);
         Assert.AreEqual("validium", names[2].Name);
         Assert.AreEqual("sidechain", names[3].Name);
+        Assert.AreEqual("dex", names[4].Name);
+        Assert.AreEqual("gaming", names[5].Name);
+        Assert.AreEqual("defi", names[6].Name);
+        Assert.AreEqual("social", names[7].Name);
+        Assert.AreEqual("nft", names[8].Name);
+        Assert.AreEqual("payment", names[9].Name);
+        Assert.AreEqual("enterprise", names[10].Name);
     }
 
     [TestMethod]
@@ -68,13 +78,18 @@ public class UT_ListTemplatesCommand
     {
         // Neo.Hub.Deploy writes only the Zk verifier route and then locks
         // VerifierRegistry one-way, so any other proofType needs an operator-supplied
-        // route registered before that lock. Sidechain is the single template allowed
-        // to name an unserved route (committee attestation is its whole point); its
-        // caveat is documented in samples/README.md and pinned as a `validate` warning
-        // by UT_ValidateChainConfigCommand.
+        // route registered before that lock.
+        //
+        // The templates allowed to name an unserved route are the ones whose whole point
+        // is committee attestation rather than a ZK validity proof:
+        //   * `sidechain`  — securityLevel=Sidechain, committee attestation is the model.
+        //   * `enterprise` — securityLevel=Sidechain, consortium governance / audit-ready.
+        // Both caveats are documented in samples/README.md and pinned as a `validate`
+        // warning by UT_ValidateChainConfigCommand.
+        var committeeAttestationTemplates = new HashSet<string> { "sidechain", "enterprise" };
         foreach (var t in TemplateCatalog.All)
         {
-            if (t.Name == "sidechain") continue;
+            if (committeeAttestationTemplates.Contains(t.Name)) continue;
             var proof = Enum.Parse<ProofType>(t.ProofType);
             Assert.IsTrue(ProofRouting.HasProductionVerifierRoute(proof),
                 $"template '{t.Name}' defaults to proofType={proof}, which has no verifier route "
@@ -225,7 +240,9 @@ public class UT_ListTemplatesCommand
     [TestMethod]
     public void Catalog_ValidNames_ListsAllInOrder()
     {
-        Assert.AreEqual("rollup, zk-rollup, validium, sidechain", TemplateCatalog.ValidNames);
+        Assert.AreEqual(
+            "rollup, zk-rollup, validium, sidechain, dex, gaming, defi, social, nft, payment, enterprise",
+            TemplateCatalog.ValidNames);
     }
 
     [TestMethod]

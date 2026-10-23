@@ -2,7 +2,7 @@
 
 mod artifact;
 mod commitment;
-mod constants;
+pub(crate) mod constants;
 mod io;
 mod native_output;
 mod payload;

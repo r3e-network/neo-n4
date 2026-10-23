@@ -184,6 +184,7 @@ public class UT_Bridge_Metrics
         L2Sender = Sender,
         L1Recipient = Recipient,
         L2Asset = GasL2,
+        L1Asset = GasL1,
         Amount = new BigInteger(amount),
         Nonce = nonce,
     };

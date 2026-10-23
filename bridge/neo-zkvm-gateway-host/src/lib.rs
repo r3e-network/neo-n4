@@ -4,7 +4,10 @@ mod protocol;
 #[cfg(unix)]
 mod prover;
 
-pub use daemon::{DaemonConfig, process_ready_requests, run_daemon};
+pub use daemon::{
+    DaemonConfig, DEFAULT_MAX_QUEUE_BYTES, DEFAULT_MAX_QUEUE_TASKS, process_ready_requests,
+    run_daemon,
+};
 pub use protocol::{
     GatewayError, GatewayProofArtifacts, GatewayProofRequestManifest, GatewayProofResultManifest,
     canonical_sidecar_filename,

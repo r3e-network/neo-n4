@@ -32,6 +32,13 @@ public static class ScaffoldPlan
                     "contracts/NeoHub.ZkVerifier/bin/sc/NeoHub.ZkVerifier.nef",
                     OwnerOnly()),
 
+                // The multisig attestation verifier is a PRODUCTION contract: it is the
+                // verifier registered for `ProofType.Multisig`. Deploying it without adding
+                // it to the plan left the multisig proof route unserved by the bundle.
+                Step("MultisigVerifier",
+                    "contracts/NeoHub.MultisigVerifier/bin/sc/NeoHub.MultisigVerifier.nef",
+                    OwnerOnly()),
+
                 Step("GovernanceController",
                     "contracts/NeoHub.GovernanceController/bin/sc/NeoHub.GovernanceController.nef",
                     GovernanceControllerDeployData()),
@@ -154,6 +161,34 @@ public static class ScaffoldPlan
                 yield return $"{zkVerifier.Name}.RegisterProofVerifier(ProofSystem.Sp1=1, {dedicated.Name}, allowed=true)  # bind the real SP1 Groth16 verifier";
             yield return $"{zkVerifier.Name}.RegisterVerificationKey(ProofSystem.Sp1=1, <SP1_PROGRAM_VK_FROM_RELEASE_MANIFEST>, allowed=true)  # supply the real VK from the audited SP1 release manifest";
             yield return $"{zkVerifier.Name}.DisableEnvelopeOnlyPermanently(ProofSystem.Sp1=1)  # irreversible production gate: SP1 batches must verify real math";
+        }
+
+        // Wire the MULTISIG attestation route.
+        //
+        // The multisig verifier lives in its own slot on the ZkVerifier (`RegisterMultisigVerifier`),
+        // because the reserved proof-system byte 0 is rejected by `RegisterProofVerifier` —
+        // routing through the proof-system key space would leave the multisig route
+        // permanently unserved. Without these two calls every multisig commitment would
+        // verify as `false` and no committee-attested batch could settle.
+        var multisigVerifier = bundle.Invocations.FirstOrDefault(i => i.Name == "MultisigVerifier");
+        if (multisigVerifier is not null)
+        {
+            if (gc is not null)
+            {
+                // The multisig verifier checks each signer's registration against the
+                // GovernanceController's sequencer set, so the two must be bound.
+                yield return $"{multisigVerifier.Name}.SetGovernanceController({gc.Name})  # bind the multisig verifier to the GovernanceController sequencer set";
+            }
+            // The verifier deploys with DefaultMinQuorum = 1: a SINGLE registered
+            // sequencer's signature finalizes a committee-attested batch. The whole point
+            // of the M-of-N route is committee attestation, so the quorum MUST be raised
+            // deliberately — without this hint an operator could finish the wiring
+            // checklist and silently run a 1-of-N committee.
+            yield return $"{multisigVerifier.Name}.SetMinQuorum(<COMMITTEE_MULTISIG_QUORUM>)  # raise above the default 1: without this a single sequencer finalizes batches (1-of-N committee)";
+            if (zkVerifier is not null)
+            {
+                yield return $"{zkVerifier.Name}.RegisterMultisigVerifier({multisigVerifier.Name}, allowed=true)  # bind the multisig attestation verifier";
+            }
         }
 
         var chainReg = bundle.Invocations.FirstOrDefault(i => i.Name == "ChainRegistry");

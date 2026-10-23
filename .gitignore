@@ -53,6 +53,8 @@ CODEX_DEEP_AUDIT/
 .serena/
 outputs/
 tools/_tmp_deposit_smoke/
+# WorkBuddy session state (project memory, per-machine — never shared via git).
+.workbuddy/
 
 # IDE and analysis tools temporary files
 .codegraph/

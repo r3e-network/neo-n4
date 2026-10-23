@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Neo.Extensions.VM;
 using Neo.L2.Settlement.Rpc;
 
 namespace Neo.L2.Settlement.Rpc.UnitTests;
@@ -7,7 +8,7 @@ namespace Neo.L2.Settlement.Rpc.UnitTests;
 [TestClass]
 public class UT_RpcSettlementWindowFinalizer
 {
-    private const string FakeEndpoint = "http://localhost:10333";
+    private static readonly Uri FakeEndpoint = new("http://localhost/jsonrpc");
     private static readonly UInt160 Challenge = UInt160.Parse("0x" + new string('c', 40));
 
     [TestMethod]

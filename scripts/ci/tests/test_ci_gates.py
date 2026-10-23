@@ -245,13 +245,17 @@ class CargoProveWrapperTests(unittest.TestCase):
             "name: SP1 compatibility and manual release proof gate",
             sp1_aggregate,
         )
+        # sp1-pr-gate (the proof-free encoding lane) joined the required-gates needs
+        # list when it was added to build.yml: it runs on every event type and the
+        # aggregate gate enforces it unconditionally.
         self.assertIn(
-            "needs: [test, contracts, bridge, sp1-release-gates]",
+            "needs: [test, contracts, bridge, sp1-pr-gate, sp1-release-gates]",
             sp1_aggregate,
         )
         self.assertIn("if: ${{ always() }}", sp1_aggregate)
         for result in ("DOTNET_RESULT", "CONTRACTS_RESULT", "BRIDGE_RESULT"):
             self.assertIn(result, sp1_aggregate)
+        self.assertIn("SP1_PR_GATE_RESULT", sp1_aggregate)
         self.assertIn("SP1_RELEASE_GATES_RESULT", sp1_aggregate)
         self.assertIn(
             'if [[ "$EVENT_NAME" == workflow_dispatch || "$EVENT_NAME" == schedule ]]; then',

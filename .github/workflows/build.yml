@@ -706,6 +706,11 @@ jobs:
           # h2 0.4.19. Clearing it in the submodule needs a cross-repo lockfile
           # bump in r3e-network/neo-zkvm + a gitlink update (tracked follow-up);
           # the h2 client path is not exercised by the L2 settlement/proving flow.
+          # RUSTSEC-2026-0344 (ruzstd decompression bomb): upstream-blocked chain
+          # sp1-sdk 6.2.1 -> backtrace 0.3.76 (latest) -> object 0.37.3 ->
+          # ruzstd ^0.8.1 with no updatable link (needs >=0.9.1). ruzstd only
+          # appears via backtrace's debug-symbol loading; the bridge never feeds
+          # untrusted zstd to it. Resolves with the next sp1-sdk bump.
           # cargo-audit 0.22 has no audit.toml discovery in --file mode, so the
           # ignore is passed as a CLI flag (applies to every lockfile in the loop).
           for lockfile in \
@@ -715,7 +720,7 @@ jobs:
             external/neo-zkvm/Cargo.lock \
             external/foreign-contracts/sol/Cargo.lock; do
             echo "── $lockfile ──"
-            cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0258 --json
+            cargo audit --file "$lockfile" --ignore RUSTSEC-2026-0258 --ignore RUSTSEC-2026-0344 --json
           done
 
   riscv-guest-freshness:

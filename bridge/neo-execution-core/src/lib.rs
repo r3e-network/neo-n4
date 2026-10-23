@@ -28,9 +28,8 @@ pub use hashing::{
     STACK_STATE_MAGIC, STORAGE_DELTA_HASH_DOMAIN, contract_binding_hash, contract_binding_key,
     encode_receipt, encode_stack_state, events_hash, hash_block_context, hash_l1_message,
     hash_l1_messages, hash_public_inputs, hash_public_inputs_with_forced, hash160, hash256,
-    inventory_hash, keyed_state_root,
-    keyed_state_root_from_map, merkle_root, normalize_signed_le, receipt_hash, state_leaf_hash,
-    storage_delta_hash,
+    inventory_hash, keyed_state_root, keyed_state_root_from_map, merkle_root, normalize_signed_le,
+    receipt_hash, state_leaf_hash, storage_delta_hash,
 };
 pub use native::{
     NativeCallContextV1, NativeTransitionV1, apply_l1_inbox_v1, bridged_nep17_hash,
@@ -40,15 +39,14 @@ pub use native::{
 };
 pub use transaction::parse_transaction;
 pub use types::*;
-pub use witness::verify_transaction_witnesses;
 pub use wire::{
-    CHAIN_CONFIG_SIZE, COMMITMENT_FIXED_SIZE, MAX_EXECUTION_PAYLOAD_BYTES,
-    MAX_MERKLE_DEPTH, MAX_NATIVE_EXECUTION_OUTPUT_BYTES, MAX_PROOF_BYTES,
-    MAX_PROOF_WITNESS_ARTIFACT_BYTES, MAX_STATE_WITNESS_BYTES, MERKLE_PROOF_HEADER_SIZE,
-    encode_batch_effects, encode_chain_config, encode_commitment,
-    encode_execution_payload, encode_merkle_proof, encode_native_execution_output,
-    encode_proof_witness_artifact, encode_state_witness, parse_batch_effects,
-    parse_chain_config, parse_commitment, parse_execution_payload, parse_merkle_proof,
-    parse_native_execution_output, parse_proof_witness_artifact, parse_state_witness,
-    verify_merkle_proof,
+    CHAIN_CONFIG_SIZE, COMMITMENT_FIXED_SIZE, MAX_EXECUTION_PAYLOAD_BYTES, MAX_MERKLE_DEPTH,
+    MAX_NATIVE_EXECUTION_OUTPUT_BYTES, MAX_PROOF_BYTES, MAX_PROOF_WITNESS_ARTIFACT_BYTES,
+    MAX_STATE_WITNESS_BYTES, MERKLE_PROOF_HEADER_SIZE, encode_batch_effects, encode_chain_config,
+    encode_commitment, encode_execution_payload, encode_merkle_proof,
+    encode_native_execution_output, encode_proof_witness_artifact, encode_state_witness,
+    parse_batch_effects, parse_chain_config, parse_commitment, parse_execution_payload,
+    parse_merkle_proof, parse_native_execution_output, parse_proof_witness_artifact,
+    parse_state_witness, verify_merkle_proof,
 };
+pub use witness::verify_transaction_witnesses;

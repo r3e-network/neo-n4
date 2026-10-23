@@ -623,7 +623,8 @@ mod tests {
     // a third implementation (Python) in a language neither side uses, so agreeing with it
     // is real evidence — and three leaves is the smallest odd count where the two folds
     // diverge, so the vector pins the asymmetry itself.
-    const GATEWAY_FIXTURE: &str = include_str!("../../../tests/Shared/canonical_encoding_vectors.hex");
+    const GATEWAY_FIXTURE: &str =
+        include_str!("../../../tests/Shared/canonical_encoding_vectors.hex");
 
     fn gateway_fixture_field(key: &str) -> &'static str {
         for line in GATEWAY_FIXTURE.lines() {
@@ -827,9 +828,16 @@ mod tests {
 
     #[test]
     fn child_sidecar_round_trip_is_strict_and_tuple_bound() {
-        let encoded =
-            encode_child_sidecar(7, 42, &[0x51; 32], &[0x61; 32], &[0x71; 32], 5, &[1, 2, 3, 4])
-                .unwrap();
+        let encoded = encode_child_sidecar(
+            7,
+            42,
+            &[0x51; 32],
+            &[0x61; 32],
+            &[0x71; 32],
+            5,
+            &[1, 2, 3, 4],
+        )
+        .unwrap();
         let decoded = parse_child_sidecar(&encoded).unwrap();
         assert_eq!(decoded.chain_id, 7);
         assert_eq!(decoded.batch_number, 42);

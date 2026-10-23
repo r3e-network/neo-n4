@@ -240,7 +240,9 @@ pub fn encode_proof_witness_artifact(
     Ok(encoded)
 }
 
-pub(crate) fn read_execution_result(reader: &mut Reader<'_>) -> Result<BatchExecutionResult, ExecutionError> {
+pub(crate) fn read_execution_result(
+    reader: &mut Reader<'_>,
+) -> Result<BatchExecutionResult, ExecutionError> {
     let result = BatchExecutionResult {
         post_state_root: reader.read_fixed::<32>()?,
         tx_root: reader.read_fixed::<32>()?,

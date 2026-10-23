@@ -1426,3 +1426,109 @@ target 仍是 no-op」的幂等语义（测试驱动的设计纠偏）。
 删除纯残留的。对 139 个变更文件逐一分类（116 M + 23 ??），?? 再分三类（必须跟踪的代码 /
 合法交付物文档 / 本地状态），每类处置都有依据。最大风险恰好藏在最不像问题的地方——
 一个未跟踪的 `??` 让 CI 引用悬空，比任何垃圾文件都危险。
+
+## A.16 第十四轮：CI 洋葱——VM 方言分叉与十二项被掩盖的断裂（已全绿）
+
+2026-10-23。前十三轮的成果第一次推送 CI，修复清单像剥洋葱一样层层展开：每修一层，
+就露出下一层被掩盖数周的断裂。最终四大工作流全绿（build / Integration Tests /
+formal model / SDK Conformance 各自都是数周以来首次），并发现一个潜在严重度最高的
+新缺陷：zkVM 见证解析器说错了 VM 方言。
+
+### A.16.1 VM 方言分叉（关键发现）
+
+**入口**：`native_executor_cli` 测试报 `unsupported transaction witness script shape`。
+
+**决定性排查**：绕开被本地 Copy 崩溃卡住的测试项目，建独立最小工程直接 dump
+C# `Contract.CreateSignatureRedeemScript` 的实产字节——得到 **40 字节**
+`0C 21 <pubkey> 41 <hash>`，而非标准 N3 的 39 字节 `21 <pubkey> 41 <hash>`。
+反射读取 VM 的 `OpCode` 枚举（196 项）确认：**fork 完全重排了 opcode 表**——
+
+| opcode | 标准 N3 | 本 fork |
+|---|---|---|
+| PUSHDATA1 | 0x0C（N3 也有） | **0x0C**（取代 PUSHBYTES1..75 的地位） |
+| PUSHBYTES33 | 0x21 | **不存在**（0x21 = NOP） |
+| PUSH1..16 | 0x51..0x60 | **0x11..0x20** |
+| SYSCALL | 0x41 | 0x41（不变，hash 操作数 56e7b327 经 SHA256 验证一致） |
+
+C# core VM 与 Rust `external/neo-vm-rs`（`vm/opcode.rs`：`PUSHDATA1 = 0x0C`、
+`NOP = 0x21`）说同一方言；**唯独 `execution-core/witness.rs` 按标准 N3 解析**。
+
+**后果**：任何真实 fork 交易的见证（由 C# ScriptBuilder 产出）都会被 zkVM 验证器
+fail-closed 拒绝——批量管道在 Validity 路径上**功能性死亡**，而它自己的单元测试全绿，
+因为 `witness_core.rs` / `batch_core.rs` / fixture 生成器全部手搓了同样错误的方言
+（自造 oracle 模式的又一次登场，这次两侧手搓的恰好都是错的）。
+
+**修复**：
+
+- `witness.rs` 三个解析器（单签 / multisig / 调用脚本）按 fork 方言重写
+- 两个新锚：C# 实产 40 字节的逐字节正向锚（scalar 7 的公钥与脚本互验）+
+  标准 N3 形状必须被拒绝的负向锚（接受双方言会让批量携带真实 VM 无法执行的见证）
+- `witness_core.rs` / `batch_core.rs` fixture 重构；`stateful_batch_v1.hex` /
+  `native_transition_v1.hex` / `native_execution_output_v1.hex` 经
+  `NEO4_REGEN_FIXTURES` 再生（新增配套 REGEN 测试，C# 侧 RustGoldenFixture
+  对账测试随之同步）
+- C# 侧 `UT_Sp1StatefulBatchExecutor` 改用真实 `CreateSignatureRedeemScript`
+  输出 + `SignData(network)` 真签名（`GetSignData` 的 36 字节构造与 Rust 消息
+  哈希逐字节对照源码验证）
+
+**教训（升级既有约定）**：跨语言 fixture 必须来自**真实生产侧输出**——dump 实产字节
+做锚，两侧手搓等于自造 oracle。方言类分叉用「第三实现产向量」也防不住（向量本身
+会按错误方言生成）；只有对拍真实 VM 的产出才能暴露。
+
+### A.16.2 十二项被掩盖的断裂（层层剥开）
+
+| # | 断裂 | 掩盖时长 |
+|---|---|---|
+| 1 | 子模块 pin 未发布（neo 的 canonical 分支、neo-vm-rs 分支）→ CI checkout 全挂 | push 那一刻起 |
+| 2 | formal-model.yml 不拉子模块 → l2_bridge/bridge_abi 模型每次必红 | 自 2026-09-25 |
+| 3 | 9 个 formal 模型 digest fail-closed（合约变更触发设计门禁）→ 逐一重审后刷新 | 本次合约变更 |
+| 4 | vendored neo-zkvm lockfile 锁旧 rustls/quinn/h2（11 个 advisory）→ 跨仓库升级并发布，父仓库 h2 ignore 移除 | 自 vendoring 起 |
+| 5 | manifest invariants 钉 9 个已删除合约（2026-09-06 consolidation）→ 按 4 支柱迁移图重定位 | 自 09-06 |
+| 6 | UT_OptimisticChallengeAllowlist 整文件钉已删除合约 → 删除 | 自 09-06 |
+| 7 | IntegrationTests `OutputType=Exe` 残留 + Build(Debug)/test(Release) 配置错位 → **该 lane 历史从未绿过** | 自存在起 |
+| 8 | regenerate 清单漏 MultisigVerifier → push 即 type-check 红 | 本次搭车 |
+| 9 | test_ci_gates 钉旧 needs 列表 → sp1-pr-gate 加入后必红 | 本次搭车 |
+| 10 | minimum-tests 守卫（19 / 2）未随测试删除同步 → 必红 | 自 09-05 |
+| 11 | 覆盖率 89.87% < 90 → 补 4 个零覆盖源的单测（池化序列化 / attestation 域 / finalizer 窗口） | 本次搭车 |
+| 12 | dotnet format（尾随空白 / 嵌套缩进 / 末尾换行）→ 全仓清理 | 累积 |
+
+**根因模式**：全部共享同一触发条件——此前多轮工作在未推送的工作树上叠加，CI 从未
+跑过任何一轮。而 CI 的失败点永远停在最早的断裂处（先是 checkout，后是 workflow
+级别的配置），后面的断裂因此零信号。「本地绿」在这种环境下毫无证明力，尤其本地构建
+还叠加着间歇性 Copy 崩溃与陈旧 dll 陷阱。
+
+### A.16.3 依赖阻塞簇归档（sp1 6.2.1 簇）
+
+夜间 Dependabot 自动尝试更新 `lru` 与 `p3-challenger` 全部失败（updater 解析不出
+可行动 PR），归因确认同一簇：
+
+- `lru ^0.12` ← sp1-prover 6.2.1 ← sp1-sdk 6.2.1（`=6.2.1` 硬 pin）——两条 unsound
+  advisory（RUSTSEC-2026-0002 修于 0.16.3 / RUSTSEC-2026-0253 修于 0.18.2）不可达
+- `p3-challenger 0.3.3-succinct` ← SP1 专属 Plonky3 fork（p3-commit / p3-fri /
+  p3-uni-stark / slop-challenger 内部链）
+- `ruzstd ^0.8.1` ← backtrace 0.3.76 → object 0.37.3（既有记录）
+
+三者均为 cargo-audit 的信息性警告（非漏洞），门禁通过；sp1-sdk 下一次整簇升级后
+自动清零（届时 guest ELF 的 SHA+VK 双 pin 必须随 guest 重编译再生）。
+
+### A.16.4 环境教训（本轮新增）
+
+- **本地构建崩溃持续时，立即切换到「CI 为权威验证」模式**：本机 MSBuild Copy 崩溃
+  与磁盘 99% 叠加，重试无意义；直接推送让 CI 判定，代价是多几轮 push 循环但每轮
+  都有决定性输出
+- XML 注释不能含 `--`（修 OutputType 的说明注释本身弄坏了 csproj）
+- 尾随空白清理脚本的 `join()` 会吃掉 final newline → FINALNEWLINE 门禁
+- `JsonRpcClient` 构造要 `Uri` 端点；fake handler 必须回显请求 id
+  （`-32603: response id does not match request id`）
+- `ECDsa.SignHash(signData)` 与 `SignData(signData, SHA256)` 语义不同：
+  `GetSignData` 返回的是**未哈希**的 36 字节消息，必须后者
+
+### A.16.5 最终基线（2026-10-23 20:00 UTC）
+
+合约 VM 362 · 部署 111 · executor 单元 15 · execution-core 49 · guest 18 ·
+gateway-guest 15 · formal 模型 9/9 passed · 跨语言门禁 7 面 119 断言 ·
+cargo audit 漏洞 0（ruzstd 一项 ignore，信息性警告 3 项同簇）· npm audit 0 ·
+**CI 四大工作流全绿**（build 的 forge install 曾因网络瞬态失败一次，重跑通过）。
+真证明 release gates 于 2026-10-23 20:00 UTC 以 workflow_dispatch 首次在修复后的
+master 上触发，验证结果见后续记录。
+

@@ -2,7 +2,9 @@ use alloc::vec::Vec;
 
 use crate::{
     hashing::{hash256, keyed_state_root},
-    types::{ExecutionError, NativeExecutionOutputV1, SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID},
+    types::{
+        ExecutionError, NativeExecutionOutputV1, SP1_STATEFUL_NEO_VM_V1_EXECUTION_SEMANTIC_ID,
+    },
 };
 
 use super::{
@@ -11,7 +13,7 @@ use super::{
         MAX_EFFECTS_BYTES, MAX_NATIVE_EXECUTION_OUTPUT_BYTES, MAX_STATE_WITNESS_BYTES,
         NATIVE_EXECUTION_OUTPUT_MAGIC,
     },
-    io::{require_version_flags, Reader, Writer},
+    io::{Reader, Writer, require_version_flags},
     state::{encode_batch_effects, encode_state_witness, parse_batch_effects, parse_state_witness},
 };
 

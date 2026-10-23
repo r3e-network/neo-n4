@@ -1,9 +1,7 @@
 use alloc::{string::ToString, vec::Vec};
 
 use crate::{
-    hashing::{
-        contract_binding_hash, contract_binding_key, encode_receipt, encode_stack_state,
-    },
+    hashing::{contract_binding_hash, contract_binding_key, encode_receipt, encode_stack_state},
     manifest::parse_contract_manifest,
     types::{
         BatchEffects, CanonicalReceiptV1, CanonicalStackValue, ContractWitness,
@@ -15,12 +13,12 @@ use crate::{
 
 use super::{
     constants::{
-        EFFECTS_MAGIC, MAX_CONTRACTS, MAX_CONTRACT_MANIFEST_BYTES, MAX_CONTRACT_SCRIPT_BYTES,
-        MAX_DELTAS_PER_TRANSACTION, MAX_EFFECTS_BYTES, MAX_EFFECT_TRANSACTIONS,
+        EFFECTS_MAGIC, MAX_CONTRACT_MANIFEST_BYTES, MAX_CONTRACT_SCRIPT_BYTES, MAX_CONTRACTS,
+        MAX_DELTAS_PER_TRANSACTION, MAX_EFFECT_TRANSACTIONS, MAX_EFFECTS_BYTES,
         MAX_EVENTS_PER_TRANSACTION, MAX_STATE_ENTRIES, MAX_STATE_KEY_BYTES, MAX_STATE_VALUE_BYTES,
         MAX_STATE_WITNESS_BYTES, STATE_WITNESS_MAGIC,
     },
-    io::{require_version_flags, ArtifactlessMagic, Reader, Writer},
+    io::{ArtifactlessMagic, Reader, Writer, require_version_flags},
 };
 
 pub fn parse_state_witness(bytes: &[u8]) -> Result<StateWitness, ExecutionError> {

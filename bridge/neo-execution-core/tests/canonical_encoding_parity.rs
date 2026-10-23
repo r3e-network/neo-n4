@@ -194,9 +194,8 @@ fn withdrawal_leaf_preimage_matches_the_dotnet_export() {
 
     // Read the 20-byte fields straight out of the vector, so the test cannot invent a
     // value the vector does not carry.
-    let field20 = |offset: usize| -> UInt160 {
-        dotnet[offset..offset + 20].try_into().expect("20 bytes")
-    };
+    let field20 =
+        |offset: usize| -> UInt160 { dotnet[offset..offset + 20].try_into().expect("20 bytes") };
     let amount = {
         let bytes = &dotnet[116..];
         assert_eq!(bytes.len(), 4);
@@ -205,11 +204,11 @@ fn withdrawal_leaf_preimage_matches_the_dotnet_export() {
 
     let rust = neo_execution_core::withdrawal_leaf_preimage(
         field_u32(&fields, "withdrawal_chain_id"),
-        &field20(4),   // emittingContract
-        &field20(24),  // l2Sender
-        &field20(92),  // l1Recipient
-        &field20(44),  // l2Asset
-        &field20(72),  // l1Asset
+        &field20(4),  // emittingContract
+        &field20(24), // l2Sender
+        &field20(92), // l1Recipient
+        &field20(44), // l2Asset
+        &field20(72), // l1Asset
         &amount,
         u64::try_from(field_u64(&fields, "withdrawal_nonce")).expect("nonce"),
     );
@@ -233,11 +232,14 @@ fn chain_config_encoding_matches_the_dotnet_export() {
     // this pins the bytes against the .NET-exported vector instead.
     let fields = fields();
     let dotnet = field_bytes(&fields, "chain_config");
-    assert_eq!(dotnet.len(), 91, "the .NET chain-config vector is not 91 bytes");
+    assert_eq!(
+        dotnet.len(),
+        91,
+        "the .NET chain-config vector is not 91 bytes"
+    );
 
-    let field20 = |offset: usize| -> UInt160 {
-        dotnet[offset..offset + 20].try_into().expect("20 bytes")
-    };
+    let field20 =
+        |offset: usize| -> UInt160 { dotnet[offset..offset + 20].try_into().expect("20 bytes") };
     let config = neo_execution_core::L2ChainConfig {
         chain_id: u32::from_le_bytes(dotnet[0..4].try_into().expect("4 bytes")),
         operator_manager: field20(4),
@@ -262,7 +264,10 @@ fn chain_config_encoding_matches_the_dotnet_export() {
 
     // Parse must accept the same bytes and yield the same values.
     let parsed = neo_execution_core::parse_chain_config(&dotnet).expect("parse chain config");
-    assert_eq!(parsed, config, "parse_chain_config disagrees with the vector");
+    assert_eq!(
+        parsed, config,
+        "parse_chain_config disagrees with the vector"
+    );
 }
 
 #[test]
@@ -299,8 +304,7 @@ fn commitment_round_trips_fixture_commitment() {
         commitment.proof_type as u8,
         field_u32(&fields, "proof_type") as u8
     );
-    let re_encoded =
-        neo_execution_core::encode_commitment(&commitment).expect("encode commitment");
+    let re_encoded = neo_execution_core::encode_commitment(&commitment).expect("encode commitment");
     assert_eq!(re_encoded, commitment_bytes);
 }
 

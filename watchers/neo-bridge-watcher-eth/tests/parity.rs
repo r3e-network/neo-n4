@@ -195,16 +195,26 @@ fn canonical_bytes_match_the_shared_third_implementation_vector() {
     // been compared against anything outside themselves. The vector comes from a fourth
     // implementation (Python) in a language none of the three use.
     let expected = fixture_bytes("xmsg_canonical");
-    assert_eq!(expected.len(), 128, "the vector is a 102B prefix + 26B payload");
+    assert_eq!(
+        expected.len(),
+        128,
+        "the vector is a 102B prefix + 26B payload"
+    );
 
     // Rebuild the payload first: 20B foreignAsset + 4B amountLen + amount LE.
     let payload_vec = fixture_bytes("xmsg_payload");
     assert_eq!(payload_vec.len(), 26);
     let foreign_asset: [u8; 20] = payload_vec[..20].try_into().expect("20 bytes");
     let amount: &[u8] = &payload_vec[24..];
-    assert_eq!(&payload_vec[20..24], &u32::try_from(amount.len()).unwrap().to_le_bytes());
+    assert_eq!(
+        &payload_vec[20..24],
+        &u32::try_from(amount.len()).unwrap().to_le_bytes()
+    );
     let payload = encode_asset_transfer_payload(foreign_asset, amount).unwrap();
-    assert_eq!(payload, payload_vec, "the asset-transfer payload encoding drifted");
+    assert_eq!(
+        payload, payload_vec,
+        "the asset-transfer payload encoding drifted"
+    );
 
     let msg = ExternalCrossChainMessage {
         external_chain_id: fixture_u32("xmsg_external_chain_id"),

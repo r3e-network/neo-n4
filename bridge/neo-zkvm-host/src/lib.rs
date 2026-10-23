@@ -42,9 +42,8 @@ mod zk_execution_result;
 pub use proof_result::ProofResult;
 pub use recursive_child_result::RecursiveChildProofResult;
 pub use resource_guardrails::{
-    BATCH_GAS_LIMIT_ENV, DEFAULT_BATCH_GAS_LIMIT, DEFAULT_MEMORY_LIMIT_BYTES,
-    MEMORY_LIMIT_ENV, apply_memory_limit, batch_gas_limit, enforce_batch_gas_limit,
-    memory_limit_bytes,
+    BATCH_GAS_LIMIT_ENV, DEFAULT_BATCH_GAS_LIMIT, DEFAULT_MEMORY_LIMIT_BYTES, MEMORY_LIMIT_ENV,
+    apply_memory_limit, batch_gas_limit, enforce_batch_gas_limit, memory_limit_bytes,
 };
 pub use zk_execution_result::ZkExecutionResult;
 

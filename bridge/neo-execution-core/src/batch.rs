@@ -10,18 +10,18 @@ use crate::{
     },
     native::{apply_l1_inbox_v1, derive_outbound_roots_v1},
     transaction::parse_transaction,
-    witness::verify_transaction_witnesses,
     types::{
         BatchEffects, BatchExecutionResult, BatchResult, CanonicalReceiptV1, ComputedBatch,
-        ComputedBatchTransition, ExecutionError, ExecutionPayload, ParsedTransaction,
-        ProofType, ProofWitnessArtifact, PublicInputs, StateEntry, StateWitness, StorageDelta,
+        ComputedBatchTransition, ExecutionError, ExecutionPayload, ParsedTransaction, ProofType,
+        ProofWitnessArtifact, PublicInputs, StateEntry, StateWitness, StorageDelta,
         StorageOperation, TransactionEffects, UInt160, UInt256, VmOutcome,
     },
+    wire::constants::MAX_BATCH_GAS,
     wire::{
         encode_batch_effects, encode_execution_payload, encode_state_witness,
         parse_proof_witness_artifact,
     },
-    wire::constants::MAX_BATCH_GAS,
+    witness::verify_transaction_witnesses,
 };
 
 struct ComputedBatchState {
@@ -139,7 +139,11 @@ fn canonical_siblings(leaves: &[UInt256], index: usize) -> Vec<UInt256> {
     let mut siblings = Vec::new();
     while level.len() > 1 {
         let parent = position / 2;
-        let sibling_index = if position % 2 == 0 { position + 1 } else { position - 1 };
+        let sibling_index = if position % 2 == 0 {
+            position + 1
+        } else {
+            position - 1
+        };
         let sibling = level.get(sibling_index).copied().unwrap_or(level[position]);
         siblings.push(sibling);
         let mut parents = Vec::with_capacity(level.len().div_ceil(2));
@@ -161,7 +165,8 @@ fn compute_batch_state_with<F>(
     payload: &ExecutionPayload,
     witness: &StateWitness,
     mut execute_transaction: F,
-) -> Result<ComputedBatchState, ExecutionError>where
+) -> Result<ComputedBatchState, ExecutionError>
+where
     F: FnMut(
         &ExecutionPayload,
         &StateWitness,

@@ -79,7 +79,11 @@ impl<'a> Reader<'a> {
         Ok(())
     }
 
-    pub(crate) fn read_count(&mut self, maximum: usize, field: &'static str) -> Result<usize, ExecutionError> {
+    pub(crate) fn read_count(
+        &mut self,
+        maximum: usize,
+        field: &'static str,
+    ) -> Result<usize, ExecutionError> {
         let value =
             usize::try_from(self.read_u32()?).map_err(|_| ExecutionError::Oversized(field))?;
         if value > maximum {
@@ -255,9 +259,9 @@ impl Writer {
 
 #[cfg(test)]
 mod tests {
+    use super::super::constants::MAX_PAYLOAD_ITEMS;
     use super::*;
     use crate::types::ExecutionError;
-    use super::super::constants::MAX_PAYLOAD_ITEMS;
 
     // Regression for audit finding M1: a length/count prefix larger than the bytes actually
     // present must be rejected up front (so the caller's `Vec::with_capacity` never allocates

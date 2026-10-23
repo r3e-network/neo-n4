@@ -4,8 +4,9 @@ use neo_execution_core::{
     bridged_nep17_hash, contract_binding_hash, contract_binding_key, contract_management_key,
     encode_execution_payload, encode_native_execution_output, encode_proof_witness_artifact,
     encode_receipt, encode_state_witness, events_hash, hash_l1_messages, hash160, hash256,
-    inventory_hash, keyed_state_root, l2_bridge_hash, l2_message_hash, parse_native_execution_output,
-    parse_proof_witness_artifact, parse_state_witness, storage_delta_hash, token_management_hash,
+    inventory_hash, keyed_state_root, l2_bridge_hash, l2_message_hash,
+    parse_native_execution_output, parse_proof_witness_artifact, parse_state_witness,
+    storage_delta_hash, token_management_hash,
 };
 
 const FIXTURE_HEX: &str = include_str!("fixtures/stateful_batch_v1.hex");
@@ -99,9 +100,15 @@ fn regen_stateful_fixture_in_fork_dialect() {
     let rebuilt = transaction_with_nonce(parsed.script.to_vec(), 7, network);
     artifact.execution_payload.transactions[0] = rebuilt;
     recompute_claims(&mut artifact);
+    // The fixture carries the guest program's VK id; refresh it from the pinned
+    // manifest so the golden round-trip assertion tracks the current program.
+    artifact.verification_key_id = pinned::PINNED_BATCH_VK_BYTES32;
     let encoded = encode(&artifact);
-    std::fs::write("tests/fixtures/stateful_batch_v1.hex", hex::encode(&encoded))
-        .expect("write stateful fixture");
+    std::fs::write(
+        "tests/fixtures/stateful_batch_v1.hex",
+        hex::encode(&encoded),
+    )
+    .expect("write stateful fixture");
 }
 
 #[test]
@@ -329,7 +336,10 @@ fn root_receipt_and_transaction_tampering_are_rejected() {
     bytes[position] = b'S';
     refresh_da_claim(&mut transaction);
     let error = neo_zkvm_guest::execute_batch(&encode(&transaction)).unwrap_err();
-    assert!(matches!(error, ExecutionError::Invalid("transaction witness")));
+    assert!(matches!(
+        error,
+        ExecutionError::Invalid("transaction witness")
+    ));
 }
 
 #[test]
@@ -398,8 +408,10 @@ fn non_empty_l1_inbox_executes_native_deposit_and_rejects_tampering() {
         .entries
         .sort_by(|left, right| left.key.cmp(&right.key));
     artifact.execution_payload.l1_messages = vec![deposit_message()];
-    artifact.execution_payload.transactions =
-        vec![transaction(vec![0x40], artifact.execution_payload.block_context.network)];
+    artifact.execution_payload.transactions = vec![transaction(
+        vec![0x40],
+        artifact.execution_payload.block_context.network,
+    )];
     recompute_claims(&mut artifact);
 
     assert_eq!(
@@ -488,8 +500,10 @@ fn native_message_execution_produces_nonzero_bound_outbox_root() {
         .state_witness
         .entries
         .sort_by(|left, right| left.key.cmp(&right.key));
-    artifact.execution_payload.transactions =
-        vec![transaction(native_message_script(), artifact.execution_payload.block_context.network)];
+    artifact.execution_payload.transactions = vec![transaction(
+        native_message_script(),
+        artifact.execution_payload.block_context.network,
+    )];
     recompute_claims(&mut artifact);
 
     let effects = &artifact.effects.transactions[0];
@@ -553,8 +567,10 @@ fn native_withdrawal_execution_burns_native_balance_and_binds_root() {
     entries.sort_by(|left, right| left.key.cmp(&right.key));
     artifact.state_witness.entries = entries;
     artifact.execution_payload.l1_messages.clear();
-    artifact.execution_payload.transactions =
-        vec![transaction(script, artifact.execution_payload.block_context.network)];
+    artifact.execution_payload.transactions = vec![transaction(
+        script,
+        artifact.execution_payload.block_context.network,
+    )];
     recompute_claims(&mut artifact);
 
     let effects = &artifact.effects.transactions[0];
@@ -691,8 +707,15 @@ fn native_batch_artifact() -> ProofWitnessArtifact {
     artifact.state_witness.entries = entries;
     artifact.execution_payload.l1_messages = vec![deposit_message()];
     artifact.execution_payload.transactions = vec![
-        transaction(message_script, artifact.execution_payload.block_context.network),
-        transaction_with_nonce(withdrawal_script, 8, artifact.execution_payload.block_context.network),
+        transaction(
+            message_script,
+            artifact.execution_payload.block_context.network,
+        ),
+        transaction_with_nonce(
+            withdrawal_script,
+            8,
+            artifact.execution_payload.block_context.network,
+        ),
     ];
     artifact.da_evidence = b"native_transition_v1-evidence-v1".to_vec();
     recompute_claims(&mut artifact);
@@ -809,7 +832,9 @@ fn transaction_with_nonce(script: Vec<u8>, nonce: u32, network: u32) -> Vec<u8> 
     let mut hasher = sha2::Sha256::new();
     hasher.update(network.to_le_bytes());
     hasher.update(inventory_hash(&unsigned));
-    let (signature, _) = key.sign_prehash_recoverable(&hasher.finalize()).expect("sign");
+    let (signature, _) = key
+        .sign_prehash_recoverable(&hasher.finalize())
+        .expect("sign");
 
     let mut transaction = unsigned;
     // Invocation frame in the fork dialect: PUSHDATA1 0x40 <64-byte signature>.

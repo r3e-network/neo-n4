@@ -398,7 +398,8 @@ pub fn derive_outbound_roots_v1(
         }
         for event in &transaction.events {
             if event.script_hash == bridge && event.name == "WithdrawalEmitted" {
-                let (sender, recipient, asset, l1_asset, amount, nonce) = parse_withdrawal_event(event)?;
+                let (sender, recipient, asset, l1_asset, amount, nonce) =
+                    parse_withdrawal_event(event)?;
                 if !withdrawal_nonces.insert((sender, nonce)) {
                     return Err(ExecutionError::Invalid("duplicate withdrawal event nonce"));
                 }

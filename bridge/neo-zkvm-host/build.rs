@@ -119,22 +119,25 @@ fn main() {
 }
 
 fn validate_pinned_artifact(elf: &[u8]) {
-    let elf_sha256: [u8; 32] = Sha256::digest(elf).into();
-    if elf_sha256 != pinned::PINNED_BATCH_ELF_SHA256 {
-        panic!(
-            "batch guest ELF SHA-256 mismatch: actual={elf_sha256:?} pinned={:?}",
-            pinned::PINNED_BATCH_ELF_SHA256
-        );
-    }
+    // Derive the VK BEFORE the comparisons so a single failing build reports both
+    // fresh values: the documented pin-refresh workflow (guest source changed
+    // legitimately -> rebuild -> refresh vk_manifest.rs) then needs one failing
+    // CI run instead of two (the SHA check used to panic before the VK was known).
     let leaked = Box::leak(elf.to_vec().into_boxed_slice());
     let prover = LightProver::new();
     let proving_key = prover
         .setup(Elf::Static(leaked))
         .unwrap_or_else(|error| panic!("derive batch guest VK: {error:?}"));
     let verification_key = proving_key.verifying_key().bytes32_raw();
-    if verification_key != pinned::PINNED_BATCH_VK_BYTES32 {
+    let elf_sha256: [u8; 32] = Sha256::digest(elf).into();
+    if elf_sha256 != pinned::PINNED_BATCH_ELF_SHA256
+        || verification_key != pinned::PINNED_BATCH_VK_BYTES32
+    {
         panic!(
-            "batch guest VK mismatch: actual={verification_key:?} pinned={:?}",
+            "batch guest pin mismatch (refresh vk_manifest.rs from these actuals): \
+             sha256={elf_sha256:?} vk={verification_key:?} \
+             pinned sha256={:?} pinned vk={:?}",
+            pinned::PINNED_BATCH_ELF_SHA256,
             pinned::PINNED_BATCH_VK_BYTES32
         );
     }

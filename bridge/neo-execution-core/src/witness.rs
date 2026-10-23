@@ -1,4 +1,7 @@
-use crate::{hash160, types::{ExecutionError, ParsedTransaction}};
+use crate::{
+    hash160,
+    types::{ExecutionError, ParsedTransaction},
+};
 
 use alloc::vec::Vec;
 
@@ -128,10 +131,7 @@ fn parse_single_sig(verification: &[u8]) -> Option<&[u8]> {
 
 /// `PUSHDATA1 0x40 <64-byte compact signature>` — the fork-VM invocation encoding.
 fn parse_single_signature(invocation: &[u8]) -> Option<&[u8]> {
-    if invocation.len() == SIGNATURE_FRAME
-        && invocation[0] == OP_PUSHDATA1
-        && invocation[1] == 64
-    {
+    if invocation.len() == SIGNATURE_FRAME && invocation[0] == OP_PUSHDATA1 && invocation[1] == 64 {
         return Some(&invocation[2..66]);
     }
     None
@@ -170,7 +170,9 @@ fn parse_multisig(verification: &[u8]) -> Option<(usize, Vec<&[u8]>, usize)> {
     // with pubkey count == n.
     let mut pubkeys = Vec::new();
     while position + 5 < verification.len() {
-        if verification.get(position) != Some(&OP_PUSHDATA1) || verification.get(position + 1) != Some(&33) {
+        if verification.get(position) != Some(&OP_PUSHDATA1)
+            || verification.get(position + 1) != Some(&33)
+        {
             break;
         }
         let end = position + 2 + 33;

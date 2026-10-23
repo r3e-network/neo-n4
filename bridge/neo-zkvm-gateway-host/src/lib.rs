@@ -5,7 +5,7 @@ mod protocol;
 mod prover;
 
 pub use daemon::{
-    DaemonConfig, DEFAULT_MAX_QUEUE_BYTES, DEFAULT_MAX_QUEUE_TASKS, process_ready_requests,
+    DEFAULT_MAX_QUEUE_BYTES, DEFAULT_MAX_QUEUE_TASKS, DaemonConfig, process_ready_requests,
     run_daemon,
 };
 pub use protocol::{

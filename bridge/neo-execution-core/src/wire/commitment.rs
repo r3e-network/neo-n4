@@ -49,7 +49,9 @@ pub fn parse_commitment(bytes: &[u8]) -> Result<L2BatchCommitment, ExecutionErro
     let first_block = reader.read_u64()?;
     let last_block = reader.read_u64()?;
     if last_block < first_block {
-        return Err(ExecutionError::Invalid("last_block < first_block in commitment"));
+        return Err(ExecutionError::Invalid(
+            "last_block < first_block in commitment",
+        ));
     }
     let pre_state_root = reader.read_fixed::<32>()?;
     let post_state_root = reader.read_fixed::<32>()?;
@@ -113,7 +115,9 @@ pub fn encode_chain_config(config: &L2ChainConfig) -> [u8; CHAIN_CONFIG_SIZE] {
 
 pub fn parse_chain_config(bytes: &[u8]) -> Result<L2ChainConfig, ExecutionError> {
     if bytes.len() != CHAIN_CONFIG_SIZE {
-        return Err(ExecutionError::Invalid("chain config length must be 91 bytes"));
+        return Err(ExecutionError::Invalid(
+            "chain config length must be 91 bytes",
+        ));
     }
     let chain_id = u32::from_le_bytes(
         bytes[0..4]
@@ -169,7 +173,9 @@ pub fn encode_merkle_proof(proof: &MerkleProof) -> Result<Vec<u8>, ExecutionErro
         return Err(ExecutionError::Oversized("merkle proof depth exceeds 64"));
     }
     if proof.leaf_index > i32::MAX as u32 {
-        return Err(ExecutionError::Invalid("leaf_index exceeds signed int positive range"));
+        return Err(ExecutionError::Invalid(
+            "leaf_index exceeds signed int positive range",
+        ));
     }
     let total_len = MERKLE_PROOF_HEADER_SIZE + 32 * proof.siblings.len();
     let mut bytes = Vec::with_capacity(total_len);
@@ -191,7 +197,9 @@ pub fn parse_merkle_proof(bytes: &[u8]) -> Result<MerkleProof, ExecutionError> {
     let leaf = reader.read_fixed::<32>()?;
     let leaf_index = reader.read_u32()?;
     if leaf_index > i32::MAX as u32 {
-        return Err(ExecutionError::Invalid("leaf_index exceeds signed int positive range"));
+        return Err(ExecutionError::Invalid(
+            "leaf_index exceeds signed int positive range",
+        ));
     }
     let path_bitmap = reader.read_u64()?;
     let sibling_count = reader.read_u32()? as usize;
@@ -251,8 +259,8 @@ pub fn verify_merkle_proof(proof: &MerkleProof, expected_root: &UInt256) -> bool
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec;
     use crate::types::ExecutionError;
+    use alloc::vec;
 
     fn sample_commitment(proof: Option<Vec<u8>>) -> L2BatchCommitment {
         L2BatchCommitment {
@@ -322,7 +330,10 @@ mod tests {
         original.last_block = 100;
         let bytes = encode_commitment(&original).expect("encode succeeds");
         let err = parse_commitment(&bytes).expect_err("inverted blocks must fail");
-        assert!(matches!(err, ExecutionError::Invalid("last_block < first_block in commitment")));
+        assert!(matches!(
+            err,
+            ExecutionError::Invalid("last_block < first_block in commitment")
+        ));
     }
 
     #[test]
@@ -383,7 +394,10 @@ mod tests {
         let mut bytes = encode_chain_config(&sample_chain_config());
         bytes[86] = 2; // invalid boolean
         let err = parse_chain_config(&bytes).expect_err("non-bool must fail");
-        assert!(matches!(err, ExecutionError::Invalid("gateway_enabled boolean")));
+        assert!(matches!(
+            err,
+            ExecutionError::Invalid("gateway_enabled boolean")
+        ));
     }
 
     #[test]
@@ -440,6 +454,9 @@ mod tests {
             siblings: vec![[2u8; 32]; MAX_MERKLE_DEPTH + 1],
         };
         let err = encode_merkle_proof(&proof).expect_err("exceeding depth must fail");
-        assert!(matches!(err, ExecutionError::Oversized("merkle proof depth exceeds 64")));
+        assert!(matches!(
+            err,
+            ExecutionError::Oversized("merkle proof depth exceeds 64")
+        ));
     }
 }

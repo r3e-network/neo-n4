@@ -5,8 +5,8 @@
 //! never a "trusted signer".
 
 use neo_execution_core::{
-    BatchBlockContext, ExecutionPayload, ExecutionError, ProtocolConfig, StateWitness,
-    VmOutcome, compute_batch_with, inventory_hash,
+    BatchBlockContext, ExecutionError, ExecutionPayload, ProtocolConfig, StateWitness, VmOutcome,
+    compute_batch_with, inventory_hash,
 };
 use p256::ecdsa::SigningKey;
 use sha2::{Digest, Sha256};
@@ -19,7 +19,10 @@ fn signing_key(seed: u8) -> SigningKey {
 }
 
 fn compressed_pubkey(key: &SigningKey) -> Vec<u8> {
-    key.verifying_key().to_encoded_point(true).as_bytes().to_vec()
+    key.verifying_key()
+        .to_encoded_point(true)
+        .as_bytes()
+        .to_vec()
 }
 
 /// The FORK-VM dialect: PUSHBYTES1..75 was replaced by Bitcoin-style PUSHDATA1/2/4, so
@@ -211,7 +214,9 @@ fn non_standard_witness_script_is_unsupported() {
     });
     assert!(matches!(
         result,
-        Err(ExecutionError::Unsupported("transaction witness script shape"))
+        Err(ExecutionError::Unsupported(
+            "transaction witness script shape"
+        ))
     ));
 }
 
@@ -345,6 +350,8 @@ fn stock_n3_witness_shape_is_rejected_in_the_fork_dialect() {
     });
     assert!(matches!(
         result,
-        Err(ExecutionError::Unsupported("transaction witness script shape"))
+        Err(ExecutionError::Unsupported(
+            "transaction witness script shape"
+        ))
     ));
 }

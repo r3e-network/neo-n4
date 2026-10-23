@@ -3979,7 +3979,7 @@ dependencies = [
  "log",
  "once_cell",
  "parking_lot",
- "serial_test_derive 4.0.1",
+ "serial_test_derive 4.0.0",
 ]
 
 [[package]]
@@ -3995,9 +3995,9 @@ dependencies = [
 
 [[package]]
 name = "serial_test_derive"
-version = "4.0.1"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a22144e767da4ddd8416dbf383700542ffd8a5dc493dfecedfe1fe3ad03c98ae"
+checksum = "0a8fe1356a2dd93f6b4e770e55d11d383197dd57a554bca90f062cb1dbff20ef"
 dependencies = [
  "proc-macro2",
  "quote",

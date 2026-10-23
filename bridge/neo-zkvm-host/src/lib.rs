@@ -369,6 +369,5 @@ mod tests {
         // A wrong-size VK is no longer representable: the signature takes
         // &[u8; 32], so the length check the 31-byte case exercised is now
         // enforced by the type system.
-
     }
 }

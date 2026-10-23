@@ -662,6 +662,7 @@ fn publish_gateway_sidecar(
         &recursive.public_input_hash,
         &recursive.l1_message_hash,
         &recursive.block_context_hash,
+        recursive.forced_inclusion_count,
         &recursive.proof_bytes,
     )
     .map_err(|error| format!("encode recursive child sidecar: {error}"))?;
@@ -1190,6 +1191,8 @@ fn recover_or_clean_existing_proof(
                     "existing public values do not match the canonical witness artifact".into(),
                 );
             }
+            let vk_bytes: [u8; VERIFICATION_KEY_BYTES] =
+                vk_bytes.try_into().expect("length checked above");
             neo_zkvm_host::verify(&proof_bytes, &vk_bytes, &public_input_hash)?;
             Ok(WrittenProof {
                 public_input_hash,

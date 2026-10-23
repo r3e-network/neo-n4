@@ -954,6 +954,12 @@ fn stack_unsigned_integer(
 ///
 /// Mind the argument order: it is NOT the wire order. `recipient` precedes `asset` in the
 /// signature but `asset` is written first. The shared vector is what pins correctness.
+// The eight parameters are the eight fields of the on-chain withdrawal leaf
+// (Layout C, 116 + amountLen bytes). The signature deliberately mirrors the
+// wire layout one-to-one; collapsing it into a struct would churn the
+// canonical cross-language surface that tests/Shared/canonical_encoding_vectors.hex
+// pins byte for byte.
+#[allow(clippy::too_many_arguments)]
 #[must_use]
 pub fn withdrawal_leaf_preimage(
     chain_id: u32,
@@ -979,6 +985,8 @@ pub fn withdrawal_leaf_preimage(
     bytes
 }
 
+// Same eight-field wire layout as withdrawal_leaf_preimage above.
+#[allow(clippy::too_many_arguments)]
 fn withdrawal_hash(
     chain_id: u32,
     emitting_contract: &UInt160,

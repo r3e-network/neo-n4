@@ -157,7 +157,6 @@ fn fixture_artifact() -> ProofWitnessArtifact {
 }
 
 fn transaction(contract_hash: [u8; 20]) -> Vec<u8> {
-    use p256::ecdsa::signature::hazmat::PrehashSigner;
     use sha2::Digest;
 
     let mut script = vec![0xc2, 0x1f, 0x0c, 5];
@@ -172,7 +171,12 @@ fn transaction(contract_hash: [u8; 20]) -> Vec<u8> {
         .to_encoded_point(true)
         .as_bytes()
         .to_vec();
-    let mut verification = Vec::with_capacity(39);
+    // Fork-VM dialect witness (see witness.rs for the dialect anchor): the fork
+    // replaced stock-N3 PUSHBYTES1..75 with PUSHDATA1/2/4, so the redeem script is
+    // PUSHDATA1 0x21 <pubkey> SYSCALL <hash> (40 bytes) and the invocation frame is
+    // PUSHDATA1 0x40 <64-byte signature>. The stock shapes are NOP-garbage in this VM.
+    let mut verification = Vec::with_capacity(40);
+    verification.push(0x0C);
     verification.push(0x21);
     verification.extend_from_slice(&pubkey);
     verification.push(0x41);
@@ -201,7 +205,7 @@ fn transaction(contract_hash: [u8; 20]) -> Vec<u8> {
         .expect("sign");
 
     let mut transaction = unsigned;
-    transaction.extend_from_slice(&[1, 65, 0x40]);
+    transaction.extend_from_slice(&[1, 66, 0x0C, 0x40]);
     let sig_bytes: [u8; 64] = signature.to_bytes().into();
     transaction.extend_from_slice(&sig_bytes);
     transaction.push(verification.len() as u8);

@@ -210,7 +210,7 @@ fn withdrawal_leaf_preimage_matches_the_dotnet_export() {
         &field20(44), // l2Asset
         &field20(72), // l1Asset
         &amount,
-        u64::try_from(field_u64(&fields, "withdrawal_nonce")).expect("nonce"),
+        field_u64(&fields, "withdrawal_nonce"),
     );
 
     assert_eq!(

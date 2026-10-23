@@ -84,7 +84,7 @@ fn unsigned_preimage(nonce: u32, signer_account: [u8; 20]) -> Vec<u8> {
 }
 
 fn unsigned_hash(nonce: u32, signer_account: [u8; 20]) -> [u8; 32] {
-    inventory_hash(&unsigned_preimage(nonce, signer_account)).into()
+    inventory_hash(&unsigned_preimage(nonce, signer_account))
 }
 
 fn build_transaction(
@@ -112,8 +112,8 @@ fn build_transaction(
 }
 
 fn transaction_with_single_sig(key: &SigningKey) -> Vec<u8> {
-    let verification = single_sig_verification_script(&compressed_pubkey(&key));
-    let account: [u8; 20] = neo_execution_core::hash160(&verification).into();
+    let verification = single_sig_verification_script(&compressed_pubkey(key));
+    let account: [u8; 20] = neo_execution_core::hash160(&verification);
     let signature = sign_message(key, &unsigned_hash(1, account));
     build_transaction(1, account, &verification, &[&signature])
 }
@@ -207,7 +207,7 @@ fn non_standard_witness_script_is_unsupported() {
     // The account binding passes (the account is derived from the script), so the rejection
     // comes from the script-shape gate, not the binding.
     let script = [0x61u8];
-    let account: [u8; 20] = neo_execution_core::hash160(&script).into();
+    let account: [u8; 20] = neo_execution_core::hash160(&script);
     let transaction = build_transaction(1, account, &script, &[]);
     let result = compute_batch_with(&payload(vec![transaction]), &witness(), |_, _, _, _| {
         panic!("unauthorized transaction must never execute")
@@ -224,7 +224,7 @@ fn non_standard_witness_script_is_unsupported() {
 fn multisig_witness_authorizes_execution() {
     let keys = [signing_key(1), signing_key(2)];
     let verification = multisig_verification_script(&keys, 2);
-    let account: [u8; 20] = neo_execution_core::hash160(&verification).into();
+    let account: [u8; 20] = neo_execution_core::hash160(&verification);
     let digest_input = unsigned_hash(2, account);
     let signatures: Vec<Vec<u8>> = keys
         .iter()
@@ -246,7 +246,7 @@ fn multisig_witness_authorizes_execution() {
 fn multisig_one_of_two_authorizes_with_first_key() {
     let keys = [signing_key(1), signing_key(2)];
     let verification = multisig_verification_script(&keys, 1);
-    let account: [u8; 20] = neo_execution_core::hash160(&verification).into();
+    let account: [u8; 20] = neo_execution_core::hash160(&verification);
     let digest_input = unsigned_hash(4, account);
     let s1 = sign_message(&keys[0], &digest_input);
     let transaction = build_transaction(4, account, &verification, &[&s1]);
@@ -261,7 +261,7 @@ fn multisig_one_of_two_authorizes_with_first_key() {
 fn multisig_two_of_three_authorizes() {
     let keys = [signing_key(1), signing_key(2), signing_key(3)];
     let verification = multisig_verification_script(&keys, 2);
-    let account: [u8; 20] = neo_execution_core::hash160(&verification).into();
+    let account: [u8; 20] = neo_execution_core::hash160(&verification);
     let digest_input = unsigned_hash(5, account);
     let s1 = sign_message(&keys[0], &digest_input).to_vec();
     let s3 = sign_message(&keys[2], &digest_input).to_vec();
@@ -278,7 +278,7 @@ fn wrong_signer_signature_is_fatal() {
     let keys = [signing_key(1), signing_key(2)];
     let outsider = signing_key(9);
     let verification = multisig_verification_script(&keys, 2);
-    let account: [u8; 20] = neo_execution_core::hash160(&verification).into();
+    let account: [u8; 20] = neo_execution_core::hash160(&verification);
     let unsigned_hash: [u8; 32] = unsigned_hash(3, account);
     // One valid participant signature + one from outside the published key set: the greedy
     // match can never reach the threshold.
@@ -318,7 +318,7 @@ fn csharp_redeem_script_bytes_parse_in_the_fork_dialect() {
         &verification[2..35],
         "the pinned script must carry the public key of scalar 7"
     );
-    let account: [u8; 20] = neo_execution_core::hash160(&verification).into();
+    let account: [u8; 20] = neo_execution_core::hash160(&verification);
     let signature = sign_message(&key, &unsigned_hash(1, account));
     let transaction = build_transaction(1, account, &verification, &[&signature]);
     let result = compute_batch_with(&payload(vec![transaction]), &witness(), |_, _, _, _| {
@@ -342,7 +342,7 @@ fn stock_n3_witness_shape_is_rejected_in_the_fork_dialect() {
     script.extend_from_slice(&compressed_pubkey(&key));
     script.push(0x41);
     script.extend_from_slice(&[0x56, 0xe7, 0xb3, 0x27]);
-    let account: [u8; 20] = neo_execution_core::hash160(&script).into();
+    let account: [u8; 20] = neo_execution_core::hash160(&script);
     let signature = sign_message(&key, &unsigned_hash(1, account));
     let transaction = build_transaction(1, account, &script, &[&signature]);
     let result = compute_batch_with(&payload(vec![transaction]), &witness(), |_, _, _, _| {

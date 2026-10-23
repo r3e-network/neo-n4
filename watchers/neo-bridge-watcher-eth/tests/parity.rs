@@ -157,10 +157,10 @@ const SHARED_FIXTURE: &str = include_str!("../../../tests/Shared/canonical_encod
 fn fixture_field(key: &str) -> String {
     for line in SHARED_FIXTURE.lines() {
         let line = line.trim();
-        if let Some((k, v)) = line.split_once('=') {
-            if k.trim() == key {
-                return v.trim().to_string();
-            }
+        if let Some((k, v)) = line.split_once('=')
+            && k.trim() == key
+        {
+            return v.trim().to_string();
         }
     }
     panic!("shared fixture has no field {key}");

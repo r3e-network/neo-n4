@@ -2,13 +2,15 @@
 // proving key's hash_u32() over the pinned guest ELF (NEO_ZKVM_ALLOW_CACHED_ELF=1).
 // Must match neo-zkvm-guest/vk_manifest.rs PINNED_BATCH_VK_BYTES32 after every guest ELF pin.
 // Full gateway-host production rebuild still requires Unix + Docker `cargo prove`.
+// 2026-10-24 refresh: actuals reported by the gateway-host build.rs pin
+// mismatch after the batch guest ELF pin refresh (fork-VM witness dialect).
 pub const PINNED_BATCH_VK_WORDS: [u32; 8] = [
-    1_393_357_268,
-    608_307_851,
-    612_124_018,
-    1_722_566_244,
-    959_162_787,
-    1_058_552_680,
-    802_155_405,
-    2_087_811_567,
+    14_845_058,
+    928_263_723,
+    1_024_118_748,
+    1_462_594_352,
+    230_572_336,
+    502_928_150,
+    966_443_468,
+    1_946_166_898,
 ];

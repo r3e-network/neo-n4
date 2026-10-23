@@ -366,8 +366,9 @@ mod tests {
         let hash = [0u8; 32];
         let error = verify(&[0; 355], &[0; 32], &hash).unwrap_err();
         assert!(error.contains("must be 356 bytes"));
+        // A wrong-size VK is no longer representable: the signature takes
+        // &[u8; 32], so the length check the 31-byte case exercised is now
+        // enforced by the type system.
 
-        let error = verify(&[0; 356], &[0; 31], &hash).unwrap_err();
-        assert!(error.contains("program vkey must be 32 bytes"));
     }
 }

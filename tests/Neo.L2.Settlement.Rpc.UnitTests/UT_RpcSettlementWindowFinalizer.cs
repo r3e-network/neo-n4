@@ -182,15 +182,32 @@ public class UT_RpcSettlementWindowFinalizer
         public QueueHandler(params string[] responses)
             => _responses = new Queue<string>(responses);
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
-            var body = _responses.Count > 0 ? _responses.Dequeue() : "{}";
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            string body;
+            if (_responses.Count > 0)
+            {
+                body = _responses.Dequeue();
+                if (request.Content is not null)
+                {
+                    // JsonRpcClient rejects responses whose id does not match the request.
+                    var requestBody = await request.Content.ReadAsStringAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    using var requestJson = System.Text.Json.JsonDocument.Parse(requestBody);
+                    var requestId = requestJson.RootElement.GetProperty("id").GetInt64();
+                    body = body.Replace("\"id\":1", $"\"id\":{requestId}");
+                }
+            }
+            else
+            {
+                body = "{}";
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
-            });
+            };
         }
     }
 }

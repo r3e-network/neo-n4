@@ -61,14 +61,17 @@ public class UT_PooledSerialization
     }
 
     [TestMethod]
-    public void CopyToPooledBuffer_ConcatenatesInOrder()
+    public void CopyToPooledBuffer_PreservesEachTransactionInOrder()
     {
+        // The owner hands back one pooled memory per transaction (same count, same
+        // order, same bytes) — the array-of-memories shape the executor consumes.
         var first = new ReadOnlyMemory<byte>(new byte[] { 1, 2, 3 });
         var second = new ReadOnlyMemory<byte>(new byte[] { 4, 5 });
         using var owner = PooledTransactionArrays.CopyToPooledBuffer(new[] { first, second });
-        CollectionAssert.AreEqual(
-            new byte[] { 1, 2, 3, 4, 5 },
-            owner.Memory.ToArray());
+        var copied = owner.Memory.ToArray();
+        Assert.AreEqual(2, copied.Length);
+        CollectionAssert.AreEqual(first.ToArray(), copied[0].ToArray());
+        CollectionAssert.AreEqual(second.ToArray(), copied[1].ToArray());
     }
 
     [TestMethod]

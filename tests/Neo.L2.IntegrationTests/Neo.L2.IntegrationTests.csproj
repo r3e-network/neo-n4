@@ -1,7 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <!-- Library (default): this is an MSTest project with no entry point. The vestigial
+         OutputType=Exe made CI's `dotnet test --no-build` reject the assembly
+         ("The argument ... .dll is invalid") on the no-RID Linux path - the integration
+         lane had never actually run green because earlier steps always failed first. -->
     <IsPackable>false</IsPackable>
     <RootNamespace>Neo.L2.IntegrationTests</RootNamespace>
     <AssemblyName>Neo.L2.IntegrationTests</AssemblyName>

@@ -706,15 +706,20 @@ jobs:
           # appears via backtrace's debug-symbol loading; the bridge never feeds
           # untrusted zstd to it. Resolves with the next sp1-sdk bump.
           # RUSTSEC-2026-0387 (crypto-bigint constant-time violations, published
-          # 2026-10-23; fix only in >=0.7.6): after the SDK-side cleanup the
-          # lockfile's ONLY remaining 0.5.5 chain is sp1-curves 6.2.1 ->
-          # elliptic-curve 0.13.x -> crypto-bigint 0.5.5 (upstream-blocked, same
-          # sp1 6.2.1 cluster as ruzstd/lru/p3-challenger; clears with the
-          # sp1-sdk bump). The SDK's p256 is a dev-only conformance verifier
-          # (not a production signing path) and now uses p256 0.14 ->
-          # crypto-bigint 0.7.6 with the constant-time fixes. Residual exposure
-          # is the SP1 prover's own arithmetic inside the proving stack, not an
-          # SDK secret-handling path.
+          # 2026-10-23; fix only in >=0.7.6): crypto-bigint 0.5.5 is required by
+          # elliptic-curve 0.13.x on two paths — sp1-curves 6.2.1 (upstream-
+          # blocked, same sp1 6.2.1 cluster as ruzstd/lru/p3-challenger; clears
+          # with the sp1-sdk bump) and the SDK's dev-only conformance verifier
+          # (p256 0.13 in dev-dependencies; NOT a production signing path).
+          # Upgrading the SDK's p256 to 0.14 was tried and reverted: the new
+          # 0.14 tree requires hybrid-array >=0.4.13, and cargo's version
+          # unification then raises that SHARED dependency inside the guest
+          # tree too, changing the reproducible guest ELF and breaking the
+          # SHA+VK pin chain. It is therefore deferred to the sp1 pin-refresh
+          # window together with the other guest-tree bumps (num-bigint 0.5,
+          # thiserror 2.0.21 — a proc-macro patch that also changed the ELF).
+          # Residual exposure is the prover's own arithmetic, not a remote
+          # input path.
           # cargo-audit 0.22 has no audit.toml discovery in --file mode, so the
           # ignore is passed as a CLI flag (applies to every lockfile in the loop).
           for lockfile in \

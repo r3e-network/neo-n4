@@ -321,7 +321,7 @@ fn decode_committed_public_values(public_values: &[u8]) -> Result<[u8; 32], Stri
 mod tests {
     use super::decode_committed_public_values;
     #[cfg(unix)]
-    use super::verify;
+    use super::{NEO_ZKVM_GUEST_VK_BYTES32, verify};
 
     #[test]
     fn decode_committed_public_values_skips_status_tag() {

@@ -60,6 +60,8 @@ fn parse_daemon_args(args: &[String]) -> Result<DaemonConfig, String> {
         queue_directory: queue.ok_or("--queue is required")?,
         child_proof_directory: child_proofs.ok_or("--child-proofs is required")?,
         poll_interval: Duration::from_millis(poll_ms),
+        max_queue_tasks: DEFAULT_MAX_QUEUE_TASKS,
+        max_queue_bytes: DEFAULT_MAX_QUEUE_BYTES,
     })
 }
 

@@ -73,6 +73,7 @@ fn committed_vector_verifies_against_current_guest_and_witness() {
     );
 
     let expected_hash: [u8; 32] = public_input_hash.try_into().expect("32-byte hash");
+    let program_vkey: [u8; 32] = program_vkey.try_into().expect("32-byte program vkey");
     neo_zkvm_host::verify(&proof, &program_vkey, &expected_hash)
         .expect("committed Groth16 vector must verify");
 }

@@ -1586,4 +1586,47 @@ release_vector example）——与真证明测试同一资源需求。
   的 CI 周期；命令链中 `cargo fmt --check` 必须用 `&&` 连接（一次 `;` 漏网
   浪费一整轮）。
 
+### A.17.6 第十六轮补记：本地真证明收官（2026-10-24 下午）
+
+选择本地路线后，环境修复与真证明在同一会话内完成：
+
+**Docker 复活（三层障碍，全部实测定位）**：
+
+1. **卡死的 AF_UNIX reparse point**（9 月非正常关机遗留）：Windows 侧一切
+   删除手段全部失败（File.Delete / `\\?\` 前缀 / fsutil reparsepoint delete /
+   停 wslservice——icacls 显示有权限仍 Access denied），**唯一有效路径是从
+   WSL 内经 /mnt/c 用 rm 删除**（9p 反向通道绕过 Windows 侧 reparse 过滤）。
+   Docker Desktop 每次启动死在 rename 旧 socket（"starting services" 崩溃）。
+2. 清理后 Electron GUI 进入崩溃循环（exit 0x80000003，`--disable-gpu` 无效）
+   ——连带引擎下线，Docker Desktop 在本机不可用。
+3. **解法：绕开 Docker Desktop**——Ubuntu 24.04 WSL 的 systemd 在跑，
+   以 `wsl -u root` 安装 docker-ce（先删 Docker Desktop 集成残留的
+   `/usr/bin/docker` 死符号链接 + `dpkg --configure -a` + 清
+   `~/.docker/config.json` 的 `docker-credential-desktop` 凭据助手），
+   `systemctl enable --now docker` → Engine 29.9.2 in-WSL。
+
+**SP1 工具链**（照抄 build.yml 钉值）：cargo-prove 6.2.1（SHA 校验）+
+`prove install-toolchain` + 钉住的 SP1/GNARK Docker 镜像拉取。WSL 资源
+70 GiB / 24 CPU（CI 标准 runner 16 GB——OOM 根因）。
+
+**本地验证结果（全程 CI 同款节流 env，保真）**：
+
+| 阶段 | 结果 |
+|---|---|
+| 1. `cargo build` host（build.rs Docker 可复现 guest 构建 + 双 pin 校验） | ✓ **pin 与 CI actuals 刷新值逐字节一致** |
+| 2. `end_to_end` 两个 ignored 真证明测试 | ✓ `prove_and_verify_real_zk_proof` / `verify_rejects_mismatched_public_input_hash` 全过（2732.9s，峰值 RSS 23.1 GiB——CI 16 GB 跑机的死亡点被直接越过） |
+| 3. `generate_groth16_release_vector`（真证明 + 原子写） | ✓ 新向量 `guestElfSha256=210022e2...`（旧 `a5ece1f5...` 退役），356B Groth16 证明 |
+| 4. gateway 真递归 release gate | ✓ `proves_and_host_verifies_real_recursive_gateway_groth16` 通过（5037.5s；gateway host 构建含双 guest Docker 构建 + 三 pin 校验全过） |
+| 5. 再生向量的钉住测试回归 | ✓ `committed_vector_verifies_against_current_guest_and_witness` 通过 + guest 套件 19/19 |
+
+至此第十五轮 A.17.4 的「剩余一码」闭合：**审计期间发现的全部缺陷（含 VM 方言
+分叉）在真实 SP1 Groth16/递归证明下端到端验证通过**。CI 侧：push 车道应保持
+全绿，workspace-release 车道的向量断言将随本提交转绿；两个真证明 lane 在
+标准 16 GB runner 上仍不可完成（记录性质变为「资源上限，非代码缺陷」——
+需要组织级内存型 runner，或以本轮的本地流程为准）。
+
+**第十六轮环境教训**：PowerShell→wsl.exe 的内联命令必被转义搅局、Git Bash
+的 wsl.exe 调用必被路径转换破坏——**只有 `wsl -e bash <脚本文件>` 可靠**；
+Windows 侧删不掉的 reparse point 从 WSL 内 /mnt/c 删。
+
 

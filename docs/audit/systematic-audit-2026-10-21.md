@@ -1532,3 +1532,58 @@ cargo audit 漏洞 0（ruzstd 一项 ignore，信息性警告 3 项同簇）· n
 真证明 release gates 于 2026-10-23 20:00 UTC 以 workflow_dispatch 首次在修复后的
 master 上触发，验证结果见后续记录。
 
+## A.17 第十五轮：release-gate 洋葱——pin 传播链与六个从未编译的站点
+
+2026-10-24。上轮的四工作流全绿只覆盖 push 车道；真证明 release gates
+（workflow_dispatch / 夜间专属）在这些修复后首次运行，又剥出一整层洋葱。
+夜间调度历史核对：自 10-19 起每夜 40 秒内失败——**这些车道在 CI 上从未完成过**。
+
+### A.17.1 修复清单（十一个提交，全部依据 CI 实测输出）
+
+| 类别 | 内容 |
+|---|---|
+| MSRV | `serial_test`/`serial_test_derive` 4.0.1（被合入的 Dependabot bump）要求 rustc 1.93.1，SP1 车道钉 1.88.0 → 双双降到 4.0.0（**主 crate 与 proc-macro companion 必须分别降**；WSL 1.88 `cargo metadata` 验证） |
+| fmt/clippy 债 | fmt 与 clippy `-D warnings` 只在 workspace-release lane 跑且从未跑完 → 20 文件格式漂移 + 9 处真实 lint（Layout C 编码器八参数定向 allow——参数即线字段；恒等转换×5；needless borrow；collapsible if；unused import；assertions_on_constants → 编译期 const 断言） |
+| batch 双 pin | witness 方言修复改变了编译进 guest 的 execution-core → ELF SHA+VK 双 pin 失配。**改进 build.rs：先派生 VK 再比较，单次 panic 同时报两个 actual**（原流程需两轮失败 CI）；actual 即刷新来源 |
+| pin 传播链 | gateway guest 程序**内嵌** batch VK（batch_vk_manifest.rs → build.rs 生成常量 → 编译进程序）→ 刷新 batch pin 连锁改变 gateway 程序 → gateway ELF/VK pin 二轮刷新（words 先行，gateway actual 次轮报出后写入）。链已闭合：witness 修复 → batch ELF → batch VK(bytes32+words) → gateway 程序 → gateway ELF/VK |
+| 从未编译的站点 ×6 | prove_batch.rs（encode_child_sidecar 缺 forced_inclusion_count 第 7 参；verify 的 Vec→&[u8;32]）、prove_gateway.rs（DaemonConfig 缺队列两字段 + consts 未导入）、daemon.rs（warn! 宏未导入）、groth16_release_vector.rs（vkey Vec）、lib.rs 内联单测 ×2（verify 先查 VK pin，零 VK 触发的是 pin 错误；常量断言） |
+| 第三处方言 | `generate_stateful_fixture.rs`（example 生成器）仍在产标准 N3 形状——走 example 再生 fixture 会静默回归方言分叉。已改 fork 方言（手搓点全仓共四处，全部清除） |
+
+### A.17.2 环境事故与恢复
+
+D: 盘 100% 满（连脚本都写不进）→ 清仓库自身 target/debug + elf-compilation +
+flycheck0（SP1 构建缓存是大头）释放 **263.5 GB**。MSBuild Copy 间歇崩溃未因此
+消失——独立环境 bug。本轮全程以 CI 为权威验证（约十轮 dispatch 循环，每轮
+都有决定性输出）。
+
+### A.17.3 真证明 = 标准 runner 资源上限（8 次一致观测，定性）
+
+`prove_and_verify_real_zk_proof`（host end_to_end）与 gateway
+`real_recursive_release_gate` 两个真证明测试，**每次**都在进入证明阶段后
+~9-10 分钟被 "The runner has received a shutdown signal" 杀死（job 超时 120 分钟
+远未触及；非测试失败；证明栈本身健康——gateway 递归证明第一次真跑就进入
+实际证明阶段跑了 35 分钟）。定性：SP1 Groth16/递归证明耗尽标准 runner 内存，
+OOM killer 击杀 runner 代理。代码侧无可修。
+
+### A.17.4 剩余一码：Groth16 释放向量
+
+`tests/fixtures/sp1-groth16-positive-vector-v1.json` 钉死生成时的 guest ELF SHA
+（`a5ece1f5...`）；guest 变更后 `committed_vector_verifies_against_current_guest_
+and_witness` 按设计报旧值。再生需要**一次成功的真证明**（generate_groth16_
+release_vector example）——与真证明测试同一资源需求。
+
+### A.17.5 第十五轮终态
+
+- push 车道四工作流全绿（每轮提交均确认）
+- release-gate 车道代码侧全绿：Docker 可复现构建 ✓ fmt ✓ clippy ✓ pin 链闭合 ✓
+  全 workspace 测试套件 ✓（除下项）
+- 待一次有足够资源的真证明运行：向量再生 + 两个真证明测试验证。
+  两条出路（需项目决策）：① 本地 WSL + Docker Desktop（GUI 首次确认待办）
+  按 build.rs 的 pin 流程再生向量并本地跑真证明；② 组织级配置更大 GitHub
+  runner（内存型）让 release lane 在 CI 完成。
+- 第十五轮方法论沉淀：**「从未编译过的站点」要主动全仓清点**（grep 全部
+  调用点对签名），不能等 CI 一轮轮喂——本轮六个站点每个都吃掉 25-50 分钟
+  的 CI 周期；命令链中 `cargo fmt --check` 必须用 `&&` 连接（一次 `;` 漏网
+  浪费一整轮）。
+
+

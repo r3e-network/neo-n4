@@ -706,16 +706,15 @@ jobs:
           # appears via backtrace's debug-symbol loading; the bridge never feeds
           # untrusted zstd to it. Resolves with the next sp1-sdk bump.
           # RUSTSEC-2026-0387 (crypto-bigint constant-time violations, published
-          # 2026-10-23; fix only in >=0.7.6): crypto-bigint 0.5.5 is required by
-          # elliptic-curve 0.13.x, which is pinned twice-over — p256 0.13.2
-          # (neo-n4-sdk signing stack) and sp1-curves 6.2.1 (upstream-blocked:
-          # same sp1 6.2.1 cluster as ruzstd/lru/p3-challenger). Clearing the
-          # advisory from the lockfile needs elliptic-curve 0.14+ on EVERY path,
-          # so it resolves with the sp1-sdk bump; the SDK's own p256 0.13->0.14
-          # upgrade is a tracked follow-up (production signing stack, deserves
-          # its own round). Exposure meanwhile: p256 ECDSA in the local SDK/CLI
-          # signer — a timing side channel that requires measuring the signing
-          # process locally, not a remote-input path.
+          # 2026-10-23; fix only in >=0.7.6): after the SDK-side cleanup the
+          # lockfile's ONLY remaining 0.5.5 chain is sp1-curves 6.2.1 ->
+          # elliptic-curve 0.13.x -> crypto-bigint 0.5.5 (upstream-blocked, same
+          # sp1 6.2.1 cluster as ruzstd/lru/p3-challenger; clears with the
+          # sp1-sdk bump). The SDK's p256 is a dev-only conformance verifier
+          # (not a production signing path) and now uses p256 0.14 ->
+          # crypto-bigint 0.7.6 with the constant-time fixes. Residual exposure
+          # is the SP1 prover's own arithmetic inside the proving stack, not an
+          # SDK secret-handling path.
           # cargo-audit 0.22 has no audit.toml discovery in --file mode, so the
           # ignore is passed as a CLI flag (applies to every lockfile in the loop).
           for lockfile in \

@@ -90,11 +90,10 @@ pub fn enforce_batch_gas_limit(total_gas: u64) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn default_limits_are_sane() {
-        assert_eq!(DEFAULT_MEMORY_LIMIT_BYTES, 4 * 1024 * 1024 * 1024);
-        assert!(DEFAULT_BATCH_GAS_LIMIT > 0);
-    }
+    // Compile-time invariants (the values are consts; a runtime #[test] assert on
+    // them would be optimized out and flagged by clippy::assertions_on_constants).
+    const _: () = assert!(DEFAULT_MEMORY_LIMIT_BYTES == 4 * 1024 * 1024 * 1024);
+    const _: () = assert!(DEFAULT_BATCH_GAS_LIMIT > 0);
 
     #[test]
     fn batch_gas_limit_rejects_runaway_batches() {

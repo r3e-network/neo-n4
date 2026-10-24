@@ -16,7 +16,7 @@ use std::{
     sync::atomic::{AtomicBool, AtomicU64, Ordering},
     time::Duration,
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);

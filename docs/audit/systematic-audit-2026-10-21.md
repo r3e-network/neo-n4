@@ -1629,4 +1629,34 @@ release_vector example）——与真证明测试同一资源需求。
 的 wsl.exe 调用必被路径转换破坏——**只有 `wsl -e bash <脚本文件>` 可靠**；
 Windows 侧删不掉的 reparse point 从 WSL 内 /mnt/c 删。
 
+### A.17.7 第十七轮：依赖分诊与 guest pin 耦合铁律（2026-10-24 晚）
+
+对 7 个 Dependabot PR 做实测分诊（不是看 changelog 拍脑袋——每个都实际构建
+并用本地 Docker 重建校验 guest ELF pin），确立**升级与 pin 的耦合铁律**：
+
+| PR | 处置 | 实测依据 |
+|---|---|---|
+| #95/#94 vitest | 关闭（superseded） | sdk/typescript 已 ^4.1.12，高于 PR 的 4.1.11，npm audit 0 |
+| #90 sp1-verifier 6.5.0 | 关闭（pin 冲突） | =6.2.1 硬 pin 与 Docker/gnark 镜像 digest 绑定，只能整簇升 |
+| #93 tokio | **保留升级 1.54.1** | 不在 guest 树；含 RUSTSEC-2026-0386 修复（PR 的 1.53.1 不够） |
+| #92 thiserror | **回退** | 2.0.18→2.0.21 实测改变 guest ELF（proc-macro 补丁也动产物） |
+| #91 num-bigint | **回退** | 0.5 下 execution-core 49/49 仍绿，但 guest 内嵌它 → ELF 变 |
+| #89 rand | **删依赖** | watcher 声明 rand 但全仓零使用；剩余 rand 0.9.5 不进 guest |
+
+**铁律（本地 pin 校验发现的隐蔽耦合）**：SDK p256 0.13→0.14 的升级也回退了
+——0.14 新树要求 hybrid-array≥0.4.13，cargo 版本统一把 **guest 旧树的共享
+依赖**也抬高，ELF 照样变。**被升级的包不在 guest 树 ≠ 不影响 guest**。
+且 CI 快速 lane 对 pin 失配无感（不重建 ELF）：p256 升级提交在 CI「全绿」，
+若不回退，夜间 release 调度才会炸——本地 pin 校验（~1-8 分钟）提前拦截。
+
+净结果：tokio 1.54.1（清一条 unsound 警告）+ rand 0.9.5 + 未用依赖删除，
+pin 复验绿，push 五工作流全绿（0185c4aa）。guest 树的升级统一并入
+sp1 pin 刷新窗口（ELF→VK→gateway→向量→合约链一次刷 + 真证明）。
+
+**release 车道里程碑**：本轮 dispatch 复验中 **SP1 workspace release 首次全过**
+（1h5m9s——Docker 可复现构建 / fmt / clippy / 全 workspace 测试套件 /
+再生向量断言全绿）。两个真证明 lane 仍为标准 16 GB runner 的 OOM 上限
+（27m39s / 35m26s，与历史八次完全一致的时间窗），本地已验证通过——
+release 车道的代码侧至此无任何已知缺陷，剩余仅为 runner 资源规格问题。
+
 

@@ -1,4 +1,7 @@
-use neo_zkvm_gateway_host::{DaemonConfig, build_manifest_json, run_daemon};
+use neo_zkvm_gateway_host::{
+    DEFAULT_MAX_QUEUE_BYTES, DEFAULT_MAX_QUEUE_TASKS, DaemonConfig, build_manifest_json,
+    run_daemon,
+};
 use std::{path::PathBuf, time::Duration};
 use tracing::error;
 

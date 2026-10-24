@@ -364,7 +364,9 @@ mod tests {
     #[test]
     fn verify_rejects_noncanonical_artifact_lengths_before_crypto() {
         let hash = [0u8; 32];
-        let error = verify(&[0; 355], &[0; 32], &hash).unwrap_err();
+        // verify() rejects a non-pinned VK before anything else, so the length
+        // path is only reachable with the real pinned VK in hand.
+        let error = verify(&[0; 355], &NEO_ZKVM_GUEST_VK_BYTES32, &hash).unwrap_err();
         assert!(error.contains("must be 356 bytes"));
         // A wrong-size VK is no longer representable: the signature takes
         // &[u8; 32], so the length check the 31-byte case exercised is now
